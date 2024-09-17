@@ -31,7 +31,7 @@
             <div class="col-sm-12">
                 <section class="header">
                     <nav>
-                        <a href="index.php"><img src="../Images\CeleratusLogo.png" alt="Celeratus Running"
+                        <a href="index.php"><img src="../Images\StrideBRLogo.png" alt="StrideBR"
                                 class="logoCR"></a>
                         <div class="dropdown">
                             <button class="dropbtn">Painel principal<i class="uil uil-angle-down"></i></button>

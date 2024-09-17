@@ -52,7 +52,7 @@
             <div class="col-sm-12">
                 <section class="intro">
                     <h1>StrideBR<h1>
-                            <h4>O amigo do corredor</h4>
+                            <h4>O amigo do atleta</h4>
                 </section>
             </div>
         </div>
