@@ -89,7 +89,7 @@ $logado = $estalogado ? $_SESSION['UNome'] : null;
     <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.0/css/line.css">
     <link rel="stylesheet" href="../css/atividades.css">
     <link rel="stylesheet" href="../css/style.css">
-    <title>Celeratus</title>
+    <title>StrideBR</title>
 </head>
 
 <body>
@@ -98,7 +98,7 @@ $logado = $estalogado ? $_SESSION['UNome'] : null;
             <div class="col-sm-12">
                 <section class="header">
                     <nav>
-                        <a href="../index.php"><img src="../images/CeleratusLogo.png" alt="Celeratus Running"
+                        <a href="../index.php"><img src="../images/StrideBRLogo.png" alt="StrideBR"
                                 class="logoCR"></a>
                         <div class="dropdown">
                             <button class="dropbtn">Início<i class="uil uil-angle-down"></i></button>
@@ -117,7 +117,7 @@ $logado = $estalogado ? $_SESSION['UNome'] : null;
                         <div class="dropdown">
                             <button class="dropbtn">Ajuda<i class="uil uil-angle-down"></i></button>
                             <div class="dropdown-content">
-                                <a href="" class="NavItem">Suporte Celeratus</a>
+                                <a href="" class="NavItem">Suporte StrideBR</a>
                                 <a href="" class="NavItem">FAQ</a>
                             </div>
                         </div>

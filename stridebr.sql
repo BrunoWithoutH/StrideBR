@@ -1,55 +1,40 @@
-CREATE TABLE `usuarios` (
-  `ID` int(11) NOT NULL,
-  `Nome` varchar(255) NOT NULL,
-  `Sobrenome` varchar(255) NOT NULL,
-  `Email` varchar(255) NOT NULL,
-  `Senha` varchar(16) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+CREATE DATABASE if not exists stridebr;
 
-CREATE TABLE `atividades_fisicas`(
-  `id` int(11) NOT NULL,
-  `usuario_id` int(11) NOT NULL,
-  `tipo_atividade` varchar(255) NOT NULL,
-  `data_atividade` date NOT NULL COMMENT 'yyy-mm-',
-  `hora_atividade` time DEFAULT NULL,
-  `duracao` int(11) DEFAULT NULL,
-  `distancia` decimal(5,2) DEFAULT NULL,
-  `calorias` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+USE stridebr;
 
-CREATE TABLE `cronograma_treinos` (
-  `id_cronograma` int(11) NOT NULL,
-  `usuario_id` int(11) NOT NULL,
-  `dia_semana` enum('Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado') NOT NULL,
-  `periodo` enum('Manhã','Tarde','Noite') NOT NULL,
-  `treino` text NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+CREATE TABLE if not exists usuarios (
+  IdUsuario INT(11) NOT NULL AUTO_INCREMENT UNIQUE,
+  NomeUsuario varchar(255) NOT NULL,
+  SobrenomeUsuario varchar(255) NOT NULL,
+  EmailUsuario varchar(255) NOT NULL,
+  SenhaUsuario varchar(16) NOT NULL,
 
-ALTER TABLE `atividades_fisicas`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `usuario_id` (`usuario_id`);
+  PRIMARY KEY (IdUsuario)
+)
 
-ALTER TABLE `cronograma_treinos`
-  ADD PRIMARY KEY (`id_cronograma`),
-  ADD UNIQUE KEY `usuario_id` (`usuario_id`,`dia_semana`,`periodo`),
-  ADD UNIQUE KEY `usuario_id_2` (`usuario_id`,`dia_semana`,`periodo`),
-  ADD UNIQUE KEY `usuario_id_3` (`usuario_id`,`dia_semana`,`periodo`);
+CREATE TABLE if not exists atividades_fisicas(
+  IdAtividade INT(11) NOT NULL AUTO_INCREMENT UNIQUE,
+  IdUsuario INT(11) NOT NULL,
+  TipoAtividade varchar(255) NOT NULL,
+  DataAtividade date NOT NULL COMMENT 'dd-mm-aaaa',
+  HoraAtividade time DEFAULT NULL,
+  DuracaoAtividade INT(11) DEFAULT NULL,
+  DistanciaAtividade decimal(5,2) DEFAULT NULL,
+  CaloriasAtividade INT(11) DEFAULT NULL,
 
-ALTER TABLE `usuarios`
-  ADD PRIMARY KEY (`ID`);
+  PRIMARY KEY (IdAtividade),
 
-ALTER TABLE `atividades_fisicas`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  FOREIGN KEY (IdUsuario) REFERENCES usuarios(IdUsuario)
+)
 
-ALTER TABLE `cronograma_treinos`
-  MODIFY `id_cronograma` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=22;
+CREATE TABLE if not exists cronograma_treinos (
+  IdCronograma INT(11) NOT NULL AUTO_INCREMENT UNIQUE,
+  IdUsuario INT(11) NOT NULL,
+  DiaSemanaCronograma enum('Domingo','Segunda','Terça','Quarta','Q INTa','Sexta','Sábado') NOT NULL,
+  TurnoCronograma enum('Manhã','Tarde','Noite') NOT NULL,
+  TextoCronograma text NOT NULL,
 
-ALTER TABLE `usuarios`
-  MODIFY `ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  PRIMARY KEY (IdCronograma),
 
-ALTER TABLE `atividades_fisicas`
-  ADD CONSTRAINT `atividades_fisicas_ibfk_1` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`ID`) ON DELETE CASCADE;
-
-ALTER TABLE `cronograma_treinos`
-  ADD CONSTRAINT `cronograma_treinos_ibfk_1` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`ID`) ON DELETE CASCADE;
-COMMIT;
+  FOREIGN KEY (IdUsuario) REFERENCES usuarios(IdUsuario)
+)
