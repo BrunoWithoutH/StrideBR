@@ -18,8 +18,8 @@ foreach ($dias_semana as $dia) {
         $campo = $dia . "_" . $periodo;
         if (isset($_POST[$campo])) {
             $treino = $_POST[$campo];
-            $sql_insert = "INSERT INTO cronograma_treinos (usuario_id, dia_semana, periodo, treino) VALUES (?, ?, ?, ?)
-                           ON DUPLICATE KEY UPDATE treino=VALUES(treino)";
+            $sql_insert = "INSERT INTO cronograma_treinos (IdUsuario, DiaSemanaCronograma, TurnoCronograma, TextoCronograma) VALUES (?, ?, ?, ?)
+                           ON DUPLICATE KEY UPDATE TextoCronograma=VALUES(TextoCronograma)";
             $stmt_insert = $conn->prepare($sql_insert);
             if ($stmt_insert) {
                 $stmt_insert->bind_param("isss", $user_id, $dia, $periodo, $treino);

@@ -3,13 +3,13 @@
     include_once("../function/config.php");
 
     // Verifica se o usuário está logado
-    if (!isset($_SESSION['UEmail'])) {
+    if (!isset($_SESSION['EmailUsuario'])) {
         header('Location: ../login.php');
         exit;
     }
 
-    $email = $_SESSION['UEmail'];
-    $sql = "SELECT ID FROM usuarios WHERE Email = '$email'";
+    $email = $_SESSION['EmailUsuario'];
+    $sql = "SELECT ID FROM usuarios WHERE EmailUsuario = '$email'";
     $result = $conexao->query($sql);
 
     if ($result->num_rows > 0) {
@@ -29,7 +29,7 @@
     $atividade_id = $_GET['id'];
 
     // Exclui a atividade do banco de dados
-    $sql = "DELETE FROM atividades_fisicas WHERE id = '$atividade_id' AND usuario_id = '$usuario_id'";
+    $sql = "DELETE FROM atividades_fisicas WHERE IdAtividade = '$atividade_id' AND usuario_id = '$usuario_id'";
 
     if ($conexao->query($sql) === TRUE) {
         header('Location: ../user/atividades.php');

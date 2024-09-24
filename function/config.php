@@ -1,8 +1,14 @@
 <?php
-    $dbHost = 'localhost';
-    $dbUsername = 'root';
-    $dbPassword = '';
-    $dbName = 'stridebr';
+$servername = "localhost";
+$username = "root";
+$password = "";
+$dbname = "stridebr";
 
-    $conexao = new mysqli($dbHost, $dbUsername, $dbPassword, $dbName);
+// Cria a conexão
+$conexao = new mysqli($servername, $username, $password, $dbname);
+
+// Verifica a conexão
+if ($conexao->connect_error) {
+    die("Conexão falhou: " . $conexao->connect_error);
+}
 ?>
