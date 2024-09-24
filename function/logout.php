@@ -1,6 +1,6 @@
 <?php
     session_start();
-    unset($_SESSION['UEmail']);
-    unset($_SESSION['USenha']);
+    unset($_SESSION['EmailUsuario']);
+    unset($_SESSION['SenhaUsuario']);
     header("Location: ../index.php");
 ?>
