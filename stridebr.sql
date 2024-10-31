@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
   SobrenomeUsuario VARCHAR(255) NOT NULL,
   EmailUsuario VARCHAR(255) NOT NULL,
   SenhaUsuario VARCHAR(16) NOT NULL,
+  DataNascimentoUsuario DATE NOT NULL,
 
   PRIMARY KEY (IdUsuario)
 );
@@ -17,7 +18,7 @@ CREATE TABLE IF NOT EXISTS atividades_fisicas (
   IdUsuario INT(11) NOT NULL,
   TituloAtividade VARCHAR(255),
   EsporteAtividade VARCHAR(255) NOT NULL,
-  EstiloAtividade ENUM('Leve', 'Moderado', 'Intenso') NOT NULL,
+  RitmoAtividade ENUM('Leve', 'Moderado', 'Intenso') NOT NULL,
   DataHoraAtividade DATETIME NOT NULL,
   DuracaoAtividade INT(11) DEFAULT NULL,
   DistanciaAtividade DECIMAL(5,2) DEFAULT NULL,
