@@ -82,12 +82,12 @@ $user = $estalogado ? $_SESSION['UNome'] : null;
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/png" href="favicons/fav.png">
+    <link rel="icon" type="image/png" href="assets/img/favicons/fav.png">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
         integrity="sha384-QWTKZyjpPEjISv5WaRU90FeRpokÿmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.0/css/line.css">
-    <link rel="stylesheet" href="../css/atividades.css">
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../assets/css/atividades.css">
+    <link rel="stylesheet" href="../assets/css/style.css">
     <title>StrideBR</title>
 </head>
 
@@ -97,13 +97,13 @@ $user = $estalogado ? $_SESSION['UNome'] : null;
             <div class="col-sm-12">
                 <section class="header">
                     <nav>
-                        <a href="../index.php"><img src="../images/StrideBRLogo.png" alt="StrideBR"
+                        <a href="../index.php"><img src="../assets/img/StrideBRLogo.png" alt="StrideBR"
                                 class="logoCR"></a>
                         <div class="dropdown">
                             <button class="dropbtn">Início<i class="uil uil-angle-down"></i></button>
                             <div class="dropdown-content">
                                 <a href="../home.php" class="NavItem">Painel principal</a>
-                                <a href="../calendario.php" class="NavItem">Calendário de corridas</a>
+                                <a href="calendario.php" class="NavItem">Calendário de corridas</a>
                             </div>
                         </div>
                         <div class="dropdown">
@@ -123,7 +123,7 @@ $user = $estalogado ? $_SESSION['UNome'] : null;
                         <div class="usersection">
                             <?php if ($estalogado): ?>
                                 <div class="dropdown" style="float:right;">
-                                    <button class="dropbtnimg"><img class="userimage" src="../Images/userdefault.svg" alt="Usuário"></button>
+                                    <button class="dropbtnimg"><img class="userimage" src="../assets/img/userdefault.svg" alt="Usuário"></button>
                                     <div class="dropdown-content" style="right: 0;">
                                         <a href="" class="NavItem">Configurações</a>
                                         <a href="../function/logout.php">Sair</a>
@@ -232,7 +232,7 @@ $user = $estalogado ? $_SESSION['UNome'] : null;
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-    <script src="../js/atividades.js"></script>
+    <script src="../assets/js/atividades.js"></script>
 </body>
 
 </html>

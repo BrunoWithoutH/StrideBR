@@ -90,12 +90,12 @@ $logado = $estalogado ? $_SESSION['NomeUsuario'] : null;
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/png" href="favicons/fav.png">
+    <link rel="icon" type="image/png" href="../assets/img/favicons/fav.png">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
         integrity="sha384-QWTKZyjpPEjISv5WaRU90FeRpokÿmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.0/css/line.css">
-    <link rel="stylesheet" href="../css/atividades.css">
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../assets/css/atividades.css">
+    <link rel="stylesheet" href="../assets/css/style.css">
     <title>Suas Atividades</title>
 </head>
 
@@ -105,7 +105,7 @@ $logado = $estalogado ? $_SESSION['NomeUsuario'] : null;
             <div class="col-sm-12">
                 <section class="header">
                     <nav>
-                        <a href="../index.php"><img src="../images/StrideBRLogo.png" alt="StrideBR" class="logoSTBR"></a>
+                        <a href="../index.php"><img src="../assets/img/StrideBRLogo.png" alt="StrideBR" class="logoSTBR"></a>
                         <div class="dropdown">
                             <button class="dropbtn">Início<i class="uil uil-angle-down"></i></button>
                             <div class="dropdown-content">
@@ -130,7 +130,7 @@ $logado = $estalogado ? $_SESSION['NomeUsuario'] : null;
                         <div class="usersection">
                             <?php if ($estalogado): ?>
                                 <div class="dropdown" style="float:right;">
-                                    <button class="dropbtnimg"><img class="userimage" src="../Images/userdefault.svg" alt="Usuário"></button>
+                                    <button class="dropbtnimg"><img class="userimage" src="../assets/img/userdefault.svg" alt="Usuário"></button>
                                     <div class="dropdown-content" style="right: 0;">
                                         <a href="" class="NavItem">Configurações</a>
                                         <a href="../function/logout.php">Sair</a>
@@ -262,12 +262,12 @@ $logado = $estalogado ? $_SESSION['NomeUsuario'] : null;
                                 <h3><?php echo htmlspecialchars($row['EsporteAtividade']); ?></h3>
                                 <p>Data: <?php echo htmlspecialchars(formatar_data($row['DataHoraAtividade'])); ?></p>
                                 <?php if ($row['HoraAtividade'] != 0): ?>
-                                    <p>Hora: <?php echo htmlspecialchars($row['Hora$HoraAtividade']); ?></p>
+                                    <p>Hora: <?php echo htmlspecialchars($row['$HoraAtividade']); ?></p>
                                 <?php else: ?>
                                     <p>Hora: não informado</p>
                                 <?php endif; ?>
                                 <?php if ($row['DuracaoAtividade'] != 0): ?>
-                                    <p>Duração: <?php echo htmlspecialchars($row['dura$durAtividade']); ?> minutos</p>
+                                    <p>Duração: <?php echo htmlspecialchars($row['$durAtividade']); ?> minutos</p>
                                 <?php else: ?>
                                     <p>Duração: não informado</p>
                                 <?php endif; ?>
@@ -294,7 +294,7 @@ $logado = $estalogado ? $_SESSION['NomeUsuario'] : null;
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-    <script src="../js/atividades.js"></script>
+    <script src="../assets/js/atividades.js"></script>
 </body>
 
 </html>
