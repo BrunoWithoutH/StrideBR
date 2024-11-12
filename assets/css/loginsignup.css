@@ -2,9 +2,10 @@ header {
     position: relative;
     top: 10px;
     text-align: center;
-    .logoCR {
+    .logoSTBR {
+        fill: #000;
         position: relative;
-        height: 30px;
+        height: 50px;
         width: auto;
         top: 5px;
         margin-bottom: 10px;

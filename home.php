@@ -4,7 +4,7 @@
 
     // Verifica a sessão do Usuário
     if (!isset($_SESSION['UEmail'])) {
-        $_SESSION['previous_page'] = "../user/cronogramatreinos.php";
+        $_SESSION['previous_page'] = "home.php";
         header('Location: login.php');
         exit;
     }
@@ -17,11 +17,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/png" href="favicons/fav.png">
+    <link rel="icon" type="image/png" href="assets/img/favicons/fav.png">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
         integrity="sha384-QWTKZyjpPEjISv5WaRU90FeRpokÿmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.0/css/line.css">
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="assets/css/style.css">
     <title>StrideBR</title>
 </head>
 
@@ -31,8 +31,8 @@
             <div class="col-sm-12">
                 <section class="header">
                     <nav>
-                        <a href="index.php"><img src="images/StrideBRLogo.png" alt="StrideBR"
-                                class="logoCR"></a>
+                        <a href="index.php"><img src="assets/img/StrideBRLogo.png" alt="StrideBR"
+                                class="logoSTBR"></a>
                         <div class="dropdown">
                             <button class="dropbtn">Início<i class="uil uil-angle-down"></i></button>
                             <div class="dropdown-content">
@@ -57,7 +57,7 @@
                         <div class="usersection">
                             <?php if ($estalogado): ?>
                                 <div class="dropdown" style="float:right;">
-                                    <button class="dropbtnimg"><img class="userimage" src="images/userdefault.svg" alt="user"></button>
+                                    <button class="dropbtnimg"><img class="userimage" src="assets/img/userdefault.svg" alt="user"></button>
                                     <div class="dropdown-content" style="right: 0;">
                                         <a href="" class="NavItem">Configurações</a>
                                         <a href="function/logout.php">Sair</a>
