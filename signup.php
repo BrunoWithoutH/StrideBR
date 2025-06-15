@@ -1,17 +1,36 @@
 <?php
-if (isset($_POST["submit"])) { //Se o usuário submeteu o formulário
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 
-    if ($_POST["UCSenha"] == $_POST["USenha"]) { //Confirma a senha do usuário 
-        include_once("function/config.php");
+if (isset($_POST["submit"])) {
 
-        $UNome = ($_POST["UNome"]);
-        $USNome = ($_POST["USNome"]);
-        $UEmail = ($_POST["UEmail"]);
-        $USenha = ($_POST["USenha"]);
+    if ($_POST["UCSenha"] === $_POST["USenha"]) {
+        require_once("function/pg_config.php"); // deve conter a conexão PDO
 
-        $result = mysqli_query($conexao, "INSERT INTO usuarios(Nome, Sobrenome, Email, Senha) VALUES ('$UNome', '$USNome', '$UEmail', '$USenha')"); //Guarda os dados no Banco de Dados
-    } elseif ($_POST["UCSenha"] != $_POST["USenha"]) { 
-        echo "as senhas não coincidem";
+        $UNome = $_POST["UNome"];
+        $UEmail = $_POST["UEmail"];
+        $USenha = $_POST["USenha"];
+
+        $senhaHash = password_hash($USenha, PASSWORD_DEFAULT);
+
+        try {
+            $stmt = $pdo->prepare("INSERT INTO usuarios (Nomeusuario, Emailusuario, Senhausuario) VALUES (:nome, :email, :senha)");
+            $stmt->bindParam(':nome', $UNome);
+            $stmt->bindParam(':email', $UEmail);
+            $stmt->bindParam(':senha', $senhaHash);
+
+            if ($stmt->execute()) {
+                header('Location: login.php');
+                exit;
+            } else {
+                echo "Erro ao cadastrar usuário.";
+            }
+        } catch (PDOException $e) {
+            echo "Erro ao cadastrar usuário: " . $e->getMessage();
+        }
+    } else {
+        echo "As senhas não coincidem";
     }
 }
 ?>
@@ -47,10 +66,6 @@ if (isset($_POST["submit"])) { //Se o usuário submeteu o formulário
                     <form action="signup.php" method="POST">
                         <div class="input-field">
                             <input type="text" name="UNome" placeholder="Insira seu nome" required>
-                            <i class="uil uil-user"></i>
-                        </div>
-                        <div class="input-field">
-                            <input type="text" name="USNome" placeholder="Insira seu sobrenome" required>
                             <i class="uil uil-user"></i>
                         </div>
                         <div class="input-field">

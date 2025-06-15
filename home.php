@@ -1,18 +1,26 @@
 <?php
-    session_start();
-    include_once('function/config.php');
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 
+session_start();
+include_once('function/pg_config.php');
+// var_dump($_SESSION);
     // Verifica a sessão do Usuário
-    if (!isset($_SESSION['UEmail'])) {
-        $_SESSION['previous_page'] = "home.php";
+    if (isset($_SESSION['EmailUsuario']) || isset($_SESSION['SenhaUsuario'])) {
+        $estalogado = TRUE;
+        $user = $_SESSION['NomeUsuario'];
+    } else {
+        $_SESSION['previous_page'] = "../home.php";
         header('Location: login.php');
         exit;
-    }
-    $estalogado = isset($_SESSION['UEmail']) && isset($_SESSION['USenha']);
-    $user = $estalogado ? $_SESSION['UNome'] : null;
+        $estalogado = FALSE;
+    }   
+    
+    
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-br">
 
 <head>
     <meta charset="UTF-8">

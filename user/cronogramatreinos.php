@@ -1,12 +1,17 @@
 <?php
     session_start();
-    include_once("../function/config.php");
+    include_once("../function/pg_config.php");
 
-    // Verifica se o usuário está logado
-    if (!isset($_SESSION['UEmail'])) {
-        $_SESSION['previous_page'] = "user/cronogramatreinos.php"; // Caminho correto para a página atual
-        header('Location: ../login.php');
+    
+    // Verifica a sessão do Usuário
+    if (isset($_SESSION['EmailUsuario']) || isset($_SESSION['SenhaUsuario'])) {
+        $estalogado = TRUE;
+        $user = $_SESSION['NomeUsuario'];
+    } else {
+        $_SESSION['previous_page'] = "../user/cronogramatreinos.php";
+        header('Location: login.php');
         exit;
+        $estalogado = FALSE;
     }
 ?>
 <!DOCTYPE html>

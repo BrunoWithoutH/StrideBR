@@ -1,31 +1,41 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 session_start();
 
-if (isset($_POST['submit']) && !empty($_POST['EmailUsuario']) && !empty($_POST['SenhaUsuario'])) {
-    
-    include_once("config.php");
-    $EmailUsuario = $_POST["EmailUsuario"];
-    $SenhaUsuario = $_POST["SenhaUsuario"];
+if (isset($_POST['submit']) && !empty($_POST['UEmail']) && !empty($_POST['USenha'])) {
+    include_once("pg_config.php");
 
-    $sql = "SELECT * FROM usuarios WHERE EmailUsuario = '$EmailUsuario' AND SenhaUsuario = '$SenhaUsuario'";
-    $result = $conexao->query($sql);
+    $EmailUsuario = $_POST["UEmail"];
+    $SenhaUsuario = $_POST["USenha"];
 
-    if (mysqli_num_rows($result) < 1) { // Se os dados inseridos não coincidirem com o banco de dados
-        unset($_SESSION['EmailUsuario']);
-        unset($_SESSION['SenhaUsuario']);
-        header('Location: ../login.php');
-    } else { // Se os dados inseridos coincidirem com o banco de dados
-        $user = $result->fetch_assoc();
-        $_SESSION['EmailUsuario'] = $UEmail;
-        $_SESSION['SenhaUsuario'] = $USenha;
-        $_SESSION['NomeUsuario'] = $user['NomeUsuario'];
+    // Buscar usuário pelo email
+    $sql = "SELECT * FROM usuarios WHERE emailusuario = :email LIMIT 1";
+    $stmt = $pdo->prepare($sql);
+    $stmt->bindParam(':email', $EmailUsuario);
+    $stmt->execute();
 
-        // Redirecionar para a página anterior ou home.php se não houver uma página anterior
-        $redirectUrl = isset($_SESSION['previous_page']) ? $_SESSION['previous_page'] : '../home.php';
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    // Verifica se usuário existe e se a senha está correta
+    if ($user && password_verify($SenhaUsuario, $user['senhausuario'])) {
+        $_SESSION['EmailUsuario'] = $user['emailusuario'];
+        $_SESSION['NomeUsuario'] = $user['nomeusuario'];
+        $_SESSION['IdUsuario'] = $user['idusuario'];
+
+        // Redirecionar para a página anterior ou home
+        $redirectUrl = $_SESSION['previous_page'] ?? '/StrideBR/home.php';
+        unset($_SESSION['previous_page']);
         header('Location: ' . $redirectUrl);
+        exit();
+
+
+    } else {
+        echo "Credenciais inválidas.";
     }
 } else {
-    header("Location: ../login.php");
+    echo "Formulário incompleto.";
 }
-
 ?>

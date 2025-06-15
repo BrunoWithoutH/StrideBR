@@ -32,7 +32,7 @@ body{
     .dropbtn {
         background-color: #7380a3;
         color: white;
-        padding: 10px;
+        padding: 16px;
         border: none;
     }
 
@@ -89,11 +89,11 @@ body{
     .logoSTBR {
         display: flex;
         margin-left: -240px;
-        position: absolute;
+        position: relative;
         height: 30px;
         width: auto;
-        left: 15px;
-        top: 5px;
+        left: -240px;
+        margin-right: 10px;
     }
 }
 
