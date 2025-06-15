@@ -1,89 +1,97 @@
 <?php
-session_start();
-include_once("../function/config.php");
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 
-// Verifica se o usuário está logado
-if (!isset($_SESSION['EmailUsuario'])) {
-    $_SESSION['previous_page'] = "../user/atividades.php";
-    header('Location: ../login.php');
+session_start();
+require_once("../function/pg_config.php"); // Agora $pdo é a conexão PDO
+
+if (isset($_SESSION['EmailUsuario']) || isset($_SESSION['SenhaUsuario'])) {
+    $estalogado = true;
+    $user = $_SESSION['NomeUsuario'];
+} else {
+    $_SESSION['previous_page'] = "../user/cronogramatreinos.php";
+    header('Location: login.php');
     exit;
 }
 
 $EmailUsuario = $_SESSION['EmailUsuario'];
-$sql = "SELECT IdUsuario FROM usuarios WHERE EmailUsuario = '$EmailUsuario'";
-$result = $conexao->query($sql);
+$NomeUsuario = $_SESSION['NomeUsuario'] ?? '';
 
-if ($result->num_rows > 0) {
-    $row = $result->fetch_assoc();
-    $IdUsuario = $row['IdUsuario'];
-} else {
+$stmtUser = $pdo->prepare('SELECT idusuario FROM usuarios WHERE emailusuario = :email');
+$stmtUser->execute(['email' => $EmailUsuario]);
+$userRow = $stmtUser->fetch(PDO::FETCH_ASSOC);
+
+if (!$userRow) {
     echo "Erro: Usuário não encontrado.";
     exit;
 }
 
-// Processa o envio do formulário
+$IdUsuario = $userRow['idusuario'];
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $EsporteAtividade = $_POST['EsporteAtividade'];
     $EstiloAtividade = $_POST['EstiloAtividade'];
     $DataAtividade = $_POST['DataAtividade'];
     $HoraAtividade = $_POST['HoraAtividade'];
-    $DuracaoAtividade = !empty($_POST['DuracaoAtividade']) ? $_POST['DuracaoAtividade'] : NULL;
-    $DistanciaAtividade = !empty($_POST['DistanciaAtividade']) ? $_POST['DistanciaAtividade'] : NULL;
-    $PesoInseridoAtividade = isset($_POST['Peso']) ? $_POST['Peso'] : NULL;
-    $TituloAtividade = $_POST['EsporteAtividade'];
+    $DuracaoH = $_POST['duracao_horas'] ?? 0;
+    $DuracaoM = $_POST['duracao_minutos'] ?? 0;
+    $DuracaoS = $_POST['duracao_segundos'] ?? 0;
+    $DuracaoTotalMin = $DuracaoH * 60 + $DuracaoM + ($DuracaoS / 60);
+    $Distancia = $_POST['DistanciaAtividade'] ?? null;
+    $Peso = $_POST['Peso'] ?? null;
+    $TituloAtividade = $_POST['TituloAtividade'] ?? $EsporteAtividade;
 
-    // Valida a data e hora
     if (empty($DataAtividade)) {
         echo "<div class='alert alert-danger'>Erro: Data e hora são obrigatórios.</div>";
     } else {
-        // Formata a data para o banco de dados (Y-m-d)
         $DataAtividade = DateTime::createFromFormat('d/m/Y', $DataAtividade)->format('Y-m-d');
 
-        // Calcula as calorias se possível
-        $CaloriasAtividade = NULL;
-        if ($DuracaoAtividade && $DistanciaAtividade && $PesoInseridoAtividade) {
-            $VelocidadeMediaAtividade = ($DistanciaAtividade / $DuracaoAtividade) * 60;
-            $CaloriasAtividade = $VelocidadeMediaAtividade * $PesoInseridoAtividade * 0.0175 * $DuracaoAtividade;
+        $Calorias = null;
+        if ($Distancia && $Peso && $DuracaoTotalMin) {
+            $VelocidadeMedia = ($Distancia / $DuracaoTotalMin) * 60;
+            $Calorias = $VelocidadeMedia * $Peso * 0.0175 * $DuracaoTotalMin;
         }
 
-        // Protege contra injeções SQL
-        $EsporteAtividade = $conexao->real_escape_string($EsporteAtividade);
-        $EstiloAtividade = $conexao->real_escape_string($EstiloAtividade);
-        $HoraAtividade = $conexao->real_escape_string($HoraAtividade);
-        $DuracaoHrsAtividade = $conexao->real_escape_string($DuracaoHrsAtividade);
-        $DuracaoMinAtividade = $conexao->real_escape_string($DuracaoMinAtividade);
-        $DuracaoSegAtividade = $conexao->real_escape_string($DuracaoSegAtividade);
-        $DistanciaAtividade = $conexao->real_escape_string($DistanciaAtividade);
-        $UnidadeDistanciaAtividade = $conexao->real_escape_string($UnidadeDistanciaAtividade);
-        $CaloriasAtividade = $CaloriasAtividade ? $conexao->real_escape_string($CaloriasAtividade) : NULL;
+        $stmtInsert = $pdo->prepare("
+            INSERT INTO atividades
+                (idusuario, esporteAtividade, estiloatividade, dataatividade, horaatividade, duracaoatividade, distanciaatividade, caloriasatividade, tituloatividade) 
+            VALUES 
+                (:idusuario, :esporte, :estilo, :data, :hora, :duracao, :distancia, :calorias, :titulo)
+        ");
 
-        $sql = "INSERT INTO atividades_fisicas (IdUsuario, EsporteAtividade, EstiloAtividade, DataAtividade, HoraAtividade, DuracaoAtividade, DistanciaAtividade, CaloriasAtividade) 
-                    VALUES ('$IdUsuario', '$EsporteAtividade', '$EstiloAtividade', '$DataAtividade', '$HoraAtividade', '$DuracaoAtividade', '$DistanciaAtividade', '$CaloriasAtividade')";
+        $executado = $stmtInsert->execute([
+            'idusuario' => $IdUsuario,
+            'esporte' => $EsporteAtividade,
+            'estilo' => $EstiloAtividade,
+            'data' => $DataAtividade,
+            'hora' => $HoraAtividade,
+            'duracao' => $DuracaoTotalMin,
+            'distancia' => $Distancia,
+            'calorias' => $Calorias,
+            'titulo' => $TituloAtividade,
+        ]);
 
-        if ($conexao->query($sql) === TRUE) {
+        if ($executado) {
             header("Location: atividades.php");
             exit;
         } else {
-            echo "<div class='alert alert-danger'>Erro: " . $sql . "<br>" . $conexao->error . "</div>";
+            echo "<div class='alert alert-danger'>Erro ao inserir atividade.</div>";
         }
     }
 }
 
-// Função para formatar a data no formato dd/mm/yyyy
-function formatar_data($data)
-{
+function formatar_data($data) {
     $data_obj = DateTime::createFromFormat('Y-m-d', $data);
     return $data_obj ? $data_obj->format('d/m/Y') : $data;
 }
 
-// Obtém as atividades do banco de dados
-$sql = "SELECT * FROM atividades_fisicas WHERE IdUsuario = '$IdUsuario' ORDER BY DataAtividade DESC";
-$result = $conexao->query($sql);
+$stmtFetch = $pdo->prepare("SELECT * FROM atividades WHERE idusuario = :id ORDER BY dataatividade DESC");
+$stmtFetch->execute(['id' => $IdUsuario]);
+$result = $stmtFetch->fetchAll(PDO::FETCH_ASSOC);
 
-$estalogado = isset($_SESSION['EmailUsuario']) && isset($_SESSION['SenhaUsuario']);
-$logado = $estalogado ? $_SESSION['NomeUsuario'] : null;
+$logado = $estalogado ? $NomeUsuario : null;
 ?>
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 
@@ -148,7 +156,7 @@ $logado = $estalogado ? $_SESSION['NomeUsuario'] : null;
         </div>
         <div class="row">
             <h1 class="textcenter">Suas Atividades</h1>
-            <?php if ($result->num_rows > 0): ?>
+            <?php if (count($result) === 0): ?>
                 <p>Opa! Você ainda não possui atividades registradas.</p>
             <?php endif; ?>
             <button class="addbutton">Registrar atividade manualmente</button>
@@ -254,8 +262,8 @@ $logado = $estalogado ? $_SESSION['NomeUsuario'] : null;
         </div>
         <div class="row">
             <div class="col-sm-12 atividades textcenter">
-                <?php if ($result->num_rows > 0): ?>
-                    <?php while ($row = $result->fetch_assoc()): ?>
+                <?php if (count($result) > 0): ?>
+                    <?php foreach ($result as $row): ?>
                         <div class="col-sm-6 col-md-4 col-lg-3">
                             <div class="atividades_fisicas">
                                 <a href='editatividade.php?id=<?php echo $row['id']; ?>' title='Editar' class="uil uil-pen icon"></a>
@@ -279,10 +287,9 @@ $logado = $estalogado ? $_SESSION['NomeUsuario'] : null;
                                 <?php if ($row['calorias']): ?>
                                     <p>Gasto Calórico: ≈ <?php echo htmlspecialchars($row['calorias']); ?> cal</p>
                                 <?php endif; ?>
-
                             </div>
                         </div>
-                    <?php endwhile; ?>
+                    <?php endforeach; ?>
                 <?php endif; ?>
             </div>
         </div>

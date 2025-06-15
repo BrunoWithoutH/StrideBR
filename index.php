@@ -1,6 +1,6 @@
 <?php
 session_start();
-include_once('function/config.php');
+include('function/pg_config.php');
 
 $estalogado = isset($_SESSION['UEmail']) && isset($_SESSION['USenha']);
 ?>

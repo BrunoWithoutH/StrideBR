@@ -1,81 +1,93 @@
 <?php
 session_start();
-include_once("../function/config.php");
+require_once("../function/pg_config.php"); // Usando PDO agora
 
-// Verifica se o usuário está logado
 if (!isset($_SESSION['UEmail'])) {
     header('Location: ../login.php');
     exit;
 }
 
 $email = $_SESSION['UEmail'];
-$sql = "SELECT ID FROM usuarios WHERE Email = '$email'";
-$result = $conexao->query($sql);
+$stmt = $pdo->prepare("SELECT id FROM usuarios WHERE emailusuario = :email");
+$stmt->execute([':email' => $email]);
+$usuario = $stmt->fetch(PDO::FETCH_ASSOC);
 
-if ($result->num_rows > 0) {
-    $row = $result->fetch_assoc();
-    $usuario_id = $row['ID'];
-} else {
+if (!$usuario) {
     echo "Erro: Usuário não encontrado.";
     exit;
 }
+$usuario_id = $usuario['id'];
 
-// Verifica se um ID foi passado na URL
 if (!isset($_GET['id'])) {
     echo "Erro: ID de atividade não especificado.";
     exit;
 }
-
 $atividade_id = $_GET['id'];
 
-// Busca os dados da atividade no banco de dados
-$sql = "SELECT * FROM atividades_fisicas WHERE id = '$atividade_id' AND usuario_id = '$usuario_id'";
-$result = $conexao->query($sql);
+// Obter dados da atividade
+$stmt = $pdo->prepare("SELECT * FROM atividades_fisicas WHERE id = :id AND usuario_id = :usuario_id");
+$stmt->execute([
+    ':id' => $atividade_id,
+    ':usuario_id' => $usuario_id
+]);
+$atividade = $stmt->fetch(PDO::FETCH_ASSOC);
 
-if ($result->num_rows > 0) {
-    $atividade = $result->fetch_assoc();
-} else {
+if (!$atividade) {
     echo "Erro: Atividade não encontrada.";
     exit;
 }
 
-// Função para formatar data para o input
-function formatar_data_input($data)
-{
+function formatar_data_input($data) {
     $data_obj = DateTime::createFromFormat('Y-m-d', $data);
     return $data_obj ? $data_obj->format('Y-m-d') : $data;
 }
 
-// Processa o envio do formulário de edição
+// Processar atualização
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tipo_atividade = $_POST['tipo_atividade'];
     $data_atividade = $_POST['data_atividade'];
     $hora_atividade = $_POST['hora_atividade'];
-    $duracao = !empty($_POST['duracao']) ? $_POST['duracao'] : NULL;
-    $distancia = !empty($_POST['distancia']) ? $_POST['distancia'] : NULL;
-    $peso = isset($_POST['Peso']) ? $_POST['Peso'] : NULL;
+    $duracao = !empty($_POST['duracao']) ? $_POST['duracao'] : null;
+    $distancia = !empty($_POST['distancia']) ? $_POST['distancia'] : null;
+    $peso = !empty($_POST['Peso']) ? $_POST['Peso'] : null;
 
-    // Atualiza a atividade no banco de dados
-    $sql = "UPDATE atividades_fisicas SET 
-                        tipo_atividade = '$tipo_atividade', 
-                        data_atividade = '$data_atividade', 
-                        hora_atividade = '$hora_atividade', 
-                        duracao = '$duracao', 
-                        distancia = '$distancia', 
-                        calorias = '$calorias' 
-                    WHERE id = '$atividade_id' AND usuario_id = '$usuario_id'";
+    // Cálculo de calorias (exemplo simples — ajuste conforme necessidade)
+    $calorias = null;
+    if ($peso && $duracao) {
+        $calorias = round(($peso * 0.0175 * 8) * $duracao); // Exemplo baseado em MET
+    }
 
-    if ($conexao->query($sql) === TRUE) {
+    $update = $pdo->prepare("UPDATE atividades_fisicas SET
+        tipo_atividade = :tipo_atividade,
+        data_atividade = :data_atividade,
+        hora_atividade = :hora_atividade,
+        duracao = :duracao,
+        distancia = :distancia,
+        calorias = :calorias
+        WHERE id = :id AND usuario_id = :usuario_id");
+
+    $ok = $update->execute([
+        ':tipo_atividade' => $tipo_atividade,
+        ':data_atividade' => $data_atividade,
+        ':hora_atividade' => $hora_atividade,
+        ':duracao' => $duracao,
+        ':distancia' => $distancia,
+        ':calorias' => $calorias,
+        ':id' => $atividade_id,
+        ':usuario_id' => $usuario_id
+    ]);
+
+    if ($ok) {
         header("Location: atividades.php");
         exit;
     } else {
-        echo "Erro ao atualizar a atividade: " . $conexao->error;
+        echo "Erro ao atualizar a atividade.";
     }
 }
+
 $estalogado = isset($_SESSION['UEmail']) && isset($_SESSION['USenha']);
 $user = $estalogado ? $_SESSION['UNome'] : null;
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 
