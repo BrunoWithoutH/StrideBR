@@ -1,0 +1,14 @@
+# Arquivos de log e temporários
+*.log
+
+# Variáveis de ambiente e configs locais
+*.env
+
+# Arquivos de sistema
+.DS_Store
+Thumbs.db
+
+# Node.js e Composer
+node_modules/
+vendor/
+
