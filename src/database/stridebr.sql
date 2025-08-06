@@ -5,10 +5,12 @@
 CREATE TABLE IF NOT EXISTS usuarios (
     IdUsuario SERIAL PRIMARY KEY,
     NomeUsuario VARCHAR(255) NOT NULL,
-    EmailUsuario VARCHAR(255) NOT NULL UNIQUE,
+    EmailUsuario VARCHAR(255) NOT NULL,
     SenhaUsuario VARCHAR(255) NOT NULL,
     FoneUsuario VARCHAR(20),
-    NivelUsuario INT
+    DataNascimentoUsuario DATE NOT NULL,
+    DataRegistroUsuario TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    NivelUsuario INT DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS atividades (
@@ -17,10 +19,17 @@ CREATE TABLE IF NOT EXISTS atividades (
     TituloAtividade VARCHAR(255),
     EsporteAtividade VARCHAR(255) NOT NULL,
     RitmoAtividade VARCHAR(10) CHECK (RitmoAtividade IN ('Leve', 'Moderado', 'Intenso')),
-    DataHoraAtividade TIMESTAMP NOT NULL,
+    DataAtividade DATE NOT NULL,
+    HoraAtividade TIME NOT NULL,
+    DataHoraRegistroAtividade TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     DuracaoAtividade INT DEFAULT NULL,
     DistanciaAtividade DECIMAL(5,2) DEFAULT NULL,
+	UnidadeDistanciaAtividade VARCHAR(20);
+    ElevacaoAtividade DECIMAL(5,2) DEFAULT NULL,
+    VelocidadeMediaAtividade DECIMAL(5,2) DEFAULT NULL,
     PesoInseridoAtividade DECIMAL(5,2) DEFAULT NULL,
+    IndiceGastoCaloricoAtividade DECIMAL(5,2) DEFAULT NULL,
+    ObservacaoAtividade TEXT,
     CaloriasAtividade INT DEFAULT NULL,
     
     FOREIGN KEY (IdUsuario) REFERENCES usuarios(IdUsuario) ON DELETE CASCADE
@@ -35,4 +44,3 @@ CREATE TABLE IF NOT EXISTS cronogramas (
 
     FOREIGN KEY (IdUsuario) REFERENCES usuarios(IdUsuario) ON DELETE CASCADE
 );
-
