@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS atividades (
     DataHoraRegistroAtividade TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     DuracaoAtividade INT DEFAULT NULL,
     DistanciaAtividade DECIMAL(5,2) DEFAULT NULL,
-	UnidadeDistanciaAtividade VARCHAR(20);
+	UnidadeDistanciaAtividade VARCHAR(20),
     ElevacaoAtividade DECIMAL(5,2) DEFAULT NULL,
     VelocidadeMediaAtividade DECIMAL(5,2) DEFAULT NULL,
     PesoInseridoAtividade DECIMAL(5,2) DEFAULT NULL,
