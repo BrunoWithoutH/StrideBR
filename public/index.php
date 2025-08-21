@@ -1,6 +1,9 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 session_start();
-include('function/pg_config.php');
+include('../src/config/pg_config.php');
 
 $estalogado = isset($_SESSION['UEmail']) && isset($_SESSION['USenha']);
 ?>
