@@ -2,16 +2,17 @@
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
+require_once("../../src/config/pg_config.php");
 
 session_start();
-require_once("../function/pg_config.php"); // Agora $pdo é a conexão PDO
+
 
 if (isset($_SESSION['EmailUsuario']) || isset($_SESSION['SenhaUsuario'])) {
     $estalogado = true;
     $user = $_SESSION['NomeUsuario'];
 } else {
     $_SESSION['previous_page'] = "../user/cronogramatreinos.php";
-    header('Location: login.php');
+    header('Location: ../login.php');
     exit;
 }
 
