@@ -5,7 +5,7 @@ error_reporting(E_ALL);
 session_start();
 include('../src/config/pg_config.php');
 
-$estalogado = isset($_SESSION['UEmail']) && isset($_SESSION['USenha']);
+$estalogado = isset($_SESSION['EmailUsuario']);
 ?>
 
 <!DOCTYPE html>

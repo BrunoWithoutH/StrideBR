@@ -2,7 +2,8 @@
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
-include("pg_config.php");
+include("../config/pg_config.php");
+session_start();
 
 if (isset($_POST['submit']) && !empty($_POST['UEmail']) && !empty($_POST['USenha'])) {
 
@@ -20,7 +21,7 @@ if (isset($_POST['submit']) && !empty($_POST['UEmail']) && !empty($_POST['USenha
         $_SESSION['NomeUsuario'] = $user['nomeusuario'];
         $_SESSION['IdUsuario'] = $user['idusuario'];
 
-        $redirectUrl = $_SESSION['previous_page'] ?? '/StrideBR/home.php';
+        $redirectUrl = $_SESSION['previous_page'] ?? '../../public/home.php';
         unset($_SESSION['previous_page']);
         header('Location: ' . $redirectUrl);
         exit();
