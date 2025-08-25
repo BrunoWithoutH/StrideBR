@@ -6,12 +6,11 @@ require_once("../../src/config/pg_config.php");
 
 session_start();
 
-
 if (isset($_SESSION['EmailUsuario']) || isset($_SESSION['SenhaUsuario'])) {
     $estalogado = true;
     $user = $_SESSION['NomeUsuario'];
 } else {
-    $_SESSION['previous_page'] = "../user/cronogramatreinos.php";
+    $_SESSION['previous_page'] = "../../public/user/cronogramatreinos.php";
     header('Location: ../login.php');
     exit;
 }
@@ -34,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $EsporteAtividade = $_POST['EsporteAtividade'];
     $EstiloAtividade = $_POST['EstiloAtividade'];
     $DataAtividade = $_POST['DataAtividade'];
-    $HoraAtividade = $_POST['HoraAtividade'];
+    $HoraAtividade = $_POST['HoraAtividade'] ?? '00:00';
     $DuracaoH = $_POST['duracao_horas'] ?? 0;
     $DuracaoM = $_POST['duracao_minutos'] ?? 0;
     $DuracaoS = $_POST['duracao_segundos'] ?? 0;
@@ -43,42 +42,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $Peso = $_POST['Peso'] ?? null;
     $TituloAtividade = $_POST['TituloAtividade'] ?? $EsporteAtividade;
 
-    if (empty($DataAtividade)) {
-        echo "<div class='alert alert-danger'>Erro: Data e hora são obrigatórios.</div>";
+    $dateObj = DateTime::createFromFormat('d/m/Y', $DataAtividade);
+    if (!$dateObj) {
+        echo "<div class='alert alert-danger'>Data inválida.</div>";
+        exit;
+    }
+    $DataAtividade = $dateObj->format('Y-m-d');
+
+    $HoraAtividade = $HoraAtividade . ':00';
+
+    $Calorias = null;
+    if ($Distancia && $Peso && $DuracaoTotalMin) {
+        $VelocidadeMedia = ($Distancia / $DuracaoTotalMin) * 60;
+        $Calorias = round($VelocidadeMedia * $Peso * 0.0175 * $DuracaoTotalMin);
+    }
+
+    $stmtInsert = $pdo->prepare("
+        INSERT INTO atividades
+            (idusuario, tituloatividade, esporteatividade, ritmoatividade, dataatividade, horaatividade, duracaoatividade, distanciaatividade, caloriasatividade) 
+        VALUES 
+            (:idusuario, :titulo, :esporte, :ritmo, :data, :hora, :duracao, :distancia, :calorias)
+    ");
+
+    $executado = $stmtInsert->execute([
+        'idusuario' => $IdUsuario,
+        'titulo' => $TituloAtividade,
+        'esporte' => $EsporteAtividade,
+        'ritmo' => $EstiloAtividade,
+        'data' => $DataAtividade,
+        'hora' => $HoraAtividade,
+        'duracao' => $DuracaoTotalMin,
+        'distancia' => $Distancia,
+        'calorias' => $Calorias,
+    ]);
+
+    if ($executado) {
+        header("Location: atividades.php");
+        exit;
     } else {
-        $DataAtividade = DateTime::createFromFormat('d/m/Y', $DataAtividade)->format('Y-m-d');
-
-        $Calorias = null;
-        if ($Distancia && $Peso && $DuracaoTotalMin) {
-            $VelocidadeMedia = ($Distancia / $DuracaoTotalMin) * 60;
-            $Calorias = $VelocidadeMedia * $Peso * 0.0175 * $DuracaoTotalMin;
-        }
-
-        $stmtInsert = $pdo->prepare("
-            INSERT INTO atividades
-                (idusuario, esporteAtividade, estiloatividade, dataatividade, horaatividade, duracaoatividade, distanciaatividade, caloriasatividade, tituloatividade) 
-            VALUES 
-                (:idusuario, :esporte, :estilo, :data, :hora, :duracao, :distancia, :calorias, :titulo)
-        ");
-
-        $executado = $stmtInsert->execute([
-            'idusuario' => $IdUsuario,
-            'esporte' => $EsporteAtividade,
-            'estilo' => $EstiloAtividade,
-            'data' => $DataAtividade,
-            'hora' => $HoraAtividade,
-            'duracao' => $DuracaoTotalMin,
-            'distancia' => $Distancia,
-            'calorias' => $Calorias,
-            'titulo' => $TituloAtividade,
-        ]);
-
-        if ($executado) {
-            header("Location: atividades.php");
-            exit;
-        } else {
-            echo "<div class='alert alert-danger'>Erro ao inserir atividade.</div>";
-        }
+        echo "<div class='alert alert-danger'>Erro ao inserir atividade.</div>";
     }
 }
 
@@ -93,6 +95,7 @@ $result = $stmtFetch->fetchAll(PDO::FETCH_ASSOC);
 
 $logado = $estalogado ? $NomeUsuario : null;
 ?>
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 
@@ -103,7 +106,7 @@ $logado = $estalogado ? $NomeUsuario : null;
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
         integrity="sha384-QWTKZyjpPEjISv5WaRU90FeRpokÿmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.0/css/line.css">
-    <link rel="stylesheet" href="../assets/css/atividades.css">
+    <!-- <link rel="stylesheet" href="../assets/css/atividades.css"> -->
     <link rel="stylesheet" href="../assets/css/style.css">
     <title>Suas Atividades</title>
 </head>
@@ -158,7 +161,7 @@ $logado = $estalogado ? $NomeUsuario : null;
         <div class="row">
             <h1 class="textcenter">Suas Atividades</h1>
             <?php if (count($result) === 0): ?>
-                <p>Opa! Você ainda não possui atividades registradas.</p>
+                <p class="textcenter">Opa! Você ainda não possui atividades registradas.</p>
             <?php endif; ?>
             <button class="addbutton">Registrar atividade manualmente</button>
         </div>
@@ -267,26 +270,14 @@ $logado = $estalogado ? $NomeUsuario : null;
                     <?php foreach ($result as $row): ?>
                         <div class="col-sm-6 col-md-4 col-lg-3">
                             <div class="atividades_fisicas">
-                                <a href='editatividade.php?id=<?php echo $row['id']; ?>' title='Editar' class="uil uil-pen icon"></a>
-                                <h3><?php echo htmlspecialchars($row['EsporteAtividade']); ?></h3>
-                                <p>Data: <?php echo htmlspecialchars(formatar_data($row['DataHoraAtividade'])); ?></p>
-                                <?php if ($row['HoraAtividade'] != 0): ?>
-                                    <p>Hora: <?php echo htmlspecialchars($row['$HoraAtividade']); ?></p>
-                                <?php else: ?>
-                                    <p>Hora: não informado</p>
-                                <?php endif; ?>
-                                <?php if ($row['DuracaoAtividade'] != 0): ?>
-                                    <p>Duração: <?php echo htmlspecialchars($row['$durAtividade']); ?> minutos</p>
-                                <?php else: ?>
-                                    <p>Duração: não informado</p>
-                                <?php endif; ?>
-                                <?php if ($row['dis'] != 0): ?>
-                                    <p>Distância: <?php echo htmlspecialchars($row['dis']); ?> km</p>
-                                <?php else: ?>
-                                    <p>Distância: não informado</p>
-                                <?php endif; ?>
-                                <?php if ($row['calorias']): ?>
-                                    <p>Gasto Calórico: ≈ <?php echo htmlspecialchars($row['calorias']); ?> cal</p>
+                                <a href='editatividade.php?id=<?php echo $row['idatividade']; ?>' title='Editar' class="uil uil-pen icon"></a>
+                                <h3><?php echo htmlspecialchars($row['esporteatividade']); ?></h3>
+                                <p>Data: <?php echo htmlspecialchars(formatar_data($row['dataatividade'])); ?></p>
+                                <p>Hora: <?php echo htmlspecialchars($row['horaatividade']); ?></p>
+                                <p>Duração: <?php echo htmlspecialchars($row['duracaoatividade']); ?> minutos</p>
+                                <p>Distância: <?php echo htmlspecialchars($row['distanciaatividade']); ?> km</p>
+                                <?php if ($row['caloriasatividade'] !== null): ?>
+                                    <p>Gasto Calórico: ≈ <?php echo htmlspecialchars($row['caloriasatividade']); ?> cal</p>
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -296,13 +287,14 @@ $logado = $estalogado ? $NomeUsuario : null;
         </div>
 
         <footer class="textcenter footer">
-            <p>Feito Por Bruno Evaristo Pinheiro - 2024</p>
+            <p>© 2024 StrideBR. Todos os direitos reservados.</p>
         </footer>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
     <script src="../assets/js/atividades.js"></script>
+    <script src="../assets/js/scripts.js"></script>
 </body>
 
 </html>
