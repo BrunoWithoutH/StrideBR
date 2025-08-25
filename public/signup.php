@@ -6,7 +6,7 @@ error_reporting(E_ALL);
 if (isset($_POST["submit"])) {
 
     if ($_POST["UCSenha"] === $_POST["USenha"]) {
-        require_once("function/pg_config.php");
+        require_once("../src/config/pg_config.php");
         $UNome = $_POST["UNome"];
         $UEmail = $_POST["UEmail"];
         $USenha = $_POST["USenha"];

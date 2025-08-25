@@ -2,11 +2,9 @@
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
-
+include_once('../src/config/pg_config.php');
 session_start();
-include_once('function/pg_config.php');
-// var_dump($_SESSION);
-    // Verifica a sessão do Usuário
+
     if (isset($_SESSION['EmailUsuario']) || isset($_SESSION['SenhaUsuario'])) {
         $estalogado = TRUE;
         $user = $_SESSION['NomeUsuario'];
@@ -68,7 +66,7 @@ include_once('function/pg_config.php');
                                     <button class="dropbtnimg"><img class="userimage" src="assets/img/userdefault.svg" alt="user"></button>
                                     <div class="dropdown-content" style="right: 0;">
                                         <a href="" class="NavItem">Configurações</a>
-                                        <a href="function/logout.php">Sair</a>
+                                        <a href="../src/function/logout.php">Sair</a>
                                     </div>
                                 </div>
 
