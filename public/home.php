@@ -2,22 +2,17 @@
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
-
+include_once('../src/config/pg_config.php');
 session_start();
-include_once('function/pg_config.php');
-// var_dump($_SESSION);
-    // Verifica a sessão do Usuário
-    if (isset($_SESSION['EmailUsuario']) || isset($_SESSION['SenhaUsuario'])) {
-        $estalogado = TRUE;
-        $user = $_SESSION['NomeUsuario'];
+
+    if (isset($_SESSION['EmailUsuario']) && isset($_SESSION['SenhaUsuario'])) {
+    $estalogado = true;
+    $user = $_SESSION['NomeUsuario'] ?? '';
     } else {
         $_SESSION['previous_page'] = "../home.php";
         header('Location: login.php');
         exit;
-        $estalogado = FALSE;
-    }   
-    
-    
+    }
 ?>
 <!DOCTYPE html>
 <html lang="pt-br">
@@ -30,7 +25,7 @@ include_once('function/pg_config.php');
         integrity="sha384-QWTKZyjpPEjISv5WaRU90FeRpokÿmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.0/css/line.css">
     <link rel="stylesheet" href="assets/css/style.css">
-    <title>StrideBR</title>
+    <title>Página inicial | StrideBR</title>
 </head>
 
 <body>
@@ -68,7 +63,7 @@ include_once('function/pg_config.php');
                                     <button class="dropbtnimg"><img class="userimage" src="assets/img/userdefault.svg" alt="user"></button>
                                     <div class="dropdown-content" style="right: 0;">
                                         <a href="" class="NavItem">Configurações</a>
-                                        <a href="function/logout.php">Sair</a>
+                                        <a href="../src/function/logout.php">Sair</a>
                                     </div>
                                 </div>
 
@@ -104,6 +99,10 @@ include_once('function/pg_config.php');
             </div>
         </div>
     </div>
+    
+    <footer class="textcenter footer">
+        <p>© 2024 StrideBR. Todos os direitos reservados.</p>
+    </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous">
