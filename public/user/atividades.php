@@ -3,6 +3,8 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 require_once("../../src/config/pg_config.php");
+require_once __DIR__ . "/../../vendor/autoload.php"; 
+use Hidehalo\Nanoid\Client;
 
 session_start();
 
@@ -57,6 +59,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $Calorias = round($VelocidadeMedia * $Peso * 0.0175 * $DuracaoTotalMin);
     }
 
+    $client = new Client();
+    $userId = $client->generateId(16);
+
     $stmtInsert = $pdo->prepare("
         INSERT INTO atividades
             (idusuario, tituloatividade, esporteatividade, ritmoatividade, dataatividade, horaatividade, duracaoatividade, distanciaatividade, caloriasatividade) 
@@ -106,9 +111,9 @@ $logado = $estalogado ? $NomeUsuario : null;
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
         integrity="sha384-QWTKZyjpPEjISv5WaRU90FeRpokÿmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.0/css/line.css">
-    <!-- <link rel="stylesheet" href="../assets/css/atividades.css"> -->
+    <link rel="stylesheet" href="../assets/css/atividades.css">
     <link rel="stylesheet" href="../assets/css/style.css">
-    <title>Suas Atividades</title>
+    <title>Suas Atividades | StrideBR<</title>
 </head>
 
 <body>
@@ -203,34 +208,15 @@ $logado = $estalogado ? $NomeUsuario : null;
                                 <option value="Padel">Padel</option>
                                 <option value="Beach Tennis">Beach Tennis</option>
                             </optgroup>
-                            <optgroup label="Outros">
-                                <option value="Ioga">Ioga</option>
-                                <option value="outro">outro</option>
+                            <optgroup label="Arremessos e Lançamentos">
+                                <option value="Arremesso de peso">Arremesso de peso</option>
+                                <option value="Lançamento de disco">Lançamento de disco</option>
+                                <option value="Lançamento de dardo">Lançamento de dardo</option>
+                                <option value="Lançamento de martelo">Lançamento de martelo</option>
                             </optgroup>
+                                <option value="outro">outro</option>
                         </select>
                         <i class="uil uil-grid icon"></i>
-                    </div>
-
-                    <div class="input-field estilo">
-                        <select name="EstiloAtividade" class="EstiloAtividade" required>
-                            <option class="select" disabled selected>Estilo da Atividade:</option>
-                            <option value="Leve">Leve</option>
-                            <option value="Moderado">Moderado</option>
-                            <option value="Intenso">Intenso</option>
-                    </div>
-
-                    <div class="input-field">
-                        <label for="DataHoraAtividade">Data e Hora</label>
-                        <input type="text" id="DataAtividade" name="DataAtividade" placeholder="dd/mm/yyyy">
-                        <input type="time" id="HoraAtividade" name="HoraAtividade">
-                    </div>
-
-                    <div class="input-field">
-                        <label for="duracao_horas">Duração</label>
-                        <input type="number" id="duracao_horas" name="duracao_horas" min="0" max="23" placeholder="hh">
-                        <input type="number" id="duracao_minutos" name="duracao_minutos" min="0" max="59" placeholder="mm">
-                        <input type="number" id="duracao_segundos" name="duracao_segundos" min="0" max="59" placeholder="ss">
-                        <i class="uil uil-stopwatch icon"></i>
                     </div>
 
                     <div class="input-field">
@@ -243,6 +229,42 @@ $logado = $estalogado ? $NomeUsuario : null;
                             <option value="jardas">jardas</option>
                         </select>
                         <i class="uil uil-ruler icon"></i>
+                    </div>
+
+                    <div class="input-field">
+                        <label for="duracao_horas">Duração</label>
+                        <div class="duracao-inputs">
+                            <input type="number" id="duracao_horas" name="duracao_horas" min="0" max="23" placeholder="hh">
+                            <input type="number" id="duracao_minutos" name="duracao_minutos" min="0" max="59" placeholder="mm">
+                            <input type="number" id="duracao_segundos" name="duracao_segundos" min="0" max="59" placeholder="ss">
+                        </div>
+                        <i class="uil uil-stopwatch icon"></i>
+                    </div>
+
+                    <div class="input-field">
+                        <label for="ElevaçãoAtividade">Elevação</label>
+                        <input type="number" id="ElevacaoAtividade" name="ElevacaoAtividade" step="0.1" placeholder="Elevação">
+                        <select name="UnidadeElevacaoAtividade" id="UnidadeElevacaoAtividade">
+                            <option value="metros" selected>metros</option>
+                            <option value="pés">pés</option>
+                        </select>
+                        <i class="uil uil-arrow-growth icon"></i>
+                    </div>
+
+                    <div class="input-field ritmo">
+                        <select name="RitmoAtividade" class="RitmoAtividade" required>
+                            <option class="select" disabled selected>Ritmo da Atividade:</option>
+                            <option value="Leve">Leve</option>
+                            <option value="Moderado">Moderado</option>
+                            <option value="Intenso">Intenso</option>
+                        </select>
+                        <i class="uil uil-wind icon"></i>
+                    </div>
+
+                    <div class="input-field">
+                        <label for="DataHoraAtividade">Data e Hora</label>
+                        <input type="text" id="DataAtividade" name="DataAtividade" placeholder="dd/mm/yyyy">
+                        <input type="time" id="HoraAtividade" name="HoraAtividade">
                     </div>
 
                     <div class="checkbox-text">
