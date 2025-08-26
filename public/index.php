@@ -1,8 +1,11 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 session_start();
-include('function/pg_config.php');
+include('../src/config/pg_config.php');
 
-$estalogado = isset($_SESSION['UEmail']) && isset($_SESSION['USenha']);
+$estalogado = isset($_SESSION['EmailUsuario']);
 ?>
 
 <!DOCTYPE html>
@@ -12,7 +15,7 @@ $estalogado = isset($_SESSION['UEmail']) && isset($_SESSION['USenha']);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="author" content="Bruno Evaristo Pinheiro">
-    <link rel="icon" type="image/png" href="assets/img/favicons/fav.png">
+    <link rel="icon" type="image/png" href="assets/favicons/favicon.png">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
         integrity="sha384-QWTKZyjpPEjISv5WaRU90FeRpokÿmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.0/css/line.css">
@@ -83,6 +86,10 @@ $estalogado = isset($_SESSION['UEmail']) && isset($_SESSION['USenha']);
             </div>
         </div>
     </div>
+
+    <footer class="textcenter footer">
+        <p>© 2024 StrideBR. Todos os direitos reservados.</p>
+    </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous">

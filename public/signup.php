@@ -2,23 +2,34 @@
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
+include("../src/config/pg_config.php");
+require_once __DIR__ . "/../vendor/autoload.php"; 
+use Hidehalo\Nanoid\Client;
+
+session_start();
 
 if (isset($_POST["submit"])) {
 
-    if ($_POST["UCSenha"] === $_POST["USenha"]) {
-        require_once("function/pg_config.php"); // deve conter a conexão PDO
+    if ($_POST["ConfirmarSenhaUsuario"] === $_POST["SenhaUsuario"]) {
 
-        $UNome = $_POST["UNome"];
-        $UEmail = $_POST["UEmail"];
-        $USenha = $_POST["USenha"];
+        $NomeUsuario   = $_POST["NomeUsuario"];
+        $EmailUsuario  = $_POST["EmailUsuario"];
+        $SenhaUsuario  = $_POST["SenhaUsuario"];
 
-        $senhaHash = password_hash($USenha, PASSWORD_DEFAULT);
+        $client = new Client();
+        $userId = $client->generateId(12);
+
+        $SenhaHash = password_hash($SenhaUsuario, PASSWORD_DEFAULT);
 
         try {
-            $stmt = $pdo->prepare("INSERT INTO usuarios (Nomeusuario, Emailusuario, Senhausuario) VALUES (:nome, :email, :senha)");
-            $stmt->bindParam(':nome', $UNome);
-            $stmt->bindParam(':email', $UEmail);
-            $stmt->bindParam(':senha', $senhaHash);
+            $stmt = $pdo->prepare("INSERT INTO usuarios 
+                (idusuario, nomeusuario, emailusuario, senhausuario) 
+                VALUES (:id, :nome, :email, :senha)");
+
+            $stmt->bindParam(':id', $userId);
+            $stmt->bindParam(':nome', $NomeUsuario);
+            $stmt->bindParam(':email', $EmailUsuario);
+            $stmt->bindParam(':senha', $SenhaHash);
 
             if ($stmt->execute()) {
                 header('Location: login.php');
@@ -34,19 +45,20 @@ if (isset($_POST["submit"])) {
     }
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/png" href="assets/img/favicons/fav.png">
+    <link rel="icon" type="image/png" href="assets/favicons/favicon.png">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
         integrity="sha384-QWTKZyjpPEjISv5WaRU90FeRpokÿmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.0/css/line.css">
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="assets/css/loginsignup.css">
-    <title>Register</title>
+    <title>Cadastro | StrideBR</title>
 </head>
 
 <body>
@@ -62,23 +74,22 @@ if (isset($_POST["submit"])) {
             <div class="forms">
                 <div class="form">
                     <span class="title">Cadastre-se</span>
-
                     <form action="signup.php" method="POST">
                         <div class="input-field">
-                            <input type="text" name="UNome" placeholder="Insira seu nome" required>
+                            <input type="text" name="NomeUsuario" placeholder="Insira seu nome" required>
                             <i class="uil uil-user"></i>
                         </div>
                         <div class="input-field">
-                            <input type="email" name="UEmail" placeholder="Insira seu email" required>
+                            <input type="email" name="EmailUsuario" placeholder="Insira seu email" required>
                             <i class="uil uil-envelope icon"></i>
                         </div>
                         <div class="input-field">
-                            <input type="password" name="USenha" class="password" placeholder="Crie uma senha" required>
+                            <input type="password" name="SenhaUsuario" class="password" placeholder="Crie uma senha" required>
                             <i class="uil uil-lock icon"></i>
                             <i class="uil uil-eye-slash showHidePw"></i>
                         </div>
                         <div class="input-field">
-                            <input type="password" name="UCSenha" class="password" placeholder="Confirme sua senha" required>
+                            <input type="password" name="ConfirmarSenhaUsuario" class="password" placeholder="Confirme sua senha" required>
                             <i class="uil uil-lock icon"></i>
                             <i class="uil uil-eye-slash showHidePw"></i>
                         </div>
@@ -86,19 +97,17 @@ if (isset($_POST["submit"])) {
                         <div class="checkbox-text">
                             <div class="checkbox-content">
                                 <input type="checkbox" id="termCon">
-                                <label for="termCon" class="text">Li e aceito os <a href="eula.html">Termos e condições
-                                        de
-                                        Uso</a></label>
+                                <label for="termCon" class="text">Li e aceito os <a href="eula.html">Termos e condições de Uso</a></label>
                             </div>
                         </div>
 
                         <div class="input-field button">
                             <input type="submit" name="submit" value="Cadastrar">
                         </div>
+                        <div class="login-signup">
+                            <span class="text">Já é membro? <a href="login.php">Entrar</a></span>
+                        </div>
                     </form>
-                    <div class="login-signup">
-                        <span class="text">Já é membro? <a href="login.php">Entrar</a></span>
-                    </div>
                 </div>
             </div>
         </div>
