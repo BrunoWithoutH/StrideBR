@@ -1,8 +1,8 @@
 <?php
 $host = 'localhost';
 $dbname = 'stridebr';
-$user = 'bruno';
-$password = '0203';
+$user = 'admin';
+$password = 'admin';
 
 try {
     $pdo = new PDO("pgsql:host=$host;dbname=$dbname", $user, $password);
@@ -10,4 +10,5 @@ try {
 } catch (PDOException $e) {
     die("Erro na conexão: " . $e->getMessage());
 }
+
 ?>
