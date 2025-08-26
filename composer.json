@@ -1,0 +1,5 @@
+{
+    "require": {
+        "hidehalo/nanoid-php": "^2.0"
+    }
+}
