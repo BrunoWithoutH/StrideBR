@@ -32,4 +32,8 @@ O sistema foi desenvolvido em **PHP** com **PostgreSQL/MySQL**, e possui funcion
 - **Banco de Dados:** PostgreSQL / MySQL
 - **Frontend:** HTML, CSS
 - **Versionamento:** Git + GitHub
+<<<<<<< HEAD
 - **Identificadores únicos:** [NanoID](https://github.com/ai/nanoid)
+=======
+- **Identificadores únicos:** [NanoID](https://github.com/ai/nanoid)
+>>>>>>> bb6cd239e597faa0c27fb3bc63b32b0759706d28
