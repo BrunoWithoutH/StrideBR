@@ -52,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $TituloAtividade = $_POST['TituloAtividade'] ?? $EsporteAtividade;
     $Elevacao = !empty($_POST['ElevacaoAtividade']) ? $_POST['ElevacaoAtividade'] : null;
 
-    $dateObj = DateTime::createFromFormat('d/m/Y', $DataAtividade);
+    $dateObj = DateTime::createFromFormat('Y-m-d', $DataAtividade);
     if (!$dateObj) {
         echo "<div class='alert alert-danger'>Data inválida.</div>";
         exit;
@@ -118,13 +118,13 @@ $logado = $estalogado ? $NomeUsuario : null;
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/png" href="../assets/img/favicons/fav.png">
+    <link rel="icon" type="image/png" href="../assets/favicons/favicon.png">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
         integrity="sha384-QWTKZyjpPEjISv5WaRU90FeRpokÿmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.0/css/line.css">
-    <link rel="stylesheet" href="../assets/css/atividades.css">
+    <!-- <link rel="stylesheet" href="../assets/css/atividades.css"> -->
     <link rel="stylesheet" href="../assets/css/style.css">
-    <title>Suas Atividades | StrideBR<</title>
+    <title>Suas Atividades | StrideBR</title>
 </head>
 
 <body>
@@ -230,7 +230,7 @@ $logado = $estalogado ? $NomeUsuario : null;
                         <i class="uil uil-grid icon"></i>
                     </div>
 
-                    <div class="input-field">
+                    <div class="input-field" id="field-distancia" style="display:none">
                         <label for="DistanciaAtividade">Distância</label>
                         <input type="number" id="DistanciaAtividade" name="DistanciaAtividade" step="0.01" placeholder="Distância">
                         <select name="UnidadeDistanciaAtividade" id="UnidadeDistanciaAtividade">
@@ -242,7 +242,7 @@ $logado = $estalogado ? $NomeUsuario : null;
                         <i class="uil uil-ruler icon"></i>
                     </div>
 
-                    <div class="input-field">
+                    <div class="input-field" id="field-duracao" style="display:none">
                         <label for="duracao_horas">Duração</label>
                         <div class="duracao-inputs">
                             <input type="number" id="duracao_horas" name="duracao_horas" min="0" max="23" placeholder="hh">
@@ -252,7 +252,7 @@ $logado = $estalogado ? $NomeUsuario : null;
                         <i class="uil uil-stopwatch icon"></i>
                     </div>
 
-                    <div class="input-field">
+                    <div class="input-field" id="field-elevacao" style="display:none">
                         <label for="ElevaçãoAtividade">Elevação</label>
                         <input type="number" id="ElevacaoAtividade" name="ElevacaoAtividade" step="0.1" placeholder="Elevação">
                         <select name="UnidadeElevacaoAtividade" id="UnidadeElevacaoAtividade">
@@ -260,6 +260,13 @@ $logado = $estalogado ? $NomeUsuario : null;
                             <option value="pés">pés</option>
                         </select>
                         <i class="uil uil-arrow-growth icon"></i>
+                    </div>
+
+                    <div class="input-field">
+                        <label for="DataAtividade">Data e Hora</label>
+                        <input type="date" id="DataAtividade" name="DataAtividade" value="<?php echo date('Y-m-d'); ?>" required>
+                        <input type="time" id="HoraAtividade" name="HoraAtividade" value="<?php echo date('H:i'); ?>" required>
+                        <i class="uil uil-calendar-alt icon"></i>
                     </div>
 
                     <div class="input-field ritmo">
@@ -270,13 +277,7 @@ $logado = $estalogado ? $NomeUsuario : null;
                             <option value="Intenso">Intenso</option>
                         </select>
                         <i class="uil uil-wind icon"></i>
-                    </div>
-
-                    <div class="input-field">
-                        <label for="DataHoraAtividade">Data e Hora</label>
-                        <input type="text" id="DataAtividade" name="DataAtividade" placeholder="dd/mm/yyyy">
-                        <input type="time" id="HoraAtividade" name="HoraAtividade">
-                    </div>
+                    </div>                    
 
                     <div class="checkbox-text">
                         <div class="checkbox-content">
@@ -304,19 +305,45 @@ $logado = $estalogado ? $NomeUsuario : null;
                         <div class="col-sm-6 col-md-4 col-lg-3">
                             <div class="atividades_fisicas">
                                 <a href='editatividade.php?id=<?php echo $row['idatividade']; ?>' title='Editar' class="uil uil-pen icon"></a>
+
                                 <h3><?php echo htmlspecialchars($row['esporteatividade']); ?></h3>
-                                <p>Data: <?php echo htmlspecialchars(formatar_data($row['dataatividade'])); ?></p>
-                                <p>Hora: <?php echo htmlspecialchars($row['horaatividade']); ?></p>
-                                <?php
-                                $segundos = intval($row['duracaoatividade'] ?? 0);
-                                $h = floor($segundos / 3600);
-                                $m = floor(($segundos % 3600) / 60);
-                                $s = $segundos % 60;
-                                $duracao_formatada = sprintf("%02d:%02d:%02d", $h, $m, $s);
+
+                                <?php if (!empty($row['tituloatividade'])): ?>
+                                    <h4><?php echo htmlspecialchars($row['tituloatividade']); ?></h4>
+                                <?php endif; ?>
+
+                                <?php if (!empty($row['dataatividade'])): ?>
+                                    <p><i class="uil uil-calendar-alt icon"></i>
+                                        <?php echo htmlspecialchars(formatar_data($row['dataatividade'])); ?>
+                                    </p>
+                                <?php endif; ?>
+
+                                <?php if (!empty($row['horaatividade'])): ?>
+                                    <p><i class="uil uil-clock icon"></i>
+                                        <?php echo htmlspecialchars($row['horaatividade']); ?>
+                                    </p>
+                                <?php endif; ?>
+
+                                <?php 
+                                if (!empty($row['duracaoatividade'])) {
+                                    $segundos = intval($row['duracaoatividade']);
+                                    $h = floor($segundos / 3600);
+                                    $m = floor(($segundos % 3600) / 60);
+                                    $s = $segundos % 60;
+                                    $duracao_formatada = sprintf("%02d:%02d:%02d", $h, $m, $s);
+                                    echo "<p>Duração: {$duracao_formatada}</p>";
+                                }
                                 ?>
-                                <p>Duração: <?php echo $duracao_formatada; ?></p>
-                                <p>Distância: <?php echo htmlspecialchars($row['distanciaatividade']); ?> km</p>
-                                <?php if ($row['caloriasatividade'] !== null): ?>
+
+                                <?php if (!empty($row['distanciaatividade'])): ?>
+                                    <p>Distância: <?php echo htmlspecialchars($row['distanciaatividade']); ?> km</p>
+                                <?php endif; ?>
+
+                                <?php if (!empty($row['elevacaoatividade'])): ?>
+                                    <p>Elevação: <?php echo htmlspecialchars($row['elevacaoatividade']); ?> m</p>
+                                <?php endif; ?>
+
+                                <?php if (!empty($row['caloriasatividade'])): ?>
                                     <p>Gasto Calórico: ≈ <?php echo htmlspecialchars($row['caloriasatividade']); ?> cal</p>
                                 <?php endif; ?>
                             </div>
@@ -333,7 +360,7 @@ $logado = $estalogado ? $NomeUsuario : null;
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-    <script src="../assets/js/atividades.js"></script>
+    <script src="../assets/js/atividades.js?v=<?php echo time(); ?>"></script>
     <script src="../assets/js/scripts.js"></script>
 </body>
 

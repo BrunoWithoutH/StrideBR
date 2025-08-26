@@ -133,3 +133,36 @@ function togglePesoInput() {
         pesoField.style.display = "none";
     }
 }
+
+// Mostrar/ocultar campos com base no esporte selecionado
+document.addEventListener("DOMContentLoaded", function () {
+  const esporteSelect = document.querySelector("select[name='EsporteAtividade']")
+  const fieldDistancia = document.getElementById("field-distancia")
+  const fieldDuracao = document.getElementById("field-duracao")
+  const fieldElevacao = document.getElementById("field-elevacao")
+
+  function show(el, on) { if (!el) return; el.style.display = on ? "" : "none" }
+
+  function atualizarCampos() {
+    const v = esporteSelect ? esporteSelect.value : ""
+    show(fieldDistancia, false)
+    show(fieldDuracao, false)
+    show(fieldElevacao, false)
+
+    if (["Caminhada","Corrida","Marcha Atlética","Trilha","Ciclismo","Mountain Bike","Downhill","BMX"].includes(v)) {
+      show(fieldDistancia, true)
+      show(fieldDuracao, true)
+      show(fieldElevacao, true)
+    } else if (["Nado de peito","Nado de costas","Nado borboleta"].includes(v)) {
+      show(fieldDistancia, true)
+      show(fieldDuracao, true)
+    } else if (["Tênis","Tênis de mesa","Badminton","Padel","Beach Tennis","Arremesso de peso","Lançamento de disco","Lançamento de dardo","Lançamento de martelo"].includes(v)) {
+      show(fieldDuracao, true)
+    }
+  }
+
+  if (esporteSelect) {
+    esporteSelect.addEventListener("change", atualizarCampos)
+    atualizarCampos()
+  }
+})
