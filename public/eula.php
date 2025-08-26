@@ -9,9 +9,8 @@
         integrity="sha384-QWTKZyjpPEjISv5WaRU90FeRpokÿmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.0/css/line.css">
     <link rel="stylesheet" href="css/style.css">
-    <title>StrideBR</title>
+    <title>Termos de Serviço</title>
 </head>
-<!-- -->
 
 <body>
     <div class="container-fluid">
