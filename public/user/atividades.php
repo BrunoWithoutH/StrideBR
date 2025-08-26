@@ -2,26 +2,28 @@
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
+
 require_once("../../src/config/pg_config.php");
 require_once __DIR__ . "/../../vendor/autoload.php"; 
 use Hidehalo\Nanoid\Client;
 
 session_start();
 
-if (isset($_SESSION['EmailUsuario']) || isset($_SESSION['SenhaUsuario'])) {
+if (isset($_SESSION['EmailUsuario']) && isset($_SESSION['SenhaUsuario'])) {
     $estalogado = true;
     $user = $_SESSION['NomeUsuario'];
 } else {
-    $_SESSION['previous_page'] = "../../public/user/cronogramatreinos.php";
+    $_SESSION['previous_page'] = "../../public/user/atividades.php";
     header('Location: ../login.php');
     exit;
 }
 
 $EmailUsuario = $_SESSION['EmailUsuario'];
+$SenhaUsuario = $_SESSION['SenhaUsuario'];
 $NomeUsuario = $_SESSION['NomeUsuario'] ?? '';
 
-$stmtUser = $pdo->prepare('SELECT idusuario FROM usuarios WHERE emailusuario = :email');
-$stmtUser->execute(['email' => $EmailUsuario]);
+$stmtUser = $pdo->prepare('SELECT idusuario FROM usuarios WHERE idusuario = :id');
+$stmtUser->execute(['id' => $IdUsuario = $_SESSION['IdUsuario']]);
 $userRow = $stmtUser->fetch(PDO::FETCH_ASSOC);
 
 if (!$userRow) {
@@ -32,17 +34,23 @@ if (!$userRow) {
 $IdUsuario = $userRow['idusuario'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $EsporteAtividade = $_POST['EsporteAtividade'];
-    $EstiloAtividade = $_POST['EstiloAtividade'];
-    $DataAtividade = $_POST['DataAtividade'];
+
+    $EsporteAtividade = $_POST['EsporteAtividade'] ?? null;
+    $RitmoAtividade = $_POST['RitmoAtividade'] ?? null;
+    $DataAtividade = $_POST['DataAtividade'] ?? null;
     $HoraAtividade = $_POST['HoraAtividade'] ?? '00:00';
-    $DuracaoH = $_POST['duracao_horas'] ?? 0;
-    $DuracaoM = $_POST['duracao_minutos'] ?? 0;
-    $DuracaoS = $_POST['duracao_segundos'] ?? 0;
-    $DuracaoTotalMin = $DuracaoH * 60 + $DuracaoM + ($DuracaoS / 60);
-    $Distancia = $_POST['DistanciaAtividade'] ?? null;
-    $Peso = $_POST['Peso'] ?? null;
+    
+    $DuracaoH = intval($_POST['duracao_horas'] ?? 0);
+    $DuracaoM = intval($_POST['duracao_minutos'] ?? 0);
+    $DuracaoS = intval($_POST['duracao_segundos'] ?? 0);
+
+    $DuracaoTotalSeg = $DuracaoH * 3600 + $DuracaoM * 60 + $DuracaoS;
+    $DuracaoTotalMin = $DuracaoTotalSeg / 60;
+
+    $Distancia = !empty($_POST['DistanciaAtividade']) ? $_POST['DistanciaAtividade'] : null;
+    $Peso = !empty($_POST['Peso']) ? $_POST['Peso'] : null;
     $TituloAtividade = $_POST['TituloAtividade'] ?? $EsporteAtividade;
+    $Elevacao = !empty($_POST['ElevacaoAtividade']) ? $_POST['ElevacaoAtividade'] : null;
 
     $dateObj = DateTime::createFromFormat('d/m/Y', $DataAtividade);
     if (!$dateObj) {
@@ -58,28 +66,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $VelocidadeMedia = ($Distancia / $DuracaoTotalMin) * 60;
         $Calorias = round($VelocidadeMedia * $Peso * 0.0175 * $DuracaoTotalMin);
     }
-
     $client = new Client();
-    $userId = $client->generateId(16);
+    $idAtividade = $client->generateId(16);
 
     $stmtInsert = $pdo->prepare("
         INSERT INTO atividades
-            (idusuario, tituloatividade, esporteatividade, ritmoatividade, dataatividade, horaatividade, duracaoatividade, distanciaatividade, caloriasatividade) 
+            (idatividade, idusuario, tituloatividade, esporteatividade, ritmoatividade, dataatividade, horaatividade, duracaoatividade, distanciaatividade, pesoinseridoatividade, elevacaoatividade, caloriasatividade) 
         VALUES 
-            (:idusuario, :titulo, :esporte, :ritmo, :data, :hora, :duracao, :distancia, :calorias)
+            (:idatividade, :idusuario, :titulo, :esporte, :ritmo, :data, :hora, :duracao, :distancia, :peso, :elevacao, :calorias)
     ");
 
     $executado = $stmtInsert->execute([
+        'idatividade' => $idAtividade,
         'idusuario' => $IdUsuario,
         'titulo' => $TituloAtividade,
         'esporte' => $EsporteAtividade,
-        'ritmo' => $EstiloAtividade,
+        'ritmo' => $RitmoAtividade,
         'data' => $DataAtividade,
         'hora' => $HoraAtividade,
-        'duracao' => $DuracaoTotalMin,
+        'duracao' => $DuracaoTotalSeg ?: null,
         'distancia' => $Distancia,
+        'peso' => $Peso,
+        'elevacao' => $Elevacao,
         'calorias' => $Calorias,
     ]);
+
 
     if ($executado) {
         header("Location: atividades.php");
@@ -296,7 +307,14 @@ $logado = $estalogado ? $NomeUsuario : null;
                                 <h3><?php echo htmlspecialchars($row['esporteatividade']); ?></h3>
                                 <p>Data: <?php echo htmlspecialchars(formatar_data($row['dataatividade'])); ?></p>
                                 <p>Hora: <?php echo htmlspecialchars($row['horaatividade']); ?></p>
-                                <p>Duração: <?php echo htmlspecialchars($row['duracaoatividade']); ?> minutos</p>
+                                <?php
+                                $segundos = intval($row['duracaoatividade'] ?? 0);
+                                $h = floor($segundos / 3600);
+                                $m = floor(($segundos % 3600) / 60);
+                                $s = $segundos % 60;
+                                $duracao_formatada = sprintf("%02d:%02d:%02d", $h, $m, $s);
+                                ?>
+                                <p>Duração: <?php echo $duracao_formatada; ?></p>
                                 <p>Distância: <?php echo htmlspecialchars($row['distanciaatividade']); ?> km</p>
                                 <?php if ($row['caloriasatividade'] !== null): ?>
                                     <p>Gasto Calórico: ≈ <?php echo htmlspecialchars($row['caloriasatividade']); ?> cal</p>

@@ -5,17 +5,14 @@ error_reporting(E_ALL);
 include_once('../src/config/pg_config.php');
 session_start();
 
-    if (isset($_SESSION['EmailUsuario']) || isset($_SESSION['SenhaUsuario'])) {
-        $estalogado = TRUE;
-        $user = $_SESSION['NomeUsuario'];
+    if (isset($_SESSION['EmailUsuario']) && isset($_SESSION['SenhaUsuario'])) {
+    $estalogado = true;
+    $user = $_SESSION['NomeUsuario'] ?? '';
     } else {
         $_SESSION['previous_page'] = "../home.php";
         header('Location: login.php');
         exit;
-        $estalogado = FALSE;
-    }   
-    
-    
+    }
 ?>
 <!DOCTYPE html>
 <html lang="pt-br">

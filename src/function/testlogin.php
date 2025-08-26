@@ -17,8 +17,9 @@ if (isset($_POST['submit']) && !empty($_POST['UEmail']) && !empty($_POST['USenha
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if ($user && password_verify($SenhaUsuario, $user['senhausuario'])) {
-        $_SESSION['EmailUsuario'] = $user['emailusuario'];
         $_SESSION['NomeUsuario'] = $user['nomeusuario'];
+        $_SESSION['EmailUsuario'] = $user['emailusuario'];
+        $_SESSION['SenhaUsuario'] = $user['senhausuario'];
         $_SESSION['IdUsuario'] = $user['idusuario'];
 
         $redirectUrl = $_SESSION['previous_page'] ?? '../../public/home.php';
