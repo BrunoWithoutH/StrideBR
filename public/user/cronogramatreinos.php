@@ -12,8 +12,8 @@ if (isset($_SESSION['EmailUsuario']) || isset($_SESSION['SenhaUsuario'])) {
     $user = $_SESSION['NomeUsuario'];
     $idusuario = $_SESSION['IdUsuario'];
 } else {
-    $_SESSION['previous_page'] = "../user/cronogramatreinos.php";
-    header('Location: login.php');
+    $_SESSION['previous_page'] = "../../public/user/cronogramatreinos.php";
+    header('Location: ../login.php');
     exit;
     $estalogado = FALSE;
 }
@@ -47,15 +47,6 @@ foreach ($treinos as $t) {
     <link rel="stylesheet" href="../assets/css/style.css">
     <link rel="stylesheet" href="../assets/css/cronogramas.css">
     <title>Cronograma | StrideBR</title>
-    <style> 
-        table { border-collapse: collapse; width: 100%; } 
-        th, td { border: 1px solid #ccc; padding: 8px; text-align: center; } 
-        textarea { width: 100%; height: 60px; resize: none; } 
-        button { margin-top: 10px; padding: 8px 16px; } 
-        .expand-content { display: none; margin-top: 5px; font-size: 0.9em; }
-        .expand-btn { cursor: pointer; margin-left: 5px; font-size: 14px; }
-        .cell-title { display: flex; justify-content: space-between; align-items: center; }
-    </style>
     <script>
         function toggleExpand(id) {
             const el = document.getElementById(id);
@@ -141,13 +132,14 @@ foreach ($treinos as $t) {
                                             <div class="cell-title" style="justify-content: space-between; align-items: center;">
                                                 <textarea name="<?php echo $dia . '_' . $turno; ?>" placeholder="-"><?php echo $titulo; ?></textarea>
                                                 <button type="button" class="expand-btn" onclick="toggleExpand('<?php echo $expandId; ?>')">+</button>
+                                                <?php if ($idcronograma): ?>
+                                                    <a href="exercicioscronograma.php?idcronograma=<?php echo urlencode($idcronograma); ?>"><button type="button" class="edit-btn uil uil-pen icon"></button></a>
+                                                <?php else: ?>
+                                                    <a href="exercicioscronograma.php?dia=<?php echo urlencode($dia); ?>&turno=<?php echo urlencode($turno); ?>"><button type="button" class="edit-btn uil uil-pen icon"></button></a>
+                                                <?php endif; ?>
+                                                
                                             </div>
                                             <div class="expand-content" id="<?php echo $expandId; ?>">
-                                                <?php if ($idcronograma): ?>
-                                                    <p><a href="exercicioscronograma.php?idcronograma=<?php echo urlencode($idcronograma); ?>">Editar/Ver Exercícios</a></p>
-                                                <?php else: ?>
-                                                    <p><a href="exercicioscronograma.php?dia=<?php echo urlencode($dia); ?>&turno=<?php echo urlencode($turno); ?>">Adicionar Treino</a></p>
-                                                <?php endif; ?>
                                             </div>
                                         </td>
                                     <?php endforeach; ?>

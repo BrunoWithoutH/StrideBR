@@ -56,7 +56,9 @@ CREATE TABLE IF NOT EXISTS exercicios_cronograma (
     descansoexercicio VARCHAR(20),
     blocoexercicio VARCHAR(20),
     clusterexercicio VARCHAR(20),
-    observacoes TEXT,
-    ordem INT NOT NULL,
+    cargaexercicio VARCHAR (20),
+    observacoesexercicio TEXT,
+    linhasexercicio INT DEFAULT 1,
+	ordemexercicio INT NOT NULL,
     FOREIGN KEY (idcronograma) REFERENCES cronogramas(idcronograma) ON DELETE CASCADE
 );
