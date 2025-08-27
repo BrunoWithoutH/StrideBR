@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS atividades (
     dataatividade DATE NOT NULL,
     horaatividade TIME NOT NULL,
     datahoraregistroatividade TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    duracaoatividade INT DEFAULT NULL,
+    duracaoatividade NUMERIC DEFAULT NULL,
     distanciaatividade DECIMAL(5,2) DEFAULT NULL,
 	unidadeaistanciaatividade VARCHAR(20),
     elevacaoatividade DECIMAL(5,2) DEFAULT NULL,
@@ -36,12 +36,27 @@ CREATE TABLE IF NOT EXISTS atividades (
     FOREIGN KEY (IdUsuario) REFERENCES usuarios(IdUsuario) ON DELETE CASCADE
 );
 
--- CREATE TABLE IF NOT EXISTS cronogramas (
---     idcronograma SERIAL PRIMARY KEY,  tem que mudar para VARCHAR
---     idusuario INT NOT NULL,
---     diasemanacronograma VARCHAR(10) CHECK (diasemanacronograma IN ('Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado')),
---     turnocronograma VARCHAR(10) CHECK (turnocronograma IN ('Manhã', 'Tarde', 'Noite')),
---     textocronograma TEXT NOT NULL,
---     datahoraregistrocronograma TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
---     FOREIGN KEY (IdUsuario) REFERENCES usuarios(IdUsuario) ON DELETE CASCADE
--- );
+CREATE TABLE IF NOT EXISTS cronogramas (
+    idcronograma VARCHAR(12) PRIMARY KEY,
+    idusuario VARCHAR(12) NOT NULL,
+    diasemanacronograma VARCHAR(10) CHECK (diasemanacronograma IN ('Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado')),
+    turnocronograma VARCHAR(10) CHECK (turnocronograma IN ('Manhã', 'Tarde', 'Noite')),
+    titulotreinocronograma VARCHAR(100) NOT NULL,
+    observacoescronograma TEXT,
+    datahoraregistrocronograma TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (idusuario) REFERENCES usuarios(idusuario) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS exercicios_cronograma (
+    idexercicio SERIAL PRIMARY KEY,
+    idcronograma VARCHAR(12) NOT NULL,
+    nomeexercicio VARCHAR(100) NOT NULL,
+    seriesexercicio INT,
+    repeticoesexercicio VARCHAR(20),
+    descansoexercicio VARCHAR(20),
+    blocoexercicio VARCHAR(20),
+    clusterexercicio VARCHAR(20),
+    observacoes TEXT,
+    ordem INT NOT NULL,
+    FOREIGN KEY (idcronograma) REFERENCES cronogramas(idcronograma) ON DELETE CASCADE
+);
