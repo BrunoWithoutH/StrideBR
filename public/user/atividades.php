@@ -122,7 +122,7 @@ $logado = $estalogado ? $NomeUsuario : null;
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
         integrity="sha384-QWTKZyjpPEjISv5WaRU90FeRpokÿmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.0/css/line.css">
-    <!-- <link rel="stylesheet" href="../assets/css/atividades.css"> -->
+    <link rel="stylesheet" href="../assets/css/atividades.css">
     <link rel="stylesheet" href="../assets/css/style.css">
     <title>Suas Atividades | StrideBR</title>
 </head>

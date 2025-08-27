@@ -1,39 +1,79 @@
 <?php
-include_once("../config.php");
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+session_start();
+require_once(__DIR__ . "/../config/pg_config.php");
+require_once __DIR__ . "/../../vendor/autoload.php";
+use Hidehalo\Nanoid\Client;
 
-// Conectar ao banco de dados
-$conn = $conexao;
-
-if ($conn->connect_error) {
-    die("Conexão falhou: " . $conn->connect_error);
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    header("Location: ../../public/user/cronogramatreinos.php");
+    exit;
 }
 
-$user_id = 1; // Defina o ID do usuário de acordo com a lógica da sua aplicação
+$idusuario = $_SESSION['IdUsuario'] ?? ($_POST['idusuario'] ?? null);
+if (!$idusuario) {
+    header("Location: ../../public/user/cronogramatreinos.php?error=no_user");
+    exit;
+}
 
-$dias_semana = ["Domingo", "Segunda", "Terca", "Quarta", "Quinta", "Sexta", "Sabado"];
-$periodos = ["Manha", "Tarde", "Noite"];
+$dias = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+$turnos = ['Manhã','Tarde','Noite'];
+$client = new Client();
 
-foreach ($dias_semana as $dia) {
-    foreach ($periodos as $periodo) {
-        $campo = $dia . "_" . $periodo;
-        if (isset($_POST[$campo])) {
-            $treino = $_POST[$campo];
-            $sql_insert = "INSERT INTO cronograma_treinos (IdUsuario, DiaSemanaCronograma, TurnoCronograma, TextoCronograma) VALUES (?, ?, ?, ?)
-                           ON DUPLICATE KEY UPDATE TextoCronograma=VALUES(TextoCronograma)";
-            $stmt_insert = $conn->prepare($sql_insert);
-            if ($stmt_insert) {
-                $stmt_insert->bind_param("isss", $user_id, $dia, $periodo, $treino);
-                if (!$stmt_insert->execute()) {
-                    echo "Erro na execução: " . $stmt_insert->error;
+try {
+    $pdo->beginTransaction();
+
+    $selectStmt = $pdo->prepare("SELECT idcronograma FROM cronogramas WHERE idusuario = :idusuario AND diasemanacronograma = :dia AND turnocronograma = :turno LIMIT 1");
+    $insertStmt = $pdo->prepare("INSERT INTO cronogramas (idcronograma, idusuario, diasemanacronograma, turnocronograma, titulotreinocronograma) VALUES (:idcronograma, :idusuario, :dia, :turno, :titulo)");
+    $updateStmt = $pdo->prepare("UPDATE cronogramas SET titulotreinocronograma = :titulo, datahoraregistrocronograma = CURRENT_TIMESTAMP WHERE idcronograma = :idcronograma");
+    $deleteStmt = $pdo->prepare("DELETE FROM cronogramas WHERE idcronograma = :idcronograma");
+
+    foreach ($turnos as $turno) {
+        foreach ($dias as $dia) {
+            $field = $dia . '_' . $turno;
+            $titulo = isset($_POST[$field]) ? trim($_POST[$field]) : '';
+
+            $selectStmt->execute([
+                ':idusuario' => $idusuario,
+                ':dia' => $dia,
+                ':turno' => $turno
+            ]);
+            $existingId = $selectStmt->fetchColumn();
+
+            if ($titulo !== '') {
+                if ($existingId) {
+                    $updateStmt->execute([
+                        ':titulo' => $titulo,
+                        ':idcronograma' => $existingId
+                    ]);
+                } else {
+                    $idcronograma = $client->generateId(12);
+                    $insertStmt->execute([
+                        ':idcronograma' => $idcronograma,
+                        ':idusuario' => $idusuario,
+                        ':dia' => $dia,
+                        ':turno' => $turno,
+                        ':titulo' => $titulo
+                    ]);
                 }
-                $stmt_insert->close();
             } else {
-                echo "Erro na preparação: " . $conn->error;
+                if ($existingId) {
+                    $deleteStmt->execute([':idcronograma' => $existingId]);
+                }
             }
         }
     }
-}
 
-$conn->close();
-header('Location: cronogramatreinos.php');
-?>
+    $pdo->commit();
+    header("Location: ../../public/user/cronogramatreinos.php");
+    exit;
+} catch (Exception $e) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    error_log($e->getMessage());
+    header("Location: ../../public/user/cronogramatreinos.php?error=save_failed");
+    exit;
+}

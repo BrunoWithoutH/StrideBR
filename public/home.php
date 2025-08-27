@@ -9,7 +9,7 @@ session_start();
     $estalogado = true;
     $user = $_SESSION['NomeUsuario'] ?? '';
     } else {
-        $_SESSION['previous_page'] = "../home.php";
+        $_SESSION['previous_page'] = "../../public/home.php";
         header('Location: login.php');
         exit;
     }
