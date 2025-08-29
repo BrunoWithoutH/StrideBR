@@ -1,4 +1,5 @@
 <?php
+date_default_timezone_set('America/Sao_Paulo');
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
@@ -40,9 +41,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $DataAtividade = $_POST['DataAtividade'] ?? null;
     $HoraAtividade = $_POST['HoraAtividade'] ?? '00:00';
     
-    $DuracaoH = intval($_POST['duracao_horas'] ?? 0);
-    $DuracaoM = intval($_POST['duracao_minutos'] ?? 0);
-    $DuracaoS = intval($_POST['duracao_segundos'] ?? 0);
+    $DuracaoH = isset($_POST['duracao_horas']) && $_POST['duracao_horas'] !== '' ? intval($_POST['duracao_horas']) : 0;
+    $DuracaoM = isset($_POST['duracao_minutos']) && $_POST['duracao_minutos'] !== '' ? intval($_POST['duracao_minutos']) : 0;
+    $DuracaoS = isset($_POST['duracao_segundos']) && $_POST['duracao_segundos'] !== '' ? intval($_POST['duracao_segundos']) : 0;
 
     $DuracaoTotalSeg = $DuracaoH * 3600 + $DuracaoM * 60 + $DuracaoS;
     $DuracaoTotalMin = $DuracaoTotalSeg / 60;
@@ -182,7 +183,6 @@ $logado = $estalogado ? $NomeUsuario : null;
             <button class="addbutton">Registrar atividade manualmente</button>
         </div>
         <div class="row">
-            <!-- Cria -->
             <div class="col-sm-12">
                 <form class="AtividadeForm" id="formulario" action="#" method="POST">
                     <span class="title">Registrar atividade</span>
@@ -245,7 +245,7 @@ $logado = $estalogado ? $NomeUsuario : null;
                     <div class="input-field" id="field-duracao" style="display:none">
                         <label for="duracao_horas">Duração</label>
                         <div class="duracao-inputs">
-                            <input type="number" id="duracao_horas" name="duracao_horas" min="0" max="23" placeholder="hh">
+                            <input type="number" id="duracao_horas" name="duracao_horas" min="0" max="23" placeholder="hh"s>
                             <input type="number" id="duracao_minutos" name="duracao_minutos" min="0" max="59" placeholder="mm">
                             <input type="number" id="duracao_segundos" name="duracao_segundos" min="0" max="59" placeholder="ss">
                         </div>
@@ -266,7 +266,7 @@ $logado = $estalogado ? $NomeUsuario : null;
                         <label for="DataAtividade">Data e Hora</label>
                         <input type="date" id="DataAtividade" name="DataAtividade" value="<?php echo date('Y-m-d'); ?>" required>
                         <input type="time" id="HoraAtividade" name="HoraAtividade" value="<?php echo date('H:i'); ?>" required>
-                        <i class="uil uil-calendar-alt icon"></i>
+                        <i class="uil uil-clock-three icon"></i>
                     </div>
 
                     <div class="input-field ritmo">
@@ -320,7 +320,10 @@ $logado = $estalogado ? $NomeUsuario : null;
 
                                 <?php if (!empty($row['horaatividade'])): ?>
                                     <p><i class="uil uil-clock icon"></i>
-                                        <?php echo htmlspecialchars($row['horaatividade']); ?>
+                                        <?php
+                                        $hora = explode(':', $row['horaatividade']);
+                                        echo htmlspecialchars($hora[0] . ':' . $hora[1]);
+                                        ?>
                                     </p>
                                 <?php endif; ?>
 

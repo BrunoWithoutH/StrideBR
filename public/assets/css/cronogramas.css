@@ -26,14 +26,14 @@
     font-size: 0.9em;
 }
 
-.expand-btn {
-    cursor: pointer;
-    margin-left: 5px;
-    font-size: 14px;
-}
-
 .cell-title {
     display: flex;
     justify-content: space-between;
-    align-items: center; 
+    align-items: flex-start;
+}
+
+.btn-group {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
 }
