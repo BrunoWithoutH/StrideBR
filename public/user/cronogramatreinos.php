@@ -47,12 +47,6 @@ foreach ($treinos as $t) {
     <link rel="stylesheet" href="../assets/css/style.css">
     <link rel="stylesheet" href="../assets/css/cronogramas.css">
     <title>Cronograma | StrideBR</title>
-    <script>
-        function toggleExpand(id) {
-            const el = document.getElementById(id);
-            el.style.display = (el.style.display === 'block') ? 'none' : 'block';
-        }
-    </script>
 </head>
 
 <body>
@@ -106,7 +100,7 @@ foreach ($treinos as $t) {
         </div>
         <div class="row">
             <div class="col-sm-12">
-                <form action="../../src/function/salvartreino.php" method="POST">
+                <form action="../../src/function/salvarcronograma.php" method="POST">
                     <input type="hidden" name="idusuario" value="<?php echo htmlspecialchars($idusuario); ?>">
                     <table class="cronogramatable">
                         <thead>
@@ -129,19 +123,29 @@ foreach ($treinos as $t) {
                                             $expandId = $dia . "_" . $turno;
                                         ?>
                                         <td>
-                                            <div class="cell-title" style="justify-content: space-between; align-items: center;">
-                                                <textarea name="<?php echo $dia . '_' . $turno; ?>" placeholder="-"><?php echo $titulo; ?></textarea>
-                                                <button type="button" class="expand-btn" onclick="toggleExpand('<?php echo $expandId; ?>')">+</button>
-                                                <?php if ($idcronograma): ?>
-                                                    <a href="exercicioscronograma.php?idcronograma=<?php echo urlencode($idcronograma); ?>"><button type="button" class="edit-btn uil uil-pen icon"></button></a>
-                                                <?php else: ?>
-                                                    <a href="exercicioscronograma.php?dia=<?php echo urlencode($dia); ?>&turno=<?php echo urlencode($turno); ?>"><button type="button" class="edit-btn uil uil-pen icon"></button></a>
-                                                <?php endif; ?>
+                                            <div class="cell-title">
+                                                <textarea name="<?php echo $dia . '_' . $turno; ?>" placeholder=""><?php echo $titulo; ?></textarea>
                                                 
+                                                <div class="btn-group">
+                                                    <button type="button" class="expand-btn uil uil-expand-arrows-alt" onclick="toggleExpand('<?php echo $expandId; ?>')"></button>
+                                                    
+                                                    <?php if ($idcronograma): ?>
+                                                        <a href="exercicioscronograma.php?idcronograma=<?php echo urlencode($idcronograma); ?>">
+                                                            <button type="button" class="edit-btn uil uil-pen icon"></button>
+                                                        </a>
+                                                    <?php else: ?>
+                                                        <a href="exercicioscronograma.php?dia=<?php echo urlencode($dia); ?>&turno=<?php echo urlencode($turno); ?>">
+                                                            <button type="button" class="edit-btn uil uil-pen icon"></button>
+                                                        </a>
+                                                    <?php endif; ?>
+                                                </div>
                                             </div>
+
                                             <div class="expand-content" id="<?php echo $expandId; ?>">
+                                                Seus treinos aparecerão aqui.
                                             </div>
                                         </td>
+
                                     <?php endforeach; ?>
                                 </tr>
                             <?php endforeach; ?>
@@ -152,5 +156,15 @@ foreach ($treinos as $t) {
             </div>
         </div>
     </div>
+        <footer class="textcenter footer">
+            <p>© 2024 StrideBR. Todos os direitos reservados.</p>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <script src="../assets/js/cronogramas.js"></script>
+    <script src="../assets/js/scripts.js"></script>
 </body>
+
 </html>

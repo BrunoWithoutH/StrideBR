@@ -18,10 +18,10 @@ CREATE TABLE IF NOT EXISTS atividades (
     idatividade VARCHAR(16) PRIMARY KEY UNIQUE,
     idusuario VARCHAR(12) NOT NULL,
     tituloatividade VARCHAR(255),
-    esporteatividade VARCHAR(255) NOT NULL,
+    esporteatividade VARCHAR(255),
     ritmoatividade VARCHAR(10) CHECK (ritmoatividade IN ('Leve', 'Moderado', 'Intenso')),
-    dataatividade DATE NOT NULL,
-    horaatividade TIME NOT NULL,
+    dataatividade DATE,
+    horaatividade TIME,
     datahoraregistroatividade TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     duracaoatividade NUMERIC DEFAULT NULL,
     distanciaatividade DECIMAL(5,2) DEFAULT NULL,
@@ -41,14 +41,15 @@ CREATE TABLE IF NOT EXISTS cronogramas (
     idusuario VARCHAR(12) NOT NULL,
     diasemanacronograma VARCHAR(10) CHECK (diasemanacronograma IN ('Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado')),
     turnocronograma VARCHAR(10) CHECK (turnocronograma IN ('Manhã', 'Tarde', 'Noite')),
-    titulotreinocronograma VARCHAR(100) NOT NULL,
+    titulotreinocronograma VARCHAR(100) NULL,
+    exercicioscronograma INT DEFAULT 1,
     observacoescronograma TEXT,
     datahoraregistrocronograma TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (idusuario) REFERENCES usuarios(idusuario) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS exercicios_cronograma (
-    idexercicio SERIAL PRIMARY KEY,
+    idexercicio VARCHAR(12) PRIMARY KEY,
     idcronograma VARCHAR(12) NOT NULL,
     nomeexercicio VARCHAR(100) NOT NULL,
     seriesexercicio INT,
@@ -58,7 +59,6 @@ CREATE TABLE IF NOT EXISTS exercicios_cronograma (
     clusterexercicio VARCHAR(20),
     cargaexercicio VARCHAR (20),
     observacoesexercicio TEXT,
-    linhasexercicio INT DEFAULT 1,
-	ordemexercicio INT NOT NULL,
+	ordemexercicio INT, -- não sei como vou implementar isso
     FOREIGN KEY (idcronograma) REFERENCES cronogramas(idcronograma) ON DELETE CASCADE
 );
