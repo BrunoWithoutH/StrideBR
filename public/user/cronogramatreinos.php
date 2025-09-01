@@ -68,6 +68,7 @@ foreach ($treinos as $t) {
                             <div class="dropdown-content">
                                 <a href="cronogramatreinos.php" class="NavItem">Seu Cronograma de Treinos</a>
                                 <a href="atividades.php" class="NavItem">Atividades</a>
+                                <a href="treino.php" class="NavItem">Treino</a>
                             </div>
                         </div>
                         <div class="dropdown">
