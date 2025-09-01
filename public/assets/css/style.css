@@ -160,3 +160,7 @@ nav a {
     transform: translate(-50%);
     text-align: center;
 }
+
+.textcenter {
+    text-align: center;
+}
