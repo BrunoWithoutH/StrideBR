@@ -48,6 +48,7 @@ session_start();
                             <div class="dropdown-content">
                                 <a href="user/cronogramatreinos.php" class="NavItem">Seu Cronograma de Treinos</a>
                                 <a href="user/atividades.php" class="NavItem">Atividades</a>
+                                <a href="user/ferramentastreino.php" class="NavItem">Treino</a>
                             </div>
                         </div>
                         <div class="dropdown">
