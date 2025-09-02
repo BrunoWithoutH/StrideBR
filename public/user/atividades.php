@@ -147,6 +147,7 @@ $logado = $estalogado ? $NomeUsuario : null;
                             <div class="dropdown-content">
                                 <a href="cronogramatreinos.php" class="NavItem">Seu Cronograma de Treinos</a>
                                 <a href="atividades.php" class="NavItem">Atividades</a>
+                                <a href="ferramentastreino.php" class="NavItem">Treino</a>
                             </div>
                         </div>
                         <div class="dropdown">
@@ -175,127 +176,129 @@ $logado = $estalogado ? $NomeUsuario : null;
                 </section>
             </div>
         </div>
-        <div class="row">
+        <div class="row textcenter">
             <h1 class="textcenter">Suas Atividades</h1>
             <?php if (count($result) === 0): ?>
-                <p class="textcenter">Opa! Você ainda não possui atividades registradas.</p>
+                <p>Opa! Você ainda não possui atividades registradas.</p>
             <?php endif; ?>
             <button class="addbutton">Registrar atividade manualmente</button>
         </div>
         <div class="row">
             <div class="col-sm-12">
-                <form class="AtividadeForm" id="formulario" action="#" method="POST">
-                    <span class="title">Registrar atividade</span>
+                <div class="atividades textcenter">
+                    <form class="AtividadeForm" id="formulario" action="#" method="POST">
+                        <span class="title">Registrar atividade</span>
 
-                    <div class="input-field">
-                        <label for="TituloAtividade">Título</label>
-                        <input type="text" id="TituloAtividade" name="TituloAtividade" placeholder="Título da Atividade">
-                    </div>
-
-                    <div class="input-field tipo">
-                        <select name="EsporteAtividade" class="EsporteAtividade" required>
-                            <option class="select" disabled selected>Tipo de Atividade:</option>
-                            <optgroup label="Caminhada e Corrida">
-                                <option value="Caminhada">Caminhada</option>
-                                <option value="Corrida">Corrida</option>
-                                <option value="Marcha Atlética">Marcha Atlética</option>
-                                <option value="Trilha">Trilha</option>
-                            </optgroup>
-                            <optgroup label="Ciclismo">
-                                <option value="Ciclismo">Ciclismo</option>
-                                <option value="Mountain Bike">Mountain Bike</option>
-                                <option value="Downhill">Downhill</option>
-                                <option value="BMX">BMX</option>
-                            </optgroup>
-                            <optgroup label="Esportes de Natação">
-                                <option value="Nado de peito">Nado de peito</option>
-                                <option value="Nado de costas">Nado de costas</option>
-                                <option value="Nado borboleta">Nado borboleta</option>
-                            </optgroup>
-                            <optgroup label="Esportes de raquete">
-                                <option value="Tênis">Tênis</option>
-                                <option value="Tênis de mesa">Tênis de mesa</option>
-                                <option value="Badminton">Badminton</option>
-                                <option value="Padel">Padel</option>
-                                <option value="Beach Tennis">Beach Tennis</option>
-                            </optgroup>
-                            <optgroup label="Arremessos e Lançamentos">
-                                <option value="Arremesso de peso">Arremesso de peso</option>
-                                <option value="Lançamento de disco">Lançamento de disco</option>
-                                <option value="Lançamento de dardo">Lançamento de dardo</option>
-                                <option value="Lançamento de martelo">Lançamento de martelo</option>
-                            </optgroup>
-                                <option value="outro">outro</option>
-                        </select>
-                        <i class="uil uil-grid icon"></i>
-                    </div>
-
-                    <div class="input-field" id="field-distancia" style="display:none">
-                        <label for="DistanciaAtividade">Distância</label>
-                        <input type="number" id="DistanciaAtividade" name="DistanciaAtividade" step="0.01" placeholder="Distância">
-                        <select name="UnidadeDistanciaAtividade" id="UnidadeDistanciaAtividade">
-                            <option value="quilometros" selected>quilômetros</option>
-                            <option value="metros">metros</option>
-                            <option value="milhas">milhas</option>
-                            <option value="jardas">jardas</option>
-                        </select>
-                        <i class="uil uil-ruler icon"></i>
-                    </div>
-
-                    <div class="input-field" id="field-duracao" style="display:none">
-                        <label for="duracao_horas">Duração</label>
-                        <div class="duracao-inputs">
-                            <input type="number" id="duracao_horas" name="duracao_horas" min="0" max="23" placeholder="hh"s>
-                            <input type="number" id="duracao_minutos" name="duracao_minutos" min="0" max="59" placeholder="mm">
-                            <input type="number" id="duracao_segundos" name="duracao_segundos" min="0" max="59" placeholder="ss">
+                        <div class="input-field">
+                            <label for="TituloAtividade">Título</label>
+                            <input type="text" id="TituloAtividade" name="TituloAtividade" placeholder="Título da Atividade">
                         </div>
-                        <i class="uil uil-stopwatch icon"></i>
-                    </div>
 
-                    <div class="input-field" id="field-elevacao" style="display:none">
-                        <label for="ElevaçãoAtividade">Elevação</label>
-                        <input type="number" id="ElevacaoAtividade" name="ElevacaoAtividade" step="0.1" placeholder="Elevação">
-                        <select name="UnidadeElevacaoAtividade" id="UnidadeElevacaoAtividade">
-                            <option value="metros" selected>metros</option>
-                            <option value="pés">pés</option>
-                        </select>
-                        <i class="uil uil-arrow-growth icon"></i>
-                    </div>
-
-                    <div class="input-field">
-                        <label for="DataAtividade">Data e Hora</label>
-                        <input type="date" id="DataAtividade" name="DataAtividade" value="<?php echo date('Y-m-d'); ?>" required>
-                        <input type="time" id="HoraAtividade" name="HoraAtividade" value="<?php echo date('H:i'); ?>" required>
-                        <i class="uil uil-clock-three icon"></i>
-                    </div>
-
-                    <div class="input-field ritmo">
-                        <select name="RitmoAtividade" class="RitmoAtividade" required>
-                            <option class="select" disabled selected>Ritmo da Atividade:</option>
-                            <option value="Leve">Leve</option>
-                            <option value="Moderado">Moderado</option>
-                            <option value="Intenso">Intenso</option>
-                        </select>
-                        <i class="uil uil-wind icon"></i>
-                    </div>                    
-
-                    <div class="checkbox-text">
-                        <div class="checkbox-content">
-                            <input type="checkbox" id="checkPeso" onclick="togglePesoInput()">
-                            <label for="checkPeso" class="text">Mostrar gasto calórico aproximado</label>
+                        <div class="input-field tipo">
+                            <select name="EsporteAtividade" class="EsporteAtividade" required>
+                                <option class="select" disabled selected>Tipo de Atividade:</option>
+                                <optgroup label="Caminhada e Corrida">
+                                    <option value="Caminhada">Caminhada</option>
+                                    <option value="Corrida">Corrida</option>
+                                    <option value="Marcha Atlética">Marcha Atlética</option>
+                                    <option value="Trilha">Trilha</option>
+                                </optgroup>
+                                <optgroup label="Ciclismo">
+                                    <option value="Ciclismo">Ciclismo</option>
+                                    <option value="Mountain Bike">Mountain Bike</option>
+                                    <option value="Downhill">Downhill</option>
+                                    <option value="BMX">BMX</option>
+                                </optgroup>
+                                <optgroup label="Esportes de Natação">
+                                    <option value="Nado de peito">Nado de peito</option>
+                                    <option value="Nado de costas">Nado de costas</option>
+                                    <option value="Nado borboleta">Nado borboleta</option>
+                                </optgroup>
+                                <optgroup label="Esportes de raquete">
+                                    <option value="Tênis">Tênis</option>
+                                    <option value="Tênis de mesa">Tênis de mesa</option>
+                                    <option value="Badminton">Badminton</option>
+                                    <option value="Padel">Padel</option>
+                                    <option value="Beach Tennis">Beach Tennis</option>
+                                </optgroup>
+                                <optgroup label="Arremessos e Lançamentos">
+                                    <option value="Arremesso de peso">Arremesso de peso</option>
+                                    <option value="Lançamento de disco">Lançamento de disco</option>
+                                    <option value="Lançamento de dardo">Lançamento de dardo</option>
+                                    <option value="Lançamento de martelo">Lançamento de martelo</option>
+                                </optgroup>
+                                    <option value="outro">outro</option>
+                            </select>
+                            <i class="uil uil-grid icon"></i>
                         </div>
-                    </div>
 
-                    <div class="input-field" id="pesoField" style="display: none;">
-                        <input type="text" id="Peso" name="Peso" placeholder="Insira seu peso">
-                        <i class="uil uil-weight icon"></i>
-                    </div>
+                        <div class="input-field" id="field-distancia" style="display:none">
+                            <label for="DistanciaAtividade">Distância</label>
+                            <input type="number" id="DistanciaAtividade" name="DistanciaAtividade" step="0.01" placeholder="Distância">
+                            <select name="UnidadeDistanciaAtividade" id="UnidadeDistanciaAtividade">
+                                <option value="quilometros" selected>quilômetros</option>
+                                <option value="metros">metros</option>
+                                <option value="milhas">milhas</option>
+                                <option value="jardas">jardas</option>
+                            </select>
+                            <i class="uil uil-ruler icon"></i>
+                        </div>
+
+                        <div class="input-field" id="field-duracao" style="display:none">
+                            <label for="duracao_horas">Duração</label>
+                            <div class="duracao-inputs">
+                                <input type="number" id="duracao_horas" name="duracao_horas" min="0" max="23" placeholder="hh"s>
+                                <input type="number" id="duracao_minutos" name="duracao_minutos" min="0" max="59" placeholder="mm">
+                                <input type="number" id="duracao_segundos" name="duracao_segundos" min="0" max="59" placeholder="ss">
+                            </div>
+                            <i class="uil uil-stopwatch icon"></i>
+                        </div>
+
+                        <div class="input-field" id="field-elevacao" style="display:none">
+                            <label for="ElevaçãoAtividade">Elevação</label>
+                            <input type="number" id="ElevacaoAtividade" name="ElevacaoAtividade" step="0.1" placeholder="Elevação">
+                            <select name="UnidadeElevacaoAtividade" id="UnidadeElevacaoAtividade">
+                                <option value="metros" selected>metros</option>
+                                <option value="pés">pés</option>
+                            </select>
+                            <i class="uil uil-arrow-growth icon"></i>
+                        </div>
+
+                        <div class="input-field">
+                            <label for="DataAtividade">Data e Hora</label>
+                            <input type="date" id="DataAtividade" name="DataAtividade" value="<?php echo date('Y-m-d'); ?>" required>
+                            <input type="time" id="HoraAtividade" name="HoraAtividade" value="<?php echo date('H:i'); ?>" required>
+                            <i class="uil uil-clock-three icon"></i>
+                        </div>
+
+                        <div class="input-field ritmo">
+                            <select name="RitmoAtividade" class="RitmoAtividade" required>
+                                <option class="select" disabled selected>Ritmo da Atividade:</option>
+                                <option value="Leve">Leve</option>
+                                <option value="Moderado">Moderado</option>
+                                <option value="Intenso">Intenso</option>
+                            </select>
+                            <i class="uil uil-wind icon"></i>
+                        </div>                    
+
+                        <div class="checkbox-text">
+                            <div class="checkbox-content">
+                                <input type="checkbox" id="checkPeso" onclick="togglePesoInput()">
+                                <label for="checkPeso" class="text">Mostrar gasto calórico aproximado</label>
+                            </div>
+                        </div>
+
+                        <div class="input-field" id="pesoField" style="display: none;">
+                            <input type="text" id="Peso" name="Peso" placeholder="Insira seu peso">
+                            <i class="uil uil-weight icon"></i>
+                        </div>
 
 
-                    <div class="input-field button">
-                        <button type="submit" class="submit">Adicionar Atividade</button>
-                    </div>
-                </form>
+                        <div class="input-field button">
+                            <button type="submit" class="submit">Adicionar Atividade</button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
         <div class="row">

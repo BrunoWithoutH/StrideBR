@@ -12,10 +12,9 @@ if (isset($_SESSION['EmailUsuario']) || isset($_SESSION['SenhaUsuario'])) {
     $user = $_SESSION['NomeUsuario'];
     $idusuario = $_SESSION['IdUsuario'];
 } else {
-    $_SESSION['previous_page'] = "../../public/user/cronogramatreinos.php";
+    $_SESSION['previous_page'] = "../../public/user/ferramentastreino.php";
     header('Location: ../login.php');
     exit;
-    $estalogado = FALSE;
 }
 ?>
 <!DOCTYPE html>
@@ -51,7 +50,7 @@ if (isset($_SESSION['EmailUsuario']) || isset($_SESSION['SenhaUsuario'])) {
                             <div class="dropdown-content">
                                 <a href="cronogramatreinos.php" class="NavItem">Seu Cronograma de Treinos</a>
                                 <a href="atividades.php" class="NavItem">Atividades</a>
-                                <a href="treino.php" class="NavItem">Treino</a>
+                                <a href="ferramentastreino.php" class="NavItem">Treino</a>
                             </div>
                         </div>
                         <div class="dropdown">
@@ -84,8 +83,8 @@ if (isset($_SESSION['EmailUsuario']) || isset($_SESSION['SenhaUsuario'])) {
         </div>
         <div class="row">
             <div class="col-sm-12">
-                <div class="contador">
-                    <h2 class="textcenter">Contador de Sets</h2>
+                <div class="contador textcenter">
+                    <h2>Contador de Sets</h2>
                     <div id="counter">
                         <div>
                             <button id="minus" class="count-button">-</button>
@@ -95,8 +94,8 @@ if (isset($_SESSION['EmailUsuario']) || isset($_SESSION['SenhaUsuario'])) {
                         <button id="reset" class="reset-button">Resetar</button>
                     </div>
                 </div>
-                <div class="temporizador">
-                    <h2 class="textcenter">Temporizador</h2>
+                <div class="temporizador textcenter">
+                    <h2>Temporizador</h2>
                         <input type="number" id="minutes" placeholder="Minutos">
                         <button onclick="startTimer()">Iniciar</button>
                         <p id="timer"></p>
