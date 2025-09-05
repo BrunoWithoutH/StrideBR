@@ -64,7 +64,7 @@ session_start();
                                     <button class="dropbtnimg"><img class="userimage" src="assets/img/userdefault.svg" alt="user"></button>
                                     <div class="dropdown-content" style="right: 0;">
                                         <a href="" class="NavItem">Configurações</a>
-                                        <a href="../src/function/logout.php">Sair</a>
+                                        <a href="function/logout.php">Sair</a>
                                     </div>
                                 </div>
 

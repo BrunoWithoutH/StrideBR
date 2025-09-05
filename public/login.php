@@ -24,7 +24,7 @@
             <div class="form">
                 <span class="title">Entrar</span>
 
-                <form action="../src/function/testlogin.php" method="POST">
+                <form action="function/testlogin.php" method="POST">
                     <input type="hidden" name="redirect" value="<?php echo isset($_GET['redirect']) ? $_GET['redirect'] : ''; ?>">
                     <div class="input-field">
                         <input type="text" name="UEmail" placeholder="Insira seu email" required>

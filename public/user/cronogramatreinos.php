@@ -100,7 +100,7 @@ if (!empty($treinos)) {
                                     <button class="dropbtnimg"><img class="userimage" src="../assets/img/userdefault.svg" alt="Usuário"></button>
                                     <div class="dropdown-content" style="right: 0;">
                                         <a href="" class="NavItem">Configurações</a>
-                                        <a href="../function/logout.php">Sair</a>
+                                        <a href="function/logout.php">Sair</a>
                                     </div>
                                 </div>
 
@@ -117,7 +117,7 @@ if (!empty($treinos)) {
         </div>
         <div class="row">
             <div class="col-sm-12">
-                <form action="../../src/function/salvarcronograma.php" method="POST">
+                <form action="../function/salvarcronograma.php" method="POST">
                     <input type="hidden" name="idusuario" value="<?php echo htmlspecialchars($idusuario); ?>">
                     <table class="cronogramatable">
                         <thead>

@@ -161,7 +161,7 @@ $logado = $estalogado ? $NomeUsuario : null;
                                     <button class="dropbtnimg"><img class="userimage" src="../assets/img/userdefault.svg" alt="Usuário"></button>
                                     <div class="dropdown-content" style="right: 0;">
                                         <a href="" class="NavItem">Configurações</a>
-                                        <a href="../function/logout.php">Sair</a>
+                                        <a href="function/logout.php">Sair</a>
                                     </div>
                                 </div>
 

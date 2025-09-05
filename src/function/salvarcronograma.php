@@ -3,18 +3,18 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 session_start();
-require_once(__DIR__ . "/../config/pg_config.php");
-require_once __DIR__ . "/../../vendor/autoload.php";
+require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
+require_once dirname(__DIR__, 2) . '/vendor/autoload.php';
 use Hidehalo\Nanoid\Client;
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header("Location: ../../public/user/cronogramatreinos.php");
+    header("Location: ../user/cronogramatreinos.php");
     exit;
 }
 
 $idusuario = $_SESSION['IdUsuario'] ?? ($_POST['idusuario'] ?? null);
 if (!$idusuario) {
-    header("Location: ../../public/user/cronogramatreinos.php?error=no_user");
+    header("Location: ../user/cronogramatreinos.php?error=no_user");
     exit;
 }
 
@@ -67,13 +67,13 @@ try {
     }
 
     $pdo->commit();
-    header("Location: ../../public/user/cronogramatreinos.php");
+    header("Location: ../user/cronogramatreinos.php");
     exit;
 } catch (Exception $e) {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
     error_log($e->getMessage());
-    header("Location: ../../public/user/cronogramatreinos.php?error=save_failed");
+    header("Location: ../user/cronogramatreinos.php?error=save_failed");
     exit;
 }

@@ -2,7 +2,7 @@
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
-include("../config/pg_config.php");
+require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
 session_start();
 
 if (isset($_POST['submit']) && !empty($_POST['UEmail']) && !empty($_POST['USenha'])) {
@@ -22,7 +22,7 @@ if (isset($_POST['submit']) && !empty($_POST['UEmail']) && !empty($_POST['USenha
         $_SESSION['SenhaUsuario'] = $user['senhausuario'];
         $_SESSION['IdUsuario'] = $user['idusuario'];
 
-        $redirectUrl = $_SESSION['previous_page'] ?? '../../public/home.php';
+        $redirectUrl = $_SESSION['previous_page'] ?? '../home.php';
         unset($_SESSION['previous_page']);
         header('Location: ' . $redirectUrl);
         exit();
