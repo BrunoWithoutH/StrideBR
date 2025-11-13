@@ -1,41 +1,31 @@
 # StrideBR
 
-O **StrideBR** é uma plataforma desenvolvida para ajudar atletas e entusiastas do esporte a registrar, acompanhar e melhorar seu desempenho ao longo do tempo.  
-Ela permite o controle detalhado de treinos e atividades como corridas, ciclismo e outros esportes, oferecendo uma visão completa da evolução do usuário.
+**StrideBR** is a platform designed to help athletes and sports enthusiasts track and improve their performance over time.  
+It allows detailed control of training sessions and activities such as running, cycling, and other sports — providing a full view of each user's progress.
 
-**Acesse a página do projeto:** [https://stridebr.alwaysdata.net](https://stridebr.alwaysdata.net)
-
----
-
-## Funcionalidades
-
-### Registro de atividades físicas
-Permite adicionar detalhes como:
-
-- Tipo de atividade (corrida, ciclismo, etc.)
-- Data e hora
-- Duração
-- Distância
-- Ritmo médio
-- Elevação
-- Cálculo aproximado de calorias gastas
-
-### Cronograma semanal de treinos
-- Estrutura baseada em **dias da semana × períodos (manhã, tarde e noite)**
-- Células editáveis para personalizar o treino de cada dia
-- Expansão de células para detalhar treinos específicos
-- Registro de **exercícios individuais**, incluindo:
-  - Nome do exercício
-  - Séries, repetições e descanso
-  - Observações
-  - Campos opcionais: bloco, cluster, peso, tipo e link de referência
+**Visit the project page:** [https://stridebr.alwaysdata.net](https://stridebr.alwaysdata.net)
 
 ---
 
-## Tecnologias Utilizadas
+## ⚙️ Features
 
-- **Backend:** PHP (PDO)
-- **Banco de Dados:** PostgreSQL / MySQL
-- **Frontend:** HTML, CSS
-- **Controle de versão:** Git + GitHub
-- **Identificadores únicos:** [NanoID](https://github.com/ai/nanoid)
+### 🏃 Physical activity tracking
+Lets you record details such as:
+
+- Type of activity (running, cycling, etc.)
+- Date and time  
+- Duration  
+- Distance  
+- Average pace  
+- Elevation gain  
+- Estimated calories burned
+
+### 📅 Weekly training schedule
+- Grid layout based on **days of the week × time periods (morning, afternoon, evening)**
+- Editable cells to customize each training day
+- Expandable cells for detailed workouts
+- Support for **individual exercises**, including:
+  - Exercise name  
+  - Sets, reps, and rest time  
+  - Notes  
+  - Optional fields: block, cluster, weight, type, and reference link
