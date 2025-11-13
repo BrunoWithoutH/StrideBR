@@ -1,58 +1,41 @@
 # StrideBR
 
-O **StrideBR** é uma aplicação web focada em registrar e acompanhar atividades físicas, ajudando o usuário a manter um histórico de treinos e melhorar seu desempenho.
-O sistema foi desenvolvido em **PHP** com **PostgreSQL/MySQL**, e possui funcionalidades que permitem o registro detalhado de corridas, ciclismo e outros esportes, além de gerenciamento avançado de treinos semanais.
+O **StrideBR** é uma plataforma desenvolvida para ajudar atletas e entusiastas do esporte a registrar, acompanhar e melhorar seu desempenho ao longo do tempo.  
+Ela permite o controle detalhado de treinos e atividades como corridas, ciclismo e outros esportes, oferecendo uma visão completa da evolução do usuário.
+
+**Acesse a página do projeto:** [https://stridebr.alwaysdata.net](https://stridebr.alwaysdata.net)
 
 ---
 
 ## Funcionalidades
 
-* **Registro de atividades físicas** com:
+### Registro de atividades físicas
+Permite adicionar detalhes como:
 
-  * Tipo de atividade (corrida, ciclismo, etc.)
-  * Data e hora
-  * Duração (com precisão de segundos)
-  * Distância
-  * Ritmo médio
-  * Elevação
-  * Cálculo aproximado de calorias gastas
+- Tipo de atividade (corrida, ciclismo, etc.)
+- Data e hora
+- Duração
+- Distância
+- Ritmo médio
+- Elevação
+- Cálculo aproximado de calorias gastas
 
-* **Cronograma semanal de treinos**
-
-  * Estruturado em **dias da semana × períodos (manhã, tarde, noite)**
-  * Cada célula é editável para personalizar os treinos
-  * Possibilidade de expandir a célula para detalhar cada treino
-  * Registro de **exercícios individuais** com:
-
-    * Nome do exercício
-    * Séries
-    * Repetições
-    * Descanso
-    * Observações
-    * Campos opcionais: Bloco, Cluster, Peso, Tipo de exercício, Link de referência
-  * Organização visual: arrastar/excluir exercícios, marcar treinos como concluídos ou planejados
-  * Funções adicionais: clonagem de treinos, exportação para PDF/CSV, estatísticas (volume de treino, tempo gasto)
-
-* **Sistema de login e autenticação**
-
-  * Redirecionamento automático para a página original após login
-
-* **Cálculo automático de estatísticas**
-
-  * Ritmo médio (pace)
-  * Gasto calórico estimado baseado em peso, tempo e velocidade
-
-* **Visualização e filtragem**
-
-  * Filtrar por grupo muscular, tipo de treino ou tags personalizadas
-  * Histórico de treinos e desempenho ao longo do tempo
+### Cronograma semanal de treinos
+- Estrutura baseada em **dias da semana × períodos (manhã, tarde e noite)**
+- Células editáveis para personalizar o treino de cada dia
+- Expansão de células para detalhar treinos específicos
+- Registro de **exercícios individuais**, incluindo:
+  - Nome do exercício
+  - Séries, repetições e descanso
+  - Observações
+  - Campos opcionais: bloco, cluster, peso, tipo e link de referência
 
 ---
 
 ## Tecnologias Utilizadas
 
-* **Backend:** PHP (PDO)
-* **Banco de Dados:** PostgreSQL / MySQL
-* **Frontend:** HTML, CSS
-* **Controle de versão:** Git + GitHub
-* **Identificadores únicos:** [NanoID](https://github.com/ai/nanoid)
+- **Backend:** PHP (PDO)
+- **Banco de Dados:** PostgreSQL / MySQL
+- **Frontend:** HTML, CSS
+- **Controle de versão:** Git + GitHub
+- **Identificadores únicos:** [NanoID](https://github.com/ai/nanoid)
