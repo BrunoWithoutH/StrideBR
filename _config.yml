@@ -1,4 +1,2 @@
-theme: jekyll-theme-cayman
-markdown: kramdown
-title: StrideBR Docs
-description: Documentação do projeto StrideBR
+remote_theme: pages-themes/minimal@v0.2.0
+title: [StrideBR]
