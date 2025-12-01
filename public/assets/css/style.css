@@ -11,11 +11,13 @@ body{
     overflow-x: hidden;
 }
 
+.container{
+    position: relative;
+}
+
 .header {
     position: relative;
     text-align: center;
-    margin-left: -12px;
-    margin-right: -12px;
     background-color: #7380a3;
     font-size: medium;
     box-shadow: 0px 8px 16px 0px #00000033;
@@ -23,17 +25,36 @@ body{
 
     nav {
         position: relative;
-        color: #faebd7;
+        color: #000000;
+        left: 240px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 15px;
         a {
-            color: #faebd7;
+            color: #000000;
+            text-decoration: none;
+            margin: 0 10px;
         }
+    }
+
+    .nav-logo{
+        display: flex;
+        margin-left: -240px;
+        position: relative;
+        height: 30px;
+        width: auto;
+        left: -240px;
+        margin-right: 10px;
     }
 
     .dropbtn {
         background-color: #7380a3;
-        color: white;
+        color: #000000;
         padding: 16px;
         border: none;
+        font-size: medium;
+        font-weight: bold;
     }
 
     .dropbtnimg {
@@ -59,7 +80,7 @@ body{
     }
       
     .dropdown-content a {
-        color: black;
+        color: #000000;
         padding: 8px 15px 10px 8px;
         text-decoration: none;
         display: block;
@@ -85,40 +106,11 @@ body{
         border-bottom: none;
         border-top: none;
     }
-
-    .logoSTBR {
-        display: flex;
-        margin-left: -240px;
-        position: relative;
-        height: 30px;
-        width: auto;
-        left: -240px;
-        margin-right: 10px;
-    }
-}
-
-.container{
-    position: relative;
 }
 
 .intro {
     margin-top: 20px;
     text-align: center;
-}
-
-nav {
-    position: relative;
-    left: 240px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0 15px;
-}
-
-nav a {
-    color: antiquewhite;
-    text-decoration: none;
-    margin: 0 10px;
 }
 
 .usersection {
@@ -136,9 +128,11 @@ nav a {
 
 .LogButton {
     background-color: #7380a3;
-    color: white;
+    color: #000000;
     padding: 10px;
     border: none;
+    font-size: medium;
+    font-weight: bold;
     cursor: pointer;
     margin-left: 10px;
 }
