@@ -1,24 +1,24 @@
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
 
-*{
+* {
     margin: 0;
     padding: 0;
 }
 
-body{
+body {
     background-color: #e7e7e7;
     font-family: 'poppins', sans-serif;
     overflow-x: hidden;
 }
 
-.container{
+.container {
     position: relative;
 }
 
 .header {
     position: relative;
     text-align: center;
-    background-color: #7380a3;
+    background-color: #dfdfdf;
     font-size: medium;
     box-shadow: 0px 8px 16px 0px #00000033;
     margin-bottom: 20px;
@@ -31,6 +31,7 @@ body{
         align-items: center;
         justify-content: center;
         padding: 0 15px;
+
         a {
             color: #000000;
             text-decoration: none;
@@ -38,7 +39,7 @@ body{
         }
     }
 
-    .nav-logo{
+    .nav-logo {
         display: flex;
         margin-left: -240px;
         position: relative;
@@ -49,7 +50,7 @@ body{
     }
 
     .dropbtn {
-        background-color: #7380a3;
+        background-color: #dfdfdf;
         color: #000000;
         padding: 16px;
         border: none;
@@ -58,7 +59,7 @@ body{
     }
 
     .dropbtnimg {
-        background-color: #7380a3;
+        background-color: #dfdfdf;
         padding: 8px;
         padding: auto;
         border: none;
@@ -78,7 +79,7 @@ body{
         border: 2px #ccc solid;
         z-index: 1;
     }
-      
+
     .dropdown-content a {
         color: #000000;
         padding: 8px 15px 10px 8px;
@@ -86,23 +87,23 @@ body{
         display: block;
         text-align: start;
     }
-      
+
     .dropdown-content a:hover {
         background-color: #ddd;
     }
-      
+
     .dropdown:hover .dropdown-content {
         display: block;
     }
-    
-    .dropdown:hover button{
-        background-color: #66759c;
+
+    .dropdown:hover button {
+        background-color: #d4d4d4;
         border-bottom: none;
         border-top: none;
     }
 
     button:hover {
-        background-color: #66759c;
+        background-color: #d4d4d4;
         border-bottom: none;
         border-top: none;
     }
@@ -127,9 +128,9 @@ body{
 }
 
 .LogButton {
-    background-color: #7380a3;
+    background-color: #dfdfdf;
     color: #000000;
-    padding: 10px;
+    padding: 16px;
     border: none;
     font-size: medium;
     font-weight: bold;
@@ -138,7 +139,7 @@ body{
 }
 
 .LogButton:hover {
-    background-color: #66759c;
+    background-color: #d4d4d4;
 }
 
 .intro {
@@ -157,4 +158,93 @@ body{
 
 .textcenter {
     text-align: center;
+}
+
+.site-footer {
+    background-color: #1f2937;
+    color: #ffffff;
+    padding: 48px 24px 32px;
+    font-family: system-ui, -apple-system, sans-serif;
+}
+
+.site-footer .footer-inner {
+    max-width: 1024px;
+    margin: 0 auto;
+}
+
+.site-footer .footer-top {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 32px;
+    margin-bottom: 32px;
+    align-items: flex-start;
+}
+
+.site-footer .footer-brand {
+    display: flex;
+    align-items: center;
+}
+
+.site-footer .footer-logo {
+    height: 32px;
+    width: auto;
+}
+
+.site-footer .footer-column h4 {
+    font-weight: 600;
+    font-size: 16px;
+    margin-bottom: 16px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.site-footer .footer-column ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.site-footer .footer-column li {
+    margin-bottom: 8px;
+}
+
+.site-footer .footer-column a {
+    color: #60a5fa;
+    text-decoration: none;
+    font-size: 14px;
+    transition: opacity 0.2s;
+}
+
+.site-footer .footer-column a:hover {
+    opacity: 0.7;
+}
+
+.site-footer .footer-bottom {
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    padding-top: 24px;
+    text-align: center;
+}
+
+.site-footer .footer-social {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.site-footer .footer-social a {
+    color: #60a5fa;
+    font-size: 24px;
+    text-decoration: none;
+    transition: opacity 0.2s;
+}
+
+.site-footer .footer-social a:hover {
+    opacity: 0.7;
+}
+
+.site-footer .footer-bottom p {
+    font-size: 14px;
+    opacity: 0.8;
+    margin: 0;
 }
