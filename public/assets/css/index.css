@@ -1,0 +1,71 @@
+.intro {
+    padding-top: 80px;
+    font-size: 1.4rem;
+}
+
+.separator {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 3rem;
+    color: #000000;
+    margin: 40px;
+}
+
+.guide {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    margin: 40px 0;
+    gap: 16px;
+    padding-bottom: 80px;
+    min-height: 30vh;
+}
+
+.guide-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    width: 350px;
+    height: 180px;
+    margin: 8px;
+    padding: 10px;
+    background-color: #e0e0e0;
+    border-radius: 12px;
+    box-shadow: 0 4px 8px #00000069;
+}
+
+.guide-item:hover {
+    box-shadow: 0 6px 12px #00000085;
+    transform: translateY(-4px);
+}
+
+.guide-item {
+    transition: all 0.3s ease;
+}
+
+
+.guide-index {
+    width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 40px;
+    color: #333;
+}
+
+.scroll-next {
+    margin-top: 20px;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 8px;
+    background-color: #333;
+    color: #fff;
+    cursor: pointer;
+}
+.scroll-next:hover {
+    background-color: #555;
+}
