@@ -1,18 +1,47 @@
--- CREATE DATABASE stridebr;
-
--- \c stridebr;
-
 CREATE TABLE IF NOT EXISTS usuarios (
     idusuario VARCHAR(12) PRIMARY KEY UNIQUE,
+    
     nomeusuario VARCHAR(255) NOT NULL,
-    emailusuario VARCHAR(255) NOT NULL,
+    emailusuario VARCHAR(255) NOT NULL UNIQUE,
     senhausuario VARCHAR(255) NOT NULL,
     foneusuario VARCHAR(20),
     datanascimentousuario DATE DEFAULT NULL,
     dataregistrousuario TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
     nivelusuario INT DEFAULT 0,
-    statususuario VARCHAR(10) CHECK (statususuario IN ('Ativo', 'Desativado')) DEFAULT 'Ativo'
+    statususuario VARCHAR(10) 
+        CHECK (statususuario IN ('Ativo', 'Desativado')) 
+        DEFAULT 'Ativo',
+
+    fotousuario VARCHAR(255) DEFAULT NULL,
+    generousuario VARCHAR(20)
+        CHECK (generousuario IN (
+            'Masculino',
+            'Feminino',
+            'Não-binário',
+            'Agênero',
+            'Bigênero',
+            'Gênero fluido',
+            'Prefiro não informar',
+            'Outro'
+        )),
+    pronomesusuario VARCHAR(20),
+    biousuario TEXT,
+
+    pesousuario DECIMAL(5,2),
+    alturausuario INT,
+    objetivousuario TEXT,
+
+    privacidadeperfil INT DEFAULT 0,
+    verificado BOOLEAN DEFAULT FALSE,
+
+    ultimologin TIMESTAMP,
+    ipregistro VARCHAR(45),
+    ipultimologin VARCHAR(45),
+
+    notificacoesconfig JSON DEFAULT '{}'
 );
+
 
 CREATE TABLE IF NOT EXISTS atividades (
     idatividade VARCHAR(16) PRIMARY KEY UNIQUE,

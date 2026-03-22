@@ -22,7 +22,7 @@ if (isset($_POST['submit']) && !empty($_POST['UEmail']) && !empty($_POST['USenha
         $_SESSION['SenhaUsuario'] = $user['senhausuario'];
         $_SESSION['IdUsuario'] = $user['idusuario'];
 
-        $redirectUrl = $_SESSION['previous_page'] ?? '../home.php';
+        $redirectUrl = $_SESSION['previous_page'] ?? '/home.php';
         unset($_SESSION['previous_page']);
         header('Location: ' . $redirectUrl);
         exit();
