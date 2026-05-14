@@ -9,9 +9,6 @@
 
 > **StrideBR** is a platform built to help athletes and sports enthusiasts track, organize and improve their training over time.
 
-## Access
-**Visit the project page at:** [https://stridebr.alwaysdata.net](https://stridebr.alwaysdata.net)
-
 
 ## Features
 Current and upcoming features include:
