@@ -2,7 +2,7 @@
     <div class="col-sm-12">
         <section class="header">
             <nav>
-                <a href="/index.php">
+                <a href="index.php">
                     <svg viewBox="0 0 1408.82 552.6" xmlns="http://www.w3.org/2000/svg" class="nav-logo">
                         <path fill="currentColor" d="M490.7,239.91c-8.75,42.14-27.01,85.44-54.53,126.04-6.4,9.43-13.29,18.72-20.68,27.81-1.34,1.65-2.7,3.3-4.08,4.94-6.13,7.31-12.45,14.32-18.93,21.03-83.85,86.76-194.9,122.75-278.98,94.62l39.41-55.22c57.78,10.49,131.34-18.37,190.88-77.83,7-6.99,13.82-14.41,20.39-22.24.98-1.17,1.95-2.33,2.9-3.51,7.45-9.11,14.3-18.44,20.55-27.91,12.7-19.25,22.9-39.07,30.5-58.81l-69.8,27.81-37.15,14.8-37.16,14.8-16.8-13.26-46.01-36.3-26.18,10.43-123.05,49.03L.81,360.5c-2.02-24.48-.27-50.35,5.2-76.67,8.75-42.14,27.01-85.44,54.53-126.04,6.4-9.43,13.29-18.72,20.68-27.81,1.34-1.65,2.7-3.3,4.08-4.94,6.13-7.31,12.45-14.32,18.93-21.03C188.08,17.27,299.13-18.73,383.21,9.4l-39.41,55.22c-57.78-10.49-131.34,18.37-190.88,77.83-7,6.99-13.82,14.41-20.39,22.24-.98,1.17-1.95,2.33-2.9,3.51-7.45,9.11-14.3,18.44-20.55,27.91-12.7,19.25-22.9,39.07-30.5,58.81l69.8-27.81,37.15-14.8,37.16-14.8,16.8,13.26,46.01,36.3,26.18-10.43,123.05-49.03,61.16-24.37c2.02,24.48.27,50.35-5.2,76.67Z" />
 
@@ -21,16 +21,16 @@
                 <div class="dropdown">
                     <button class="dropbtn">Início<i class="uil uil-angle-down"></i></button>
                     <div class="dropdown-content">
-                        <a href="/home.php" class="NavItem">Painel principal</a>
-                        <a href="/calendario.php" class="NavItem">Calendário de corridas</a>
+                        <a href="home.php" class="NavItem">Painel principal</a>
+                        <a href="calendario.php" class="NavItem">Calendário de corridas</a>
                     </div>
                 </div>
                 <div class="dropdown">
                     <button class="dropbtn">Treinos<i class="uil uil-angle-down"></i></button>
                     <div class="dropdown-content">
-                        <a href="/user/cronogramatreinos.php" class="NavItem">Seu Cronograma de Treinos</a>
-                        <a href="/user/atividades.php" class="NavItem">Atividades</a>
-                        <a href="/user/ferramentastreino.php" class="NavItem">Treino</a>
+                        <a href="user/cronogramatreinos.php" class="NavItem">Seu Cronograma de Treinos</a>
+                        <a href="user/atividades.php" class="NavItem">Atividades</a>
+                        <a href="user/ferramentastreino.php" class="NavItem">Treino</a>
                     </div>
                 </div>
                 <div class="dropdown">

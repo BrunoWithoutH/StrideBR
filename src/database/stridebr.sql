@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS usuarios (
-    idusuario VARCHAR(12) PRIMARY KEY UNIQUE,
+    idusuario VARCHAR(21) PRIMARY KEY UNIQUE,
     
     nomeusuario VARCHAR(255) NOT NULL,
     emailusuario VARCHAR(255) NOT NULL UNIQUE,
@@ -44,8 +44,8 @@ CREATE TABLE IF NOT EXISTS usuarios (
 
 
 CREATE TABLE IF NOT EXISTS atividades (
-    idatividade VARCHAR(16) PRIMARY KEY UNIQUE,
-    idusuario VARCHAR(12) NOT NULL,
+    idatividade VARCHAR(21) PRIMARY KEY UNIQUE,
+    idusuario VARCHAR(21) NOT NULL,
     tituloatividade VARCHAR(255),
     esporteatividade VARCHAR(255),
     ritmoatividade VARCHAR(10) CHECK (ritmoatividade IN ('Leve', 'Moderado', 'Intenso')),
@@ -54,8 +54,9 @@ CREATE TABLE IF NOT EXISTS atividades (
     datahoraregistroatividade TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     duracaoatividade NUMERIC DEFAULT NULL,
     distanciaatividade DECIMAL(5,2) DEFAULT NULL,
-	unidadeaistanciaatividade VARCHAR(20),
+	unidadedistanciaatividade VARCHAR(20),
     elevacaoatividade DECIMAL(5,2) DEFAULT NULL,
+    unidadeelevacaoatividade VARCHAR(20),
     velocidademediaatividade DECIMAL(5,2) DEFAULT NULL,
     pesoinseridoatividade DECIMAL(5,2) DEFAULT NULL,
     indicegastocaloricoatividade DECIMAL(5,2) DEFAULT NULL,
@@ -66,8 +67,8 @@ CREATE TABLE IF NOT EXISTS atividades (
 );
 
 CREATE TABLE IF NOT EXISTS cronogramas (
-    idcronograma VARCHAR(12) PRIMARY KEY,
-    idusuario VARCHAR(12) NOT NULL,
+    idcronograma VARCHAR(21) PRIMARY KEY,
+    idusuario VARCHAR(21) NOT NULL,
     diasemanacronograma VARCHAR(10) CHECK (diasemanacronograma IN ('Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado')),
     turnocronograma VARCHAR(10) CHECK (turnocronograma IN ('Manhã', 'Tarde', 'Noite')),
     titulotreinocronograma VARCHAR(100) NULL,
@@ -78,8 +79,8 @@ CREATE TABLE IF NOT EXISTS cronogramas (
 );
 
 CREATE TABLE IF NOT EXISTS exercicios_cronograma (
-    idexercicio VARCHAR(12) PRIMARY KEY,
-    idcronograma VARCHAR(12) NOT NULL,
+    idexercicio VARCHAR(21) PRIMARY KEY,
+    idcronograma VARCHAR(21) NOT NULL,
     nomeexercicio VARCHAR(100) NOT NULL,
     seriesexercicio INT,
     repeticoesexercicio VARCHAR(20),

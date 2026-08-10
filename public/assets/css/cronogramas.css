@@ -82,3 +82,100 @@
 .modal .table th {
     background-color: #f2f2f2;
 }
+
+@media (max-width: 768px) {
+    .cronogramatable {
+        font-size: 12px;
+    }
+
+    .cronogramatable th, .cronogramatable td {
+        padding: 6px 4px;
+    }
+
+    .cronogramatable textarea {
+        height: 50px;
+        font-size: 12px;
+    }
+
+    .cronogramatable button {
+        padding: 6px 12px;
+        font-size: 11px;
+    }
+
+    .modal-content {
+        width: 90%;
+        max-width: 600px;
+        padding: 16px;
+    }
+
+    .modal .table th, .modal .table td {
+        padding: 6px;
+        font-size: 12px;
+    }
+
+    .close {
+        font-size: 24px;
+    }
+}
+
+@media (max-width: 375px) {
+    .cronogramatable {
+        font-size: 10px;
+        display: block;
+        overflow-x: auto;
+    }
+
+    .cronogramatable th, .cronogramatable td {
+        padding: 4px 2px;
+        border: 1px solid #999;
+    }
+
+    .cronogramatable textarea {
+        height: 40px;
+        font-size: 11px;
+        padding: 4px;
+    }
+
+    .cronogramatable button {
+        padding: 4px 8px;
+        font-size: 10px;
+        margin-top: 4px;
+    }
+
+    .cell-title {
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .btn-group {
+        gap: 2px;
+    }
+
+    .modal {
+        height: 100%;
+    }
+
+    .modal-content {
+        width: 95%;
+        max-width: 350px;
+        margin: auto;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        padding: 12px;
+    }
+
+    .modal .table {
+        font-size: 11px;
+    }
+
+    .modal .table th, .modal .table td {
+        padding: 4px;
+        font-size: 10px;
+    }
+
+    .close {
+        font-size: 20px;
+    }
+}

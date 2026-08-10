@@ -19,32 +19,32 @@
             <div class="footer-column">
                 <h4>StrideBR</h4>
                 <ul>
-                    <li><a href="/pages/about/about.php">Sobre o projeto</a></li>
-                    <li><a href="/pages/about/team.php">Equipe</a></li>
-                    <li><a href="/pages/about/contact.php">Contato</a></li>
+                    <li><a href="pages/about/about.php">Sobre o projeto</a></li>
+                    <li><a href="pages/about/team.php">Equipe</a></li>
+                    <li><a href="pages/about/contact.php">Contato</a></li>
                 </ul>
             </div>
             <div class="footer-column">
                 <h4>Ajuda</h4>
                 <ul>
-                    <li><a href="/pages/help/faq.php">Perguntas frequentes</a></li>
-                    <li><a href="/pages/help/support.php">Suporte</a></li>
+                    <li><a href="pages/help/faq.php">Perguntas frequentes</a></li>
+                    <li><a href="pages/help/support.php">Suporte</a></li>
                 </ul>
             </div>
             <div class="footer-column">
                 <h4>Legal</h4>
                 <ul>
-                    <li><a href="/pages/legal/terms.php">Termos de uso</a></li>
-                    <li><a href="/pages/legal/privacy.php">Política de privacidade</a></li>
-                    <li><a href="/pages/legal/cookies.php">Política de cookies</a></li>
+                    <li><a href="pages/legal/terms.php">Termos de uso</a></li>
+                    <li><a href="pages/legal/privacy.php">Política de privacidade</a></li>
+                    <li><a href="pages/legal/cookies.php">Política de cookies</a></li>
                 </ul>
             </div>
             <div class="footer-column">
                 <h4>Recursos</h4>
                 <ul>
-                    <li><a href="/pages/extras/roadmap.php">Roadmap</a></li>
-                    <li><a href="/pages/extras/changelog.php">Atualizações</a></li>
-                    <li><a href="/pages/extras/credits.php">Créditos</a></li>
+                    <li><a href="pages/extras/roadmap.php">Roadmap</a></li>
+                    <li><a href="pages/extras/changelog.php">Atualizações</a></li>
+                    <li><a href="pages/extras/credits.php">Créditos</a></li>
                 </ul>
             </div>
         </div>

@@ -3,134 +3,84 @@
 * {
     margin: 0;
     padding: 0;
+    box-sizing: border-box;
+}
+
+
+
+html, body {
+    min-height: 100vh;
+    height: 100%;
 }
 
 body {
     background-color: #e7e7e7;
-    font-family: 'poppins', sans-serif;
+    font-family: 'Poppins', sans-serif;
     overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
 }
 
-.container-fluid {
-    position: relative;
+.main-content {
+    flex: 1 0 auto;
+    width: 100%;
+    padding-bottom: 48px;
+}
+
+.site-footer {
+    margin-top: 0;
 }
 
 .header {
-    position: relative;
-    text-align: center;
     background-color: #1f2937;
-    font-size: medium;
     box-shadow: 0px 8px 16px 0px #00000033;
-    margin-bottom: 20px;
-
-    nav {
-        position: relative;
-        color: #000000;
-        left: 240px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 0 15px;
-
-        a {
-            color: #000000;
-            text-decoration: none;
-            margin: 0 10px;
-        }
-    }
-
-    .nav-logo {
-        color: #fff;
-        display: flex;
-        margin-left: -240px;
-        position: relative;
-        height: 36px;
-        width: auto;
-        left: -240px;
-        margin-right: 10px;
-    }
-
-    .nav-logo svg {
-        color: #fff;
-    }
-
-
-    .dropbtn {
-        background-color: #1f2937;
-        color: #ffffff;
-        padding: 20px;
-        border: none;
-        font-size: medium;
-        font-weight: bold;
-    }
-
-    .dropbtnimg {
-        background-color: #1f2937;
-        padding: 8px;
-        padding: auto;
-        border: none;
-    }
-
-    .dropdown {
-        position: relative;
-        display: inline-block;
-    }
-
-    .dropdown-content {
-        display: none;
-        position: absolute;
-        background-color: #f1f1f1;
-        width: auto;
-        white-space: nowrap;
-        border: 2px #ccc solid;
-        z-index: 1;
-    }
-
-    .dropdown-content a {
-        color: #000000;
-        padding: 8px 15px 10px 8px;
-        text-decoration: none;
-        display: block;
-        text-align: start;
-    }
-
-    .dropdown-content a:hover {
-        background-color: #ddd;
-    }
-
-    .dropdown:hover .dropdown-content {
-        display: block;
-    }
-
-    .dropdown:hover button {
-        background-color: #1b2430;
-        border-bottom: none;
-        border-top: none;
-    }
-
-    button:hover {
-        background-color: #1b2430;
-        border-bottom: none;
-        border-top: none;
-    }
+    margin-left: -12px;
+    margin-right: -12px;
 }
 
-.intro {
-    margin-top: 20px;
-    text-align: center;
+.header-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.nav-logo {
+    height: 36px;
+    width: auto;
+    fill: currentColor;
+    color: #fff;
+    flex-shrink: 0;
+    padding-right: 300px;
+}
+
+nav {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex: 1;
+    justify-content: center;
+}
+
+nav a {
+    color: #000;
+    text-decoration: none;
 }
 
 .usersection {
     display: flex;
     align-items: center;
-    margin-left: 30px;
-    margin-left: 400px;
+    gap: 10px;
+    flex-shrink: 0;
+    padding-left: 300px;
 }
 
 .userimage {
-    fill: #e7e7e7;
     height: 36px;
     width: auto;
+    fill: #e7e7e7;
 }
 
 .LogButton {
@@ -141,10 +91,60 @@ body {
     font-size: medium;
     font-weight: bold;
     cursor: pointer;
-    margin-left: 10px;
 }
 
 .LogButton:hover {
+    background-color: #1b2430;
+}
+
+.dropbtn {
+    background-color: #1f2937;
+    color: #ffffff;
+    padding: 20px;
+    border: none;
+    font-size: medium;
+    font-weight: bold;
+}
+
+.dropbtnimg {
+    background-color: #1f2937;
+    padding: 8px;
+    border: none;
+}
+
+.dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.dropdown-content {
+    display: none;
+    position: absolute;
+    background-color: #f1f1f1;
+    width: auto;
+    white-space: nowrap;
+    border: 2px #ccc solid;
+    z-index: 1;
+}
+
+.dropdown-content a {
+    color: #000;
+    padding: 8px 15px 10px 8px;
+    text-decoration: none;
+    display: block;
+    text-align: start;
+}
+
+.dropdown-content a:hover {
+    background-color: #ddd;
+}
+
+.dropdown:hover .dropdown-content {
+    display: block;
+}
+
+.dropdown:hover button,
+button:hover {
     background-color: #1b2430;
 }
 
@@ -158,10 +158,18 @@ body {
 }
 
 .site-footer {
+    position: relative;
+    left: 50%;
+    right: 50%;
+    margin-left: -50vw;
+    margin-right: -50vw;
+    width: 100vw;
+    box-sizing: border-box;
     background-color: #1f2937;
     color: #ffffff;
     padding: 48px 24px 32px;
     font-family: system-ui, -apple-system, sans-serif;
+    margin-top: 0;
 }
 
 .site-footer .footer-inner {
@@ -188,7 +196,6 @@ body {
         grid-template-columns: 1fr;
     }
 }
-
 
 .site-footer .footer-brand {
     display: flex;
@@ -261,16 +268,190 @@ body {
     margin: 0;
 }
 
-html,
-body {
-    height: 115%;
+@media (max-width: 768px) {
+    .header-inner {
+        padding: 0 12px;
+    }
+
+    .nav-logo {
+        padding-right: 0;
+        height: 30px;
+    }
+
+    nav {
+        gap: 10px;
+        justify-content: center;
+    }
+
+    nav a {
+        font-size: 14px;
+        padding: 8px 10px;
+    }
+
+    .usersection {
+        padding-left: 0;
+        gap: 5px;
+    }
+
+    .userimage {
+        height: 28px;
+    }
+
+    .LogButton {
+        padding: 12px;
+        font-size: 14px;
+    }
+
+    .dropbtn {
+        padding: 12px;
+        font-size: 14px;
+    }
+
+    .dropbtnimg {
+        padding: 6px;
+    }
+
+    .intro {
+        margin-top: 10px;
+    }
+
+    .site-footer .footer-top {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+        margin-bottom: 16px;
+    }
+
+    .site-footer .footer-column h4 {
+        font-size: 14px;
+        margin-bottom: 12px;
+    }
+
+    .site-footer .footer-column a {
+        font-size: 12px;
+    }
+
+    .site-footer {
+        padding: 32px 16px 24px;
+    }
 }
 
-body {
-    display: flex;
-    flex-direction: column;
-}
+@media (max-width: 375px) {
+    body {
+        height: auto;
+    }
 
-.site-footer {
-    margin-top: auto;
+    .header {
+        margin-left: -8px;
+        margin-right: -8px;
+        box-shadow: 0px 4px 8px 0px #00000033;
+    }
+
+    .header-inner {
+        flex-direction: column;
+        gap: 8px;
+        padding: 8px 8px;
+    }
+
+    .nav-logo {
+        height: 24px;
+        padding: 0;
+    }
+
+    nav {
+        gap: 6px;
+        flex-wrap: wrap;
+        justify-content: center;
+        order: 3;
+        width: 100%;
+        margin-top: 4px;
+    }
+
+    nav a {
+        font-size: 12px;
+        padding: 6px 8px;
+    }
+
+    .usersection {
+        padding: 0;
+        gap: 4px;
+        order: 2;
+    }
+
+    .userimage {
+        height: 24px;
+    }
+
+    .LogButton {
+        padding: 8px 12px;
+        font-size: 12px;
+    }
+
+    .dropbtn {
+        padding: 8px 12px;
+        font-size: 12px;
+    }
+
+    .dropdown-content {
+        min-width: 150px;
+    }
+
+    .dropdown-content a {
+        padding: 6px 10px 8px 6px;
+        font-size: 12px;
+    }
+
+    .intro {
+        margin-top: 8px;
+    }
+
+    .intro h1 {
+        font-size: 28px;
+    }
+
+    .intro h5 {
+        font-size: 14px;
+    }
+
+    .site-footer {
+        padding: 24px 12px 16px;
+    }
+
+    .site-footer .footer-top {
+        grid-template-columns: 1fr;
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+
+    .site-footer .footer-brand {
+        margin-bottom: 8px;
+    }
+
+    .site-footer .footer-logo {
+        height: 24px;
+    }
+
+    .site-footer .footer-column h4 {
+        font-size: 12px;
+        margin-bottom: 8px;
+    }
+
+    .site-footer .footer-column li {
+        margin-bottom: 4px;
+    }
+
+    .site-footer .footer-column a {
+        font-size: 11px;
+    }
+
+    .site-footer .footer-bottom {
+        padding-top: 12px;
+    }
+
+    .site-footer .footer-social a {
+        font-size: 18px;
+    }
+
+    .site-footer .footer-bottom p {
+        font-size: 11px;
+    }
 }

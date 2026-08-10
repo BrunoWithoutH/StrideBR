@@ -52,9 +52,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $DuracaoTotalMin = $DuracaoTotalSeg / 60;
 
     $Distancia = !empty($_POST['DistanciaAtividade']) ? $_POST['DistanciaAtividade'] : null;
+    $UnidadeDistancia = !empty($_POST['UnidadeDistanciaAtividade']) ? $_POST['UnidadeDistanciaAtividade'] : 'quilometros';
     $Peso = !empty($_POST['Peso']) ? $_POST['Peso'] : null;
     $TituloAtividade = $_POST['TituloAtividade'] ?? $EsporteAtividade;
     $Elevacao = !empty($_POST['ElevacaoAtividade']) ? $_POST['ElevacaoAtividade'] : null;
+    $UnidadeElevacao = !empty($_POST['UnidadeElevacaoAtividade']) ? $_POST['UnidadeElevacaoAtividade'] : 'metros';
 
     $dateObj = DateTime::createFromFormat('Y-m-d', $DataAtividade);
     if (!$dateObj) {
@@ -75,9 +77,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $stmtInsert = $pdo->prepare("
         INSERT INTO atividades
-            (idatividade, idusuario, tituloatividade, esporteatividade, ritmoatividade, dataatividade, horaatividade, duracaoatividade, distanciaatividade, pesoinseridoatividade, elevacaoatividade, caloriasatividade) 
+            (idatividade, idusuario, tituloatividade, esporteatividade, ritmoatividade, dataatividade, horaatividade, duracaoatividade, distanciaatividade, unidadedistanciaatividade, pesoinseridoatividade, elevacaoatividade, unidadeelevacaoatividade, caloriasatividade) 
         VALUES 
-            (:idatividade, :idusuario, :titulo, :esporte, :ritmo, :data, :hora, :duracao, :distancia, :peso, :elevacao, :calorias)
+            (:idatividade, :idusuario, :titulo, :esporte, :ritmo, :data, :hora, :duracao, :distancia, :unidadedistancia, :peso, :elevacao, :unidadeelevacao, :calorias)
     ");
 
     $executado = $stmtInsert->execute([
@@ -90,8 +92,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'hora' => $HoraAtividade,
         'duracao' => $DuracaoTotalSeg ?: null,
         'distancia' => $Distancia,
+        'unidadedistancia' => $UnidadeDistancia,
         'peso' => $Peso,
         'elevacao' => $Elevacao,
+        'unidadeelevacao' => $UnidadeElevacao,
         'calorias' => $Calorias,
     ]);
 
@@ -122,36 +126,36 @@ $logado = $estalogado ? $NomeUsuario : null;
 
 <head>
     <meta charset="UTF-8">
+    <base href="/stridebr/public/">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/png" href="../assets/favicons/favicon.png">
+    <link rel="icon" type="image/png" href="assets/favicons/favicon.png">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" integrity="sha384-QWTKZyjpPEjISv5WaRU90FeRpokÿmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.0/css/line.css">
-    <link rel="stylesheet" href="../assets/css/atividades.css">
-    <link rel="stylesheet" href="../assets/css/style.css">
+    <link rel="stylesheet" href="assets/css/atividades.css">
+    <link rel="stylesheet" href="assets/css/style.css">
     <title>Suas Atividades | StrideBR</title>
 </head>
 
 <body>
     <div class="container-fluid">
-        <?php
-        require_once dirname(__DIR__, 2) . '/src/layout/header.php';
-        ?>
-        <div class="row textcenter">
-            <h1 class="textcenter">Suas Atividades</h1>
-            <?php if (count($result) === 0): ?>
-                <p>Opa! Você ainda não possui atividades registradas.</p>
-            <?php endif; ?>
-            <button class="addbutton">Registrar atividade manualmente</button>
-        </div>
-        <div class="row">
-            <div class="col-sm-12">
-                <div class="atividades textcenter">
-                    <form class="AtividadeForm" id="formulario" action="#" method="POST">
+        <?php require_once dirname(__DIR__, 2) . '/src/layout/header.php'; ?>
+        <div class="main-content">
+            <div class="row textcenter">
+                <h1 class="textcenter">Suas Atividades</h1>
+                <?php if (count($result) === 0): ?>
+                    <p>Opa! Você ainda não possui atividades registradas.</p>
+                <?php endif; ?>
+                <button class="addbutton">Registrar atividade manualmente</button>
+            </div>
+            <div class="row">
+                <div class="col-sm-12">
+                    <div class="atividades textcenter">
+                    <form class="AtividadeForm" id="formulario" action="" method="POST">
                         <span class="title">Registrar atividade</span>
 
                         <div class="input-field">
-                            <label for="TituloAtividade">Título</label>
                             <input type="text" id="TituloAtividade" name="TituloAtividade" placeholder="Título da Atividade">
+                            <i class="uil uil-edit-alt"></i>
                         </div>
 
                         <div class="input-field tipo">
@@ -227,6 +231,7 @@ $logado = $estalogado ? $NomeUsuario : null;
                         <div class="input-field">
                             <label for="DataAtividade">Data e Hora</label>
                             <input type="date" id="DataAtividade" name="DataAtividade" value="<?php echo date('Y-m-d'); ?>" required>
+                            <i class="uil uil-calendar-alt icon"></i>
                             <input type="time" id="HoraAtividade" name="HoraAtividade" value="<?php echo date('H:i'); ?>" required>
                             <i class="uil uil-clock-three icon"></i>
                         </div>
@@ -267,22 +272,23 @@ $logado = $estalogado ? $NomeUsuario : null;
                     <?php foreach ($result as $row): ?>
                         <div class="col-sm-6 col-md-4 col-lg-3">
                             <div class="atividades_fisicas">
-                                <a href='editatividade.php?id=<?php echo $row['idatividade']; ?>' title='Editar' class="uil uil-pen icon"></a>
+                                <a href='user/editatividade.php?id=<?php echo $row['idatividade']; ?>' title='Editar' class="uil uil-pen icon"></a>
+                                <a href='#' title='Excluir' onclick="openDeleteConfirm('<?php echo $row['idatividade']; ?>')" class="uil uil-trash-alt icon delete-icon"></a>
 
-                                <h3><?php echo htmlspecialchars($row['esporteatividade']); ?></h3>
+                                <h3><?php echo htmlspecialchars($row['esporteatividade'] ?? ''); ?></h3>
 
                                 <?php if (!empty($row['tituloatividade'])): ?>
                                     <h4><?php echo htmlspecialchars($row['tituloatividade']); ?></h4>
                                 <?php endif; ?>
 
                                 <?php if (!empty($row['dataatividade'])): ?>
-                                    <p><i class="uil uil-calendar-alt icon"></i>
+                                    <p><i class="uil uil-calendar-alt"></i>
                                         <?php echo htmlspecialchars(formatar_data($row['dataatividade'])); ?>
                                     </p>
                                 <?php endif; ?>
 
                                 <?php if (!empty($row['horaatividade'])): ?>
-                                    <p><i class="uil uil-clock icon"></i>
+                                    <p><i class="uil uil-clock"></i>
                                         <?php
                                         $hora = explode(':', $row['horaatividade']);
                                         echo htmlspecialchars($hora[0] . ':' . $hora[1]);
@@ -302,11 +308,31 @@ $logado = $estalogado ? $NomeUsuario : null;
                                 ?>
 
                                 <?php if (!empty($row['distanciaatividade'])): ?>
-                                    <p>Distância: <?php echo htmlspecialchars($row['distanciaatividade']); ?> km</p>
+                                    <p>Distância: <?php echo htmlspecialchars($row['distanciaatividade']); ?> 
+                                        <?php 
+                                            $unidade = $row['unidadedistanciaatividade'] ?? 'km';
+                                            $siglas = [
+                                                'quilometros' => 'km',
+                                                'metros' => 'm',
+                                                'milhas' => 'mi',
+                                                'jardas' => 'yd'
+                                            ];
+                                            echo $siglas[$unidade] ?? $unidade; 
+                                        ?>
+                                    </p>
                                 <?php endif; ?>
 
                                 <?php if (!empty($row['elevacaoatividade'])): ?>
-                                    <p>Elevação: <?php echo htmlspecialchars($row['elevacaoatividade']); ?> m</p>
+                                    <p>Elevação: <?php echo htmlspecialchars($row['elevacaoatividade']); ?> 
+                                        <?php 
+                                            $unidadeElev = $row['unidadeelevacaoatividade'] ?? 'metros';
+                                            $siglas = [
+                                                'metros' => 'm',
+                                                'pés' => 'ft'
+                                            ];
+                                            echo $siglas[$unidadeElev] ?? $unidadeElev; 
+                                        ?>
+                                    </p>
                                 <?php endif; ?>
 
                                 <?php if (!empty($row['caloriasatividade'])): ?>
@@ -319,14 +345,58 @@ $logado = $estalogado ? $NomeUsuario : null;
             </div>
         </div>
 
-        <?php
-        require_once dirname(__DIR__, 2) . '/src/layout/footer.php';
-        ?>
     </div>
 
+    <!-- Modal de Confirmação de Exclusão -->
+    <div id="deleteModal" class="delete-modal">
+        <div class="delete-modal-content">
+            <div class="delete-modal-header">
+                <h2>Excluir Atividade</h2>
+                <span class="delete-modal-close" onclick="closeDeleteConfirm()">&times;</span>
+            </div>
+            <div class="delete-modal-body">
+                <p>Tem certeza que deseja excluir esta atividade? Esta ação não pode ser desfeita.</p>
+            </div>
+            <div class="delete-modal-footer">
+                <button class="delete-modal-cancel" onclick="closeDeleteConfirm()">Cancelar</button>
+                <button class="delete-modal-confirm" onclick="confirmDelete()">Excluir</button>
+            </div>
+        </div>
+    </div>
+    
+    <?php require_once dirname(__DIR__, 2) . '/src/layout/footer.php'; ?>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-    <script src="../assets/js/atividades.js?v=<?php echo time(); ?>"></script>
-    <script src="../assets/js/scripts.js"></script>
+    <script src="assets/js/atividades.js?v=<?php echo time(); ?>"></script>
+    <script src="assets/js/scripts.js"></script>
+    <script>
+        let atividadeIdToDelete = null;
+
+        function openDeleteConfirm(atividadeId) {
+            event.preventDefault();
+            atividadeIdToDelete = atividadeId;
+            document.getElementById('deleteModal').style.display = 'flex';
+        }
+
+        function closeDeleteConfirm() {
+            document.getElementById('deleteModal').style.display = 'none';
+            atividadeIdToDelete = null;
+        }
+
+        function confirmDelete() {
+            if (atividadeIdToDelete) {
+                window.location.href = 'function/apagaratividade.php?id=' + atividadeIdToDelete;
+            }
+        }
+
+        // Fechar modal ao clicar fora
+        window.onclick = function(event) {
+            const modal = document.getElementById('deleteModal');
+            if (event.target === modal) {
+                closeDeleteConfirm();
+            }
+        }
+    </script>
 </body>
 
 </html>
