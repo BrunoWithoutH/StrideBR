@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:18
+    container_name: stridebr-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: stridebr
+      POSTGRES_USER: stridebr
+      POSTGRES_PASSWORD: stridebr_dev
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - stridebr-postgres-data:/var/lib/postgresql
+
+volumes:
+  stridebr-postgres-data:
