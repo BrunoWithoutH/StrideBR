@@ -1,8 +1,8 @@
 <?php
 $host = 'localhost';
 $dbname = 'stridebr';
-$user = 'admin';
-$password = 'admin';
+$user = 'dev';
+$password = 'dev123';
 
 try {
     $dsn = "pgsql:host=$host;dbname=$dbname";

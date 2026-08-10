@@ -1,34 +1,25 @@
 <?php
 session_start();
-require_once("../function/pg_config.php"); // Usando PDO agora
+require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
 
-if (!isset($_SESSION['UEmail'])) {
+if (!isset($_SESSION['EmailUsuario']) && !isset($_SESSION['IdUsuario'])) {
     header('Location: ../login.php');
     exit;
 }
 
-$email = $_SESSION['UEmail'];
-$stmt = $pdo->prepare("SELECT id FROM usuarios WHERE emailusuario = :email");
-$stmt->execute([':email' => $email]);
-$usuario = $stmt->fetch(PDO::FETCH_ASSOC);
-
-if (!$usuario) {
-    echo "Erro: Usuário não encontrado.";
-    exit;
-}
-$usuario_id = $usuario['id'];
+$IdUsuario = $_SESSION['IdUsuario'];
 
 if (!isset($_GET['id'])) {
     echo "Erro: ID de atividade não especificado.";
     exit;
 }
-$atividade_id = $_GET['id'];
+$idatividade = $_GET['id'];
 
 // Obter dados da atividade
-$stmt = $pdo->prepare("SELECT * FROM atividades_fisicas WHERE id = :id AND usuario_id = :usuario_id");
+$stmt = $pdo->prepare("SELECT * FROM atividades WHERE idatividade = :id AND idusuario = :usuario_id");
 $stmt->execute([
-    ':id' => $atividade_id,
-    ':usuario_id' => $usuario_id
+    ':id' => $idatividade,
+    ':usuario_id' => $IdUsuario
 ]);
 $atividade = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -38,43 +29,60 @@ if (!$atividade) {
 }
 
 function formatar_data_input($data) {
-    $data_obj = DateTime::createFromFormat('Y-m-d', $data);
-    return $data_obj ? $data_obj->format('Y-m-d') : $data;
+    return $data;
 }
 
 // Processar atualização
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $tipo_atividade = $_POST['tipo_atividade'];
-    $data_atividade = $_POST['data_atividade'];
-    $hora_atividade = $_POST['hora_atividade'];
-    $duracao = !empty($_POST['duracao']) ? $_POST['duracao'] : null;
-    $distancia = !empty($_POST['distancia']) ? $_POST['distancia'] : null;
-    $peso = !empty($_POST['Peso']) ? $_POST['Peso'] : null;
+    $EsporteAtividade = $_POST['EsporteAtividade'] ?? $atividade['esporteatividade'];
+    $DataAtividade = $_POST['DataAtividade'] ?? $atividade['dataatividade'];
+    $HoraAtividade = $_POST['HoraAtividade'] ?? $atividade['horaatividade'];
+    
+    $DuracaoH = isset($_POST['duracao_horas']) && $_POST['duracao_horas'] !== '' ? intval($_POST['duracao_horas']) : 0;
+    $DuracaoM = isset($_POST['duracao_minutos']) && $_POST['duracao_minutos'] !== '' ? intval($_POST['duracao_minutos']) : 0;
+    $DuracaoS = isset($_POST['duracao_segundos']) && $_POST['duracao_segundos'] !== '' ? intval($_POST['duracao_segundos']) : 0;
 
-    // Cálculo de calorias (exemplo simples — ajuste conforme necessidade)
-    $calorias = null;
-    if ($peso && $duracao) {
-        $calorias = round(($peso * 0.0175 * 8) * $duracao); // Exemplo baseado em MET
+    $DuracaoTotalSeg = $DuracaoH * 3600 + $DuracaoM * 60 + $DuracaoS;
+    $DuracaoTotalMin = $DuracaoTotalSeg / 60;
+
+    $Distancia = !empty($_POST['DistanciaAtividade']) ? $_POST['DistanciaAtividade'] : null;
+    $Peso = !empty($_POST['Peso']) ? $_POST['Peso'] : null;
+    $Elevacao = !empty($_POST['ElevacaoAtividade']) ? $_POST['ElevacaoAtividade'] : null;
+    $TituloAtividade = $_POST['TituloAtividade'] ?? $atividade['tituloatividade'];
+    $RitmoAtividade = $_POST['RitmoAtividade'] ?? $atividade['ritmoatividade'];
+
+    $Calorias = null;
+    if ($Distancia && $Peso && $DuracaoTotalMin) {
+        $VelocidadeMedia = ($Distancia / $DuracaoTotalMin) * 60;
+        $Calorias = round($VelocidadeMedia * $Peso * 0.0175 * $DuracaoTotalMin);
     }
 
-    $update = $pdo->prepare("UPDATE atividades_fisicas SET
-        tipo_atividade = :tipo_atividade,
-        data_atividade = :data_atividade,
-        hora_atividade = :hora_atividade,
-        duracao = :duracao,
-        distancia = :distancia,
-        calorias = :calorias
-        WHERE id = :id AND usuario_id = :usuario_id");
+    $update = $pdo->prepare("UPDATE atividades SET
+        tituloatividade = :titulo,
+        esporteatividade = :esporte,
+        ritmoatividade = :ritmo,
+        dataatividade = :data,
+        horaatividade = :hora,
+        duracaoatividade = :duracao,
+        distanciaatividade = :distancia,
+        elevacaoatividade = :elevacao,
+        pesoinseridoatividade = :peso,
+        caloriasatividade = :calorias
+        WHERE idatividade = :id AND idusuario = :usuario_id");
 
     $ok = $update->execute([
-        ':tipo_atividade' => $tipo_atividade,
-        ':data_atividade' => $data_atividade,
-        ':hora_atividade' => $hora_atividade,
-        ':duracao' => $duracao,
-        ':distancia' => $distancia,
-        ':calorias' => $calorias,
-        ':id' => $atividade_id,
-        ':usuario_id' => $usuario_id
+        ':titulo' => $TituloAtividade,
+        ':esporte' => $EsporteAtividade,
+        ':ritmo' => $RitmoAtividade,
+        ':data' => $DataAtividade,
+        ':hora' => $HoraAtividade,
+        ':duracao' => $DuracaoTotalSeg ?: null,
+        ':distancia' => $Distancia,
+        ':elevacao' => $Elevacao,
+        ':peso' => $Peso,
+        ':calorias' => $Calorias,
+        ':id' => $idatividade,
+        ':usuario_id' => $IdUsuario
     ]);
 
     if ($ok) {
@@ -85,166 +93,156 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$estalogado = isset($_SESSION['UEmail']) && isset($_SESSION['USenha']);
-$user = $estalogado ? $_SESSION['UNome'] : null;
+$estalogado = isset($_SESSION['EmailUsuario']) && isset($_SESSION['IdUsuario']);
+$user = $estalogado ? $_SESSION['NomeUsuario'] : null;
+$foto = isset($_SESSION['FotoUsuario']) ? true : false;
+
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 
 <head>
     <meta charset="UTF-8">
+    <base href="/stridebr/public/">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/png" href="assets/favicons/favicon.png">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
         integrity="sha384-QWTKZyjpPEjISv5WaRU90FeRpokÿmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.0/css/line.css">
-    <link rel="stylesheet" href="../assets/css/atividades.css">
-    <link rel="stylesheet" href="../assets/css/style.css">
-    <title>Cronograma | StrideBR</title>
+    <link rel="stylesheet" href="assets/css/atividades.css">
+    <link rel="stylesheet" href="assets/css/style.css">
+    <title>Editar Atividade | StrideBR</title>
 </head>
 
 <body>
     <div class="container-fluid">
+        <?php
+        require_once dirname(__DIR__, 2) . '/src/layout/header.php';
+        ?>
+        <div class="row textcenter">
+            <h1 class="textcenter">Editar Atividade</h1>
+        </div>
         <div class="row">
             <div class="col-sm-12">
-                <section class="header">
-                    <nav>
-                        <a href="../index.php"><img src="../assets/img/StrideBRLogo.png" alt="StrideBR"
-                                class="logoCR"></a>
-                        <div class="dropdown">
-                            <button class="dropbtn">Início<i class="uil uil-angle-down"></i></button>
-                            <div class="dropdown-content">
-                                <a href="../home.php" class="NavItem">Painel principal</a>
-                                <a href="calendario.php" class="NavItem">Calendário de corridas</a>
-                            </div>
-                        </div>
-                        <div class="dropdown">
-                            <button class="dropbtn">Treinos<i class="uil uil-angle-down"></i></button>
-                            <div class="dropdown-content">
-                                <a href="cronogramatreinos.php" class="NavItem">Seu Cronograma de Treinos</a>
-                                <a href="atividades.php" class="NavItem">Atividades</a>
-                            </div>
-                        </div>
-                        <div class="dropdown">
-                            <button class="dropbtn">Ajuda<i class="uil uil-angle-down"></i></button>
-                            <div class="dropdown-content">
-                                <a href="" class="NavItem">Suporte StrideBR</a>
-                                <a href="" class="NavItem">FAQ</a>
-                            </div>
-                        </div>
-                        <div class="usersection">
-                            <?php if ($estalogado): ?>
-                                <div class="dropdown" style="float:right;">
-                                    <button class="dropbtnimg"><img class="userimage" src="../assets/img/userdefault.svg" alt="Usuário"></button>
-                                    <div class="dropdown-content" style="right: 0;">
-                                        <a href="" class="NavItem">Configurações</a>
-                                        <a href="../function/logout.php">Sair</a>
-                                    </div>
-                                </div>
+                <div class="atividades textcenter">
+                    <form class="AtividadeForm" style="display: block;" id="formulario" action="" method="POST">
+                        <span class="title">Editar atividade</span>
 
-                            <?php else: ?>
-                                <a href="../login.php"><button class="LogButton">Entrar</button></a>
-                            <?php endif; ?>
+                        <div class="input-field">
+                            <label for="TituloAtividade">Título</label>
+                            <input type="text" id="TituloAtividade" name="TituloAtividade" placeholder="Título da Atividade" value="<?php echo htmlspecialchars($atividade['tituloatividade'] ?? ''); ?>">
                         </div>
 
-                    </nav>
-                </section>
+                        <div class="input-field tipo">
+                            <select name="EsporteAtividade" class="EsporteAtividade" required>
+                                <option class="select" disabled>Tipo de Atividade:</option>
+                                <optgroup label="Caminhada e Corrida">
+                                    <option value="Caminhada" <?php echo ($atividade['esporteatividade'] == 'Caminhada') ? 'selected' : ''; ?>>Caminhada</option>
+                                    <option value="Corrida" <?php echo ($atividade['esporteatividade'] == 'Corrida') ? 'selected' : ''; ?>>Corrida</option>
+                                    <option value="Marcha Atlética" <?php echo ($atividade['esporteatividade'] == 'Marcha Atlética') ? 'selected' : ''; ?>>Marcha Atlética</option>
+                                    <option value="Trilha" <?php echo ($atividade['esporteatividade'] == 'Trilha') ? 'selected' : ''; ?>>Trilha</option>
+                                </optgroup>
+                                <optgroup label="Ciclismo">
+                                    <option value="Ciclismo" <?php echo ($atividade['esporteatividade'] == 'Ciclismo') ? 'selected' : ''; ?>>Ciclismo</option>
+                                    <option value="Mountain Bike" <?php echo ($atividade['esporteatividade'] == 'Mountain Bike') ? 'selected' : ''; ?>>Mountain Bike</option>
+                                    <option value="Downhill" <?php echo ($atividade['esporteatividade'] == 'Downhill') ? 'selected' : ''; ?>>Downhill</option>
+                                    <option value="BMX" <?php echo ($atividade['esporteatividade'] == 'BMX') ? 'selected' : ''; ?>>BMX</option>
+                                </optgroup>
+                                <optgroup label="Esportes de Natação">
+                                    <option value="Nado de peito" <?php echo ($atividade['esporteatividade'] == 'Nado de peito') ? 'selected' : ''; ?>>Nado de peito</option>
+                                    <option value="Nado de costas" <?php echo ($atividade['esporteatividade'] == 'Nado de costas') ? 'selected' : ''; ?>>Nado de costas</option>
+                                    <option value="Nado borboleta" <?php echo ($atividade['esporteatividade'] == 'Nado borboleta') ? 'selected' : ''; ?>>Nado borboleta</option>
+                                </optgroup>
+                                <optgroup label="Esportes de raquete">
+                                    <option value="Tênis" <?php echo ($atividade['esporteatividade'] == 'Tênis') ? 'selected' : ''; ?>>Tênis</option>
+                                    <option value="Tênis de mesa" <?php echo ($atividade['esporteatividade'] == 'Tênis de mesa') ? 'selected' : ''; ?>>Tênis de mesa</option>
+                                    <option value="Badminton" <?php echo ($atividade['esporteatividade'] == 'Badminton') ? 'selected' : ''; ?>>Badminton</option>
+                                    <option value="Padel" <?php echo ($atividade['esporteatividade'] == 'Padel') ? 'selected' : ''; ?>>Padel</option>
+                                    <option value="Beach Tennis" <?php echo ($atividade['esporteatividade'] == 'Beach Tennis') ? 'selected' : ''; ?>>Beach Tennis</option>
+                                </optgroup>
+                                <option value="outro" <?php echo ($atividade['esporteatividade'] == 'outro') ? 'selected' : ''; ?>>outro</option>
+                            </select>
+                            <i class="uil uil-grid icon"></i>
+                        </div>
+
+                        <div class="input-field" id="field-distancia">
+                            <label for="DistanciaAtividade">Distância</label>
+                            <input type="number" id="DistanciaAtividade" name="DistanciaAtividade" step="0.01" placeholder="Distância" value="<?php echo htmlspecialchars($atividade['distanciaatividade'] ?? ''); ?>">
+                            <select name="UnidadeDistanciaAtividade" id="UnidadeDistanciaAtividade">
+                                <option value="quilometros" selected>quilômetros</option>
+                                <option value="metros">metros</option>
+                                <option value="milhas">milhas</option>
+                                <option value="jardas">jardas</option>
+                            </select>
+                            <i class="uil uil-ruler icon"></i>
+                        </div>
+
+                        <div class="input-field" id="field-duracao">
+                            <label for="duracao_horas">Duração</label>
+                            <div class="duracao-inputs">
+                                <input type="number" id="duracao_horas" name="duracao_horas" min="0" max="23" placeholder="hh">
+                                <input type="number" id="duracao_minutos" name="duracao_minutos" min="0" max="59" placeholder="mm">
+                                <input type="number" id="duracao_segundos" name="duracao_segundos" min="0" max="59" placeholder="ss">
+                            </div>
+                            <i class="uil uil-stopwatch icon"></i>
+                        </div>
+
+                        <div class="input-field" id="field-elevacao">
+                            <label for="ElevacaoAtividade">Elevação</label>
+                            <input type="number" id="ElevacaoAtividade" name="ElevacaoAtividade" step="0.1" placeholder="Elevação" value="<?php echo htmlspecialchars($atividade['elevacaoatividade'] ?? ''); ?>">
+                            <select name="UnidadeElevacaoAtividade" id="UnidadeElevacaoAtividade">
+                                <option value="metros" selected>metros</option>
+                                <option value="pés">pés</option>
+                            </select>
+                            <i class="uil uil-arrow-growth icon"></i>
+                        </div>
+
+                        <div class="input-field">
+                            <label for="DataAtividade">Data e Hora</label>
+                            <input type="date" id="DataAtividade" name="DataAtividade" value="<?php echo htmlspecialchars($atividade['dataatividade'] ?? ''); ?>" required>
+                            <input type="time" id="HoraAtividade" name="HoraAtividade" value="<?php echo htmlspecialchars(substr($atividade['horaatividade'] ?? '', 0, 5)); ?>" required>
+                            <i class="uil uil-clock-three icon"></i>
+                        </div>
+
+                        <div class="input-field ritmo">
+                            <select name="RitmoAtividade" class="RitmoAtividade" required>
+                                <option class="select" disabled>Ritmo da Atividade:</option>
+                                <option value="Leve" <?php echo ($atividade['ritmoatividade'] == 'Leve') ? 'selected' : ''; ?>>Leve</option>
+                                <option value="Moderado" <?php echo ($atividade['ritmoatividade'] == 'Moderado') ? 'selected' : ''; ?>>Moderado</option>
+                                <option value="Intenso" <?php echo ($atividade['ritmoatividade'] == 'Intenso') ? 'selected' : ''; ?>>Intenso</option>
+                            </select>
+                            <i class="uil uil-wind icon"></i>
+                        </div>
+
+                        <div class="checkbox-text">
+                            <div class="checkbox-content">
+                                <input type="checkbox" id="checkPeso" onclick="togglePesoInput()" <?php echo ($atividade['caloriasatividade'] ? 'checked' : ''); ?>>
+                                <label for="checkPeso" class="text">Mostrar gasto calórico aproximado</label>
+                            </div>
+                        </div>
+
+                        <div class="input-field" id="pesoField" style="<?php echo ($atividade['caloriasatividade'] ? '' : 'display: none;'); ?>">
+                            <input type="text" id="Peso" name="Peso" placeholder="Insira seu peso" value="<?php echo htmlspecialchars($atividade['pesoinseridoatividade'] ?? ''); ?>">
+                            <i class="uil uil-weight icon"></i>
+                        </div>
+
+                        <div class="input-field button">
+                            <button type="submit" class="submit">Salvar Alterações</button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
-        <div class="col-sm-12">
-            <form class="AtividadeForm" style="display: block;" id="formulario" action="#" method="POST">
-                <span class="title">Editar atividade</span>
-                <a href="../function/apagaratividade.php?id=<?php echo $atividade_id; ?>" class="uil uil-trash-alt"></a>
-                <div class="input-field tipo">
-                    <select name="tipo_atividade" class="tipo_atividade" required>
-                        <option class="select" disabled>Tipo de Atividade:</option>
-                        <optgroup label="Caminhada e Corrida">
-                            <option value="Caminhada" <?php echo ($atividade['tipo_atividade'] == 'Caminhada') ? 'selected' : ''; ?>>Caminhada</option>
-                            <option value="Caminhada Leve" <?php echo ($atividade['tipo_atividade'] == 'Caminhada Leve') ? 'selected' : ''; ?>>Caminhada Leve</option>
-                            <option value="Caminhada esportiva" <?php echo ($atividade['tipo_atividade'] == 'Caminhada esportiva') ? 'selected' : ''; ?>>Caminhada esportiva</option>
-                            <option value="Caminhada vigorosa" <?php echo ($atividade['tipo_atividade'] == 'Caminhada vigorosa') ? 'selected' : ''; ?>>Caminhada vigorosa</option>
-                            <option value="Corrida" <?php echo ($atividade['tipo_atividade'] == 'Corrida') ? 'selected' : ''; ?>>Corrida</option>
-                            <option value="Marcha Atlética" <?php echo ($atividade['tipo_atividade'] == 'Marcha Atlética') ? 'selected' : ''; ?>>Marcha Atlética</option>
-                            <option value="Trilha" <?php echo ($atividade['tipo_atividade'] == 'Trilha') ? 'selected' : ''; ?>>Trilha</option>
-                        </optgroup>
-                        <optgroup label="Ciclismo">
-                            <option value="Ciclismo de pista" <?php echo ($atividade['tipo_atividade'] == 'Ciclismo de pista') ? 'selected' : ''; ?>>Ciclismo de pista</option>
-                            <option value="Ciclismo de rua" <?php echo ($atividade['tipo_atividade'] == 'Ciclismo de rua') ? 'selected' : ''; ?>>Ciclismo de rua</option>
-                            <option value="Mountain Bike" <?php echo ($atividade['tipo_atividade'] == 'Mountain Bike') ? 'selected' : ''; ?>>Mountain Bike</option>
-                            <option value="Downhill" <?php echo ($atividade['tipo_atividade'] == 'Downhill') ? 'selected' : ''; ?>>Downhill</option>
-                            <option value="Bicicross" <?php echo ($atividade['tipo_atividade'] == 'Bicicross') ? 'selected' : ''; ?>>Bicicross</option>
-                            <option value="BMX" <?php echo ($atividade['tipo_atividade'] == 'BMX') ? 'selected' : ''; ?>>BMX</option>
-                        </optgroup>
-                        <optgroup label="Natação">
-                            <option value="Natação Intensa" <?php echo ($atividade['tipo_atividade'] == 'Natação Intensa') ? 'selected' : ''; ?>>Natação Intensa</option>
-                            <option value="Natação Recreativa" <?php echo ($atividade['tipo_atividade'] == 'Natação Recreativa') ? 'selected' : ''; ?>>Natação Recreativa</option>
-                        </optgroup>
-                        <optgroup label="Esportes de raquete">
-                            <option value="Tênis" <?php echo ($atividade['tipo_atividade'] == 'Tênis') ? 'selected' : ''; ?>>Tênis</option>
-                            <option value="Tênis de mesa" <?php echo ($atividade['tipo_atividade'] == 'Tênis de mesa') ? 'selected' : ''; ?>>Tênis de mesa</option>
-                            <option value="Badminton" <?php echo ($atividade['tipo_atividade'] == 'Badminton') ? 'selected' : ''; ?>>Badminton</option>
-                            <option value="Padel" <?php echo ($atividade['tipo_atividade'] == 'Padel') ? 'selected' : ''; ?>>Padel</option>
-                            <option value="Squash" <?php echo ($atividade['tipo_atividade'] == 'Squash') ? 'selected' : ''; ?>>Squash</option>
-                            <option value="Beach Tennis" <?php echo ($atividade['tipo_atividade'] == 'Beach Tennis') ? 'selected' : ''; ?>>Beach Tennis</option>
-                            <option value="Raquetebol" <?php echo ($atividade['tipo_atividade'] == 'Raquetebol') ? 'selected' : ''; ?>>Raquetebol</option>
-                            <option value="Pickleball" <?php echo ($atividade['tipo_atividade'] == 'Pickleball') ? 'selected' : ''; ?>>Pickleball</option>
-                            <option value="Frescobol" <?php echo ($atividade['tipo_atividade'] == 'Frescobol') ? 'selected' : ''; ?>>Frescobol</option>
-                            <option value="Gym Racket" <?php echo ($atividade['tipo_atividade'] == 'Gym Racket') ? 'selected' : ''; ?>>Gym Racket</option>
-                        </optgroup>
-                        <optgroup label="Outros">
-                            <option value="Ioga" <?php echo ($atividade['tipo_atividade'] == 'Ioga') ? 'selected' : ''; ?>>Ioga</option>
-                        </optgroup>
-                    </select>
 
-                    <i class="uil uil-grid icon"></i>
-                </div>
-
-                <div class="input-field">
-                    <input type="date" id="data_atividade" name="data_atividade" value="<?php echo formatar_data_input($atividade['data_atividade']); ?>" required>
-                    <i class="uil uil-calendar-alt icon"></i>
-                </div>
-
-                <div class="input-field">
-                    <input type="text" id="hora_atividade" name="hora_atividade" placeholder="Hora da Atividade (opcional)" value="<?php echo htmlspecialchars($atividade['hora_atividade']); ?>">
-                    <i class="uil uil-clock icon"></i>
-                </div>
-
-                <div class="input-field">
-                    <input type="number" name="duracao" placeholder="Duração em Min (opcional):" value="<?php echo htmlspecialchars($atividade['duracao']); ?>">
-                    <i class="uil uil-stopwatch icon"></i>
-                </div>
-
-                <div class="input-field">
-                    <input type="number" step="0.01" placeholder="Distância em Km (opcional):" name="distancia" value="<?php echo htmlspecialchars($atividade['distancia']); ?>">
-                    <i class="uil uil-ruler icon"></i>
-                </div>
-
-                <div class="checkbox-text">
-                    <div class="checkbox-content">
-                        <input type="checkbox" id="checkPeso" onclick="togglePesoInput()" <?php echo $atividade['calorias'] ? 'checked' : ''; ?>>
-                        <label for="checkPeso" class="text">Mostrar gasto calórico aproximado</label>
-                    </div>
-                </div>
-
-                <div class="input-field" id="pesoField" style="<?php echo $atividade['calorias'] ? '' : 'display: none;'; ?>">
-                    <input type="text" id="Peso" name="Peso" placeholder="Insira seu peso" value="<?php echo htmlspecialchars($atividade['Peso'] ?? ''); ?>">
-                    <i class="uil uil-weight icon"></i>
-                </div>
-
-                <div class="input-field button">
-                    <button type="submit" class="submit">Salvar Alterações</button>
-                </div>
-            </form>
-
-        </div>
-        <footer class="textcenter footer">
-            <p>Feito Por Bruno Evaristo Pinheiro - 2024</p>
-        </footer>
+        <?php
+        require_once dirname(__DIR__, 2) . '/src/layout/footer.php';
+        ?>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-    <script src="../assets/js/atividades.js"></script>
+    <script src="assets/js/atividades.js?v=<?php echo time(); ?>"></script>
+    <script src="assets/js/scripts.js"></script>
 </body>
 
 </html>

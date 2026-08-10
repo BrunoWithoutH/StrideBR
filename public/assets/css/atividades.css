@@ -4,78 +4,77 @@
 
 .AtividadeForm {
     display: none;
-    margin: 16px;
-    position: relative;
-    left: 50%;
-    transform: translate(-50%);
+    margin: 16px auto;
     max-width: 500px;
-    padding: 30px;
+    padding: 40px;
     background-color: #fdfdfd;
     border: 1px #ccc solid;
-    border-radius: 30px; /*antes era 10*/
-    box-shadow: 0px 5px 8px 0px rgba(0, 0, 0, 0.2);
+    border-radius: 30px;
+    box-shadow: 0px 5px 8px rgba(0,0,0,0.2);
+    text-align: left;
 }
 
 .AtividadeForm .title {
     position: relative;
     font-size: 23px;
     font-weight: 600;
+    margin-bottom: 24px;
+    display: block;
 }
 
-.AtividadeForm .tipo{
-    border-bottom: 2px solid #ccc;
-    padding-bottom: 16px;
-}
-
-.AtividadeForm .tipo_atividade {
+.AtividadeForm .tipo,
+.AtividadeForm .ritmo {
+    margin-top: 24px;
     position: relative;
-    left: 30px;
-    margin-top: 8px;
-    border: 2px solid #ccc;
-    border-radius: 10px;
-    
-}
-
-.AtividadeForm .tipo_atividade:after {
-    border: 2px solid #ccc;
-    border-radius: 10px;
-    
-}
-
-.AtividadeForm .tipo_atividade .select { /* Esconde o Primeiro valor (título)*/
-    display: none;
 }
 
 .AtividadeForm .input-field {
     position: relative;
-    height: 50px;
-    max-width: 430px;
-    margin-top: 30px;
+    margin-top: 24px;
+    display: block;
 }
 
-.input-field input {
-    position: absolute;
-    height: 100%;
+.AtividadeForm .input-field label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #333;
+}
+
+.input-field input,
+.input-field select {
+    position: relative;
+    height: 40px;
     width: 100%;
-    padding: 0 35px;
+    padding: 8px 12px 8px 40px;
     border: none;
     outline: none;
-    font-size: 16px;
+    font-size: 14px;
     border-bottom: 2px solid #ccc;
     border-top: 2px solid transparent;
     transition: all 0.2s ease;
+    box-sizing: border-box;
+}
+
+.input-field select {
+    padding-right: 35px;
+    padding-left: 40px;
+    appearance: none;
+    background-color: #fff;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    background-size: 20px;
+    padding-right: 35px;
 }
 
 .input-field input:is(:focus, :valid) {
     border-bottom-color: #7380a3;
 }
 
-.input-field {
-    position: relative;
-    height: 50px;
-    max-width: 430px;
-    margin-top: 30px;
-    display: block;
+.input-field select:focus {
+    border-bottom-color: #7380a3;
 }
 
 .input-field i {
@@ -83,30 +82,87 @@
     top: 50%;
     transform: translateY(-50%);
     color: #999;
-    font-size: 23px;
+    font-size: 18px;
+    transition: all 0.2s ease;
+    left: 10px;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.input-field input[type="date"] + i {
+    top: 50px;
+    transform: translateY(-50%);
+}
+
+.input-field input[type="time"] + i {
+    top: 90px;
+    transform: translateY(-50%);
+}
+
+.input-field select + i {
+    right: auto;
+    left: 10px;
+}
+
+.duracao-inputs {
+    display: flex;
+    gap: 8px;
+    height: 40px;
+    align-items: stretch;
+    position: relative;
+}
+
+.duracao-inputs::before {
+    content: '';
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 18px;
+    color: #999;
+    z-index: 1;
+    width: 18px;
+    height: 18px;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3ccircle cx='12' cy='12' r='10'%3e%3c/circle%3e%3cpolyline points='12 6 12 12 16 14'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-size: contain;
+}
+
+.duracao-inputs input {
+    flex: 1;
+    height: 100%;
+    text-align: center;
+    padding: 8px 4px 8px 35px;
+    border: none;
+    border-bottom: 2px solid #ccc;
+    outline: none;
+    font-size: 14px;
     transition: all 0.2s ease;
 }
 
-.input-field input:focus,
-.input-field input:valid {
+.duracao-inputs input:first-child {
+    padding-left: 40px;
+}
+
+.duracao-inputs input:focus {
     border-bottom-color: #7380a3;
 }
 
-.input-field i.icon {
-    left: 0;
-}
-
-.tipo_atividade {
-    position: relative;
-    left: 10px;
-    margin-bottom: 10px;
+.AtividadeForm .input-field:has(.duracao-inputs),
+.AtividadeForm .input-field input[type="date"],
+.AtividadeForm .input-field input[type="time"] {
+    display: inline-block;
+    width: calc(50% - 8px);
+    margin-right: 16px;
 }
 
 .AtividadeForm .checkbox-text {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-top: 20px;
+    margin-top: 32px;
+    padding-top: 16px;
+    border-top: 2px solid #ccc;
 }
 
 .checkbox-text .checkbox-content {
@@ -124,6 +180,7 @@
 
 #pesoField {
     display: none;
+    margin-top: 24px;
 }
 
 .AtividadeForm .text {
@@ -141,19 +198,23 @@
 }
 
 .AtividadeForm .button {
-    margin-top: 35px;
+    margin-top: 40px;
+    display: flex;
+    justify-content: center;
 }
 
 .AtividadeForm .button input {
     border: none;
     color: #fff;
-    font-size: 17px;
+    font-size: 16px;
     font-weight: 500;
     letter-spacing: 1px;
     border-radius: 6px;
     background-color: #7380a3;
     cursor: pointer;
     transition: all 0.3s ease;
+    height: 40px;
+    padding: 0 20px;
 }
 
 .AtividadeForm .button input:hover {
@@ -162,52 +223,61 @@
 
 .AtividadeForm .submit {
     position: relative;
-    left: 50%;
-    transform: translate(-50%);
-    padding: 10px 80px;
+    padding: 12px 100px;
     background-color: #7380a3;
     color: rgb(255, 255, 255);
     border: none;
     border-radius: 10px;
     box-shadow: 0px 5px 8px 0px rgba(0, 0, 0, 0.2);
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.AtividadeForm .submit:hover {
+    background-color: #40507c;
 }
 
 .atividades {
-    top: 20px;
     display: flex;
     flex-wrap: wrap;
-    gap: 16px;
     justify-content: center;
-    align-items: center;
+    gap: 16px;
     margin: 0 auto;
     max-width: 1200px;
+}
 
-    .atividades_fisicas {
-        position: relative;
-        background-color: #fdfdfd;
-        border: 1px #ccc solid;
-        border-radius: 10px;
-        box-shadow: 0px 5px 8px 0px rgba(0, 0, 0, 0.2);
-        padding: 30px;
-        margin-bottom: -16px;
-    }
-    
-    .atividades_fisicas .uil-pen {
-        position: absolute;
-        top: 5px;
-        right: 10px;
-        font-size: 24px;
-        color: #7380a3;
-        cursor: pointer;
-        text-decoration: none;
-    }
+.atividades {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 16px;
+    margin: 0;
+    max-width: 1200px;
+    padding-left: 0;
+    padding-right: 0;
+    width: 100%;
+    box-sizing: border-box;
+    margin-bottom: 16px;
+    position: relative;
+}
+
+.atividades_fisicas .uil-pen {
+    position: absolute;
+    top: 10px;
+    right: 45px;
+    font-size: 28px;
+    color: #7380a3;
+    cursor: pointer;
+    text-decoration: none;
 }
 
 .uil-trash-alt {
     position: absolute;
-    top: 30px;
-    right: 35px;
-    font-size: 24px;
+    top: 10px;
+    right: 15px;
+    font-size: 28px;
     color: #7380a3;
     text-decoration: none;
 }
@@ -227,4 +297,308 @@
 
 .col-sm-6.col-md-4.col-lg-3 {
     margin-bottom: 16px;
+}
+
+.delete-modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    justify-content: center;
+    align-items: center;
+}
+
+.delete-modal-content {
+    background-color: #fdfdfd;
+    border-radius: 10px;
+    box-shadow: 0px 5px 15px rgba(0, 0, 0, 0.3);
+    max-width: 400px;
+    width: 90%;
+    overflow: hidden;
+}
+
+.delete-modal-header {
+    background-color: #1f2937;
+    color: white;
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.delete-modal-header h2 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.delete-modal-close {
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    color: white;
+    transition: opacity 0.2s;
+}
+
+.delete-modal-close:hover {
+    opacity: 0.7;
+}
+
+.delete-modal-body {
+    padding: 24px;
+    text-align: center;
+    color: #333;
+    font-size: 16px;
+}
+
+.delete-modal-footer {
+    display: flex;
+    gap: 12px;
+    padding: 20px;
+    background-color: #f5f5f5;
+    justify-content: flex-end;
+}
+
+.delete-modal-cancel,
+.delete-modal-confirm {
+    padding: 10px 24px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.delete-modal-cancel {
+    background-color: #e5e7eb;
+    color: #333;
+}
+
+.delete-modal-cancel:hover {
+    background-color: #d1d5db;
+}
+
+.delete-modal-confirm {
+    background-color: #dc2626;
+    color: white;
+}
+
+.delete-modal-confirm:hover {
+    background-color: #b91c1c;
+}
+
+.atividades_fisicas .delete-icon {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    font-size: 28px;
+    color: #dc2626;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+@media (max-width: 768px) {
+    .AtividadeForm {
+        margin: 12px;
+        max-width: calc(100% - 24px);
+        padding: 24px;
+        border-radius: 20px;
+    }
+
+    .AtividadeForm .title {
+        font-size: 18px;
+        margin-bottom: 16px;
+    }
+
+    .AtividadeForm .input-field {
+        margin-top: 16px;
+    }
+
+    .input-field input,
+    .input-field select {
+        height: 36px;
+        font-size: 14px;
+        padding: 6px 30px 6px 36px;
+    }
+
+    .AtividadeForm .input-field:has(.duracao-inputs),
+    .AtividadeForm .input-field input[type="date"],
+    .AtividadeForm .input-field input[type="time"] {
+        width: 100%;
+        margin-right: 0;
+        margin-bottom: 8px;
+    }
+
+    .duracao-inputs {
+        height: 36px;
+    }
+
+    .atividades {
+        gap: 12px;
+        margin: 0 12px;
+    }
+
+    .atividades_fisicas {
+        flex: 1 1 160px;
+        min-width: 160px;
+        padding: 36px 12px 12px 12px;
+        margin-bottom: 12px;
+    }
+
+    .addbutton {
+        max-width: calc(100% - 24px);
+        margin-left: 12px;
+        margin-right: 12px;
+        margin-bottom: 12px;
+    }
+
+    .delete-modal-content {
+        width: 95%;
+        max-width: 350px;
+    }
+}
+
+@media (max-width: 375px) {
+    .AtividadeForm {
+        margin: 8px;
+        max-width: calc(100% - 16px);
+        padding: 16px;
+        border-radius: 15px;
+        box-shadow: 0px 3px 6px rgba(0,0,0,0.15);
+    }
+
+    .AtividadeForm .title {
+        font-size: 16px;
+        margin-bottom: 12px;
+    }
+
+    .AtividadeForm .input-field {
+        margin-top: 12px;
+    }
+
+    .input-field input,
+    .input-field select {
+        height: 32px;
+        font-size: 13px;
+        padding: 6px 26px 6px 32px;
+    }
+
+    .input-field label {
+        font-size: 12px;
+        margin-bottom: 4px;
+    }
+
+    .duracao-inputs {
+        height: 32px;
+    }
+
+    .duracao-inputs input {
+        padding: 6px 4px 6px 30px;
+    }
+
+    .duracao-inputs input:first-child {
+        padding-left: 34px;
+    }
+
+    .atividades {
+        gap: 8px;
+        margin: 0 8px;
+        justify-content: center;
+    }
+
+    .atividades_fisicas {
+        flex: 1 1 140px;
+        min-width: 140px;
+        padding: 32px 10px 10px 10px;
+        margin-bottom: 8px;
+    }
+
+    .atividades_fisicas .uil-pen {
+        top: 8px;
+        right: 38px;
+        font-size: 20px;
+    }
+
+    .uil-trash-alt {
+        top: 8px;
+        right: 10px;
+        font-size: 20px;
+    }
+
+    .atividades_fisicas .delete-icon {
+        top: 8px;
+        right: 10px;
+        font-size: 20px;
+    }
+
+    .AtividadeForm .checkbox-text {
+        margin-top: 16px;
+        padding-top: 12px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .checkbox-content input {
+        width: auto;
+        margin-right: 10px;
+        left: 2px;
+    }
+
+    .AtividadeForm .text {
+        font-size: 13px;
+    }
+
+    .AtividadeForm .button {
+        margin-top: 20px;
+    }
+
+    .AtividadeForm .button input {
+        font-size: 13px;
+        height: 36px;
+        padding: 0 16px;
+    }
+
+    .AtividadeForm .submit {
+        padding: 8px 60px;
+        font-size: 13px;
+    }
+
+    .addbutton {
+        max-width: calc(100% - 16px);
+        margin-left: 8px;
+        margin-right: 8px;
+        padding: 8px 12px;
+        font-size: 12px;
+    }
+
+    .delete-modal-content {
+        width: 90%;
+        max-width: 300px;
+    }
+
+    .delete-modal-header h2 {
+        font-size: 16px;
+    }
+
+    .delete-modal-body {
+        padding: 16px;
+        font-size: 14px;
+    }
+
+    .delete-modal-footer {
+        padding: 12px;
+        gap: 8px;
+    }
+
+    .delete-modal-cancel,
+    .delete-modal-confirm {
+        padding: 8px 16px;
+        font-size: 12px;
+    }
 }
