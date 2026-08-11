@@ -10,43 +10,42 @@
 > **StrideBR** is a platform built to help athletes and sports enthusiasts track, organize and improve their training over time.
 
 
-## Features
+## Overview
 
-Current and upcoming features include:
+StrideBR is currently focused on making training organization and activity tracking simple and practical.
+
+### Features
 
 - [x] Physical activity tracking
 - [x] Weekly training schedule
 - [x] Workout tools
 - [ ] Sports event calendar
 
-## Stack
+### Tech Stack
 
-The project is intentionally kept simple and currently uses:
+| Technology | Purpose |
+|---|---|
+| PHP 8.5 | Application backend |
+| Apache 2.4 | Web server |
+| PostgreSQL 18 | Database |
+| Docker Compose | Development environment |
+| Composer | PHP dependency management |
+| JavaScript | Client-side interactions |
+| HTML / CSS | User interface |
 
-- **PHP 8.5** — application/backend
-- **Apache 2.4** — web server
-- **PostgreSQL 18** — database
-- **Composer** — PHP dependency management
-- **NanoID** — ID generation
-- **Docker Compose** — development environment
-- **JavaScript** — frontend interactions
-- **HTML/CSS** — frontend
+## Getting Started
 
-There is **no Node.js runtime required** by the project. The JavaScript files in `public/assets/js/` are plain browser-side JavaScript.
+### Prerequisites
 
-## Requirements
+Before you begin, make sure you have:
 
-The recommended environment is Linux with:
-
-- Git
-- Docker
+- [Git](https://git-scm.com/)
+- [Docker](https://www.docker.com/)
 - Docker Compose
 
-The project is designed to run entirely through Docker. You do **not** need to install PHP, Apache, PostgreSQL or Composer directly on the host.
+The recommended development environment is Linux.
 
-> Other operating systems may work with Docker Desktop, but Linux is the primary development environment.
-
-## Quick Start
+### Installation
 
 Clone the repository:
 
@@ -55,120 +54,79 @@ git clone https://github.com/BrunoWithoutH/StrideBR.git
 cd StrideBR
 ```
 
-Start the development environment:
+Start the environment:
 
 ```bash
 docker compose up -d --build
 ```
 
-The first startup creates the application and PostgreSQL containers and initializes the database volume.
+On the first startup, Docker will build the application environment, start PostgreSQL and create the development database.
 
-After the containers are running, open:
+Once the containers are running, open:
 
 ```text
 http://localhost
 ```
 
-Check the containers with:
+Check the status of the services:
 
 ```bash
 docker compose ps
 ```
 
-View application logs with:
+### Development
+
+The repository is mounted into the application container, so the source code can be edited directly from the host.
+
+For example, with VS Code:
 
 ```bash
-docker compose logs -f app
+code .
 ```
 
-View PostgreSQL logs with:
+Changes made to PHP, HTML, CSS or JavaScript files are available to the running application without rebuilding the image.
+
+To open a shell inside the application container:
 
 ```bash
-docker compose logs -f postgres
+docker compose exec app bash
 ```
 
-Stop the environment:
+If Bash is not available:
 
 ```bash
-docker compose down
+docker compose exec app sh
 ```
 
-To stop the containers without removing them:
+### Dependencies
 
-```bash
-docker compose stop
-```
+PHP dependencies are managed with Composer.
 
-To start them again:
-
-```bash
-docker compose start
-```
-
-## Project Structure
-
-The important directories are:
+The project currently uses:
 
 ```text
-StrideBR/
-├── public/                  # Public web root served by Apache
-│   ├── assets/              # CSS, JavaScript, images and audio
-│   ├── function/            # Public PHP endpoints
-│   ├── pages/               # Public pages
-│   ├── user/                # Authenticated user pages
-│   ├── index.php
-│   ├── login.php
-│   └── signup.php
-│
-├── src/
-│   ├── config/              # Database configuration
-│   ├── database/            # Database schemas and SQL
-│   ├── function/            # Application functions
-│   ├── includes/            # Shared includes
-│   └── layout/              # Shared page layout
-│
-├── vendor/                  # Composer dependencies
-├── composer.json            # PHP dependencies
-├── package.json             # Frontend package metadata
-├── compose.yaml             # Docker development environment
-└── README.md
+hidehalo/nanoid-php
 ```
 
-## Docker Environment
+Dependencies are installed automatically when the development environment is initialized.
 
-The development environment is divided into two containers:
+To install them manually:
 
-```text
-┌──────────────────────────────┐
-│          StrideBR            │
-│                              │
-│  Apache + PHP + Composer     │
-│  http://localhost            │
-└──────────────┬───────────────┘
-               │
-               │ PostgreSQL
-               ▼
-┌──────────────────────────────┐
-│       stridebr-postgres      │
-│                              │
-│       PostgreSQL 18          │
-│       Database: stridebr     │
-└──────────────────────────────┘
+```bash
+docker compose exec app composer install
 ```
 
-The two containers communicate through the Docker Compose network.
+## Database
 
-The application should connect to PostgreSQL using the **service name**:
+StrideBR uses PostgreSQL 18 in a dedicated Docker container.
+
+The application connects to PostgreSQL through the Docker Compose service name:
 
 ```text
 postgres
 ```
 
-It should **not** use `localhost` as the PostgreSQL host from inside the PHP container.
-
-### Database configuration
-
-The default development database is:
+The default development configuration is:
 
 | Setting | Value |
 |---|---|
@@ -178,52 +136,21 @@ The default development database is:
 | User | `stridebr` |
 | Password | `stridebr_dev` |
 
-The PostgreSQL data is stored in a Docker named volume:
+The database data is persisted in the Docker volume:
 
 ```text
 stridebr-postgres-data
 ```
 
-This means the database survives container recreation.
+### PostgreSQL shell
 
-> The database name, PostgreSQL service name and credentials are part of the current development configuration. If these names are changed, update the PHP database configuration and any other tools/scripts that depend on them.
-
-## Database
-
-The PostgreSQL container is intentionally kept separate from the application container.
-
-The database is created automatically by PostgreSQL using the values defined in `compose.yaml`.
-
-The application uses the PostgreSQL database:
-
-```text
-stridebr
-```
-
-The project currently contains SQL files under:
-
-```text
-src/database/
-```
-
-including:
-
-```text
-src/database/stridebr.sql
-src/database/stridebr_activities_schema.sql
-```
-
-The exact database initialization/migration strategy should be kept in `compose.yaml` and the project's SQL files rather than requiring manual PostgreSQL installation on the host.
-
-### Accessing PostgreSQL
-
-You can open `psql` directly inside the database container:
+To access the database directly:
 
 ```bash
 docker compose exec postgres psql -U stridebr -d stridebr
 ```
 
-For example:
+Then:
 
 ```sql
 \conninfo
@@ -235,123 +162,9 @@ Exit with:
 \q
 ```
 
-You can also inspect the database from the host if the PostgreSQL port is exposed by Compose:
+### Database configuration
 
-```bash
-psql -h 127.0.0.1 -p 5432 -U stridebr -d stridebr
-```
-
-This requires `psql` to be installed on the host. It is **not required** for normal development.
-
-## PHP Dependencies
-
-PHP dependencies are managed by Composer.
-
-The current PHP dependency is:
-
-```text
-hidehalo/nanoid-php
-```
-
-NanoID is used by the project for generating identifiers.
-
-The project uses it in several PHP files, including:
-
-```text
-public/signup.php
-public/user/cronogramatreinos.php
-public/user/exercicioscronograma.php
-public/user/ferramentastreino.php
-src/function/salvarcronograma.php
-src/function/atividade_modelo.php
-```
-
-The `vendor/` directory is generated by Composer.
-
-When the Docker environment is built for the first time, Composer should install the dependencies automatically.
-
-If you need to reinstall PHP dependencies inside the application container:
-
-```bash
-docker compose exec app composer install
-```
-
-## JavaScript Dependencies
-
-The project contains browser-side JavaScript under:
-
-```text
-public/assets/js/
-```
-
-Currently:
-
-```text
-atividades.js
-cronogramas.js
-loginform.js
-scripts.js
-treino.js
-```
-
-The project also contains:
-
-```text
-package.json
-```
-
-with the NanoID JavaScript package.
-
-However, the project does **not** require a Node.js server or Node.js runtime to serve the application.
-
-If frontend dependencies need to be installed or rebuilt in the future, that can be handled by a dedicated development container or build step without requiring Node.js on the host.
-
-## Development
-
-The repository is intended to be edited directly from the host machine while the application runs inside Docker.
-
-Because the project directory is mounted into the application container, changes made in your editor are immediately available to Apache/PHP.
-
-### VS Code
-
-Open the cloned repository normally:
-
-```bash
-cd StrideBR
-code .
-```
-
-You edit the files on the host:
-
-```text
-public/
-src/
-composer.json
-compose.yaml
-...
-```
-
-while Docker runs the application.
-
-You do **not** need to enter the container to edit the source code.
-
-If you want to use a shell inside the application container:
-
-```bash
-docker compose exec app bash
-```
-
-If the image does not include Bash:
-
-```bash
-docker compose exec app sh
-```
-
-## Database Configuration in PHP
-
-The web application reads the PostgreSQL connection information from environment variables.
-
-The expected variables are:
+The application reads the following environment variables:
 
 ```text
 STRIDEBR_DB_HOST
@@ -360,7 +173,7 @@ STRIDEBR_DB_USER
 STRIDEBR_DB_PASSWORD
 ```
 
-The application should receive values equivalent to:
+Inside Docker, they should resolve to:
 
 ```text
 STRIDEBR_DB_HOST=postgres
@@ -369,103 +182,89 @@ STRIDEBR_DB_USER=stridebr
 STRIDEBR_DB_PASSWORD=stridebr_dev
 ```
 
-The PHP configuration also sets:
+The PostgreSQL session timezone is configured as:
 
 ```text
 America/Sao_Paulo
 ```
 
-as the PostgreSQL session timezone and uses:
+and the application uses:
 
 ```text
 stridebr, public
 ```
 
-as the PostgreSQL search path.
+as its PostgreSQL search path.
 
-## pgAdmin
+### Database files
 
-The project contains a PostgreSQL administration configuration file:
-
-```text
-src/config/pg_config.php
-```
-
-and templates:
+SQL files used by the project are located at:
 
 ```text
-src/config/pg_config-local-template.php
-src/config/pg_config-web-template.php
+src/database/
 ```
 
-When connecting from a tool running **inside Docker**, use:
+Current files include:
 
 ```text
-Host: postgres
-Port: 5432
-Database: stridebr
-User: stridebr
-Password: stridebr_dev
+src/database/stridebr.sql
+src/database/stridebr_activities_schema.sql
 ```
 
-When connecting from the **host machine**, use:
+The database name and PostgreSQL service name are part of the current application configuration. If they are changed, the PHP configuration and any database-related tooling must be updated accordingly.
+
+## Project Structure
 
 ```text
-Host: 127.0.0.1
-Port: 5432
-Database: stridebr
-User: stridebr
-Password: stridebr_dev
+StrideBR/
+├── public/                  # Apache document root
+│   ├── assets/              # CSS, JavaScript, images and audio
+│   ├── function/            # Public PHP endpoints
+│   ├── pages/               # Public pages
+│   ├── user/                # Authenticated user pages
+│   ├── index.php
+│   ├── login.php
+│   └── signup.php
+│
+├── src/
+│   ├── config/              # Database configuration
+│   ├── database/            # SQL schemas and database files
+│   ├── function/            # Application functions
+│   ├── includes/            # Shared includes
+│   └── layout/              # Shared layout components
+│
+├── vendor/                  # Composer dependencies
+├── composer.json            # PHP dependencies
+├── package.json             # Frontend package metadata
+├── compose.yaml             # Docker environment
+└── README.md
 ```
 
-The difference is important:
+## Docker Services
+
+The development environment consists of two services:
 
 ```text
-PHP container ──> postgres:5432
-Host machine  ──> 127.0.0.1:5432
+                    ┌──────────────────────┐
+                    │       StrideBR       │
+                    │                      │
+                    │   Apache + PHP       │
+                    │                      │
+                    │   http://localhost   │
+                    └──────────┬───────────┘
+                               │
+                               │ Docker network
+                               ▼
+                    ┌──────────────────────┐
+                    │      PostgreSQL      │
+                    │                      │
+                    │       stridebr       │
+                    └──────────────────────┘
 ```
 
-## Resetting the Development Database
+The application and database are isolated into separate containers while remaining connected through Docker Compose.
 
-To remove the containers and keep the database:
-
-```bash
-docker compose down
-```
-
-To remove the database volume as well:
-
-```bash
-docker compose down -v
-```
-
-> **Warning:** `docker compose down -v` permanently removes the PostgreSQL data stored in the Compose volume.
-
-After that, start the environment again:
-
-```bash
-docker compose up -d --build
-```
-
-PostgreSQL will create a fresh `stridebr` database.
-
-## Updating the Project
-
-After pulling changes from Git:
-
-```bash
-git pull
-```
-
-Rebuild the environment when the Docker configuration or dependencies changed:
-
-```bash
-docker compose up -d --build
-```
-
-If only PHP/application files changed, Docker's mounted development files should normally make the changes available without rebuilding.
-
-## Useful Commands
+## Common Commands
 
 ### Start
 
@@ -479,28 +278,28 @@ docker compose up -d
 docker compose up -d --build
 ```
 
-### Stop
+### Stop and remove containers
 
 ```bash
 docker compose down
 ```
 
-### Container status
+### Stop without removing containers
+
+```bash
+docker compose stop
+```
+
+### Start existing containers
+
+```bash
+docker compose start
+```
+
+### Check services
 
 ```bash
 docker compose ps
-```
-
-### Application shell
-
-```bash
-docker compose exec app bash
-```
-
-### PostgreSQL shell
-
-```bash
-docker compose exec postgres psql -U stridebr -d stridebr
 ```
 
 ### Application logs
@@ -521,26 +320,98 @@ docker compose logs -f postgres
 docker compose logs -f
 ```
 
+## Resetting the Database
+
+To remove the containers while keeping the database:
+
+```bash
+docker compose down
+```
+
+To remove the containers **and the PostgreSQL volume**:
+
+```bash
+docker compose down -v
+```
+
+> **Warning:** `docker compose down -v` permanently deletes the development database stored in the Docker volume.
+
+Start the environment again to create a fresh database:
+
+```bash
+docker compose up -d --build
+```
+
+## Updating the Project
+
+Pull the latest changes:
+
+```bash
+git pull
+```
+
+If the Docker configuration or dependencies changed:
+
+```bash
+docker compose up -d --build
+```
+
+For normal source-code changes, rebuilding is usually unnecessary because the project files are mounted into the application container.
+
+## pgAdmin and Other Database Tools
+
+Database tools running **inside Docker** should connect using:
+
+```text
+Host: postgres
+Port: 5432
+Database: stridebr
+User: stridebr
+Password: stridebr_dev
+```
+
+Tools running directly on the host should use:
+
+```text
+Host: 127.0.0.1
+Port: 5432
+Database: stridebr
+User: stridebr
+Password: stridebr_dev
+```
+
+The project includes database configuration files under:
+
+```text
+src/config/
+```
+
+including:
+
+```text
+pg_config.php
+pg_config-local-template.php
+pg_config-web-template.php
+```
+
 ## Production
 
-The current Docker setup is primarily intended for **development and self-hosting**.
+The current Docker configuration is intended primarily for development and self-hosting.
 
-It is not yet a production deployment specification.
-
-Before exposing StrideBR to the internet, the environment should be reviewed for:
+Before exposing StrideBR to the public internet, review at least:
 
 - HTTPS/TLS
 - production database credentials
 - secret management
-- PHP/Apache hardening
+- Apache/PHP hardening
 - database backups
-- error reporting
+- error handling
 - file permissions
 - container security
 - resource limits
 - reverse proxy configuration
 
-Do not use the default development password in a public production deployment.
+Do not use the default development credentials in a public production deployment.
 
 ## License
 
