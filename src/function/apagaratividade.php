@@ -19,7 +19,7 @@ if (!isset($_GET['id'])) {
 $idatividade = $_GET['id'];
 
 // Exclui a atividade do banco de dados
-$stmt = $pdo->prepare("DELETE FROM atividades WHERE idatividade = :id AND idusuario = :usuario_id");
+$stmt = $pdo->prepare("DELETE FROM registros_atividade WHERE idregistro = :id AND idusuario = :usuario_id");
 $deleted = $stmt->execute([
     ':id' => $idatividade,
     ':usuario_id' => $IdUsuario
