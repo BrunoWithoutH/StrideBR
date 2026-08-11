@@ -1,3 +1,6 @@
+CREATE SCHEMA IF NOT EXISTS stridebr;
+SET search_path TO stridebr, public;
+
 CREATE TABLE IF NOT EXISTS usuarios (
     idusuario VARCHAR(21) PRIMARY KEY UNIQUE,
     

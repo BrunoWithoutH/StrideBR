@@ -13,7 +13,7 @@ services:
       - "5432:5432"
 
     volumes:
-      - stridebr-postgres-data:/var/lib/postgresql
+      - stridebr-postgres-data:/var/lib/postgresql/data
 
 volumes:
   stridebr-postgres-data:

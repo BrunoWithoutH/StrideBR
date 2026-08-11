@@ -5,7 +5,7 @@ ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
 require_once dirname(__DIR__, 2) . '/vendor/autoload.php';
-use Hidehalo\Nanoid\Client;
+require_once dirname(__DIR__, 2) . '/src/function/atividade_modelo.php';
 session_start();
 
 if (isset($_SESSION['EmailUsuario']) && isset($_SESSION['SenhaUsuario'])) {
@@ -38,73 +38,47 @@ if (!$userRow) {
 $IdUsuario = $userRow['idusuario'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-
     $EsporteAtividade = $_POST['EsporteAtividade'] ?? null;
     $RitmoAtividade = $_POST['RitmoAtividade'] ?? null;
     $DataAtividade = $_POST['DataAtividade'] ?? null;
     $HoraAtividade = $_POST['HoraAtividade'] ?? '00:00';
-
-    $DuracaoH = isset($_POST['duracao_horas']) && $_POST['duracao_horas'] !== '' ? intval($_POST['duracao_horas']) : 0;
-    $DuracaoM = isset($_POST['duracao_minutos']) && $_POST['duracao_minutos'] !== '' ? intval($_POST['duracao_minutos']) : 0;
-    $DuracaoS = isset($_POST['duracao_segundos']) && $_POST['duracao_segundos'] !== '' ? intval($_POST['duracao_segundos']) : 0;
-
-    $DuracaoTotalSeg = $DuracaoH * 3600 + $DuracaoM * 60 + $DuracaoS;
-    $DuracaoTotalMin = $DuracaoTotalSeg / 60;
-
-    $Distancia = !empty($_POST['DistanciaAtividade']) ? $_POST['DistanciaAtividade'] : null;
-    $UnidadeDistancia = !empty($_POST['UnidadeDistanciaAtividade']) ? $_POST['UnidadeDistanciaAtividade'] : 'quilometros';
-    $Peso = !empty($_POST['Peso']) ? $_POST['Peso'] : null;
-    $TituloAtividade = $_POST['TituloAtividade'] ?? $EsporteAtividade;
-    $Elevacao = !empty($_POST['ElevacaoAtividade']) ? $_POST['ElevacaoAtividade'] : null;
-    $UnidadeElevacao = !empty($_POST['UnidadeElevacaoAtividade']) ? $_POST['UnidadeElevacaoAtividade'] : 'metros';
+    $TituloAtividade = trim((string) ($_POST['TituloAtividade'] ?? '')) ?: ($EsporteAtividade ?? 'Atividade');
 
     $dateObj = DateTime::createFromFormat('Y-m-d', $DataAtividade);
     if (!$dateObj) {
         echo "<div class='alert alert-danger'>Data inválida.</div>";
         exit;
     }
-    $DataAtividade = $dateObj->format('Y-m-d');
 
-    $HoraAtividade = $HoraAtividade . ':00';
+    $modeloInfo = atividadeModeloPorEsporte($pdo, $EsporteAtividade ?? '');
+    $fieldList = atividadeBuscarCamposModelo($pdo, $modeloInfo['idmodelo'] ?? '');
+    $unitValues = [];
 
-    $Calorias = null;
-    if ($Distancia && $Peso && $DuracaoTotalMin) {
-        $VelocidadeMedia = ($Distancia / $DuracaoTotalMin) * 60;
-        $Calorias = round($VelocidadeMedia * $Peso * 0.0175 * $DuracaoTotalMin);
+    foreach ($fieldList as $field) {
+        $slug = $field['slug'] ?? '';
+        $unitValues[$slug] = $_POST[$slug] ?? null;
     }
-    $client = new Client();
-    $idAtividade = $client->generateId(16);
 
-    $stmtInsert = $pdo->prepare("
-        INSERT INTO atividades
-            (idatividade, idusuario, tituloatividade, esporteatividade, ritmoatividade, dataatividade, horaatividade, duracaoatividade, distanciaatividade, unidadedistanciaatividade, pesoinseridoatividade, elevacaoatividade, unidadeelevacaoatividade, caloriasatividade) 
-        VALUES 
-            (:idatividade, :idusuario, :titulo, :esporte, :ritmo, :data, :hora, :duracao, :distancia, :unidadedistancia, :peso, :elevacao, :unidadeelevacao, :calorias)
-    ");
-
-    $executado = $stmtInsert->execute([
-        'idatividade' => $idAtividade,
+    $payload = [
         'idusuario' => $IdUsuario,
+        'idmodalidade' => $modeloInfo['idmodalidade'] ?? null,
+        'idmodelo' => $modeloInfo['idmodelo'] ?? null,
         'titulo' => $TituloAtividade,
-        'esporte' => $EsporteAtividade,
-        'ritmo' => $RitmoAtividade,
-        'data' => $DataAtividade,
-        'hora' => $HoraAtividade,
-        'duracao' => $DuracaoTotalSeg ?: null,
-        'distancia' => $Distancia,
-        'unidadedistancia' => $UnidadeDistancia,
-        'peso' => $Peso,
-        'elevacao' => $Elevacao,
-        'unidadeelevacao' => $UnidadeElevacao,
-        'calorias' => $Calorias,
-    ]);
+        'observacoes' => trim((string) ($RitmoAtividade ?? '')),
+        'data_inicio' => $dateObj->format('Y-m-d') . ' ' . $HoraAtividade,
+        'data_fim' => null,
+        'status' => 'ativo',
+        'unit_observacoes' => null,
+        'field_list' => $fieldList,
+        'unit_values' => $unitValues,
+    ];
 
-
-    if ($executado) {
-        header("Location: atividades.php");
+    try {
+        atividadeSalvarRegistro($pdo, $payload);
+        header('Location: atividades.php');
         exit;
-    } else {
-        echo "<div class='alert alert-danger'>Erro ao inserir atividade.</div>";
+    } catch (Throwable $e) {
+        echo "<div class='alert alert-danger'>Erro ao inserir atividade: " . htmlspecialchars($e->getMessage()) . "</div>";
     }
 }
 
@@ -114,9 +88,8 @@ function formatar_data($data)
     return $data_obj ? $data_obj->format('d/m/Y') : $data;
 }
 
-$stmtFetch = $pdo->prepare("SELECT * FROM atividades WHERE idusuario = :id ORDER BY dataatividade DESC");
-$stmtFetch->execute(['id' => $IdUsuario]);
-$result = $stmtFetch->fetchAll(PDO::FETCH_ASSOC);
+$registros = atividadeListarRegistros($pdo, $IdUsuario);
+$modelosAtividade = atividadeGarantirModelosPadrao($pdo);
 
 $logado = $estalogado ? $NomeUsuario : null;
 ?>
@@ -126,13 +99,12 @@ $logado = $estalogado ? $NomeUsuario : null;
 
 <head>
     <meta charset="UTF-8">
-    <base href="/stridebr/public/">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/png" href="assets/favicons/favicon.png">
+    <link rel="icon" type="image/png" href="/assets/favicons/favicon.png">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" integrity="sha384-QWTKZyjpPEjISv5WaRU90FeRpokÿmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.0/css/line.css">
-    <link rel="stylesheet" href="assets/css/atividades.css">
-    <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="/assets/css/atividades.css">
+    <link rel="stylesheet" href="/assets/css/style.css">
     <title>Suas Atividades | StrideBR</title>
 </head>
 
@@ -142,7 +114,7 @@ $logado = $estalogado ? $NomeUsuario : null;
         <div class="main-content">
             <div class="row textcenter">
                 <h1 class="textcenter">Suas Atividades</h1>
-                <?php if (count($result) === 0): ?>
+                <?php if (count($registros) === 0): ?>
                     <p>Opa! Você ainda não possui atividades registradas.</p>
                 <?php endif; ?>
                 <button class="addbutton">Registrar atividade manualmente</button>
@@ -196,36 +168,13 @@ $logado = $estalogado ? $NomeUsuario : null;
                             <i class="uil uil-grid icon"></i>
                         </div>
 
-                        <div class="input-field" id="field-distancia" style="display:none">
-                            <label for="DistanciaAtividade">Distância</label>
-                            <input type="number" id="DistanciaAtividade" name="DistanciaAtividade" step="0.01" placeholder="Distância">
-                            <select name="UnidadeDistanciaAtividade" id="UnidadeDistanciaAtividade">
-                                <option value="quilometros" selected>quilômetros</option>
-                                <option value="metros">metros</option>
-                                <option value="milhas">milhas</option>
-                                <option value="jardas">jardas</option>
-                            </select>
-                            <i class="uil uil-ruler icon"></i>
-                        </div>
-
-                        <div class="input-field" id="field-duracao" style="display:none">
-                            <label for="duracao_horas">Duração</label>
-                            <div class="duracao-inputs">
-                                <input type="number" id="duracao_horas" name="duracao_horas" min="0" max="23" placeholder="hh" s>
-                                <input type="number" id="duracao_minutos" name="duracao_minutos" min="0" max="59" placeholder="mm">
-                                <input type="number" id="duracao_segundos" name="duracao_segundos" min="0" max="59" placeholder="ss">
-                            </div>
-                            <i class="uil uil-stopwatch icon"></i>
-                        </div>
-
-                        <div class="input-field" id="field-elevacao" style="display:none">
-                            <label for="ElevaçãoAtividade">Elevação</label>
-                            <input type="number" id="ElevacaoAtividade" name="ElevacaoAtividade" step="0.1" placeholder="Elevação">
-                            <select name="UnidadeElevacaoAtividade" id="UnidadeElevacaoAtividade">
-                                <option value="metros" selected>metros</option>
-                                <option value="pés">pés</option>
-                            </select>
-                            <i class="uil uil-arrow-growth icon"></i>
+                        <div class="activity-field-groups">
+                            <?php foreach ($modelosAtividade as $slug => $modelo): ?>
+                                <div class="activity-field-group" id="activity-group-<?php echo htmlspecialchars($slug); ?>" data-activity-group="<?php echo htmlspecialchars($slug); ?>" style="display:none">
+                                    <div class="text-muted small mb-2"><?php echo htmlspecialchars($modelo['nome']); ?></div>
+                                    <?php foreach ($modelo['fields'] as $field): echo atividadeRenderizarCampo($field, ''); endforeach; ?>
+                                </div>
+                            <?php endforeach; ?>
                         </div>
 
                         <div class="input-field">
@@ -258,7 +207,6 @@ $logado = $estalogado ? $NomeUsuario : null;
                             <i class="uil uil-weight icon"></i>
                         </div>
 
-
                         <div class="input-field button">
                             <button type="submit" class="submit">Adicionar Atividade</button>
                         </div>
@@ -268,75 +216,46 @@ $logado = $estalogado ? $NomeUsuario : null;
         </div>
         <div class="row">
             <div class="col-sm-12 atividades textcenter">
-                <?php if (count($result) > 0): ?>
-                    <?php foreach ($result as $row): ?>
+                <?php if (count($registros) > 0): ?>
+                    <?php foreach ($registros as $row): ?>
                         <div class="col-sm-6 col-md-4 col-lg-3">
                             <div class="atividades_fisicas">
-                                <a href='user/editatividade.php?id=<?php echo $row['idatividade']; ?>' title='Editar' class="uil uil-pen icon"></a>
-                                <a href='#' title='Excluir' onclick="openDeleteConfirm('<?php echo $row['idatividade']; ?>')" class="uil uil-trash-alt icon delete-icon"></a>
+                                <a href='user/editatividade.php?id=<?php echo rawurlencode($row['idregistro']); ?>' title='Editar' class="uil uil-pen icon"></a>
+                                <a href='#' title='Excluir' onclick="openDeleteConfirm('<?php echo htmlspecialchars($row['idregistro']); ?>')" class="uil uil-trash-alt icon delete-icon"></a>
 
-                                <h3><?php echo htmlspecialchars($row['esporteatividade'] ?? ''); ?></h3>
+                                <h3><?php echo htmlspecialchars($row['nome_modelo'] ?? 'Atividade'); ?></h3>
 
-                                <?php if (!empty($row['tituloatividade'])): ?>
-                                    <h4><?php echo htmlspecialchars($row['tituloatividade']); ?></h4>
+                                <?php if (!empty($row['titulo'])): ?>
+                                    <h4><?php echo htmlspecialchars($row['titulo']); ?></h4>
                                 <?php endif; ?>
 
-                                <?php if (!empty($row['dataatividade'])): ?>
+                                <?php if (!empty($row['data_inicio'])): ?>
                                     <p><i class="uil uil-calendar-alt"></i>
-                                        <?php echo htmlspecialchars(formatar_data($row['dataatividade'])); ?>
+                                        <?php echo htmlspecialchars(date('d/m/Y', strtotime($row['data_inicio']))); ?>
                                     </p>
                                 <?php endif; ?>
 
-                                <?php if (!empty($row['horaatividade'])): ?>
+                                <?php if (!empty($row['data_inicio'])): ?>
                                     <p><i class="uil uil-clock"></i>
-                                        <?php
-                                        $hora = explode(':', $row['horaatividade']);
-                                        echo htmlspecialchars($hora[0] . ':' . $hora[1]);
-                                        ?>
+                                        <?php echo htmlspecialchars(date('H:i', strtotime($row['data_inicio']))); ?>
                                     </p>
                                 <?php endif; ?>
 
-                                <?php
-                                if (!empty($row['duracaoatividade'])) {
-                                    $segundos = intval($row['duracaoatividade']);
-                                    $h = floor($segundos / 3600);
-                                    $m = floor(($segundos % 3600) / 60);
-                                    $s = $segundos % 60;
-                                    $duracao_formatada = sprintf("%02d:%02d:%02d", $h, $m, $s);
-                                    echo "<p>Duração: {$duracao_formatada}</p>";
-                                }
-                                ?>
-
-                                <?php if (!empty($row['distanciaatividade'])): ?>
-                                    <p>Distância: <?php echo htmlspecialchars($row['distanciaatividade']); ?> 
-                                        <?php 
-                                            $unidade = $row['unidadedistanciaatividade'] ?? 'km';
-                                            $siglas = [
-                                                'quilometros' => 'km',
-                                                'metros' => 'm',
-                                                'milhas' => 'mi',
-                                                'jardas' => 'yd'
-                                            ];
-                                            echo $siglas[$unidade] ?? $unidade; 
-                                        ?>
-                                    </p>
+                                <?php if (!empty($row['values']['duracao'])): ?>
+                                    <?php $segundos = (int) $row['values']['duracao']; $h = intdiv($segundos, 3600); $m = intdiv($segundos % 3600, 60); $s = $segundos % 60; ?>
+                                    <p>Duração: <?php echo sprintf('%02d:%02d:%02d', $h, $m, $s); ?></p>
                                 <?php endif; ?>
 
-                                <?php if (!empty($row['elevacaoatividade'])): ?>
-                                    <p>Elevação: <?php echo htmlspecialchars($row['elevacaoatividade']); ?> 
-                                        <?php 
-                                            $unidadeElev = $row['unidadeelevacaoatividade'] ?? 'metros';
-                                            $siglas = [
-                                                'metros' => 'm',
-                                                'pés' => 'ft'
-                                            ];
-                                            echo $siglas[$unidadeElev] ?? $unidadeElev; 
-                                        ?>
-                                    </p>
+                                <?php if (!empty($row['values']['distancia'])): ?>
+                                    <p>Distância: <?php echo htmlspecialchars((string) $row['values']['distancia']); ?> km</p>
                                 <?php endif; ?>
 
-                                <?php if (!empty($row['caloriasatividade'])): ?>
-                                    <p>Gasto Calórico: ≈ <?php echo htmlspecialchars($row['caloriasatividade']); ?> cal</p>
+                                <?php if (!empty($row['values']['elevacao'])): ?>
+                                    <p>Elevação: <?php echo htmlspecialchars((string) $row['values']['elevacao']); ?> m</p>
+                                <?php endif; ?>
+
+                                <?php if (!empty($row['values']['calorias'])): ?>
+                                    <p>Gasto Calórico: ≈ <?php echo htmlspecialchars((string) $row['values']['calorias']); ?> cal</p>
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -367,8 +286,8 @@ $logado = $estalogado ? $NomeUsuario : null;
     <?php require_once dirname(__DIR__, 2) . '/src/layout/footer.php'; ?>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-    <script src="assets/js/atividades.js?v=<?php echo time(); ?>"></script>
-    <script src="assets/js/scripts.js"></script>
+    <script src="/assets/js/atividades.js?v=<?php echo time(); ?>"></script>
+    <script src="/assets/js/scripts.js"></script>
     <script>
         let atividadeIdToDelete = null;
 
