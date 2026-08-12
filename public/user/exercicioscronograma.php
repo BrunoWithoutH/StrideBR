@@ -93,7 +93,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 
     foreach ($nomeexercicios as $i => $nome) {
         $nome = trim($nome);
-        $series = trim($seriesexercicios[$i] ?? '');
+        $seriesRaw = trim($seriesexercicios[$i] ?? '');
+        $series = $seriesRaw === '' ? null : (int) $seriesRaw;
         $reps = trim($repeticoesexercicios[$i] ?? '');
         $carga = trim($cargaexercicios[$i] ?? '');
         $bloco = trim($blocoexercicios[$i] ?? '');
