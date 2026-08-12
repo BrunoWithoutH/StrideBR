@@ -1,23 +1,73 @@
-.cronogramatable { 
-    border-collapse:collapse;
-    width: 100%; 
+.cronograma-page {
+    background: linear-gradient(180deg, #f7f7f5 0%, #eef1f6 100%);
 }
 
-.cronogramatable th, .cronogramatable td { 
-    border: 1px solid #ccc;
-    padding: 8px;
-    text-align: center; 
-}
-
-.cronogramatable textarea { 
+.cronogramatable {
+    border-collapse: separate;
+    border-spacing: 0;
     width: 100%;
-    height: 60px;
-    resize: none;
+    background: rgba(255, 255, 255, 0.94);
+    border: 1px solid rgba(115, 128, 163, 0.18);
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 16px 40px rgba(24, 34, 57, 0.08);
 }
 
-.cronogramatable button {
+.cronogramatable thead th {
+    background: linear-gradient(180deg, #44506f 0%, #35405d 100%);
+    color: #fff;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.cronogramatable th,
+.cronogramatable td {
+    border: 1px solid rgba(124, 136, 168, 0.18);
+    padding: 12px 10px;
+    text-align: center;
+    vertical-align: top;
+}
+
+.cronogramatable tbody th {
+    background: #f5f7fb;
+    font-weight: 700;
+    color: #324056;
+}
+
+.cronogramatable textarea {
+    width: 100%;
+    min-height: 78px;
+    resize: vertical;
+    border: 1px solid rgba(115, 128, 163, 0.22);
+    border-radius: 14px;
+    background: linear-gradient(180deg, #fff 0%, #fbfcff 100%);
+    padding: 10px 12px;
+    color: #243044;
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.8);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.cronogramatable textarea:focus {
+    outline: none;
+    border-color: #7380a3;
+    box-shadow: 0 0 0 3px rgba(115, 128, 163, 0.15);
+}
+
+.cronogramatable button,
+.save-btn {
     margin-top: 10px;
-    padding: 8px 16px;
+    padding: 10px 18px;
+    border: 0;
+    border-radius: 12px;
+    background: linear-gradient(180deg, #7380a3 0%, #556585 100%);
+    color: #fff;
+    font-weight: 600;
+    box-shadow: 0 10px 18px rgba(84, 97, 127, 0.18);
+}
+
+.cronogramatable button:hover,
+.save-btn:hover {
+    filter: brightness(1.04);
 }
 
 
@@ -25,12 +75,31 @@
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
+    gap: 10px;
 }
 
 .btn-group {
     display: flex;
     flex-direction: column;
     gap: 3px;
+}
+
+.btn-group button,
+.btn-group a button {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    border: 1px solid rgba(115, 128, 163, 0.18);
+    background: #fff;
+    color: #44506f;
+}
+
+.btn-group a {
+    text-decoration: none;
+}
+
+.btn-group button:hover {
+    background: #eef2f8;
 }
 
 .modal {
@@ -48,12 +117,12 @@
 .modal-content {
     background-color: #fefefe;
     margin: 10% auto;
-    padding: 20px;
-    border: 1px solid #888;
+    padding: 22px;
+    border: 1px solid rgba(115, 128, 163, 0.18);
     width: 80%;
     max-width: 800px;
-    border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    border-radius: 18px;
+    box-shadow: 0 24px 64px rgba(24, 34, 57, 0.18);
 }
 
 .close {
@@ -80,7 +149,69 @@
 }
 
 .modal .table th {
-    background-color: #f2f2f2;
+    background-color: #eef2f8;
+}
+
+.cronograma-shell,
+.exercicios-shell {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 24px 16px 40px;
+}
+
+.exercicios-page {
+    background: linear-gradient(180deg, #f7f7f5 0%, #eef1f6 100%);
+}
+
+.exercicios-card {
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid rgba(115, 128, 163, 0.18);
+    border-radius: 22px;
+    padding: 22px;
+    box-shadow: 0 16px 40px rgba(24, 34, 57, 0.08);
+}
+
+.exercicios-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    overflow: hidden;
+    border-radius: 18px;
+    border: 1px solid rgba(115, 128, 163, 0.18);
+}
+
+.exercicios-table thead th {
+    background: linear-gradient(180deg, #44506f 0%, #35405d 100%);
+    color: #fff;
+    font-weight: 600;
+}
+
+.exercicios-table th,
+.exercicios-table td {
+    padding: 10px 8px;
+    border-bottom: 1px solid rgba(115, 128, 163, 0.16);
+}
+
+.exercicios-table input[type="text"],
+.exercicios-table textarea {
+    width: 100%;
+    border: 1px solid rgba(115, 128, 163, 0.2);
+    border-radius: 12px;
+    padding: 8px 10px;
+    background: #fff;
+    color: #243044;
+}
+
+.exercicios-table textarea {
+    min-height: 58px;
+    resize: vertical;
+}
+
+.exercicios-table input[type="text"]:focus,
+.exercicios-table textarea:focus {
+    outline: none;
+    border-color: #7380a3;
+    box-shadow: 0 0 0 3px rgba(115, 128, 163, 0.14);
 }
 
 @media (max-width: 768px) {
