@@ -2,7 +2,9 @@
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
 require_once dirname(__DIR__, 2) . '/vendor/autoload.php';
 use Hidehalo\Nanoid\Client;
@@ -12,16 +14,40 @@ if (isset($_SESSION['EmailUsuario']) && isset($_SESSION['SenhaUsuario'])) {
     $user = $_SESSION['NomeUsuario'];
     $idusuario = $_SESSION['IdUsuario'];
     $idcronograma = $_GET['idcronograma'] ?? null;
+    $diaSelecionado = $_GET['dia'] ?? null;
+    $turnoSelecionado = $_GET['turno'] ?? null;
 } else {
     $_SESSION['previous_page'] = "../../public/user/cronogramatreinos.php";
     header('Location: ../login.php');
     exit;
 }
 
+if (!$idcronograma && $diaSelecionado && $turnoSelecionado) {
+    $buscarCronograma = $pdo->prepare("SELECT idcronograma FROM public.cronogramas WHERE idusuario = :idusuario AND diasemanacronograma = :dia AND turnocronograma = :turno LIMIT 1");
+    $buscarCronograma->execute([
+        ':idusuario' => $idusuario,
+        ':dia' => $diaSelecionado,
+        ':turno' => $turnoSelecionado,
+    ]);
+    $idcronograma = $buscarCronograma->fetchColumn();
+
+    if (!$idcronograma) {
+        $idcronograma = (new Client())->generateId(12);
+        $criarCronograma = $pdo->prepare("INSERT INTO public.cronogramas (idcronograma, idusuario, diasemanacronograma, turnocronograma, titulotreinocronograma) VALUES (:idcronograma, :idusuario, :dia, :turno, :titulo)");
+        $criarCronograma->execute([
+            ':idcronograma' => $idcronograma,
+            ':idusuario' => $idusuario,
+            ':dia' => $diaSelecionado,
+            ':turno' => $turnoSelecionado,
+            ':titulo' => trim($diaSelecionado . ' - ' . $turnoSelecionado),
+        ]);
+    }
+}
+
 $exerciciosstmt = $pdo->prepare("
     SELECT 
-        exercicios_cronograma.idexercicio,
-        exercicios_cronograma.idcronograma,
+        idexercicio,
+        idcronograma,
         nomeexercicio, 
         seriesexercicio, 
         repeticoesexercicio, 
@@ -31,14 +57,14 @@ $exerciciosstmt = $pdo->prepare("
         observacoesexercicio, 
         cargaexercicio, 
         ordemexercicio
-    FROM exercicios_cronograma
-    WHERE exercicios_cronograma.idcronograma = :idcronograma
+    FROM public.exercicios_cronograma
+    WHERE idcronograma = :idcronograma
     ORDER BY ordemexercicio ASC
 ");
 $exerciciosstmt->execute([':idcronograma' => $idcronograma]);
 $treinos = $exerciciosstmt->fetchAll(PDO::FETCH_ASSOC);
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     $client = new Client();
     $idcronograma = $_POST['idcronograma'];
     $nomeexercicios = $_POST['nomeexercicio'] ?? [];
@@ -52,9 +78,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $idexercicios = $_POST['idexercicio'] ?? [];
     $toDelete = $_POST['delete'] ?? [];
 
-    $updateStmt = $pdo->prepare("UPDATE exercicios_cronograma SET nomeexercicio = :nome, seriesexercicio = :series, repeticoesexercicio = :reps, cargaexercicio = :carga, blocoexercicio = :bloco, clusterexercicio = :cluster, descansoexercicio = :descanso, observacoesexercicio = :obs WHERE idexercicio = :idexercicio");
-    $insertStmt = $pdo->prepare("INSERT INTO exercicios_cronograma (idexercicio, idcronograma, nomeexercicio, seriesexercicio, repeticoesexercicio, cargaexercicio, blocoexercicio, clusterexercicio, descansoexercicio, observacoesexercicio) VALUES (:idexercicio, :idcronograma, :nome, :series, :reps, :carga, :bloco, :cluster, :descanso, :obs)");
-    $deleteStmt = $pdo->prepare("DELETE FROM exercicios_cronograma WHERE idexercicio = :idexercicio");
+    $updateStmt = $pdo->prepare("UPDATE public.exercicios_cronograma SET nomeexercicio = :nome, seriesexercicio = :series, repeticoesexercicio = :reps, cargaexercicio = :carga, blocoexercicio = :bloco, clusterexercicio = :cluster, descansoexercicio = :descanso, observacoesexercicio = :obs WHERE idexercicio = :idexercicio");
+    $insertStmt = $pdo->prepare("INSERT INTO public.exercicios_cronograma (idexercicio, idcronograma, nomeexercicio, seriesexercicio, repeticoesexercicio, cargaexercicio, blocoexercicio, clusterexercicio, descansoexercicio, observacoesexercicio) VALUES (:idexercicio, :idcronograma, :nome, :series, :reps, :carga, :bloco, :cluster, :descanso, :obs)");
+    $deleteStmt = $pdo->prepare("DELETE FROM public.exercicios_cronograma WHERE idexercicio = :idexercicio");
 
     foreach ($toDelete as $delId) {
         if ($delId) {
@@ -117,7 +143,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (isset($_POST['titulocronograma'])) {
         $novoTitulo = trim($_POST['titulocronograma']);
-        $updateTituloStmt = $pdo->prepare("UPDATE cronogramas SET titulotreinocronograma = :titulo WHERE idcronograma = :idcronograma");
+        $updateTituloStmt = $pdo->prepare("UPDATE public.cronogramas SET titulotreinocronograma = :titulo WHERE idcronograma = :idcronograma");
         $updateTituloStmt->execute([
             ':titulo' => $novoTitulo,
             ':idcronograma' => $idcronograma
@@ -134,25 +160,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <title>Exercícios do Cronograma</title>
-    <style>
-        table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-        th, td { border: 1px solid #ccc; padding: 5px; text-align: center; }
-        input[type="text"], input[type="number"] { width: 95%; }
-        textarea { width: 95%; height: 50px; }
-        .delete-btn { color: red; cursor: pointer; }
-    </style>
+    <link rel="stylesheet" href="/assets/css/cronogramas.css">
 </head>
-<body>
-    <form action="exercicioscronograma.php?idcronograma=<?php echo htmlspecialchars($idcronograma); ?>" method="POST">
+<body class="exercicios-page">
+    <div class="exercicios-shell">
+    <form class="exercicios-card" action="exercicioscronograma.php?idcronograma=<?php echo htmlspecialchars($idcronograma); ?>" method="POST">
         <input type="hidden" name="idusuario" value="<?php echo htmlspecialchars($idusuario); ?>">
         <input type="hidden" name="idcronograma" value="<?php echo htmlspecialchars($idcronograma); ?>">
         <?php
-        $tituloStmt = $pdo->prepare("SELECT titulotreinocronograma FROM cronogramas WHERE idcronograma = :idcronograma LIMIT 1");
+        $tituloStmt = $pdo->prepare("SELECT titulotreinocronograma FROM public.cronogramas WHERE idcronograma = :idcronograma LIMIT 1");
         $tituloStmt->execute([':idcronograma' => $idcronograma]);
         $titulo = $tituloStmt->fetchColumn();
         ?>
         <input type='text' name='titulocronograma' value="<?php echo htmlspecialchars($titulo ?? ''); ?>">
-        <table id="exercicios-table">
+        <table id="exercicios-table" class="exercicios-table">
             <thead>
                 <tr>
                     <th>#</th>
@@ -244,5 +265,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
+</div>
 </body>
 </html>

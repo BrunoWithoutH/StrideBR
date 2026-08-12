@@ -2,7 +2,9 @@
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
 require_once dirname(__DIR__, 2) . '/vendor/autoload.php';
 use Hidehalo\Nanoid\Client;
@@ -25,9 +27,7 @@ if (isset($_SESSION['EmailUsuario']) || isset($_SESSION['SenhaUsuario'])) {
 $dias = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 $turnos = ['Manhã', 'Tarde', 'Noite'];
 
-$stmt = $pdo->prepare("SELECT idcronograma, diasemanacronograma AS dia, turnocronograma AS turno, titulotreinocronograma AS titulo 
-                       FROM cronogramas 
-                       WHERE idusuario = :idusuario");
+$stmt = $pdo->prepare("SELECT idcronograma, diasemanacronograma AS dia, turnocronograma AS turno, titulotreinocronograma AS titulo FROM public.cronogramas WHERE idusuario = :idusuario ORDER BY diasemanacronograma, turnocronograma");
 $stmt->execute([':idusuario' => $idusuario]);
 $treinos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -42,17 +42,11 @@ foreach ($treinos as $t) {
 $exerciciosPorCronograma = [];
 if (!empty($treinos)) {
     $ids = array_column($treinos, 'idcronograma');
-    if ($ids) {
-        $in = str_repeat('?,', count($ids) - 1) . '?';
-        $sql = "SELECT idcronograma, nomeexercicio, seriesexercicio, repeticoesexercicio, cargaexercicio, blocoexercicio, clusterexercicio, descansoexercicio, observacoesexercicio
-                FROM exercicios_cronograma
-                WHERE idcronograma IN ($in)
-                ORDER BY ordemexercicio ASC";
-        $stmtEx = $pdo->prepare($sql);
-        $stmtEx->execute($ids);
-        foreach ($stmtEx->fetchAll(PDO::FETCH_ASSOC) as $ex) {
-            $exerciciosPorCronograma[$ex['idcronograma']][] = $ex;
-        }
+    $in = str_repeat('?,', count($ids) - 1) . '?';
+    $stmtEx = $pdo->prepare("SELECT idcronograma, nomeexercicio, seriesexercicio, repeticoesexercicio, cargaexercicio, blocoexercicio, clusterexercicio, descansoexercicio, observacoesexercicio FROM public.exercicios_cronograma WHERE idcronograma IN ($in) ORDER BY ordemexercicio ASC");
+    $stmtEx->execute($ids);
+    foreach ($stmtEx->fetchAll(PDO::FETCH_ASSOC) as $ex) {
+        $exerciciosPorCronograma[$ex['idcronograma']][] = $ex;
     }
 }
 ?>

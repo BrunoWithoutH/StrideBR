@@ -2,7 +2,9 @@
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
 require_once dirname(__DIR__, 2) . '/vendor/autoload.php';
 use Hidehalo\Nanoid\Client;
@@ -25,10 +27,10 @@ $client = new Client();
 try {
     $pdo->beginTransaction();
 
-    $selectStmt = $pdo->prepare("SELECT idcronograma FROM cronogramas WHERE idusuario = :idusuario AND diasemanacronograma = :dia AND turnocronograma = :turno LIMIT 1");
-    $insertStmt = $pdo->prepare("INSERT INTO cronogramas (idcronograma, idusuario, diasemanacronograma, turnocronograma, titulotreinocronograma) VALUES (:idcronograma, :idusuario, :dia, :turno, :titulo)");
-    $updateStmt = $pdo->prepare("UPDATE cronogramas SET titulotreinocronograma = :titulo, datahoraregistrocronograma = CURRENT_TIMESTAMP WHERE idcronograma = :idcronograma");
-    $deleteStmt = $pdo->prepare("DELETE FROM cronogramas WHERE idcronograma = :idcronograma");
+    $selectStmt = $pdo->prepare("SELECT idcronograma FROM public.cronogramas WHERE idusuario = :idusuario AND diasemanacronograma = :dia AND turnocronograma = :turno LIMIT 1");
+    $insertStmt = $pdo->prepare("INSERT INTO public.cronogramas (idcronograma, idusuario, diasemanacronograma, turnocronograma, titulotreinocronograma) VALUES (:idcronograma, :idusuario, :dia, :turno, :titulo)");
+    $updateStmt = $pdo->prepare("UPDATE public.cronogramas SET titulotreinocronograma = :titulo, datahoraregistrocronograma = CURRENT_TIMESTAMP WHERE idcronograma = :idcronograma");
+    $deleteStmt = $pdo->prepare("DELETE FROM public.cronogramas WHERE idcronograma = :idcronograma");
 
     foreach ($turnos as $turno) {
         foreach ($dias as $dia) {
