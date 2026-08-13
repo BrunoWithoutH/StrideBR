@@ -1,251 +1,292 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+
+declare(strict_types=1);
+
+require_once dirname(__DIR__, 2) . '/src/includes/errors.php';
+require_once dirname(__DIR__, 2) . '/src/includes/app.php';
+
+$idUsuario = stridebr_require_login();
+
 require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
 require_once dirname(__DIR__, 2) . '/vendor/autoload.php';
-use Hidehalo\Nanoid\Client;
-
-if (isset($_SESSION['EmailUsuario']) || isset($_SESSION['SenhaUsuario'])) {
-    $estalogado = TRUE;
-    $user = $_SESSION['NomeUsuario'];
-    $idusuario = $_SESSION['IdUsuario'];
-    if (isset($_SESSION['FotoUsuario'])) {
-        $foto = true;
-    } else {
-        $foto = false;
-    }
-} else {
-    $_SESSION['previous_page'] = "../../public/user/cronogramatreinos.php";
-    header('Location: ../login.php');
-    exit;
-}
-
+require_once dirname(__DIR__, 2) . '/src/function/cronograma.php';
+$errors = [];
 $dias = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
-$turnos = ['Manhã', 'Tarde', 'Noite'];
 
-$stmt = $pdo->prepare("SELECT idcronograma, diasemanacronograma AS dia, turnocronograma AS turno, titulotreinocronograma AS titulo FROM public.cronogramas WHERE idusuario = :idusuario ORDER BY diasemanacronograma, turnocronograma");
-$stmt->execute([':idusuario' => $idusuario]);
-$treinos = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-$treinosMap = [];
-foreach ($treinos as $t) {
-    $treinosMap[$t['dia']][$t['turno']] = [
-        'idcronograma' => $t['idcronograma'],
-        'titulo' => $t['titulo']
-    ];
-}
-
-$exerciciosPorCronograma = [];
-if (!empty($treinos)) {
-    $ids = array_column($treinos, 'idcronograma');
-    $in = str_repeat('?,', count($ids) - 1) . '?';
-    $stmtEx = $pdo->prepare("SELECT idcronograma, nomeexercicio, seriesexercicio, repeticoesexercicio, cargaexercicio, blocoexercicio, clusterexercicio, descansoexercicio, observacoesexercicio FROM public.exercicios_cronograma WHERE idcronograma IN ($in) ORDER BY ordemexercicio ASC");
-    $stmtEx->execute($ids);
-    foreach ($stmtEx->fetchAll(PDO::FETCH_ASSOC) as $ex) {
-        $exerciciosPorCronograma[$ex['idcronograma']][] = $ex;
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    stridebr_verify_csrf();
+    $action = (string) ($_POST['action'] ?? '');
+    try {
+        if ($action === 'create_schedule') {
+            $idNovo = cronogramaCriar($pdo, $idUsuario, (string) ($_POST['nome'] ?? ''), $_POST['descricao'] ?? null);
+            stridebr_flash('success', 'Cronograma criado.');
+            header('Location: /user/cronogramatreinos.php?id=' . urlencode($idNovo));
+            exit;
+        }
+        if ($action === 'delete_schedule') {
+            $id = (string) ($_POST['idcronograma'] ?? '');
+            if (!cronogramaExcluir($pdo, $id, $idUsuario)) {
+                throw new RuntimeException('Cronograma não encontrado.');
+            }
+            stridebr_flash('success', 'Cronograma excluído.');
+            header('Location: /user/cronogramatreinos.php');
+            exit;
+        }
+        if ($action === 'save_workout') {
+            $idTreino = trim((string) ($_POST['idtreino'] ?? '')) ?: null;
+            $saved = cronogramaSalvarTreino($pdo, $idUsuario, $_POST, $idTreino);
+            stridebr_flash('success', $idTreino ? 'Treino atualizado.' : 'Treino adicionado.');
+            header('Location: /user/cronogramatreinos.php?id=' . urlencode((string) $_POST['idcronograma']) . '&treino=' . urlencode($saved));
+            exit;
+        }
+        if ($action === 'delete_workout') {
+            $idCronograma = (string) ($_POST['idcronograma'] ?? '');
+            if (!cronogramaExcluirTreino($pdo, (string) ($_POST['idtreino'] ?? ''), $idUsuario)) {
+                throw new RuntimeException('Treino não encontrado.');
+            }
+            stridebr_flash('success', 'Treino removido do cronograma.');
+            header('Location: /user/cronogramatreinos.php?id=' . urlencode($idCronograma));
+            exit;
+        }
+    } catch (Throwable $e) {
+        $errors[] = $e instanceof InvalidArgumentException || $e instanceof RuntimeException ? $e->getMessage() : 'Não foi possível concluir a operação.';
+        if (!$e instanceof InvalidArgumentException && !$e instanceof RuntimeException) {
+            error_log($e->getMessage());
+        }
     }
 }
+
+$cronogramas = cronogramaListar($pdo, $idUsuario);
+$idSelecionado = (string) ($_GET['id'] ?? '');
+if ($idSelecionado === '' && $cronogramas !== []) {
+    $idSelecionado = $cronogramas[0]['idcronograma'];
+}
+$cronograma = $idSelecionado !== '' ? cronogramaBuscar($pdo, $idSelecionado, $idUsuario) : [];
+if ($cronograma === [] && $cronogramas !== []) {
+    $cronograma = $cronogramas[0];
+    $idSelecionado = $cronograma['idcronograma'];
+}
+$treinos = $cronograma !== [] ? cronogramaListarTreinos($pdo, $idSelecionado, $idUsuario) : [];
+$treinoEdicao = [];
+$idTreinoEdicao = (string) ($_GET['treino'] ?? '');
+if ($idTreinoEdicao !== '') {
+    $candidate = cronogramaBuscarTreino($pdo, $idTreinoEdicao, $idUsuario);
+    if ($candidate !== [] && $candidate['idcronograma'] === $idSelecionado) {
+        $treinoEdicao = $candidate;
+    }
+}
+
+$segments = [];
+foreach ($treinos as $treino) {
+    $start = ((int) substr($treino['hora_inicio'], 0, 2)) * 60 + (int) substr($treino['hora_inicio'], 3, 2);
+    $end = ((int) substr($treino['hora_fim'], 0, 2)) * 60 + (int) substr($treino['hora_fim'], 3, 2);
+    $day = (int) $treino['dia_semana'];
+    if (stridebr_db_bool($treino['termina_dia_seguinte'])) {
+        $segments[$day][] = ['treino' => $treino, 'inicio' => $start, 'fim' => 1440, 'continua' => true, 'continuidade' => false];
+        if ($end > 0) {
+            $next = ($day + 1) % 7;
+            $segments[$next][] = ['treino' => $treino, 'inicio' => 0, 'fim' => $end, 'continua' => false, 'continuidade' => true];
+        }
+    } else {
+        $segments[$day][] = ['treino' => $treino, 'inicio' => $start, 'fim' => $end, 'continua' => false, 'continuidade' => false];
+    }
+}
+
+$flashes = stridebr_take_flashes();
 ?>
 <!DOCTYPE html>
-<html lang="pt-br">
-
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/png" href="/assets/favicons/favicon.png">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" integrity="sha384-QWTKZyjpPEjISv5WaRU90FeRpokÿmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <link rel="icon" type="image/png" href="/assets/img/favicon/favicon.png">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" crossorigin="anonymous">
     <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.0/css/line.css">
     <link rel="stylesheet" href="/assets/css/style.css">
     <link rel="stylesheet" href="/assets/css/cronogramas.css">
-    <title>Cronograma | StrideBR</title>
+    <title>Cronogramas | StrideBR</title>
 </head>
-
 <body>
-    <div class="container-fluid">
-        <div class="row">
-            <div class="col-sm-12">
-                <section class="header">
-                    <nav>
-                        <a href="../index.php">
-                            <svg viewBox="0 0 1408.82 552.6" xmlns="http://www.w3.org/2000/svg" alt="StrideBR" class="nav-logo">
-                                <path fill="#ffffffff" d="M490.7,239.91c-8.75,42.14-27.01,85.44-54.53,126.04-6.4,9.43-13.29,18.72-20.68,27.81-1.34,1.65-2.7,3.3-4.08,4.94-6.13,7.31-12.45,14.32-18.93,21.03-83.85,86.76-194.9,122.75-278.98,94.62l39.41-55.22c57.78,10.49,131.34-18.37,190.88-77.83,7-6.99,13.82-14.41,20.39-22.24.98-1.17,1.95-2.33,2.9-3.51,7.45-9.11,14.3-18.44,20.55-27.91,12.7-19.25,22.9-39.07,30.5-58.81l-69.8,27.81-37.15,14.8-37.16,14.8-16.8-13.26-46.01-36.3-26.18,10.43-123.05,49.03L.81,360.5c-2.02-24.48-.27-50.35,5.2-76.67,8.75-42.14,27.01-85.44,54.53-126.04,6.4-9.43,13.29-18.72,20.68-27.81,1.34-1.65,2.7-3.3,4.08-4.94,6.13-7.31,12.45-14.32,18.93-21.03C188.08,17.27,299.13-18.73,383.21,9.4l-39.41,55.22c-57.78-10.49-131.34,18.37-190.88,77.83-7,6.99-13.82,14.41-20.39,22.24-.98,1.17-1.95,2.33-2.9,3.51-7.45,9.11-14.3,18.44-20.55,27.91-12.7,19.25-22.9,39.07-30.5,58.81l69.8-27.81,37.15-14.8,37.16-14.8,16.8,13.26,46.01,36.3,26.18-10.43,123.05-49.03,61.16-24.37c2.02,24.48.27,50.35-5.2,76.67Z" />
+<div class="container-fluid">
+    <?php require dirname(__DIR__, 2) . '/src/layout/header.php'; ?>
+    <main class="main-content cronograma-page">
+        <div class="schedule-shell">
+            <div class="schedule-heading">
+                <div>
+                    <h1>Cronogramas</h1>
+                    <p>Organize semanas independentes e abra cada treino para montar seus exercícios.</p>
+                </div>
+                <div class="schedule-heading-actions">
+                    <a class="secondary-button" href="/user/bibliotecaexercicios.php">Biblioteca de exercícios</a>
+                    <button type="button" class="primary-button" data-open-schedule-create>Novo cronograma</button>
+                </div>
+            </div>
 
-                                <g fill="#ffffffff">
-                                    <path d="M578.85,304.74l-7.11,37.52h29.85l-6.25,31.27h-29.56l-9.38,47.18c-1.14,5.4-2.27,12.79-2.27,17.62,0,6.82,2.84,11.65,11.94,11.65,3.41,0,7.67,0,11.08-.57l-4.55,32.12c-5.4,1.99-15.63,3.13-24.16,3.13-24.73,0-36.38-12.51-36.38-30.13,0-7.39.85-15.06,3.13-25.87l10.52-55.14h-17.62l5.68-31.27h17.91l5.12-26.15,42.07-11.37Z" />
-                                    <path d="M599.32,481.54l15.63-82.71c3.98-21.03,5.69-44.34,7.11-56.28h35.53c-.85,9.38-1.42,18.76-2.56,28.42h.85c9.95-18.48,25.3-31.55,44.34-31.55,2.56,0,5.12,0,7.67.28l-7.96,39.79c-1.99-.28-4.26-.28-6.54-.28-26.15,0-38.37,23.31-43.49,50.6l-9.66,51.73h-40.93Z" />
-                                    <path d="M704.49,481.54l26.43-138.99h40.93l-26.43,138.99h-40.93ZM756.22,325.21c-11.37,0-19.61-7.96-19.61-19.9,0-13.93,11.09-23.31,23.59-23.31s20.75,7.96,20.75,20.18c0,14.5-11.08,23.02-24.16,23.02h-.57Z" />
-                                    <path d="M942.96,279.73l-28.14,147.81c-3.41,17.62-5.97,37.52-6.54,54.01h-37.52l1.99-22.46h-.57c-12.22,18.48-29.28,25.58-45.76,25.58-23.59,0-42.92-18.76-42.92-52.58,0-48.32,34.96-92.95,87.55-92.95,5.68,0,13.08,1.14,19.04,3.41l12.22-62.82h40.65ZM884.41,375.23c-3.41-2.84-9.66-4.83-16.2-4.83-24.73,0-42.07,28.42-42.07,55.14,0,16.77,7.39,26.15,19.04,26.15s26.43-12.51,31.83-39.22l7.39-37.24Z" />
-                                    <path d="M1055.24,473.58c-16.2,8.24-36.38,11.09-52.02,11.09-39.51,0-59.97-22.46-59.97-58.84,0-42.35,30.7-86.41,81.01-86.41,28.14,0,48.32,15.92,48.32,41.78,0,35.25-34.39,48.04-90.39,46.62.28,3.98,1.71,10.23,4.55,14.21,5.4,7.11,14.78,10.8,26.72,10.8,15.07,0,27.86-3.41,38.94-8.81l2.84,29.56ZM1019.14,369.26c-19.04,0-30.13,15.92-32.97,28.71,32.12.28,48.04-3.98,48.04-17.05,0-6.82-5.68-11.65-15.07-11.65Z" />
-                                    <path d="M1118.62,293.09c13.64-2.84,31.55-4.55,50.31-4.55,20.18,0,34.68,2.56,47.47,9.95,12.79,6.54,22.17,19.04,22.17,35.25,0,24.16-17.62,39.51-38.66,45.48v.85c18.48,5.69,30.13,20.75,30.13,41.78s-11.09,35.53-26.15,45.48c-16.2,11.08-40.36,15.63-72.2,15.63-21.6,0-38.94-1.42-48.32-3.41l35.25-186.46ZM1128.85,450.27c4.83.57,9.66.57,15.63.57,22.17,0,42.35-8.81,42.35-30.13,0-19.04-15.92-24.73-34.96-24.73h-12.79l-10.23,54.29ZM1145.34,366.14h13.64c22.46,0,37.8-9.66,37.8-26.15,0-13.64-11.08-19.61-26.72-19.61-7.11,0-13.08.57-16.2,1.14l-8.53,44.62Z" />
-                                    <path d="M1284.61,293.37c12.79-3.13,32.12-4.83,51.16-4.83s36.95,2.56,50.31,11.09c12.51,7.39,21.32,19.61,21.32,37.24,0,28.42-18.76,46.33-43.49,54.29v.85c11.37,5.12,16.49,17.62,18.19,34.96,2.56,21.6,3.98,46.62,7.39,54.57h-42.07c-1.71-5.12-3.7-21.6-5.4-45.19-1.99-23.31-9.95-30.41-26.15-30.41h-12.51l-14.21,75.61h-40.36l35.81-188.17ZM1309.63,375.23h16.77c22.17,0,38.37-13.36,38.37-32.12,0-15.63-12.79-22.46-29.28-22.46-7.67,0-12.51.57-15.92,1.42l-9.95,53.15Z" />
-                                </g>
-                            </svg>
-                        </a>
-                        <div class="dropdown">
-                            <button class="dropbtn">Início<i class="uil uil-angle-down"></i></button>
-                            <div class="dropdown-content">
-                                <a href="../home.php" class="NavItem">Painel principal</a>
-                                <a href="../calendario.php" class="NavItem">Calendário de corridas</a>
-                            </div>
-                        </div>
-                        <div class="dropdown">
-                            <button class="dropbtn">Treinos<i class="uil uil-angle-down"></i></button>
-                            <div class="dropdown-content">
-                                <a href="cronogramatreinos.php" class="NavItem">Seu Cronograma de Treinos</a>
-                                <a href="atividades.php" class="NavItem">Atividades</a>
-                                <a href="ferramentastreino.php" class="NavItem">Treino</a>
-                            </div>
-                        </div>
-                        <div class="dropdown">
-                            <button class="dropbtn">Ajuda<i class="uil uil-angle-down"></i></button>
-                            <div class="dropdown-content">
-                                <a href="" class="NavItem">Suporte StrideBR</a>
-                                <a href="" class="NavItem">FAQ</a>
-                            </div>
-                        </div>
-                        <div class="usersection">
-                            <?php if ($foto): ?>
-                                <div class="dropdown" style="float:right;">
-                                    <button class="dropbtnimg"><img class="userimage" src="<?php $_SESSION['FotoUsuario']; ?>" alt="Usuário"></button>
-                                    <div class="dropdown-content" style="right: 0;">
-                                        <a href="settings.php" class="NavItem">Configurações</a>
-                                        <a href="../function/logout.php">Sair</a>
-                                    </div>
-                                </div>
-                            <?php else: ?>
-                                <div class="dropdown" style="float:right;">
-                                    <button class="dropbtnimg">
-                                        <svg class="userimage" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" alt="user">
-                                            <g>
-                                                <path d="M256.167,277.721c-55.4,0-100.471-45.071-100.471-100.471S200.767,76.779,256.167,76.779 c55.4,0,100.471,45.071,100.471,100.471S311.567,277.721,256.167,277.721z" />
-                                            </g>
-                                            <g>
-                                                <path d="M437.19,74.98C388.83,26.63,324.55,0,256.17,0S123.5,26.63,75.15,74.98S0.17,187.62,0.17,256S26.8,388.67,75.15,437.02 C123.5,485.37,187.79,512,256.17,512s132.66-26.63,181.021-74.98C485.54,388.67,512.17,324.38,512.17,256 S485.54,123.33,437.19,74.98z M69.31,399.37C38.75,359.63,20.55,309.9,20.55,256c0-129.92,105.7-235.62,235.62-235.62 S491.78,126.08,491.78,256c0,53.92-18.2,103.67-48.79,143.42c-7.58-25.359-26.88-48-56.183-65.311 c-35.407-20.92-82.02-32.439-131.24-32.439c-49.16,0-95.57,11.521-130.68,32.46C95.91,351.41,76.82,374.01,69.31,399.37z" />
-                                            </g>
-                                        </svg>
-                                    </button>
-                                    <div class="dropdown-content" style="right: 0;">
-                                        <a href="settings.php" class="NavItem">Configurações</a>
-                                        <a href="../function/logout.php">Sair</a>
-                                    </div>
-                                </div>
+            <?php foreach ($flashes as $flash): ?>
+                <div class="alert alert-<?php echo stridebr_e($flash['type'] ?? 'info'); ?>"><?php echo stridebr_e($flash['message'] ?? ''); ?></div>
+            <?php endforeach; ?>
+            <?php foreach ($errors as $error): ?>
+                <div class="alert alert-danger"><?php echo stridebr_e($error); ?></div>
+            <?php endforeach; ?>
+
+            <section class="schedule-create-panel" data-schedule-create hidden>
+                <form method="POST" class="compact-form">
+                    <?php echo stridebr_csrf_field(); ?>
+                    <input type="hidden" name="action" value="create_schedule">
+                    <label>Nome
+                        <input type="text" name="nome" maxlength="120" placeholder="Ex.: Corrida 5 km" required>
+                    </label>
+                    <label>Descrição
+                        <input type="text" name="descricao" maxlength="300" placeholder="Opcional">
+                    </label>
+                    <div class="form-actions">
+                        <button type="submit" class="primary-button">Criar</button>
+                        <button type="button" class="secondary-button" data-close-schedule-create>Cancelar</button>
+                    </div>
+                </form>
+            </section>
+
+            <?php if ($cronogramas === []): ?>
+                <section class="empty-state">
+                    <h2>Crie seu primeiro cronograma</h2>
+                    <p>Um cronograma pode representar academia, corrida, calistenia ou qualquer outra rotina semanal.</p>
+                    <button type="button" class="primary-button" data-open-schedule-create>Criar cronograma</button>
+                </section>
+            <?php else: ?>
+                <section class="schedule-toolbar">
+                    <label class="schedule-select-label">Cronograma
+                        <select data-schedule-selector>
+                            <?php foreach ($cronogramas as $item): ?>
+                                <option value="<?php echo stridebr_e($item['idcronograma']); ?>"<?php echo $item['idcronograma'] === $idSelecionado ? ' selected' : ''; ?>><?php echo stridebr_e($item['nome']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+                    <div class="view-switch" role="group" aria-label="Visualização">
+                        <button type="button" class="view-button is-active" data-view="week">Semana</button>
+                        <button type="button" class="view-button" data-view="agenda">Agenda</button>
+                    </div>
+                    <button type="button" class="primary-button" data-new-workout>Novo treino</button>
+                    <form method="POST" onsubmit="return confirm('Excluir este cronograma e todos os treinos dele?');">
+                        <?php echo stridebr_csrf_field(); ?>
+                        <input type="hidden" name="action" value="delete_schedule">
+                        <input type="hidden" name="idcronograma" value="<?php echo stridebr_e($idSelecionado); ?>">
+                        <button type="submit" class="danger-button">Excluir cronograma</button>
+                    </form>
+                </section>
+
+                <section class="workout-editor<?php echo $treinoEdicao !== [] ? ' is-open' : ''; ?>" data-workout-editor>
+                    <div class="editor-title-row">
+                        <h2 data-editor-title><?php echo $treinoEdicao !== [] ? 'Editar treino' : 'Novo treino'; ?></h2>
+                        <button type="button" class="icon-button" data-close-workout aria-label="Fechar">×</button>
+                    </div>
+                    <form method="POST" class="workout-form">
+                        <?php echo stridebr_csrf_field(); ?>
+                        <input type="hidden" name="action" value="save_workout">
+                        <input type="hidden" name="idcronograma" value="<?php echo stridebr_e($idSelecionado); ?>">
+                        <input type="hidden" name="idtreino" value="<?php echo stridebr_e($treinoEdicao['idtreino'] ?? ''); ?>" data-workout-id>
+                        <label>Título
+                            <input type="text" name="titulo" maxlength="120" value="<?php echo stridebr_e($treinoEdicao['titulo'] ?? ''); ?>" placeholder="Ex.: Academia — Peito" required>
+                        </label>
+                        <label>Dia
+                            <select name="dia_semana" required>
+                                <?php foreach ($dias as $index => $dia): ?>
+                                    <option value="<?php echo $index; ?>"<?php echo (int) ($treinoEdicao['dia_semana'] ?? 1) === $index ? ' selected' : ''; ?>><?php echo stridebr_e($dia); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </label>
+                        <label>Início
+                            <input type="time" name="hora_inicio" value="<?php echo stridebr_e(isset($treinoEdicao['hora_inicio']) ? substr($treinoEdicao['hora_inicio'], 0, 5) : '18:00'); ?>" required>
+                        </label>
+                        <label>Fim
+                            <input type="time" name="hora_fim" value="<?php echo stridebr_e(isset($treinoEdicao['hora_fim']) ? substr($treinoEdicao['hora_fim'], 0, 5) : '19:00'); ?>" required>
+                        </label>
+                        <label class="check-label">
+                            <input type="checkbox" name="termina_dia_seguinte" value="1"<?php echo stridebr_db_bool($treinoEdicao['termina_dia_seguinte'] ?? false) ? ' checked' : ''; ?>>
+                            Termina no dia seguinte
+                        </label>
+                        <label class="editor-description">Descrição
+                            <textarea name="descricao" rows="2" placeholder="Opcional"><?php echo stridebr_e($treinoEdicao['descricao'] ?? ''); ?></textarea>
+                        </label>
+                        <div class="form-actions">
+                            <button type="submit" class="primary-button">Salvar treino</button>
+                            <?php if ($treinoEdicao !== []): ?>
+                                <a class="secondary-button" href="/user/exercicioscronograma.php?idtreino=<?php echo urlencode($treinoEdicao['idtreino']); ?>">Editar exercícios</a>
                             <?php endif; ?>
                         </div>
-                    </nav>
+                    </form>
                 </section>
-            </div>
-        </div>
-        <div class="row">
-            <h1 class="textcenter">Cronograma de Treinos</h1>
-        </div>
-        <div class="row">
-            <div class="col-sm-12">
-                <form action="../function/salvarcronograma.php" method="POST">
-                    <input type="hidden" name="idusuario" value="<?php echo htmlspecialchars($idusuario); ?>">
-                    <table class="cronogramatable">
-                        <thead>
-                            <tr>
-                                <th></th>
-                                <?php foreach ($dias as $dia): ?>
-                                    <th><?php echo $dia; ?></th>
-                                <?php endforeach; ?>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($turnos as $turno): ?>
-                                <tr>
-                                    <th><?php echo $turno; ?></th>
-                                    <?php foreach ($dias as $dia): ?>
+
+                <section class="calendar-view" data-calendar-view="week">
+                    <div class="week-calendar">
+                        <div class="time-column">
+                            <div class="calendar-corner"></div>
+                            <div class="time-track">
+                                <?php for ($hour = 0; $hour < 24; $hour++): ?>
+                                    <span style="top: <?php echo $hour * 48; ?>px"><?php echo sprintf('%02d:00', $hour); ?></span>
+                                <?php endfor; ?>
+                            </div>
+                        </div>
+                        <?php foreach ($dias as $dayIndex => $dayName): ?>
+                            <div class="day-column">
+                                <div class="day-header"><?php echo stridebr_e($dayName); ?></div>
+                                <div class="day-track">
+                                    <?php for ($hour = 0; $hour < 24; $hour++): ?><div class="hour-line" style="top: <?php echo $hour * 48; ?>px"></div><?php endfor; ?>
+                                    <?php foreach ($segments[$dayIndex] ?? [] as $segment): ?>
                                         <?php
-                                        $cell = isset($treinosMap[$dia][$turno]) ? $treinosMap[$dia][$turno] : null;
-                                        $idcronograma = $cell ? $cell['idcronograma'] : null;
-                                        $titulo = $cell ? htmlspecialchars($cell['titulo']) : '';
-                                        $modalexId = $dia . "_" . $turno;
+                                        $top = $segment['inicio'] / 60 * 48;
+                                        $height = max(24, ($segment['fim'] - $segment['inicio']) / 60 * 48);
+                                        $item = $segment['treino'];
                                         ?>
-                                        <td>
-                                            <div class="cell-title">
-                                                <textarea name="<?php echo $dia . '_' . $turno; ?>" placeholder=""><?php echo $titulo; ?></textarea>
-                                                <div class="btn-group">
-                                                    <button type="button" class="expand-btn uil uil-expand-arrows-alt" data-target="modal-<?php echo $modalexId; ?>"></button>
-                                                    <?php if ($idcronograma): ?>
-                                                        <a href="exercicioscronograma.php?idcronograma=<?php echo urlencode($idcronograma); ?>">
-                                                            <button type="button" class="edit-btn uil uil-pen icon"></button>
-                                                        </a>
-                                                    <?php else: ?>
-                                                        <a href="exercicioscronograma.php?dia=<?php echo urlencode($dia); ?>&turno=<?php echo urlencode($turno); ?>">
-                                                            <button type="button" class="edit-btn uil uil-pen icon"></button>
-                                                        </a>
-                                                    <?php endif; ?>
-                                                </div>
-                                            </div>
-                                            <!-- MODAL INDIVIDUAL PARA ESTA CÉLULA -->
-                                            <div class="modal" id="modal-<?php echo $modalexId; ?>">
-                                                <div class="modal-content">
-                                                    <span class="close">&times;</span>
-                                                    <h3>Exercícios</h3>
-                                                    <?php if ($idcronograma && !empty($exerciciosPorCronograma[$idcronograma])): ?>
-                                                        <div class="exerciciosmodal" id="<?php echo $modalexId; ?>">
-                                                            <table class="table table-sm table-bordered">
-                                                                <thead>
-                                                                    <tr>
-                                                                        <th>Exercício</th>
-                                                                        <th>Séries</th>
-                                                                        <th>Repetições</th>
-                                                                        <th>Carga</th>
-                                                                        <th>Bloco</th>
-                                                                        <th>Cluster</th>
-                                                                        <th>Descanso</th>
-                                                                        <th>Observações</th>
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody>
-                                                                    <?php foreach ($exerciciosPorCronograma[$idcronograma] as $ex): ?>
-                                                                        <tr>
-                                                                            <td><?php echo htmlspecialchars($ex['nomeexercicio'] ?? ''); ?></td>
-                                                                            <td><?php echo htmlspecialchars($ex['seriesexercicio'] ?? ''); ?></td>
-                                                                            <td><?php echo htmlspecialchars($ex['repeticoesexercicio'] ?? ''); ?></td>
-                                                                            <td><?php echo htmlspecialchars($ex['cargaexercicio'] ?? ''); ?></td>
-                                                                            <td><?php echo htmlspecialchars($ex['blocoexercicio'] ?? ''); ?></td>
-                                                                            <td><?php echo htmlspecialchars($ex['clusterexercicio'] ?? ''); ?></td>
-                                                                            <td><?php echo htmlspecialchars($ex['descansoexercicio'] ?? ''); ?></td>
-                                                                            <td><?php echo htmlspecialchars($ex['observacoesexercicio'] ?? ''); ?></td>
-                                                                        </tr>
-                                                                    <?php endforeach; ?>
-                                                                </tbody>
-                                                            </table>
-                                                        </div>
-                                                    <?php else: ?>
-                                                        <div class="exerciciosmodal" id="<?php echo $modalexId; ?>">
-                                                            Seus treinos aparecerão aqui.
-                                                        </div>
-                                                    <?php endif; ?>
-                                                </div>
-                                            </div>
-                                            <!-- FIM DO MODAL INDIVIDUAL -->
-                                        </td>
+                                        <a class="workout-card<?php echo $segment['continuidade'] ? ' is-continuation' : ''; ?>" href="/user/exercicioscronograma.php?idtreino=<?php echo urlencode($item['idtreino']); ?>" style="top: <?php echo number_format($top, 2, '.', ''); ?>px; height: <?php echo number_format($height, 2, '.', ''); ?>px" title="Abrir exercícios">
+                                            <strong><?php echo stridebr_e($item['titulo']); ?></strong>
+                                            <span><?php echo $segment['continuidade'] ? 'continuação · ' : ''; ?><?php echo stridebr_e(substr($item['hora_inicio'], 0, 5)); ?>–<?php echo stridebr_e(substr($item['hora_fim'], 0, 5)); ?><?php echo stridebr_db_bool($item['termina_dia_seguinte']) ? ' +1' : ''; ?></span>
+                                            <?php if ($height >= 70 && !empty($item['descricao'])): ?><small><?php echo stridebr_e($item['descricao']); ?></small><?php endif; ?>
+                                        </a>
                                     <?php endforeach; ?>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                    <button class="save-btn textcenter" type="submit" name="submit">Salvar</button>
-                </form>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </section>
 
-            </div>
+                <section class="agenda-view" data-calendar-view="agenda" hidden>
+                    <?php if ($treinos === []): ?>
+                        <div class="empty-state compact"><p>Nenhum treino neste cronograma.</p></div>
+                    <?php else: ?>
+                        <?php foreach ($dias as $dayIndex => $dayName): ?>
+                            <?php $dayWorkouts = array_values(array_filter($treinos, fn(array $t): bool => (int) $t['dia_semana'] === $dayIndex)); ?>
+                            <?php if ($dayWorkouts !== []): ?>
+                                <div class="agenda-day">
+                                    <h2><?php echo stridebr_e($dayName); ?></h2>
+                                    <?php foreach ($dayWorkouts as $item): ?>
+                                        <article class="agenda-card">
+                                            <div>
+                                                <strong><?php echo stridebr_e($item['titulo']); ?></strong>
+                                                <span><?php echo stridebr_e(substr($item['hora_inicio'], 0, 5)); ?>–<?php echo stridebr_e(substr($item['hora_fim'], 0, 5)); ?><?php echo stridebr_db_bool($item['termina_dia_seguinte']) ? ' do dia seguinte' : ''; ?></span>
+                                            </div>
+                                            <div class="agenda-actions">
+                                                <a class="secondary-button" href="/user/exercicioscronograma.php?idtreino=<?php echo urlencode($item['idtreino']); ?>">Exercícios</a>
+                                                <a class="secondary-button" href="/user/cronogramatreinos.php?id=<?php echo urlencode($idSelecionado); ?>&treino=<?php echo urlencode($item['idtreino']); ?>">Editar</a>
+                                                <form method="POST" onsubmit="return confirm('Remover este treino?');">
+                                                    <?php echo stridebr_csrf_field(); ?>
+                                                    <input type="hidden" name="action" value="delete_workout">
+                                                    <input type="hidden" name="idcronograma" value="<?php echo stridebr_e($idSelecionado); ?>">
+                                                    <input type="hidden" name="idtreino" value="<?php echo stridebr_e($item['idtreino']); ?>">
+                                                    <button class="danger-button" type="submit">Remover</button>
+                                                </form>
+                                            </div>
+                                        </article>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </section>
+            <?php endif; ?>
         </div>
-    </div>
-    <footer class="textcenter footer">
-        <p>© 2024 StrideBR. Todos os direitos reservados.</p>
-    </footer>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-    <script src="/assets/js/cronogramas.js"></script>
-    <script src="/assets/js/scripts.js"></script>
+    </main>
+</div>
+<?php require dirname(__DIR__, 2) . '/src/layout/footer.php'; ?>
+<script src="/assets/js/cronogramas.js"></script>
 </body>
-
 </html>

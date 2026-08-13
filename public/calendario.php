@@ -1,73 +1,33 @@
-<!DOCTYPE html>
-<html lang="en">
+<?php
 
+declare(strict_types=1);
+
+require_once dirname(__DIR__) . '/src/includes/errors.php';
+require_once dirname(__DIR__) . '/src/includes/app.php';
+?>
+<!DOCTYPE html>
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/png" href="/assets/favicons/favicon.png">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
-        integrity="sha384-QWTKZyjpPEjISv5WaRU90FeRpokÿmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.0/css/line.css">
+    <link rel="icon" type="image/png" href="/assets/img/favicon/favicon.png">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" crossorigin="anonymous">
     <link rel="stylesheet" href="/assets/css/style.css">
-    <title>StrideBR</title>
+    <title>Eventos esportivos | StrideBR</title>
 </head>
-
-
 <body>
-    <div class="container-fluid">
-        <div class="row">
-            <div class="col-sm-12">
-                <section class="header">
-                    <nav>
-                        <a href="index.php"><img src="/assets/img/StrideBRLogo.png" alt="StrideBR"
-                                class="logoCR"></a>
-                        <div class="dropdown">
-                            <button class="dropbtn">Painel principal<i class="uil uil-angle-down"></i></button>
-                            <div class="dropdown-content">
-                                <a href="index.php" class="NavItem">Início</a>
-                                <a href="" class="NavItem">aaaa</a>
-                                <a href="calendario.php" class="NavItem">Calendário de corridas</a>
-                            </div>
-                        </div>
-                        <div class="dropdown">
-                            <button class="dropbtn">Treinos</a><i class="uil uil-angle-down"></i></button>
-                            <div class="dropdown-content">
-                                <a href="cronogramatreinos.php" class="NavItem">Seu Cronograma de Treinos</a>
-                                <a href="atividades.php" class="NavItem">Atividades</a>
-                                <a href="" class="NavItem">aaaa</a>
-                            </div>
-                        </div>
-                        <a href="login.php"><button href="login.php" class="ToLoginButton">Entrar</button></a>
-                    </nav>
-                </section>
-            </div>
+<div class="container-fluid">
+    <?php require dirname(__DIR__) . '/src/layout/header.php'; ?>
+    <main class="main-content">
+        <div class="page-shell">
+            <div class="page-heading"><h1>Eventos esportivos</h1><p>Calendário regional de corridas, rústicas e outros eventos.</p></div>
+            <section class="content-card">
+                <h2>Em desenvolvimento</h2>
+                <p>Esta área será conectada a fontes externas de eventos e permitirá salvar eventos de interesse sem misturar esses dados com os cronogramas de treino.</p>
+            </section>
         </div>
-        <div class="row">
-            <div class="col-sm-12">
-                <section class="">
-                </section>
-            </div>
-        </div>
-        <div class="row">
-            <div class="col-sm-12">
-                <section class="intro">
-                    <h1>StrideBR<h1>
-                            <h4>O amigo do atleta</h4>
-                </section>
-            </div>
-        </div>
-        <div class="row">
-            <div class="col-sm-12">
-                <section class="description">
-                </section>
-            </div>
-        </div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
-        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous">
-    </script>
-    <script src="/assets/js/script.js"></script>
+    </main>
+</div>
+<?php require dirname(__DIR__) . '/src/layout/footer.php'; ?>
 </body>
-
 </html>

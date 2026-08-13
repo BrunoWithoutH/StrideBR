@@ -1,312 +1,725 @@
-.cronograma-page {
+.cronograma-page,
+.exercicios-page,
+.library-page {
     background: linear-gradient(180deg, #f7f7f5 0%, #eef1f6 100%);
 }
 
-.cronogramatable {
-    border-collapse: separate;
-    border-spacing: 0;
-    width: 100%;
-    background: rgba(255, 255, 255, 0.94);
-    border: 1px solid rgba(115, 128, 163, 0.18);
-    border-radius: 20px;
-    overflow: hidden;
-    box-shadow: 0 16px 40px rgba(24, 34, 57, 0.08);
+.schedule-shell,
+.exercise-shell,
+.library-shell {
+    width: min(1500px, calc(100% - 32px));
+    margin: 0 auto;
+    padding: 32px 0 56px;
 }
 
-.cronogramatable thead th {
-    background: linear-gradient(180deg, #44506f 0%, #35405d 100%);
-    color: #fff;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-}
-
-.cronogramatable th,
-.cronogramatable td {
-    border: 1px solid rgba(124, 136, 168, 0.18);
-    padding: 12px 10px;
-    text-align: center;
-    vertical-align: top;
-}
-
-.cronogramatable tbody th {
-    background: #f5f7fb;
-    font-weight: 700;
-    color: #324056;
-}
-
-.cronogramatable textarea {
-    width: 100%;
-    min-height: 78px;
-    resize: vertical;
-    border: 1px solid rgba(115, 128, 163, 0.22);
-    border-radius: 14px;
-    background: linear-gradient(180deg, #fff 0%, #fbfcff 100%);
-    padding: 10px 12px;
-    color: #243044;
-    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.8);
-    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
-}
-
-.cronogramatable textarea:focus {
-    outline: none;
-    border-color: #7380a3;
-    box-shadow: 0 0 0 3px rgba(115, 128, 163, 0.15);
-}
-
-.cronogramatable button,
-.save-btn {
-    margin-top: 10px;
-    padding: 10px 18px;
-    border: 0;
-    border-radius: 12px;
-    background: linear-gradient(180deg, #7380a3 0%, #556585 100%);
-    color: #fff;
-    font-weight: 600;
-    box-shadow: 0 10px 18px rgba(84, 97, 127, 0.18);
-}
-
-.cronogramatable button:hover,
-.save-btn:hover {
-    filter: brightness(1.04);
-}
-
-
-.cell-title {
+.schedule-heading,
+.exercise-heading {
     display: flex;
-    justify-content: space-between;
     align-items: flex-start;
-    gap: 10px;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 24px;
 }
 
-.btn-group {
+.schedule-heading h1,
+.exercise-heading h1 {
+    margin: 0 0 6px;
+    font-size: clamp(1.8rem, 3vw, 2.7rem);
+    color: #1f2937;
+}
+
+.schedule-heading p,
+.exercise-heading p,
+.exercise-tools-card p,
+.library-note {
+    margin: 0;
+    color: #667085;
+}
+
+.schedule-heading-actions,
+.form-actions,
+.exercise-editor-actions,
+.library-card-actions,
+.agenda-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.primary-button,
+.secondary-button,
+.danger-button,
+.view-button,
+.icon-button,
+.remove-row-button {
+    border: 0;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.primary-button {
+    background: #334155;
+    color: #fff;
+}
+
+.primary-button:hover {
+    background: #1f2937;
+    color: #fff;
+}
+
+.secondary-button,
+.view-button {
+    background: #fff;
+    color: #334155;
+    border: 1px solid #d0d5dd;
+}
+
+.secondary-button:hover,
+.view-button:hover,
+.view-button.is-active {
+    background: #eef2f7;
+    color: #1f2937;
+}
+
+.danger-button {
+    background: #fff1f2;
+    color: #b42318;
+    border: 1px solid #fecdd3;
+}
+
+.danger-button:hover {
+    background: #ffe4e6;
+}
+
+.schedule-create-panel,
+.workout-editor,
+.exercise-tools-card,
+.exercise-editor-card,
+.exercise-copy-card,
+.library-form-card,
+.library-exercise-card,
+.empty-state {
+    background: #fff;
+    border: 1px solid #e4e7ec;
+    border-radius: 18px;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+}
+
+.schedule-create-panel {
+    padding: 18px;
+    margin-bottom: 18px;
+}
+
+.compact-form {
+    display: flex;
+    align-items: end;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.compact-form.vertical,
+.stack-form {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    align-items: stretch;
+    gap: 14px;
 }
 
-.btn-group button,
-.btn-group a button {
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
-    border: 1px solid rgba(115, 128, 163, 0.18);
+.compact-form label,
+.stack-form label,
+.workout-form label,
+.schedule-select-label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    color: #344054;
+    font-weight: 600;
+}
+
+.compact-form input,
+.compact-form select,
+.stack-form input,
+.stack-form textarea,
+.stack-form select,
+.workout-form input,
+.workout-form select,
+.workout-form textarea,
+.schedule-toolbar select,
+.inline-field-form input,
+.inline-field-form select,
+.copy-form select,
+.library-tabs input,
+.exercise-table input,
+.exercise-table select,
+.exercise-table textarea {
+    border: 1px solid #d0d5dd;
+    border-radius: 9px;
     background: #fff;
-    color: #44506f;
+    padding: 9px 10px;
+    color: #1f2937;
+    font: inherit;
 }
 
-.btn-group a {
+.compact-form input:focus,
+.compact-form select:focus,
+.stack-form input:focus,
+.stack-form textarea:focus,
+.stack-form select:focus,
+.workout-form input:focus,
+.workout-form select:focus,
+.workout-form textarea:focus,
+.schedule-toolbar select:focus,
+.inline-field-form input:focus,
+.inline-field-form select:focus,
+.copy-form select:focus,
+.library-tabs input:focus,
+.exercise-table input:focus,
+.exercise-table select:focus,
+.exercise-table textarea:focus {
+    outline: 3px solid rgba(96, 165, 250, 0.16);
+    border-color: #60a5fa;
+}
+
+.schedule-toolbar {
+    display: flex;
+    align-items: end;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+}
+
+.schedule-toolbar form {
+    margin-left: auto;
+}
+
+.schedule-select-label select {
+    min-width: min(360px, 75vw);
+}
+
+.view-switch {
+    display: flex;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.view-switch .view-button {
+    border-radius: 0;
+}
+
+.view-switch .view-button + .view-button {
+    border-left: 0;
+}
+
+.workout-editor {
+    display: none;
+    margin-bottom: 18px;
+    padding: 18px;
+}
+
+.workout-editor.is-open {
+    display: block;
+}
+
+.editor-title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+}
+
+.editor-title-row h2 {
+    margin: 0;
+    font-size: 1.25rem;
+}
+
+.icon-button,
+.remove-row-button {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    background: transparent;
+    color: #667085;
+    font-size: 1.4rem;
+}
+
+.icon-button:hover,
+.remove-row-button:hover {
+    background: #f2f4f7;
+    color: #b42318;
+}
+
+.workout-form {
+    display: grid;
+    grid-template-columns: minmax(220px, 2fr) repeat(3, minmax(130px, 1fr));
+    gap: 14px;
+    align-items: end;
+}
+
+.workout-form .check-label {
+    flex-direction: row;
+    align-items: center;
+    align-self: center;
+}
+
+.editor-description,
+.workout-form .form-actions {
+    grid-column: 1 / -1;
+}
+
+.calendar-view {
+    overflow-x: auto;
+    border: 1px solid #e4e7ec;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+}
+
+.week-calendar {
+    display: grid;
+    grid-template-columns: 64px repeat(7, minmax(150px, 1fr));
+    min-width: 1120px;
+}
+
+.time-column,
+.day-column {
+    min-width: 0;
+}
+
+.calendar-corner,
+.day-header {
+    height: 48px;
+    position: sticky;
+    top: 0;
+    z-index: 8;
+    background: #f8fafc;
+    border-bottom: 1px solid #e4e7ec;
+}
+
+.day-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    color: #344054;
+    border-left: 1px solid #e4e7ec;
+}
+
+.time-track,
+.day-track {
+    height: 1152px;
+    position: relative;
+}
+
+.time-track {
+    background: #f8fafc;
+}
+
+.time-track span {
+    position: absolute;
+    right: 8px;
+    transform: translateY(-8px);
+    color: #98a2b3;
+    font-size: 0.72rem;
+}
+
+.day-track {
+    border-left: 1px solid #e4e7ec;
+    background: linear-gradient(180deg, #fff, #fcfcfd);
+}
+
+.hour-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    border-top: 1px solid #eef2f6;
+}
+
+.workout-card {
+    position: absolute;
+    left: 5px;
+    right: 5px;
+    min-height: 24px;
+    overflow: hidden;
+    background: #dbeafe;
+    border: 1px solid #93c5fd;
+    border-left: 4px solid #3b82f6;
+    border-radius: 8px;
+    padding: 5px 7px;
+    color: #1e3a5f;
+    text-decoration: none;
+    z-index: 4;
+}
+
+.workout-card:hover {
+    background: #bfdbfe;
+    color: #172554;
+    z-index: 5;
+}
+
+.workout-card strong,
+.workout-card span,
+.workout-card small {
+    display: block;
+    line-height: 1.25;
+}
+
+.workout-card strong {
+    font-size: 0.78rem;
+}
+
+.workout-card span,
+.workout-card small {
+    font-size: 0.68rem;
+    margin-top: 2px;
+}
+
+.workout-card.is-continuation {
+    border-left-style: dashed;
+    opacity: 0.9;
+}
+
+.agenda-view {
+    display: grid;
+    gap: 18px;
+}
+
+.agenda-day h2 {
+    margin: 0 0 10px;
+    font-size: 1.05rem;
+    color: #475467;
+}
+
+.agenda-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    background: #fff;
+    border: 1px solid #e4e7ec;
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 8px;
+}
+
+.agenda-card strong,
+.agenda-card span {
+    display: block;
+}
+
+.agenda-card span {
+    color: #667085;
+    font-size: 0.9rem;
+}
+
+.empty-state {
+    padding: 44px 24px;
+    text-align: center;
+}
+
+.empty-state.compact {
+    padding: 20px;
+}
+
+.empty-state h2 {
+    margin-bottom: 8px;
+}
+
+.back-link {
+    display: inline-block;
+    margin-bottom: 8px;
+    color: #475467;
     text-decoration: none;
 }
 
-.btn-group button:hover {
-    background: #eef2f8;
+.back-link:hover {
+    color: #1f2937;
 }
 
-.modal {
-    display: none;
-    position: fixed;
-    z-index: 1000;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    overflow: auto;
-    background-color: rgba(0,0,0,0.4);
+.exercise-tools-card,
+.exercise-copy-card {
+    padding: 18px;
+    margin-bottom: 16px;
 }
 
-.modal-content {
-    background-color: #fefefe;
-    margin: 10% auto;
-    padding: 22px;
-    border: 1px solid rgba(115, 128, 163, 0.18);
-    width: 80%;
-    max-width: 800px;
-    border-radius: 18px;
-    box-shadow: 0 24px 64px rgba(24, 34, 57, 0.18);
+.exercise-tools-card h2,
+.exercise-copy-card h2,
+.library-form-card h2 {
+    margin: 0 0 6px;
+    font-size: 1.15rem;
 }
 
-.close {
-    color: #aaa;
-    float: right;
-    font-size: 28px;
-    font-weight: bold;
+.inline-field-form,
+.copy-form {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+}
+
+.custom-field-chips {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+}
+
+.field-chip {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid #d0d5dd;
+    border-radius: 999px;
+    background: #f8fafc;
+    overflow: hidden;
+}
+
+.field-chip span {
+    padding: 6px 4px 6px 10px;
+    font-size: 0.86rem;
+}
+
+.field-chip button {
+    border: 0;
+    background: transparent;
+    padding: 4px 9px;
+    color: #667085;
     cursor: pointer;
 }
 
-.close:hover {
-    color: black;
+.exercise-editor-card {
+    overflow: hidden;
 }
 
-.modal .table {
+.exercise-table-scroll {
     width: 100%;
+    overflow-x: auto;
+}
+
+.exercise-table {
+    width: 100%;
+    min-width: 1480px;
     border-collapse: collapse;
 }
 
-.modal .table th, .modal .table td {
-    padding: 8px;
-    border-bottom: 1px solid #ddd;
-    text-align: left;
+.exercise-table th,
+.exercise-table td {
+    border-bottom: 1px solid #eaecf0;
+    padding: 9px 7px;
+    vertical-align: top;
 }
 
-.modal .table th {
-    background-color: #eef2f8;
+.exercise-table th {
+    background: #f8fafc;
+    color: #475467;
+    font-size: 0.78rem;
+    white-space: nowrap;
 }
 
-.cronograma-shell,
-.exercicios-shell {
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 24px 16px 40px;
+.exercise-table td:first-child {
+    width: 42px;
+    text-align: center;
+    color: #98a2b3;
 }
 
-.exercicios-page {
-    background: linear-gradient(180deg, #f7f7f5 0%, #eef1f6 100%);
-}
-
-.exercicios-card {
-    background: rgba(255, 255, 255, 0.96);
-    border: 1px solid rgba(115, 128, 163, 0.18);
-    border-radius: 22px;
-    padding: 22px;
-    box-shadow: 0 16px 40px rgba(24, 34, 57, 0.08);
-}
-
-.exercicios-table {
+.exercise-table input,
+.exercise-table select,
+.exercise-table textarea {
+    min-width: 90px;
     width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
-    overflow: hidden;
-    border-radius: 18px;
-    border: 1px solid rgba(115, 128, 163, 0.18);
+    padding: 7px 8px;
+    font-size: 0.84rem;
 }
 
-.exercicios-table thead th {
-    background: linear-gradient(180deg, #44506f 0%, #35405d 100%);
-    color: #fff;
-    font-weight: 600;
+.exercise-table td:nth-child(2) select,
+.exercise-table td:nth-child(3) input {
+    min-width: 180px;
 }
 
-.exercicios-table th,
-.exercicios-table td {
-    padding: 10px 8px;
-    border-bottom: 1px solid rgba(115, 128, 163, 0.16);
-}
-
-.exercicios-table input[type="text"],
-.exercicios-table textarea {
-    width: 100%;
-    border: 1px solid rgba(115, 128, 163, 0.2);
-    border-radius: 12px;
-    padding: 8px 10px;
-    background: #fff;
-    color: #243044;
-}
-
-.exercicios-table textarea {
-    min-height: 58px;
+.exercise-table textarea {
+    min-width: 180px;
     resize: vertical;
 }
 
-.exercicios-table input[type="text"]:focus,
-.exercicios-table textarea:focus {
-    outline: none;
-    border-color: #7380a3;
-    box-shadow: 0 0 0 3px rgba(115, 128, 163, 0.14);
+.exercise-editor-actions {
+    justify-content: space-between;
+    padding: 14px;
 }
 
-@media (max-width: 768px) {
-    .cronogramatable {
-        font-size: 12px;
+.library-create-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
+    gap: 16px;
+    margin-bottom: 22px;
+}
+
+.library-form-card {
+    padding: 18px;
+}
+
+.stack-form fieldset {
+    border: 0;
+    margin: 0;
+    padding: 0;
+}
+
+.stack-form legend {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #344054;
+    margin-bottom: 8px;
+}
+
+.choice-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 7px 12px;
+    max-height: 180px;
+    overflow-y: auto;
+    padding: 4px;
+}
+
+.choice-grid.small {
+    max-height: 130px;
+}
+
+.check-label {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center;
+    gap: 7px !important;
+    font-weight: 500 !important;
+}
+
+.library-tabs {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+}
+
+.library-tabs input {
+    margin-left: auto;
+    min-width: 250px;
+}
+
+.exercise-library-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+}
+
+.library-exercise-card {
+    padding: 17px;
+}
+
+.library-exercise-card[hidden] {
+    display: none;
+}
+
+.library-origin {
+    display: inline-block;
+    margin-bottom: 6px;
+    color: #667085;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.library-card-top h2 {
+    margin: 0 0 8px;
+    font-size: 1.1rem;
+}
+
+.library-exercise-card p {
+    color: #667085;
+    font-size: 0.9rem;
+}
+
+.library-meta {
+    color: #475467;
+    font-size: 0.82rem;
+    margin-top: 7px;
+}
+
+.library-card-actions {
+    margin-top: 14px;
+}
+
+.library-card-actions form,
+.agenda-actions form {
+    margin: 0;
+}
+
+@media (max-width: 900px) {
+    .workout-form {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .cronogramatable th, .cronogramatable td {
-        padding: 6px 4px;
+    .library-create-grid {
+        grid-template-columns: 1fr;
     }
 
-    .cronogramatable textarea {
-        height: 50px;
-        font-size: 12px;
-    }
-
-    .cronogramatable button {
-        padding: 6px 12px;
-        font-size: 11px;
-    }
-
-    .modal-content {
-        width: 90%;
-        max-width: 600px;
-        padding: 16px;
-    }
-
-    .modal .table th, .modal .table td {
-        padding: 6px;
-        font-size: 12px;
-    }
-
-    .close {
-        font-size: 24px;
+    .schedule-toolbar form {
+        margin-left: 0;
     }
 }
 
-@media (max-width: 375px) {
-    .cronogramatable {
-        font-size: 10px;
-        display: block;
-        overflow-x: auto;
+@media (max-width: 720px) {
+    .schedule-shell,
+    .exercise-shell,
+    .library-shell {
+        width: min(100% - 20px, 1500px);
+        padding-top: 20px;
     }
 
-    .cronogramatable th, .cronogramatable td {
-        padding: 4px 2px;
-        border: 1px solid #999;
-    }
-
-    .cronogramatable textarea {
-        height: 40px;
-        font-size: 11px;
-        padding: 4px;
-    }
-
-    .cronogramatable button {
-        padding: 4px 8px;
-        font-size: 10px;
-        margin-top: 4px;
-    }
-
-    .cell-title {
+    .schedule-heading,
+    .exercise-heading,
+    .agenda-card {
         flex-direction: column;
-        gap: 4px;
     }
 
-    .btn-group {
-        gap: 2px;
+    .schedule-heading-actions,
+    .agenda-actions {
+        width: 100%;
     }
 
-    .modal {
-        height: 100%;
+    .schedule-heading-actions .primary-button,
+    .schedule-heading-actions .secondary-button {
+        flex: 1;
     }
 
-    .modal-content {
-        width: 95%;
-        max-width: 350px;
-        margin: auto;
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        padding: 12px;
+    .workout-form {
+        grid-template-columns: 1fr;
     }
 
-    .modal .table {
-        font-size: 11px;
+    .editor-description,
+    .workout-form .form-actions {
+        grid-column: auto;
     }
 
-    .modal .table th, .modal .table td {
-        padding: 4px;
-        font-size: 10px;
+    .calendar-view {
+        max-height: 75vh;
     }
 
-    .close {
-        font-size: 20px;
+    .library-tabs input {
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .copy-form select,
+    .copy-form button,
+    .inline-field-form input,
+    .inline-field-form select,
+    .inline-field-form button {
+        width: 100%;
     }
 }

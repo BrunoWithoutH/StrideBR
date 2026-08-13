@@ -1,52 +1,43 @@
 <?php
-include_once('../src/config/pg_config.php');
-session_start();
-if (isset($_SESSION['EmailUsuario']) && isset($_SESSION['SenhaUsuario'])) {
-    $estalogado = true;
-    $user = $_SESSION['NomeUsuario'] ?? '';
-    $foto = false;
-    if (isset($_SESSION['FotoUsuario'])) {
-        $foto = true;
-    }
-} else {
-    $_SESSION['previous_page'] = "../../public/home.php";
-    header('Location: login.php');
-    exit;
-}
+
+declare(strict_types=1);
+
+require_once dirname(__DIR__) . '/src/includes/errors.php';
+require_once dirname(__DIR__) . '/src/includes/app.php';
+
+stridebr_require_login();
+$user = (string) ($_SESSION['NomeUsuario'] ?? '');
 ?>
 <!DOCTYPE html>
-<html lang="pt-br">
-
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/png" href="/assets/img/favicon/favicon.png">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" integrity="sha384-QWTKZyjpPEjISv5WaRU90FeRpokÿmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.0/css/line.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" crossorigin="anonymous">
     <link rel="stylesheet" href="/assets/css/style.css">
-    <title>Página inicial | StrideBR</title>
+    <title>Painel | StrideBR</title>
 </head>
-
 <body>
-    <div class="container-fluid">
-        <?php
-        include_once '../src/layout/header.php';
-        ?>
-
-        <div class="row">
-            <div class="col-sm-12">
-                <section class="intro">
-                    <h1>Painel Principal</h1>
-                    <?php echo "<h5>Bem vindo, <b>$user</b></h5>"; ?>
-                </section>
+<div class="container-fluid">
+    <?php require dirname(__DIR__) . '/src/layout/header.php'; ?>
+    <main class="main-content">
+        <div class="page-shell">
+            <div class="page-heading">
+                <h1>Bem-vindo, <?php echo stridebr_e($user); ?></h1>
+                <p>Escolha onde quer continuar.</p>
+            </div>
+            <div class="dashboard-grid">
+                <a class="dashboard-card" href="/user/cronogramatreinos.php"><h2>Cronogramas</h2><p>Organize sua semana, horários e exercícios.</p></a>
+                <a class="dashboard-card" href="/user/atividades.php"><h2>Atividades</h2><p>Registre atividades realizadas e suas unidades.</p></a>
+                <a class="dashboard-card" href="/user/bibliotecaexercicios.php"><h2>Biblioteca de exercícios</h2><p>Reutilize exercícios do StrideBR e os seus.</p></a>
+                <a class="dashboard-card" href="/user/ferramentastreino.php"><h2>Ferramentas</h2><p>Contador e temporizador para usar durante o treino.</p></a>
+                <a class="dashboard-card" href="/calendario.php"><h2>Eventos</h2><p>Área preparada para calendário de corridas e eventos esportivos.</p></a>
+                <a class="dashboard-card" href="/user/settings.php"><h2>Configurações</h2><p>Atualize seus dados e a privacidade do perfil.</p></a>
             </div>
         </div>
-    </div>
-    <?php
-    include_once '../src/layout/footer.php';
-    ?>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    </main>
+</div>
+<?php require dirname(__DIR__) . '/src/layout/footer.php'; ?>
 </body>
-
 </html>

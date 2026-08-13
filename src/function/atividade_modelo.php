@@ -1,495 +1,548 @@
 <?php
 
+declare(strict_types=1);
+
 use Hidehalo\Nanoid\Client;
 
-function atividadeGerarId(): string
+function atividadeGerarId(int $length = 21): string
 {
     static $client = null;
-
-    if ($client === null) {
-        $client = new Client();
-    }
-
-    return $client->generateId(16);
+    $client ??= new Client();
+    return $client->generateId($length);
 }
 
-function atividadeGarantirModelosPadrao(PDO $pdo): array
+function atividadeListarCatalogo(PDO $pdo, string $idUsuario): array
 {
-    try {
-        $pdo->exec("SELECT 1");
-    } catch (Throwable $e) {
-        return [];
-    }
+    $stmt = $pdo->prepare(
+        "SELECT
+            m.idmodalidade,
+            m.nome AS modalidade_nome,
+            m.slug AS modalidade_slug,
+            mm.idmodelo,
+            mm.nome AS modelo_nome,
+            mm.slug AS modelo_slug,
+            mm.versao,
+            mm.padrao,
+            mm.tipo_unidade_padrao,
+            mm.rotulo_unidade,
+            mm.permite_multiplas_unidades
+        FROM modalidades m
+        JOIN modelos_modalidade mm ON mm.idmodalidade = m.idmodalidade
+        WHERE m.ativo = TRUE
+          AND mm.ativo = TRUE
+          AND (m.idusuario IS NULL OR m.idusuario = :usuario)
+          AND (mm.idusuario IS NULL OR mm.idusuario = :usuario)
+        ORDER BY m.nome, mm.padrao DESC, mm.nome, mm.versao DESC"
+    );
+    $stmt->execute([':usuario' => $idUsuario]);
+    $rows = $stmt->fetchAll();
 
-    $modalidadeSlug = 'atividade-fisica';
-    $modalidadeNome = 'Atividade física';
-
-    $stmt = $pdo->prepare("SELECT idmodalidade FROM modalidades WHERE slug = :slug LIMIT 1");
-    $stmt->execute([':slug' => $modalidadeSlug]);
-    $modalidade = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    if (!$modalidade) {
-        $idModalidade = atividadeGerarId();
-        $stmtInsert = $pdo->prepare("INSERT INTO modalidades (idmodalidade, nome, slug, descricao, ativo, data_criacao) VALUES (:idmodalidade, :nome, :slug, :descricao, TRUE, NOW())");
-        $stmtInsert->execute([
-            ':idmodalidade' => $idModalidade,
-            ':nome' => $modalidadeNome,
-            ':slug' => $modalidadeSlug,
-            ':descricao' => 'Modelos padrão para registrar atividades físicas',
-        ]);
-    } else {
-        $idModalidade = $modalidade['idmodalidade'];
-    }
-
-    $stmtVersion = $pdo->prepare("SELECT COALESCE(MAX(versao), 0) + 1 AS proxima_versao FROM modelos_modalidade WHERE idmodalidade = :idmodalidade AND idusuario IS NULL");
-    $stmtVersion->execute([':idmodalidade' => $idModalidade]);
-    $proximaVersao = (int) ($stmtVersion->fetch(PDO::FETCH_ASSOC)['proxima_versao'] ?? 1);
-
-    $models = [
-        'corrida-caminhada' => [
-            'nome' => 'Corrida e caminhada',
-            'slug' => 'corrida-caminhada',
-            'descricao' => 'Distância, duração, elevação e ritmo',
-            'padrao' => true,
-            'fields' => [
-                ['slug' => 'distancia', 'nome' => 'distancia', 'rotulo' => 'Distância', 'tipo_campo' => 'decimal', 'ordem' => 1, 'obrigatorio' => false],
-                ['slug' => 'duracao', 'nome' => 'duracao', 'rotulo' => 'Duração (segundos)', 'tipo_campo' => 'inteiro', 'ordem' => 2, 'obrigatorio' => false],
-                ['slug' => 'elevacao', 'nome' => 'elevacao', 'rotulo' => 'Elevação', 'tipo_campo' => 'decimal', 'ordem' => 3, 'obrigatorio' => false],
-                ['slug' => 'ritmo', 'nome' => 'ritmo', 'rotulo' => 'Ritmo', 'tipo_campo' => 'texto', 'ordem' => 4, 'obrigatorio' => false],
-                ['slug' => 'peso', 'nome' => 'peso', 'rotulo' => 'Peso', 'tipo_campo' => 'decimal', 'ordem' => 5, 'obrigatorio' => false],
-                ['slug' => 'calorias', 'nome' => 'calorias', 'rotulo' => 'Calorias', 'tipo_campo' => 'inteiro', 'ordem' => 6, 'obrigatorio' => false],
-            ],
-        ],
-        'ciclismo' => [
-            'nome' => 'Ciclismo',
-            'slug' => 'ciclismo',
-            'descricao' => 'Distância, duração e elevação',
-            'padrao' => false,
-            'fields' => [
-                ['slug' => 'distancia', 'nome' => 'distancia', 'rotulo' => 'Distância', 'tipo_campo' => 'decimal', 'ordem' => 1, 'obrigatorio' => false],
-                ['slug' => 'duracao', 'nome' => 'duracao', 'rotulo' => 'Duração (segundos)', 'tipo_campo' => 'inteiro', 'ordem' => 2, 'obrigatorio' => false],
-                ['slug' => 'elevacao', 'nome' => 'elevacao', 'rotulo' => 'Elevação', 'tipo_campo' => 'decimal', 'ordem' => 3, 'obrigatorio' => false],
-                ['slug' => 'ritmo', 'nome' => 'ritmo', 'rotulo' => 'Ritmo', 'tipo_campo' => 'texto', 'ordem' => 4, 'obrigatorio' => false],
-            ],
-        ],
-        'natacao' => [
-            'nome' => 'Natação',
-            'slug' => 'natacao',
-            'descricao' => 'Distância e duração',
-            'padrao' => false,
-            'fields' => [
-                ['slug' => 'distancia', 'nome' => 'distancia', 'rotulo' => 'Distância', 'tipo_campo' => 'decimal', 'ordem' => 1, 'obrigatorio' => false],
-                ['slug' => 'duracao', 'nome' => 'duracao', 'rotulo' => 'Duração (segundos)', 'tipo_campo' => 'inteiro', 'ordem' => 2, 'obrigatorio' => false],
-                ['slug' => 'ritmo', 'nome' => 'ritmo', 'rotulo' => 'Ritmo', 'tipo_campo' => 'texto', 'ordem' => 3, 'obrigatorio' => false],
-            ],
-        ],
-        'raquete' => [
-            'nome' => 'Raquete',
-            'slug' => 'raquete',
-            'descricao' => 'Sessão e intensidade',
-            'padrao' => false,
-            'fields' => [
-                ['slug' => 'duracao', 'nome' => 'duracao', 'rotulo' => 'Duração (segundos)', 'tipo_campo' => 'inteiro', 'ordem' => 1, 'obrigatorio' => false],
-                ['slug' => 'ritmo', 'nome' => 'ritmo', 'rotulo' => 'Intensidade', 'tipo_campo' => 'texto', 'ordem' => 2, 'obrigatorio' => false],
-            ],
-        ],
-        'lancamento' => [
-            'nome' => 'Lançamento',
-            'slug' => 'lancamento',
-            'descricao' => 'Duração e observações',
-            'padrao' => false,
-            'fields' => [
-                ['slug' => 'duracao', 'nome' => 'duracao', 'rotulo' => 'Duração (segundos)', 'tipo_campo' => 'inteiro', 'ordem' => 1, 'obrigatorio' => false],
-                ['slug' => 'observacoes', 'nome' => 'observacoes', 'rotulo' => 'Observações', 'tipo_campo' => 'texto_longo', 'ordem' => 2, 'obrigatorio' => false],
-            ],
-        ],
-        'geral' => [
-            'nome' => 'Geral',
-            'slug' => 'geral',
-            'descricao' => 'Modelo genérico para atividades diversas',
-            'padrao' => false,
-            'fields' => [
-                ['slug' => 'duracao', 'nome' => 'duracao', 'rotulo' => 'Duração (segundos)', 'tipo_campo' => 'inteiro', 'ordem' => 1, 'obrigatorio' => false],
-                ['slug' => 'ritmo', 'nome' => 'ritmo', 'rotulo' => 'Ritmo', 'tipo_campo' => 'texto', 'ordem' => 2, 'obrigatorio' => false],
-                ['slug' => 'observacoes', 'nome' => 'observacoes', 'rotulo' => 'Observações', 'tipo_campo' => 'texto_longo', 'ordem' => 3, 'obrigatorio' => false],
-            ],
-        ],
-    ];
-
-    $created = [];
-
-    foreach ($models as $modelDefinition) {
-        $stmtModel = $pdo->prepare("SELECT idmodelo FROM modelos_modalidade WHERE idmodalidade = :idmodalidade AND slug = :slug LIMIT 1");
-        $stmtModel->execute([':idmodalidade' => $idModalidade, ':slug' => $modelDefinition['slug']]);
-        $model = $stmtModel->fetch(PDO::FETCH_ASSOC);
-
-        if (!$model) {
-            $idModelo = atividadeGerarId();
-            $stmtInsertModel = $pdo->prepare("INSERT INTO modelos_modalidade (idmodelo, idmodalidade, nome, slug, descricao, versao, padrao, ativo, data_criacao) VALUES (:idmodelo, :idmodalidade, :nome, :slug, :descricao, :versao, :padrao, TRUE, NOW())");
-            $stmtInsertModel->execute([
-                ':idmodelo' => $idModelo,
-                ':idmodalidade' => $idModalidade,
-                ':nome' => $modelDefinition['nome'],
-                ':slug' => $modelDefinition['slug'],
-                ':descricao' => $modelDefinition['descricao'],
-                ':versao' => $proximaVersao,
-                ':padrao' => !empty($modelDefinition['padrao']) ? 1 : 0,
-            ]);
-            $versaoModelo = $proximaVersao;
-            $proximaVersao++;
-        } else {
-            $idModelo = $model['idmodelo'];
-            $versaoModelo = (int) ($model['versao'] ?? 1);
+    $catalogo = [];
+    foreach ($rows as $row) {
+        $modalidadeId = $row['idmodalidade'];
+        if (!isset($catalogo[$modalidadeId])) {
+            $catalogo[$modalidadeId] = [
+                'idmodalidade' => $modalidadeId,
+                'nome' => $row['modalidade_nome'],
+                'slug' => $row['modalidade_slug'],
+                'modelos' => [],
+            ];
         }
-
-        foreach ($modelDefinition['fields'] as $fieldDefinition) {
-            $stmtField = $pdo->prepare("SELECT idcampo FROM campos_modelo WHERE idmodelo = :idmodelo AND slug = :slug LIMIT 1");
-            $stmtField->execute([':idmodelo' => $idModelo, ':slug' => $fieldDefinition['slug']]);
-            $field = $stmtField->fetch(PDO::FETCH_ASSOC);
-
-            if (!$field) {
-                $stmtInsertField = $pdo->prepare("INSERT INTO campos_modelo (idcampo, idmodelo, nome, slug, rotulo, tipo_campo, obrigatorio, ordem, ativo, data_criacao) VALUES (:idcampo, :idmodelo, :nome, :slug, :rotulo, :tipo_campo, :obrigatorio, :ordem, TRUE, NOW())");
-                $stmtInsertField->execute([
-                    ':idcampo' => atividadeGerarId(),
-                    ':idmodelo' => $idModelo,
-                    ':nome' => $fieldDefinition['nome'],
-                    ':slug' => $fieldDefinition['slug'],
-                    ':rotulo' => $fieldDefinition['rotulo'],
-                    ':tipo_campo' => $fieldDefinition['tipo_campo'],
-                    ':obrigatorio' => $fieldDefinition['obrigatorio'] ? 1 : 0,
-                    ':ordem' => $fieldDefinition['ordem'],
-                ]);
-            }
-        }
-
-        $created[$modelDefinition['slug']] = [
-            'idmodalidade' => $idModalidade,
-            'idmodelo' => $idModelo,
-            'versao' => $versaoModelo,
-            'nome' => $modelDefinition['nome'],
-            'slug' => $modelDefinition['slug'],
-            'fields' => $modelDefinition['fields'],
+        $catalogo[$modalidadeId]['modelos'][] = [
+            'idmodelo' => $row['idmodelo'],
+            'nome' => $row['modelo_nome'],
+            'slug' => $row['modelo_slug'],
+            'versao' => (int) $row['versao'],
+            'padrao' => stridebr_db_bool($row['padrao']),
+            'tipo_unidade_padrao' => $row['tipo_unidade_padrao'],
+            'rotulo_unidade' => $row['rotulo_unidade'],
+            'permite_multiplas_unidades' => stridebr_db_bool($row['permite_multiplas_unidades']),
         ];
     }
 
-    return $created;
+    return array_values($catalogo);
 }
 
-function atividadeModeloPorEsporte(PDO $pdo, string $esporte): array
+function atividadeBuscarModelo(PDO $pdo, string $idModelo, string $idUsuario, bool $somenteAtivo = true): array
 {
-    $models = atividadeGarantirModelosPadrao($pdo);
-    if ($models === []) {
+    $activeClause = $somenteAtivo ? ' AND mm.ativo = TRUE AND m.ativo = TRUE' : '';
+    $stmt = $pdo->prepare(
+        "SELECT
+            mm.idmodelo,
+            mm.idmodalidade,
+            mm.nome,
+            mm.slug,
+            mm.versao,
+            mm.tipo_unidade_padrao,
+            mm.rotulo_unidade,
+            mm.permite_multiplas_unidades,
+            m.nome AS modalidade_nome,
+            m.slug AS modalidade_slug
+        FROM modelos_modalidade mm
+        JOIN modalidades m ON m.idmodalidade = mm.idmodalidade
+        WHERE mm.idmodelo = :modelo
+          AND (mm.idusuario IS NULL OR mm.idusuario = :usuario)
+          AND (m.idusuario IS NULL OR m.idusuario = :usuario)" . $activeClause . "
+        LIMIT 1"
+    );
+    $stmt->execute([':modelo' => $idModelo, ':usuario' => $idUsuario]);
+    $modelo = $stmt->fetch();
+    if (!$modelo) {
         return [];
     }
-
-    $valor = mb_strtolower(trim($esporte), 'UTF-8');
-
-    $mapeamento = [
-        'caminhada' => 'corrida-caminhada',
-        'corrida' => 'corrida-caminhada',
-        'marcha atlética' => 'corrida-caminhada',
-        'trilha' => 'corrida-caminhada',
-        'ciclismo' => 'ciclismo',
-        'mountain bike' => 'ciclismo',
-        'downhill' => 'ciclismo',
-        'bmx' => 'ciclismo',
-        'nado de peito' => 'natacao',
-        'nado de costas' => 'natacao',
-        'nado borboleta' => 'natacao',
-        'tênis' => 'raquete',
-        'tênis de mesa' => 'raquete',
-        'badminton' => 'raquete',
-        'padel' => 'raquete',
-        'beach tennis' => 'raquete',
-        'arremesso de peso' => 'lancamento',
-        'lançamento de disco' => 'lancamento',
-        'lançamento de dardo' => 'lancamento',
-        'lançamento de martelo' => 'lancamento',
-    ];
-
-    $slug = $mapeamento[$valor] ?? 'geral';
-
-    return $models[$slug] ?? $models['geral'];
+    $modelo['permite_multiplas_unidades'] = stridebr_db_bool($modelo['permite_multiplas_unidades']);
+    return $modelo;
 }
 
-function atividadeBuscarCamposModelo(PDO $pdo, string $idModelo): array
+function atividadeBuscarCamposModelo(PDO $pdo, string $idModelo, bool $somenteAtivos = true): array
 {
-    $stmt = $pdo->prepare("SELECT idcampo, slug, rotulo, tipo_campo, obrigatorio, ordem FROM campos_modelo WHERE idmodelo = :idmodelo AND ativo = TRUE ORDER BY ordem, rotulo");
-    $stmt->execute([':idmodelo' => $idModelo]);
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
-}
+    $activeClause = $somenteAtivos ? ' AND cm.ativo = TRUE' : '';
+    $stmt = $pdo->prepare(
+        "SELECT
+            cm.idcampo,
+            cm.slug,
+            cm.rotulo,
+            cm.tipo_campo,
+            cm.escopo,
+            cm.obrigatorio,
+            cm.ordem,
+            cm.ativo,
+            u.simbolo AS unidade_simbolo
+        FROM campos_modelo cm
+        LEFT JOIN unidades u ON u.idunidade = cm.idunidade
+        WHERE cm.idmodelo = :modelo" . $activeClause . "
+        ORDER BY cm.ordem, cm.rotulo"
+    );
+    $stmt->execute([':modelo' => $idModelo]);
+    $campos = $stmt->fetchAll();
 
-function atividadeValorParaCampo(array $campo, ?array $valores): string
-{
-    if (!is_array($valores)) {
-        return '';
+    $optionSql = 'SELECT idopcao, rotulo, valor, ativo FROM campos_modelo_opcoes WHERE idcampo = :campo';
+    if ($somenteAtivos) {
+        $optionSql .= ' AND ativo = TRUE';
     }
+    $optionSql .= ' ORDER BY ordem, rotulo';
+    $optionStmt = $pdo->prepare($optionSql);
 
-    $slug = $campo['slug'] ?? '';
-    $valor = $valores[$slug] ?? '';
-
-    if ($valor === null || $valor === '') {
-        return '';
+    foreach ($campos as &$campo) {
+        $campo['obrigatorio'] = stridebr_db_bool($campo['obrigatorio']);
+        $campo['ativo'] = stridebr_db_bool($campo['ativo']);
+        $campo['opcoes'] = [];
+        if ($campo['tipo_campo'] === 'selecao') {
+            $optionStmt->execute([':campo' => $campo['idcampo']]);
+            $campo['opcoes'] = $optionStmt->fetchAll();
+        }
     }
+    unset($campo);
 
-    return (string) $valor;
+    return $campos;
 }
 
-function atividadeRenderizarCampo(array $campo, string $valor = '', string $prefixo = 'field_'): string
+function atividadeAgruparCampos(array $campos): array
 {
-    $id = htmlspecialchars($prefixo . ($campo['slug'] ?? 'campo'));
-    $name = htmlspecialchars($campo['slug'] ?? 'campo');
-    $label = htmlspecialchars($campo['rotulo'] ?? ucfirst($campo['slug'] ?? 'campo'));
-    $valorEscapado = htmlspecialchars((string) $valor);
+    $resultado = ['registro' => [], 'unidade' => []];
+    foreach ($campos as $campo) {
+        $escopo = $campo['escopo'] === 'registro' ? 'registro' : 'unidade';
+        $resultado[$escopo][] = $campo;
+    }
+    return $resultado;
+}
 
-    $html = '<div class="input-field" data-field-group="' . htmlspecialchars($campo['slug'] ?? 'campo') . '">';
-    $html .= '<label for="' . $id . '">' . $label . '</label>';
+function atividadeRenderizarCampo(array $campo, string $name, string $id, mixed $valor = null): string
+{
+    $label = stridebr_e($campo['rotulo'] ?? 'Campo');
+    $required = !empty($campo['obrigatorio']) ? ' required' : '';
+    $unit = !empty($campo['unidade_simbolo']) ? ' <span class="field-unit">(' . stridebr_e($campo['unidade_simbolo']) . ')</span>' : '';
+    $type = $campo['tipo_campo'] ?? 'texto';
+    $value = $valor === null ? '' : (string) $valor;
+    $html = '<div class="input-field dynamic-field">';
+    $html .= '<label for="' . stridebr_e($id) . '">' . $label . $unit . '</label>';
 
-    switch ($campo['tipo_campo'] ?? 'texto') {
-        case 'texto_longo':
-            $html .= '<textarea id="' . $id . '" name="' . $name . '" rows="3">' . $valorEscapado . '</textarea>';
-            break;
-        case 'inteiro':
-            $html .= '<input type="number" id="' . $id . '" name="' . $name . '" step="1" value="' . $valorEscapado . '">';
-            break;
-        case 'decimal':
-            $html .= '<input type="number" id="' . $id . '" name="' . $name . '" step="0.01" value="' . $valorEscapado . '">';
-            break;
-        case 'booleano':
-            $checked = $valorEscapado === '1' || strtolower($valorEscapado) === 'true' ? 'checked' : '';
-            $html .= '<input type="checkbox" id="' . $id . '" name="' . $name . '" value="1" ' . $checked . '>';
-            break;
-        case 'data':
-            $html .= '<input type="date" id="' . $id . '" name="' . $name . '" value="' . $valorEscapado . '">';
-            break;
-        case 'hora':
-            $html .= '<input type="time" id="' . $id . '" name="' . $name . '" value="' . $valorEscapado . '">';
-            break;
-        case 'selecao':
-            $html .= '<select id="' . $id . '" name="' . $name . '">';
-            $html .= '<option value="">Selecione</option>';
-            $html .= '</select>';
-            break;
-        default:
-            $html .= '<input type="text" id="' . $id . '" name="' . $name . '" value="' . $valorEscapado . '">';
-            break;
+    if ($type === 'texto_longo') {
+        $html .= '<textarea id="' . stridebr_e($id) . '" name="' . stridebr_e($name) . '" rows="3"' . $required . '>' . stridebr_e($value) . '</textarea>';
+    } elseif ($type === 'inteiro') {
+        $html .= '<input type="number" step="1" id="' . stridebr_e($id) . '" name="' . stridebr_e($name) . '" value="' . stridebr_e($value) . '"' . $required . '>';
+    } elseif ($type === 'decimal') {
+        $html .= '<input type="number" step="any" id="' . stridebr_e($id) . '" name="' . stridebr_e($name) . '" value="' . stridebr_e($value) . '"' . $required . '>';
+    } elseif ($type === 'booleano') {
+        $hasValue = $valor !== null && $valor !== '';
+        $isTrue = $hasValue && stridebr_db_bool($valor);
+        $html .= '<select id="' . stridebr_e($id) . '" name="' . stridebr_e($name) . '"' . $required . '>';
+        $html .= '<option value="">Não informado</option>';
+        $html .= '<option value="1"' . ($hasValue && $isTrue ? ' selected' : '') . '>Sim</option>';
+        $html .= '<option value="0"' . ($hasValue && !$isTrue ? ' selected' : '') . '>Não</option>';
+        $html .= '</select>';
+    } elseif ($type === 'data') {
+        $html .= '<input type="date" id="' . stridebr_e($id) . '" name="' . stridebr_e($name) . '" value="' . stridebr_e($value) . '"' . $required . '>';
+    } elseif ($type === 'hora') {
+        $html .= '<input type="time" id="' . stridebr_e($id) . '" name="' . stridebr_e($name) . '" value="' . stridebr_e($value) . '"' . $required . '>';
+    } elseif ($type === 'intervalo') {
+        $html .= '<input type="text" inputmode="numeric" placeholder="HH:MM:SS" pattern="(?:\\d+:)?[0-5]?\\d:[0-5]\\d" id="' . stridebr_e($id) . '" name="' . stridebr_e($name) . '" value="' . stridebr_e($value) . '"' . $required . '>';
+    } elseif ($type === 'selecao') {
+        $html .= '<select id="' . stridebr_e($id) . '" name="' . stridebr_e($name) . '"' . $required . '>';
+        $html .= '<option value="">Selecione</option>';
+        foreach ($campo['opcoes'] ?? [] as $opcao) {
+            $selected = (string) $opcao['idopcao'] === $value ? ' selected' : '';
+            $html .= '<option value="' . stridebr_e($opcao['idopcao']) . '"' . $selected . '>' . stridebr_e($opcao['rotulo']) . '</option>';
+        }
+        $html .= '</select>';
+    } else {
+        $html .= '<input type="text" id="' . stridebr_e($id) . '" name="' . stridebr_e($name) . '" value="' . stridebr_e($value) . '"' . $required . '>';
     }
 
     $html .= '</div>';
     return $html;
 }
 
-function atividadeSalvarRegistro(PDO $pdo, array $payload, ?string $idRegistro = null): array
+function atividadeNormalizarIntervalo(mixed $valor): ?string
 {
+    $valor = trim((string) $valor);
+    if ($valor === '') {
+        return null;
+    }
+
+    if (preg_match('/^(\d+):([0-5]\d):([0-5]\d)$/', $valor, $matches)) {
+        $horas = (int) $matches[1];
+        $minutos = (int) $matches[2];
+        $segundos = (int) $matches[3];
+    } elseif (preg_match('/^(\d+):([0-5]\d)$/', $valor, $matches)) {
+        $horas = 0;
+        $minutos = (int) $matches[1];
+        $segundos = (int) $matches[2];
+    } else {
+        throw new InvalidArgumentException('Use o formato HH:MM:SS ou MM:SS para durações.');
+    }
+
+    $total = $horas * 3600 + $minutos * 60 + $segundos;
+    return $total . ' seconds';
+}
+
+function atividadeFormatarIntervalo(mixed $valor): string
+{
+    if ($valor === null || $valor === '') {
+        return '';
+    }
+
+    $texto = (string) $valor;
+    if (preg_match('/^(\d+):([0-5]\d):([0-5]\d)(?:\.\d+)?$/', $texto, $matches)) {
+        return sprintf('%02d:%02d:%02d', (int) $matches[1], (int) $matches[2], (int) $matches[3]);
+    }
+    if (preg_match('/^(\d+) days? (\d+):([0-5]\d):([0-5]\d)/', $texto, $matches)) {
+        $horas = (int) $matches[1] * 24 + (int) $matches[2];
+        return sprintf('%02d:%02d:%02d', $horas, (int) $matches[3], (int) $matches[4]);
+    }
+    return $texto;
+}
+
+function atividadePrepararValor(array $campo, mixed $raw): ?array
+{
+    $tipo = $campo['tipo_campo'];
+    $missing = $raw === null || (is_string($raw) && trim($raw) === '');
+    if ($missing) {
+        if (!empty($campo['obrigatorio'])) {
+            throw new InvalidArgumentException('O campo "' . $campo['rotulo'] . '" é obrigatório.');
+        }
+        return null;
+    }
+
+    $bind = [
+        'valor_texto' => null,
+        'valor_inteiro' => null,
+        'valor_decimal' => null,
+        'valor_booleano' => null,
+        'valor_data' => null,
+        'valor_hora' => null,
+        'valor_intervalo' => null,
+        'idopcao' => null,
+    ];
+
+    if ($tipo === 'texto' || $tipo === 'texto_longo') {
+        $bind['valor_texto'] = trim((string) $raw);
+    } elseif ($tipo === 'inteiro') {
+        if (filter_var($raw, FILTER_VALIDATE_INT) === false) {
+            throw new InvalidArgumentException('O campo "' . $campo['rotulo'] . '" precisa ser um número inteiro.');
+        }
+        $bind['valor_inteiro'] = (int) $raw;
+    } elseif ($tipo === 'decimal') {
+        $normalizado = str_replace(',', '.', trim((string) $raw));
+        if (!is_numeric($normalizado)) {
+            throw new InvalidArgumentException('O campo "' . $campo['rotulo'] . '" precisa ser numérico.');
+        }
+        $bind['valor_decimal'] = $normalizado;
+    } elseif ($tipo === 'booleano') {
+        if (!in_array($raw, [0, 1, '0', '1', false, true], true)) {
+            throw new InvalidArgumentException('Valor inválido no campo "' . $campo['rotulo'] . '".');
+        }
+        $bind['valor_booleano'] = in_array($raw, [1, '1', true], true);
+    } elseif ($tipo === 'data') {
+        $data = DateTimeImmutable::createFromFormat('!Y-m-d', (string) $raw);
+        if (!$data || $data->format('Y-m-d') !== $raw) {
+            throw new InvalidArgumentException('Data inválida no campo "' . $campo['rotulo'] . '".');
+        }
+        $bind['valor_data'] = $raw;
+    } elseif ($tipo === 'hora') {
+        $hora = DateTimeImmutable::createFromFormat('!H:i', (string) $raw);
+        if (!$hora) {
+            throw new InvalidArgumentException('Hora inválida no campo "' . $campo['rotulo'] . '".');
+        }
+        $bind['valor_hora'] = $hora->format('H:i:s');
+    } elseif ($tipo === 'intervalo') {
+        $bind['valor_intervalo'] = atividadeNormalizarIntervalo($raw);
+    } elseif ($tipo === 'selecao') {
+        $opcoes = array_column($campo['opcoes'] ?? [], 'idopcao');
+        if (!in_array((string) $raw, $opcoes, true)) {
+            throw new InvalidArgumentException('Opção inválida no campo "' . $campo['rotulo'] . '".');
+        }
+        $bind['idopcao'] = (string) $raw;
+    }
+
+    return $bind;
+}
+
+function atividadeInserirValor(PDO $pdo, string $idRegistro, ?string $idUnidade, array $campo, array $valor): void
+{
+    $stmt = $pdo->prepare(
+        'INSERT INTO valores_atividade (idvalor, idregistro, idunidade_atividade, idcampo, valor_texto, valor_inteiro, valor_decimal, valor_booleano, valor_data, valor_hora, valor_intervalo, idopcao)
+         VALUES (:idvalor, :idregistro, :idunidade, :idcampo, :valor_texto, :valor_inteiro, :valor_decimal, :valor_booleano, :valor_data, :valor_hora, CAST(:valor_intervalo AS interval), :idopcao)'
+    );
+    $stmt->execute([
+        ':idvalor' => atividadeGerarId(),
+        ':idregistro' => $idRegistro,
+        ':idunidade' => $idUnidade,
+        ':idcampo' => $campo['idcampo'],
+        ':valor_texto' => $valor['valor_texto'],
+        ':valor_inteiro' => $valor['valor_inteiro'],
+        ':valor_decimal' => $valor['valor_decimal'],
+        ':valor_booleano' => $valor['valor_booleano'],
+        ':valor_data' => $valor['valor_data'],
+        ':valor_hora' => $valor['valor_hora'],
+        ':valor_intervalo' => $valor['valor_intervalo'],
+        ':idopcao' => $valor['idopcao'],
+    ]);
+}
+
+function atividadeSalvarRegistro(PDO $pdo, string $idUsuario, array $payload, ?string $idRegistro = null): string
+{
+    $modelo = atividadeBuscarModelo($pdo, (string) ($payload['idmodelo'] ?? ''), $idUsuario, $idRegistro === null);
+    if ($modelo === []) {
+        throw new InvalidArgumentException('Modelo de atividade inválido.');
+    }
+
+    $campos = atividadeBuscarCamposModelo($pdo, $modelo['idmodelo'], $idRegistro === null);
+    $camposPorId = [];
+    foreach ($campos as $campo) {
+        $camposPorId[$campo['idcampo']] = $campo;
+    }
+
+    $inicioRaw = trim((string) ($payload['data_inicio'] ?? ''));
+    $inicio = DateTimeImmutable::createFromFormat('!Y-m-d H:i', $inicioRaw);
+    if (!$inicio || $inicio->format('Y-m-d H:i') !== $inicioRaw) {
+        throw new InvalidArgumentException('Data ou hora da atividade inválida.');
+    }
+
+    $status = (string) ($payload['status'] ?? 'concluido');
+    if (!in_array($status, ['rascunho', 'ativo', 'concluido', 'cancelado'], true)) {
+        throw new InvalidArgumentException('Status da atividade inválido.');
+    }
+
+    $visibilidade = (string) ($payload['visibilidade'] ?? 'privado');
+    if (!in_array($visibilidade, ['privado', 'amigos', 'publico'], true)) {
+        throw new InvalidArgumentException('Visibilidade da atividade inválida.');
+    }
+
+    $titulo = trim((string) ($payload['titulo'] ?? ''));
+    if ($titulo === '') {
+        $titulo = $modelo['modalidade_nome'];
+    }
+    if (stridebr_length($titulo) > 255) {
+        throw new InvalidArgumentException('O título da atividade é muito longo.');
+    }
+
+    $unidades = $payload['unidades'] ?? [];
+    if (!is_array($unidades) || $unidades === []) {
+        $unidades = [['values' => []]];
+    }
+    if (!$modelo['permite_multiplas_unidades']) {
+        $unidades = [reset($unidades) ?: ['values' => []]];
+    }
+
     $pdo->beginTransaction();
-
     try {
-        if ($idRegistro) {
-            $stmtDeleteValues = $pdo->prepare("DELETE FROM valores_unidade WHERE idunidade_atividade IN (SELECT idunidade_atividade FROM unidades_atividade WHERE idregistro = :idregistro)");
-            $stmtDeleteValues->execute([':idregistro' => $idRegistro]);
+        if ($idRegistro !== null) {
+            $owner = $pdo->prepare('SELECT idregistro, idmodelo FROM registros_atividade WHERE idregistro = :id AND idusuario = :usuario FOR UPDATE');
+            $owner->execute([':id' => $idRegistro, ':usuario' => $idUsuario]);
+            $existing = $owner->fetch();
+            if (!$existing) {
+                throw new RuntimeException('Atividade não encontrada.');
+            }
+            if ($existing['idmodelo'] !== $modelo['idmodelo']) {
+                throw new InvalidArgumentException('O modelo de uma atividade existente não pode ser trocado.');
+            }
 
-            $stmtDeleteUnits = $pdo->prepare("DELETE FROM unidades_atividade WHERE idregistro = :idregistro");
-            $stmtDeleteUnits->execute([':idregistro' => $idRegistro]);
-
-            $stmtUpdate = $pdo->prepare("UPDATE registros_atividade SET idusuario = :idusuario, idmodalidade = :idmodalidade, idmodelo = :idmodelo, titulo = :titulo, observacoes = :observacoes, data_inicio = :data_inicio, data_fim = :data_fim, status = :status WHERE idregistro = :idregistro");
-            $stmtUpdate->execute([
-                ':idregistro' => $idRegistro,
-                ':idusuario' => $payload['idusuario'],
-                ':idmodalidade' => $payload['idmodalidade'],
-                ':idmodelo' => $payload['idmodelo'],
-                ':titulo' => $payload['titulo'] ?? null,
-                ':observacoes' => $payload['observacoes'] ?? null,
-                ':data_inicio' => $payload['data_inicio'] ?? date('Y-m-d H:i:s'),
-                ':data_fim' => $payload['data_fim'] ?? null,
-                ':status' => $payload['status'] ?? 'ativo',
+            $stmt = $pdo->prepare('UPDATE registros_atividade SET titulo = :titulo, observacoes = :observacoes, data_inicio = :inicio, status = :status, visibilidade = :visibilidade, data_atualizacao = NOW() WHERE idregistro = :id AND idusuario = :usuario');
+            $stmt->execute([
+                ':titulo' => $titulo,
+                ':observacoes' => trim((string) ($payload['observacoes'] ?? '')) ?: null,
+                ':inicio' => $inicio->format('Y-m-d H:i:s'),
+                ':status' => $status,
+                ':visibilidade' => $visibilidade,
+                ':id' => $idRegistro,
+                ':usuario' => $idUsuario,
             ]);
-
-            $registroId = $idRegistro;
+            $pdo->prepare('DELETE FROM valores_atividade WHERE idregistro = :id')->execute([':id' => $idRegistro]);
+            $pdo->prepare('DELETE FROM unidades_atividade WHERE idregistro = :id')->execute([':id' => $idRegistro]);
         } else {
-            $registroId = atividadeGerarId();
-            $stmtInsert = $pdo->prepare("INSERT INTO registros_atividade (idregistro, idusuario, idmodalidade, idmodelo, titulo, observacoes, data_inicio, data_fim, status, data_criacao) VALUES (:idregistro, :idusuario, :idmodalidade, :idmodelo, :titulo, :observacoes, :data_inicio, :data_fim, :status, NOW())");
-            $stmtInsert->execute([
-                ':idregistro' => $registroId,
-                ':idusuario' => $payload['idusuario'],
-                ':idmodalidade' => $payload['idmodalidade'],
-                ':idmodelo' => $payload['idmodelo'],
-                ':titulo' => $payload['titulo'] ?? null,
-                ':observacoes' => $payload['observacoes'] ?? null,
-                ':data_inicio' => $payload['data_inicio'] ?? date('Y-m-d H:i:s'),
-                ':data_fim' => $payload['data_fim'] ?? null,
-                ':status' => $payload['status'] ?? 'ativo',
+            $idRegistro = atividadeGerarId();
+            $stmt = $pdo->prepare('INSERT INTO registros_atividade (idregistro, idusuario, idmodalidade, idmodelo, titulo, observacoes, data_inicio, status, visibilidade) VALUES (:id, :usuario, :modalidade, :modelo, :titulo, :observacoes, :inicio, :status, :visibilidade)');
+            $stmt->execute([
+                ':id' => $idRegistro,
+                ':usuario' => $idUsuario,
+                ':modalidade' => $modelo['idmodalidade'],
+                ':modelo' => $modelo['idmodelo'],
+                ':titulo' => $titulo,
+                ':observacoes' => trim((string) ($payload['observacoes'] ?? '')) ?: null,
+                ':inicio' => $inicio->format('Y-m-d H:i:s'),
+                ':status' => $status,
+                ':visibilidade' => $visibilidade,
             ]);
         }
 
-        $unitId = atividadeGerarId();
-        $stmtUnit = $pdo->prepare("INSERT INTO unidades_atividade (idunidade_atividade, idregistro, ordem, observacoes, data_criacao) VALUES (:idunidade_atividade, :idregistro, :ordem, :observacoes, NOW())");
-        $stmtUnit->execute([
-            ':idunidade_atividade' => $unitId,
-            ':idregistro' => $registroId,
-            ':ordem' => 1,
-            ':observacoes' => $payload['unit_observacoes'] ?? null,
-        ]);
-
-        $fields = $payload['field_list'] ?? [];
-        $unitValues = $payload['unit_values'] ?? [];
-
-        foreach ($fields as $field) {
-            $slug = $field['slug'] ?? '';
-            $rawValue = $unitValues[$slug] ?? null;
-            if ($rawValue === null || $rawValue === '') {
+        $recordValues = is_array($payload['record_values'] ?? null) ? $payload['record_values'] : [];
+        foreach ($campos as $campo) {
+            if ($campo['escopo'] !== 'registro') {
                 continue;
             }
-
-            $bind = [
-                ':idvalor' => atividadeGerarId(),
-                ':idunidade_atividade' => $unitId,
-                ':idcampo' => $field['idcampo'],
-                ':valor_texto' => null,
-                ':valor_inteiro' => null,
-                ':valor_decimal' => null,
-                ':valor_booleano' => null,
-                ':valor_data' => null,
-                ':valor_hora' => null,
-                ':valor_intervalo' => null,
-                ':idopcao' => null,
-            ];
-
-            switch ($field['tipo_campo']) {
-                case 'texto':
-                case 'texto_longo':
-                    $bind[':valor_texto'] = (string) $rawValue;
-                    break;
-                case 'inteiro':
-                    $bind[':valor_inteiro'] = (int) $rawValue;
-                    break;
-                case 'decimal':
-                    $bind[':valor_decimal'] = (float) $rawValue;
-                    break;
-                case 'booleano':
-                    $bind[':valor_booleano'] = (bool) filter_var($rawValue, FILTER_VALIDATE_BOOLEAN);
-                    break;
-                case 'data':
-                    $bind[':valor_data'] = date('Y-m-d', strtotime((string) $rawValue));
-                    break;
-                case 'hora':
-                    $bind[':valor_hora'] = date('H:i:s', strtotime((string) $rawValue));
-                    break;
-                case 'selecao':
-                    $bind[':idopcao'] = (string) $rawValue;
-                    break;
-                default:
-                    $bind[':valor_texto'] = (string) $rawValue;
-                    break;
+            $prepared = atividadePrepararValor($campo, $recordValues[$campo['idcampo']] ?? null);
+            if ($prepared !== null) {
+                atividadeInserirValor($pdo, $idRegistro, null, $campo, $prepared);
             }
+        }
 
-            $stmtValue = $pdo->prepare("INSERT INTO valores_unidade (idvalor, idunidade_atividade, idcampo, valor_texto, valor_inteiro, valor_decimal, valor_booleano, valor_data, valor_hora, valor_intervalo, idopcao, data_criacao) VALUES (:idvalor, :idunidade_atividade, :idcampo, :valor_texto, :valor_inteiro, :valor_decimal, :valor_booleano, :valor_data, :valor_hora, :valor_intervalo, :idopcao, NOW())");
-            $stmtValue->execute($bind);
+        $ordem = 1;
+        foreach ($unidades as $unidadePayload) {
+            if (!is_array($unidadePayload)) {
+                continue;
+            }
+            $rotuloUnidade = trim((string) ($unidadePayload['rotulo'] ?? ''));
+            if (stridebr_length($rotuloUnidade) > 120) {
+                throw new InvalidArgumentException('O rótulo da unidade de atividade é muito longo.');
+            }
+            $idUnidade = atividadeGerarId();
+            $stmtUnit = $pdo->prepare('INSERT INTO unidades_atividade (idunidade_atividade, idregistro, ordem, tipo_unidade, rotulo, observacoes) VALUES (:id, :registro, :ordem, :tipo, :rotulo, :observacoes)');
+            $stmtUnit->execute([
+                ':id' => $idUnidade,
+                ':registro' => $idRegistro,
+                ':ordem' => $ordem,
+                ':tipo' => $modelo['tipo_unidade_padrao'],
+                ':rotulo' => $rotuloUnidade !== '' ? $rotuloUnidade : null,
+                ':observacoes' => trim((string) ($unidadePayload['observacoes'] ?? '')) ?: null,
+            ]);
+
+            $values = is_array($unidadePayload['values'] ?? null) ? $unidadePayload['values'] : [];
+            foreach ($campos as $campo) {
+                if ($campo['escopo'] !== 'unidade') {
+                    continue;
+                }
+                $prepared = atividadePrepararValor($campo, $values[$campo['idcampo']] ?? null);
+                if ($prepared !== null) {
+                    atividadeInserirValor($pdo, $idRegistro, $idUnidade, $campo, $prepared);
+                }
+            }
+            $ordem++;
         }
 
         $pdo->commit();
-
-        return ['idregistro' => $registroId, 'status' => 'ok'];
+        return $idRegistro;
     } catch (Throwable $e) {
-        $pdo->rollBack();
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         throw $e;
     }
 }
 
-function atividadeListarRegistros(PDO $pdo, string $idUsuario): array
+function atividadeValorLinha(array $row): mixed
 {
-    try {
-        $stmt = $pdo->prepare("SELECT ra.idregistro, ra.idmodelo, ra.titulo, ra.observacoes, ra.data_inicio, ra.data_fim, ra.status, mm.nome AS nome_modelo, mm.slug AS slug_modelo FROM registros_atividade ra LEFT JOIN modelos_modalidade mm ON mm.idmodelo = ra.idmodelo WHERE ra.idusuario = :idusuario ORDER BY ra.data_inicio DESC");
-        $stmt->execute([':idusuario' => $idUsuario]);
-        $registros = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (Throwable $e) {
-        return [];
-    }
-
-    $resultado = [];
-
-    foreach ($registros as $registro) {
-        $unitStmt = $pdo->prepare("SELECT idunidade_atividade FROM unidades_atividade WHERE idregistro = :idregistro ORDER BY ordem LIMIT 1");
-        $unitStmt->execute([':idregistro' => $registro['idregistro']]);
-        $unit = $unitStmt->fetch(PDO::FETCH_ASSOC);
-
-        $valores = [];
-        if ($unit) {
-            $valueStmt = $pdo->prepare("SELECT cm.slug, vu.valor_texto, vu.valor_inteiro, vu.valor_decimal, vu.valor_booleano, vu.valor_data, vu.valor_hora, vu.valor_intervalo, vu.idopcao FROM valores_unidade vu JOIN campos_modelo cm ON cm.idcampo = vu.idcampo WHERE vu.idunidade_atividade = :idunidade ORDER BY cm.ordem");
-            $valueStmt->execute([':idunidade' => $unit['idunidade_atividade']]);
-            foreach ($valueStmt->fetchAll(PDO::FETCH_ASSOC) as $valor) {
-                if ($valor['valor_texto'] !== null) {
-                    $valores[$valor['slug']] = $valor['valor_texto'];
-                } elseif ($valor['valor_inteiro'] !== null) {
-                    $valores[$valor['slug']] = (int) $valor['valor_inteiro'];
-                } elseif ($valor['valor_decimal'] !== null) {
-                    $valores[$valor['slug']] = (float) $valor['valor_decimal'];
-                } elseif ($valor['valor_booleano'] !== null) {
-                    $valores[$valor['slug']] = (bool) $valor['valor_booleano'];
-                } elseif ($valor['valor_data'] !== null) {
-                    $valores[$valor['slug']] = $valor['valor_data'];
-                } elseif ($valor['valor_hora'] !== null) {
-                    $valores[$valor['slug']] = $valor['valor_hora'];
-                } elseif ($valor['valor_intervalo'] !== null) {
-                    $valores[$valor['slug']] = $valor['valor_intervalo'];
-                } elseif ($valor['idopcao'] !== null) {
-                    $valores[$valor['slug']] = $valor['idopcao'];
-                }
+    foreach (['valor_texto', 'valor_inteiro', 'valor_decimal', 'valor_booleano', 'valor_data', 'valor_hora', 'valor_intervalo', 'idopcao'] as $coluna) {
+        if ($row[$coluna] !== null) {
+            if ($coluna === 'valor_booleano') {
+                return stridebr_db_bool($row[$coluna]);
             }
+            if ($coluna === 'valor_intervalo') {
+                return atividadeFormatarIntervalo($row[$coluna]);
+            }
+            return $row[$coluna];
         }
-
-        $resultado[] = [
-            'idregistro' => $registro['idregistro'],
-            'titulo' => $registro['titulo'],
-            'observacoes' => $registro['observacoes'],
-            'data_inicio' => $registro['data_inicio'],
-            'nome_modelo' => $registro['nome_modelo'] ?? 'Atividade',
-            'slug_modelo' => $registro['slug_modelo'] ?? 'geral',
-            'values' => $valores,
-        ];
     }
-
-    return $resultado;
+    return null;
 }
 
 function atividadeCarregarRegistro(PDO $pdo, string $idRegistro, string $idUsuario): array
 {
-    $stmt = $pdo->prepare("SELECT ra.idregistro, ra.idmodelo, ra.idmodalidade, ra.titulo, ra.observacoes, ra.data_inicio, ra.data_fim, ra.status, mm.nome AS nome_modelo, mm.slug AS slug_modelo FROM registros_atividade ra LEFT JOIN modelos_modalidade mm ON mm.idmodelo = ra.idmodelo WHERE ra.idregistro = :idregistro AND ra.idusuario = :idusuario LIMIT 1");
-    $stmt->execute([':idregistro' => $idRegistro, ':idusuario' => $idUsuario]);
-    $registro = $stmt->fetch(PDO::FETCH_ASSOC);
-
+    $stmt = $pdo->prepare(
+        "SELECT ra.*, m.nome AS modalidade_nome, m.slug AS modalidade_slug, mm.nome AS modelo_nome, mm.slug AS modelo_slug,
+                mm.tipo_unidade_padrao, mm.rotulo_unidade, mm.permite_multiplas_unidades
+         FROM registros_atividade ra
+         JOIN modalidades m ON m.idmodalidade = ra.idmodalidade
+         JOIN modelos_modalidade mm ON mm.idmodelo = ra.idmodelo
+         WHERE ra.idregistro = :id AND ra.idusuario = :usuario LIMIT 1"
+    );
+    $stmt->execute([':id' => $idRegistro, ':usuario' => $idUsuario]);
+    $registro = $stmt->fetch();
     if (!$registro) {
         return [];
     }
 
-    $unitStmt = $pdo->prepare("SELECT idunidade_atividade FROM unidades_atividade WHERE idregistro = :idregistro ORDER BY ordem LIMIT 1");
-    $unitStmt->execute([':idregistro' => $registro['idregistro']]);
-    $unit = $unitStmt->fetch(PDO::FETCH_ASSOC);
+    $registro['permite_multiplas_unidades'] = stridebr_db_bool($registro['permite_multiplas_unidades']);
+    $registro['campos'] = atividadeBuscarCamposModelo($pdo, $registro['idmodelo'], false);
+    $registro['record_values'] = [];
+    $registro['unidades'] = [];
 
-    $valores = [];
-    if ($unit) {
-        $valueStmt = $pdo->prepare("SELECT cm.slug, vu.valor_texto, vu.valor_inteiro, vu.valor_decimal, vu.valor_booleano, vu.valor_data, vu.valor_hora, vu.valor_intervalo, vu.idopcao FROM valores_unidade vu JOIN campos_modelo cm ON cm.idcampo = vu.idcampo WHERE vu.idunidade_atividade = :idunidade ORDER BY cm.ordem");
-        $valueStmt->execute([':idunidade' => $unit['idunidade_atividade']]);
-        foreach ($valueStmt->fetchAll(PDO::FETCH_ASSOC) as $valor) {
-            if ($valor['valor_texto'] !== null) {
-                $valores[$valor['slug']] = $valor['valor_texto'];
-            } elseif ($valor['valor_inteiro'] !== null) {
-                $valores[$valor['slug']] = (int) $valor['valor_inteiro'];
-            } elseif ($valor['valor_decimal'] !== null) {
-                $valores[$valor['slug']] = (float) $valor['valor_decimal'];
-            } elseif ($valor['valor_booleano'] !== null) {
-                $valores[$valor['slug']] = (bool) $valor['valor_booleano'];
-            } elseif ($valor['valor_data'] !== null) {
-                $valores[$valor['slug']] = $valor['valor_data'];
-            } elseif ($valor['valor_hora'] !== null) {
-                $valores[$valor['slug']] = $valor['valor_hora'];
-            } elseif ($valor['valor_intervalo'] !== null) {
-                $valores[$valor['slug']] = $valor['valor_intervalo'];
-            } elseif ($valor['idopcao'] !== null) {
-                $valores[$valor['slug']] = $valor['idopcao'];
-            }
-        }
+    $valueStmt = $pdo->prepare(
+        'SELECT va.*, cmo.rotulo AS opcao_rotulo FROM valores_atividade va LEFT JOIN campos_modelo_opcoes cmo ON cmo.idopcao = va.idopcao WHERE va.idregistro = :registro AND va.idunidade_atividade IS NULL'
+    );
+    $valueStmt->execute([':registro' => $idRegistro]);
+    foreach ($valueStmt->fetchAll() as $row) {
+        $registro['record_values'][$row['idcampo']] = atividadeValorLinha($row);
     }
 
-    $registro['values'] = $valores;
+    $unitStmt = $pdo->prepare('SELECT * FROM unidades_atividade WHERE idregistro = :registro ORDER BY ordem');
+    $unitStmt->execute([':registro' => $idRegistro]);
+    $unitValueStmt = $pdo->prepare(
+        'SELECT va.*, cmo.rotulo AS opcao_rotulo FROM valores_atividade va LEFT JOIN campos_modelo_opcoes cmo ON cmo.idopcao = va.idopcao WHERE va.idunidade_atividade = :unidade'
+    );
+    foreach ($unitStmt->fetchAll() as $unit) {
+        $unit['values'] = [];
+        $unitValueStmt->execute([':unidade' => $unit['idunidade_atividade']]);
+        foreach ($unitValueStmt->fetchAll() as $row) {
+            $unit['values'][$row['idcampo']] = atividadeValorLinha($row);
+        }
+        $registro['unidades'][] = $unit;
+    }
+
     return $registro;
+}
+
+function atividadeListarRegistros(PDO $pdo, string $idUsuario): array
+{
+    $stmt = $pdo->prepare(
+        "SELECT ra.idregistro, ra.titulo, ra.observacoes, ra.data_inicio, ra.status, ra.visibilidade,
+                m.nome AS modalidade_nome, mm.nome AS modelo_nome,
+                COUNT(DISTINCT ua.idunidade_atividade) AS total_unidades
+         FROM registros_atividade ra
+         JOIN modalidades m ON m.idmodalidade = ra.idmodalidade
+         JOIN modelos_modalidade mm ON mm.idmodelo = ra.idmodelo
+         LEFT JOIN unidades_atividade ua ON ua.idregistro = ra.idregistro
+         WHERE ra.idusuario = :usuario
+         GROUP BY ra.idregistro, m.nome, mm.nome
+         ORDER BY ra.data_inicio DESC"
+    );
+    $stmt->execute([':usuario' => $idUsuario]);
+    return $stmt->fetchAll();
+}
+
+function atividadeExcluirRegistro(PDO $pdo, string $idRegistro, string $idUsuario): bool
+{
+    $stmt = $pdo->prepare('DELETE FROM registros_atividade WHERE idregistro = :id AND idusuario = :usuario');
+    $stmt->execute([':id' => $idRegistro, ':usuario' => $idUsuario]);
+    return $stmt->rowCount() === 1;
 }

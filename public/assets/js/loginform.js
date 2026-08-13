@@ -1,23 +1,18 @@
-const container = document.querySelector(".container"),
-      pwShowHide = document.querySelectorAll(".showHidePw"),
-      pwFields = document.querySelectorAll(".password");
+document.querySelectorAll('.showHidePw').forEach((button) => {
+    const toggle = () => {
+        const field = button.closest('.input-field')?.querySelector('.password')
+        if (!field) return
+        const show = field.type === 'password'
+        field.type = show ? 'text' : 'password'
+        button.classList.toggle('uil-eye', show)
+        button.classList.toggle('uil-eye-slash', !show)
+    }
 
-    pwShowHide.forEach(eyeIcon =>{
-        eyeIcon.addEventListener("click", ()=>{
-            pwFields.forEach(pwField =>{
-                if(pwField.type ==="password"){
-                    pwField.type = "text";
-
-                    pwShowHide.forEach(icon =>{
-                        icon.classList.replace("uil-eye-slash", "uil-eye");
-                    })
-                }else{
-                    pwField.type = "password";
-
-                    pwShowHide.forEach(icon =>{
-                        icon.classList.replace("uil-eye", "uil-eye-slash");
-                    })
-                }
-            }) 
-        })
+    button.addEventListener('click', toggle)
+    button.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            toggle()
+        }
     })
+})

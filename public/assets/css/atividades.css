@@ -602,3 +602,174 @@
         font-size: 12px;
     }
 }
+.activities-page {
+    width: min(1180px, calc(100% - 32px));
+    margin: 32px auto 64px;
+}
+
+.activity-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 24px;
+}
+
+.activity-heading h1,
+.activity-history h2,
+.activity-record-fields h2,
+.activity-record-fields h3 {
+    margin-bottom: 8px;
+}
+
+.activity-form-shell {
+    display: none;
+    margin: 24px 0 40px;
+}
+
+.activity-form-shell.is-open {
+    display: block;
+}
+
+.AtividadeForm {
+    width: 100%;
+    max-width: none;
+    padding: 28px;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, .08);
+}
+
+.activity-form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 16px;
+}
+
+.AtividadeForm .input-field {
+    height: auto;
+    margin: 0;
+}
+
+.AtividadeForm .input-field label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: .9rem;
+    font-weight: 600;
+}
+
+.AtividadeForm .input-field input,
+.AtividadeForm .input-field select,
+.AtividadeForm .input-field textarea {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+}
+
+.AtividadeForm .input-field textarea {
+    min-height: 96px;
+    resize: vertical;
+}
+
+.AtividadeForm .input-field input[type="checkbox"] {
+    width: 20px;
+    min-height: 20px;
+}
+
+.field-unit {
+    font-weight: 400;
+    color: #6b7280;
+}
+
+.activity-model-panel,
+.activity-record-fields,
+.activity-units {
+    margin-top: 24px;
+}
+
+.activity-unit {
+    margin-top: 16px;
+    padding: 18px;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    background: #f9fafb;
+}
+
+.activity-unit-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 14px;
+}
+
+.activity-unit-header h3 {
+    margin: 0;
+    font-size: 1.05rem;
+}
+
+.add-unit-button {
+    margin-top: 14px;
+}
+
+.activity-form-actions,
+.activity-card-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-top: 22px;
+}
+
+.activity-history {
+    margin-top: 36px;
+}
+
+.activity-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 18px;
+}
+
+.activity-card {
+    padding: 20px;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, .07);
+}
+
+.activity-card-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.activity-card h3 {
+    margin: 4px 0 12px;
+}
+
+.activity-modality,
+.activity-visibility {
+    font-size: .78rem;
+    color: #6b7280;
+}
+
+.activity-card-actions form {
+    margin: 0;
+}
+
+@media (max-width: 640px) {
+    .activities-page {
+        width: min(100% - 20px, 1180px);
+    }
+
+    .activity-heading {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .AtividadeForm {
+        padding: 18px;
+    }
+}

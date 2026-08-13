@@ -1,34 +1,30 @@
 <?php
-require_once __DIR__ . '/../config/pg_config.php';
-session_start();
 
-// Verifica se o usuário está logado
-if (!isset($_SESSION['EmailUsuario']) && !isset($_SESSION['IdUsuario'])) {
-    header('Location: /stridebr/public/login.php');
+declare(strict_types=1);
+
+require_once dirname(__DIR__) . '/includes/errors.php';
+require_once dirname(__DIR__) . '/includes/app.php';
+
+$idUsuario = stridebr_require_login();
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    header('Location: /user/atividades.php');
     exit;
 }
 
-$IdUsuario = $_SESSION['IdUsuario'];
+stridebr_verify_csrf();
 
-// Verifica se um ID foi passado na URL
-if (!isset($_GET['id'])) {
-    echo "Erro: ID de atividade não especificado.";
-    exit;
-}
+require_once dirname(__DIR__) . '/config/pg_config.php';
+require_once dirname(__DIR__, 2) . '/vendor/autoload.php';
+require_once __DIR__ . '/atividade_modelo.php';
 
-$idatividade = $_GET['id'];
+$idRegistro = trim((string) ($_POST['id'] ?? ''));
 
-// Exclui a atividade do banco de dados
-$stmt = $pdo->prepare("DELETE FROM registros_atividade WHERE idregistro = :id AND idusuario = :usuario_id");
-$deleted = $stmt->execute([
-    ':id' => $idatividade,
-    ':usuario_id' => $IdUsuario
-]);
-
-if ($deleted) {
-    header('Location: /stridebr/public/user/atividades.php');
-    exit;
+if ($idRegistro === '' || !atividadeExcluirRegistro($pdo, $idRegistro, $idUsuario)) {
+    stridebr_flash('danger', 'Atividade não encontrada ou já removida.');
 } else {
-    echo "Erro ao excluir a atividade.";
+    stridebr_flash('success', 'Atividade excluída.');
 }
-?>
+
+header('Location: /user/atividades.php');
+exit;

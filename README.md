@@ -1,51 +1,52 @@
 # StrideBR
 
 ![GitHub repo size](https://img.shields.io/github/repo-size/BrunoWithoutH/StrideBR?style=for-the-badge)
-![GitHub forks](https://img.shields.io/github/forks/BrunoWithoutH/StrideBR?style=for-the-badge)
-![Bitbucket open issues](https://img.shields.io/bitbucket/issues/BrunoWithoutH/StrideBR?style=for-the-badge)
-![Bitbucket open pull requests](https://img.shields.io/bitbucket/pr-raw/BrunoWithoutH/StrideBR?style=for-the-badge)  
+![GitHub license](https://img.shields.io/github/license/BrunoWithoutH/StrideBR?style=for-the-badge)
 
-<img src="public/assets/img/logos/stridebr-banner.svg" width="100%" style="max-width:600px;">
+<img src="public/assets/img/logos/stridebr-banner.svg" width="100%" alt="StrideBR banner">
 
-> **StrideBR** is a platform built to help athletes and sports enthusiasts track, organize and improve their training over time.
+> **StrideBR** is a flexible platform for planning, organizing and recording physical activities.
 
+StrideBR is built around configurable modalities instead of assuming one fixed sport. The project combines weekly training planning, a reusable exercise library and a dynamic activity-recording engine in one web application.
 
-## Overview
+## Current capabilities
 
-StrideBR is currently focused on making training organization and activity tracking simple and practical.
+- User signup, authentication and profile settings
+- Multiple independent weekly training plans
+- Calendar-style week and agenda views
+- Planned workouts with start/end times, including workouts that cross midnight
+- Exercise library with global and personal exercises
+- Exercise categories and modality associations
+- Workout prescriptions with sets, repetitions, load, rest, block and cluster
+- Custom exercise-prescription columns
+- Dynamic activity modalities, models and fields
+- Repeated activity units such as attempts, laps, intervals or sets
+- Typed and normalized measurement values
+- Basic training timer and counter tools
 
-### Features
+Route drawing, statistics, records, community publishing, events, API and mobile clients are planned features.
 
-- [x] Physical activity tracking
-- [x] Weekly training schedule
-- [x] Workout tools
-- [ ] Sports event calendar
+The architecture and product rules are documented in [`docs/architecture.md`](docs/architecture.md).
 
-### Tech Stack
+## Stack
 
 | Technology | Purpose |
 |---|---|
-| PHP 8.5 | Application backend |
+| PHP 8.4 | Application backend |
 | Apache 2.4 | Web server |
-| PostgreSQL 18 | Database |
-| Docker Compose | Development environment |
+| PostgreSQL 17 | Database |
+| PDO | Database access |
 | Composer | PHP dependency management |
 | JavaScript | Client-side interactions |
 | HTML / CSS | User interface |
+| Docker Compose | Local development environment |
 
-## Getting Started
+## Quick start with Docker
 
-### Prerequisites
+### Requirements
 
-Before you begin, make sure you have:
-
-- [Git](https://git-scm.com/)
-- [Docker](https://www.docker.com/)
-- Docker Compose
-
-The recommended development environment is Linux.
-
-### Installation
+- Git
+- Docker with Docker Compose
 
 Clone the repository:
 
@@ -54,365 +55,209 @@ git clone https://github.com/BrunoWithoutH/StrideBR.git
 cd StrideBR
 ```
 
-Start the environment:
+Optionally create a local environment file:
+
+```bash
+cp .env.example .env
+```
+
+Start the application and PostgreSQL:
+
+```bash
+docker compose up --build
+```
+
+Open:
+
+```text
+http://localhost:8080
+```
+
+The first database startup automatically executes, in order:
+
+```text
+src/database/stridebr.sql
+src/database/stridebr_activities_schema.sql
+src/database/stridebr_seed.sql
+```
+
+Database initialization scripts run only when the PostgreSQL data volume is empty. To recreate a development database from scratch:
+
+```bash
+docker compose down -v
+docker compose up --build
+```
+
+Run the application in the background:
 
 ```bash
 docker compose up -d --build
 ```
 
-On the first startup, Docker will build the application environment, start PostgreSQL and create the development database.
-
-Once the containers are running, open:
-
-```text
-http://localhost
-```
-
-Check the status of the services:
+Check services:
 
 ```bash
 docker compose ps
 ```
 
-### Development
-
-The repository is mounted into the application container, so the source code can be edited directly from the host.
-
-For example, with VS Code:
-
-```bash
-code .
-```
-
-Changes made to PHP, HTML, CSS or JavaScript files are available to the running application without rebuilding the image.
-
-To open a shell inside the application container:
+Open a shell in the application container:
 
 ```bash
 docker compose exec app bash
 ```
 
-If Bash is not available:
-
-```bash
-docker compose exec app sh
-```
-
-### Dependencies
-
-PHP dependencies are managed with Composer.
-
-The project currently uses:
-
-```text
-hidehalo/nanoid-php
-```
-
-Dependencies are installed automatically when the development environment is initialized.
-
-To install them manually:
-
-```bash
-docker compose exec app composer install
-```
-
-## Database
-
-StrideBR uses PostgreSQL 18 in a dedicated Docker container.
-
-The application connects to PostgreSQL through the Docker Compose service name:
-
-```text
-postgres
-```
-
-The default development configuration is:
-
-| Setting | Value |
-|---|---|
-| Host | `postgres` |
-| Port | `5432` |
-| Database | `stridebr` |
-| User | `stridebr` |
-| Password | `stridebr_dev` |
-
-The database data is persisted in the Docker volume:
-
-```text
-stridebr-postgres-data
-```
-
-### PostgreSQL shell
-
-To access the database directly:
+Open PostgreSQL:
 
 ```bash
 docker compose exec postgres psql -U stridebr -d stridebr
 ```
 
-Then:
+Stop the environment:
 
-```sql
-\conninfo
+```bash
+docker compose down
 ```
 
-Exit with:
+## Environment variables
 
-```sql
-\q
-```
-
-### Database configuration
-
-The application reads the following environment variables:
+The application reads these database variables:
 
 ```text
 STRIDEBR_DB_HOST
+STRIDEBR_DB_PORT
 STRIDEBR_DB_NAME
 STRIDEBR_DB_USER
 STRIDEBR_DB_PASSWORD
 ```
 
-Inside Docker, they should resolve to:
+Application error visibility can be controlled with:
 
 ```text
-STRIDEBR_DB_HOST=postgres
-STRIDEBR_DB_NAME=stridebr
-STRIDEBR_DB_USER=stridebr
-STRIDEBR_DB_PASSWORD=stridebr_dev
+STRIDEBR_APP_ENV=development
+STRIDEBR_APP_ENV=production
 ```
 
-The PostgreSQL session timezone is configured as:
+Never commit production credentials. `.env` files are ignored by Git; `.env.example` contains development-only defaults.
+
+The default Docker development ports are:
 
 ```text
-America/Sao_Paulo
+Web:        localhost:8080
+PostgreSQL: localhost:5433
 ```
 
-and the application uses:
+The application container connects to PostgreSQL internally through `postgres:5432`.
 
-```text
-stridebr, public
+## Manual setup
+
+A manual environment needs:
+
+- PHP 8.4 or compatible PHP 8.x
+- `pdo_pgsql`
+- PostgreSQL 17 or compatible supported version
+- Composer
+- a web server configured with `public/` as its document root
+
+Install dependencies:
+
+```bash
+composer install
 ```
 
-as its PostgreSQL search path.
+Create a PostgreSQL database and execute the three SQL files from `src/database/` in the order shown above. Then provide the database connection through environment variables.
 
-### Database files
-
-SQL files used by the project are located at:
-
-```text
-src/database/
-```
-
-Current files include:
-
-```text
-src/database/stridebr.sql
-src/database/stridebr_activities_schema.sql
-```
-
-The database name and PostgreSQL service name are part of the current application configuration. If they are changed, the PHP configuration and any database-related tooling must be updated accordingly.
-
-## Project Structure
+## Project structure
 
 ```text
 StrideBR/
-├── public/                  # Apache document root
-│   ├── assets/              # CSS, JavaScript, images and audio
-│   ├── function/            # Public PHP endpoints
-│   ├── pages/               # Public pages
-│   ├── user/                # Authenticated user pages
+├── .github/
+│   └── copilot-instructions.md
+├── docs/
+│   └── architecture.md
+├── public/
+│   ├── assets/
+│   ├── function/
+│   ├── pages/
+│   ├── user/
+│   ├── calendario.php
+│   ├── home.php
 │   ├── index.php
 │   ├── login.php
 │   └── signup.php
-│
 ├── src/
-│   ├── config/              # Database configuration
-│   ├── database/            # SQL schemas and database files
-│   ├── function/            # Application functions
-│   ├── includes/            # Shared includes
-│   └── layout/              # Shared layout components
-│
-├── vendor/                  # Composer dependencies
-├── composer.json            # PHP dependencies
-├── package.json             # Frontend package metadata
-├── compose.yaml             # Docker environment
+│   ├── config/
+│   ├── database/
+│   ├── function/
+│   ├── includes/
+│   └── layout/
+├── Dockerfile
+├── compose.yaml
+├── composer.json
 └── README.md
 ```
 
-## Docker Services
+## Database model
 
-The development environment consists of two services:
+The planning side is centered on:
 
 ```text
-                    ┌──────────────────────┐
-                    │       StrideBR       │
-                    │                      │
-                    │   Apache + PHP       │
-                    │                      │
-                    │   http://localhost   │
-                    └──────────┬───────────┘
-                               │
-                               │ Docker network
-                               ▼
-                    ┌──────────────────────┐
-                    │      PostgreSQL      │
-                    │                      │
-                    │       stridebr       │
-                    └──────────────────────┘
+user
+└── cronograms
+    └── planned workouts
+        └── exercise occurrences
+            ├── standard prescription fields
+            └── custom prescription fields
 ```
 
-The application and database are isolated into separate containers while remaining connected through Docker Compose.
+The activity-recording side is centered on:
 
-## Common Commands
+```text
+modality
+└── activity model
+    └── fields
 
-### Start
+user
+└── activity record
+    └── activity units
+        └── typed values
+```
+
+A unit is intentionally generic and can represent an attempt, lap, interval, set, throw, descent or another model-defined occurrence.
+
+See [`docs/architecture.md`](docs/architecture.md) for the complete design and development boundaries.
+
+## Development checks
+
+Lint every project PHP file:
 
 ```bash
-docker compose up -d
+find public src scripts -type f -name '*.php' -print0 | xargs -0 -n1 php -l
 ```
 
-### Rebuild
+Check JavaScript syntax:
 
 ```bash
-docker compose up -d --build
+find public/assets/js -type f -name '*.js' -print0 | xargs -0 -n1 node --check
 ```
 
-### Stop and remove containers
-
-```bash
-docker compose down
-```
-
-### Stop without removing containers
-
-```bash
-docker compose stop
-```
-
-### Start existing containers
-
-```bash
-docker compose start
-```
-
-### Check services
-
-```bash
-docker compose ps
-```
-
-### Application logs
-
-```bash
-docker compose logs -f app
-```
-
-### PostgreSQL logs
-
-```bash
-docker compose logs -f postgres
-```
-
-### All logs
-
-```bash
-docker compose logs -f
-```
-
-## Resetting the Database
-
-To remove the containers while keeping the database:
-
-```bash
-docker compose down
-```
-
-To remove the containers **and the PostgreSQL volume**:
+When Docker is available, a clean database initialization is the preferred integration check:
 
 ```bash
 docker compose down -v
+docker compose up --build
 ```
 
-> **Warning:** `docker compose down -v` permanently deletes the development database stored in the Docker volume.
+## Security
 
-Start the environment again to create a fresh database:
+- Passwords use PHP password hashing APIs.
+- Authenticated identity comes from the server-side session.
+- State-changing browser operations use CSRF protection.
+- User-owned resources are checked against the authenticated user.
+- SQL input is handled through PDO prepared statements.
+- Database secrets come from environment variables.
 
-```bash
-docker compose up -d --build
-```
-
-## Updating the Project
-
-Pull the latest changes:
-
-```bash
-git pull
-```
-
-If the Docker configuration or dependencies changed:
-
-```bash
-docker compose up -d --build
-```
-
-For normal source-code changes, rebuilding is usually unnecessary because the project files are mounted into the application container.
-
-## pgAdmin and Other Database Tools
-
-Database tools running **inside Docker** should connect using:
-
-```text
-Host: postgres
-Port: 5432
-Database: stridebr
-User: stridebr
-Password: stridebr_dev
-```
-
-Tools running directly on the host should use:
-
-```text
-Host: 127.0.0.1
-Port: 5432
-Database: stridebr
-User: stridebr
-Password: stridebr_dev
-```
-
-The project includes database configuration files under:
-
-```text
-src/config/
-```
-
-including:
-
-```text
-pg_config.php
-pg_config-local-template.php
-pg_config-web-template.php
-```
-
-## Production
-
-The current Docker configuration is intended primarily for development and self-hosting.
-
-Before exposing StrideBR to the public internet, review at least:
-
-- HTTPS/TLS
-- production database credentials
-- secret management
-- Apache/PHP hardening
-- database backups
-- error handling
-- file permissions
-- container security
-- resource limits
-- reverse proxy configuration
-
-Do not use the default development credentials in a public production deployment.
+If a credential has ever been committed to a public Git history, rotating it is required even after removing it from the current files.
 
 ## License
 
-This project is under license. See **[LICENSE](LICENSE)** for more details.
+See [LICENSE](LICENSE).

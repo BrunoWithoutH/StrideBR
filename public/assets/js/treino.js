@@ -1,52 +1,97 @@
-function startTimer() {
-    let minutes = document.getElementById("minutes").value;
-    let seconds = minutes * 60;
+document.addEventListener('DOMContentLoaded', () => {
+    const counterOutput = document.querySelector('[data-counter-output]');
+    let counter = 0;
+    const renderCounter = () => {
+        if (counterOutput) counterOutput.value = String(counter);
+    };
+    document.querySelector('[data-counter-plus]')?.addEventListener('click', () => {
+        counter++;
+        renderCounter();
+    });
+    document.querySelector('[data-counter-minus]')?.addEventListener('click', () => {
+        counter--;
+        renderCounter();
+    });
+    document.querySelector('[data-counter-reset]')?.addEventListener('click', () => {
+        counter = 0;
+        renderCounter();
+    });
 
-    const alarm = new Audio('../assets/audio/alarm1.mp3');
+    const minutesInput = document.querySelector('[data-timer-minutes]');
+    const secondsInput = document.querySelector('[data-timer-seconds]');
+    const timerOutput = document.querySelector('[data-timer-output]');
+    const startButton = document.querySelector('[data-timer-start]');
+    const pauseButton = document.querySelector('[data-timer-pause]');
+    const resetButton = document.querySelector('[data-timer-reset]');
+    const alarm = document.querySelector('[data-timer-alarm]');
+    let intervalId = null;
+    let remaining = 60;
+    let initial = 60;
+    let running = false;
 
-    let countdown = setInterval(() => {
-        let min = Math.floor(seconds / 60);
-        let sec = seconds % 60;
-        document.getElementById("timer").textContent =
-            `${min}:${sec.toString().padStart(2, "0")}`;
-        
-        if (seconds <= 0) {
-            clearInterval(countdown);
-            alarm.play();
+    const inputSeconds = () => {
+        const minutes = Math.max(0, Number.parseInt(minutesInput?.value || '0', 10) || 0);
+        const seconds = Math.min(59, Math.max(0, Number.parseInt(secondsInput?.value || '0', 10) || 0));
+        return minutes * 60 + seconds;
+    };
+
+    const renderTimer = () => {
+        const minutes = Math.floor(remaining / 60);
+        const seconds = remaining % 60;
+        if (timerOutput) timerOutput.value = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        if (startButton) startButton.disabled = running;
+        if (pauseButton) pauseButton.disabled = !running;
+    };
+
+    const stopInterval = () => {
+        if (intervalId !== null) {
+            clearInterval(intervalId);
+            intervalId = null;
         }
-        seconds--;
-    }, 1000);
-}
+        running = false;
+        renderTimer();
+    };
 
-const value = document.getElementById('value');
-const minusButton = document.getElementById('minus');
-const plusButton = document.getElementById('plus');
-const resetButton = document.getElementById('reset');
+    const finish = () => {
+        stopInterval();
+        alarm?.play().catch(() => {});
+    };
 
-const updateValue = () => {
-    value.innerHTML = count;
-};
+    const syncFromInputs = () => {
+        if (running) return;
+        initial = inputSeconds();
+        remaining = initial;
+        renderTimer();
+    };
 
-let count = 0;
-let intervalid = 0;
+    minutesInput?.addEventListener('input', syncFromInputs);
+    secondsInput?.addEventListener('input', syncFromInputs);
 
-plusButton.addEventListener('mousedown', () => {
-    intervalid = setInterval(() => {
-        count += 1;
-        updateValue();
-    }, 100);
+    startButton?.addEventListener('click', () => {
+        if (running) return;
+        if (remaining <= 0) {
+            initial = inputSeconds();
+            remaining = initial;
+        }
+        if (remaining <= 0) return;
+        running = true;
+        renderTimer();
+        intervalId = window.setInterval(() => {
+            remaining--;
+            renderTimer();
+            if (remaining <= 0) finish();
+        }, 1000);
+    });
+
+    pauseButton?.addEventListener('click', stopInterval);
+    resetButton?.addEventListener('click', () => {
+        stopInterval();
+        alarm?.pause();
+        if (alarm) alarm.currentTime = 0;
+        initial = inputSeconds();
+        remaining = initial;
+        renderTimer();
+    });
+
+    syncFromInputs();
 });
-
-minusButton.addEventListener('mousedown', () => {
-    intervalid = setInterval(() => {
-        count -= 1;
-        updateValue();
-    }, 100);
-});
-
-resetButton.addEventListener('click', () => {
-    count = 0;
-    updateValue();
-});
-
-document.addEventListener('mouseup', () => clearInterval(intervalid));
