@@ -1,18 +1,80 @@
-.intro {
+.landing-intro {
     padding-top: 80px;
-    font-size: 1.4rem;
+    padding-bottom: 54px;
 }
 
-@media (max-width: 768px) {
-    .intro {
-        padding-top: 40px;
-        font-size: 1.2rem;
+.landing-icon {
+    width: 74px;
+    height: 74px;
+    object-fit: contain;
+    margin-bottom: 18px;
+}
+
+.landing-intro p {
+    max-width: 720px;
+    margin: 0 auto;
+    font-size: 1.08rem;
+}
+
+.landing-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 24px;
+}
+
+.landing-primary,
+.landing-secondary {
+    padding: 11px 17px;
+    border-radius: 10px;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.landing-primary {
+    background: #1f2937;
+    color: #fff;
+}
+
+.landing-secondary {
+    background: #fff;
+    color: #1f2937;
+    border: 1px solid #d0d5dd;
+}
+
+.landing-features {
+    width: min(1050px, calc(100% - 32px));
+    margin: 0 auto 64px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+}
+
+.landing-features article {
+    background: #fff;
+    border: 1px solid #e4e7ec;
+    border-radius: 16px;
+    padding: 20px;
+}
+
+.landing-features h2 {
+    margin: 0 0 8px;
+    font-size: 1.08rem;
+}
+
+.landing-features p {
+    margin: 0;
+    color: #667085;
+    font-size: 0.9rem;
+}
+
+@media (max-width: 720px) {
+    .landing-intro {
+        padding-top: 50px;
     }
-}
 
-@media (max-width: 375px) {
-    .intro {
-        padding-top: 20px;
-        font-size: 1rem;
+    .landing-features {
+        grid-template-columns: 1fr;
     }
 }

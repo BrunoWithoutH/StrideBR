@@ -1,19 +1,45 @@
 services:
+  app:
+    build:
+      context: .
+    container_name: stridebr-app
+    restart: unless-stopped
+    environment:
+      STRIDEBR_APP_ENV: development
+      STRIDEBR_DB_HOST: postgres
+      STRIDEBR_DB_PORT: 5432
+      STRIDEBR_DB_NAME: ${STRIDEBR_DB_NAME:-stridebr}
+      STRIDEBR_DB_USER: ${STRIDEBR_DB_USER:-stridebr}
+      STRIDEBR_DB_PASSWORD: ${STRIDEBR_DB_PASSWORD:-stridebr_dev}
+    ports:
+      - "${STRIDEBR_HTTP_PORT:-8080}:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - .:/var/www/html
+      - /var/www/html/vendor
+
   postgres:
-    image: postgres:18
+    image: postgres:17-alpine
     container_name: stridebr-postgres
     restart: unless-stopped
-
     environment:
-      POSTGRES_DB: stridebr
-      POSTGRES_USER: stridebr
-      POSTGRES_PASSWORD: stridebr_dev
-
+      POSTGRES_DB: ${STRIDEBR_DB_NAME:-stridebr}
+      POSTGRES_USER: ${STRIDEBR_DB_USER:-stridebr}
+      POSTGRES_PASSWORD: ${STRIDEBR_DB_PASSWORD:-stridebr_dev}
     ports:
-      - "5432:5432"
-
+      - "${STRIDEBR_DB_EXPOSED_PORT:-5434}:5432"
     volumes:
       - stridebr-postgres-data:/var/lib/postgresql/data
+      - ./src/database/stridebr.sql:/docker-entrypoint-initdb.d/01-stridebr.sql:ro
+      - ./src/database/stridebr_activities_schema.sql:/docker-entrypoint-initdb.d/02-activities.sql:ro
+      - ./src/database/stridebr_seed.sql:/docker-entrypoint-initdb.d/03-seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${STRIDEBR_DB_USER:-stridebr} -d ${STRIDEBR_DB_NAME:-stridebr}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
 
 volumes:
   stridebr-postgres-data:

@@ -1,46 +1,47 @@
 <?php
+
+declare(strict_types=1);
+
 require_once dirname(__DIR__) . '/src/includes/errors.php';
-require_once dirname(__DIR__) . '/src/config/pg_config.php';
-session_start();
+require_once dirname(__DIR__) . '/src/includes/app.php';
 
-if (isset($_SESSION['EmailUsuario'])) {
-    header('Location: home.php');
+if (stridebr_is_logged_in()) {
+    header('Location: /home.php');
+    exit;
 }
-
-$estalogado = isset($_SESSION['EmailUsuario']);
 ?>
-
 <!DOCTYPE html>
-<html lang="en">
-
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="author" content="Bruno Evaristo Pinheiro">
     <link rel="icon" type="image/png" href="/assets/img/favicon/favicon.png">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" integrity="sha384-QWTKZyjpPEjISv5WaRU90FeRpokÿmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.0/css/line.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" crossorigin="anonymous">
     <link rel="stylesheet" href="/assets/css/style.css">
     <link rel="stylesheet" href="/assets/css/index.css">
     <title>StrideBR</title>
 </head>
-
 <body>
-    <div class="container-fluid">
-        <?php require_once dirname(__DIR__) . '/src/layout/header.php'; ?>
-        <div class="main-content">
-            <div class="row">
-                <div class="col-sm-12">
-                    <section class="intro">
-                        <h1>StrideBR</h1>
-                        <h5>O amigo do atleta</h4>
-                    </section>
-                </div>
+<div class="container-fluid">
+    <?php require dirname(__DIR__) . '/src/layout/header.php'; ?>
+    <main class="main-content">
+        <section class="intro landing-intro">
+            <img src="/assets/img/logos/stridebr-icon-black.png" alt="" class="landing-icon">
+            <h1>StrideBR</h1>
+            <p>Uma plataforma flexível para planejar treinos e registrar atividades físicas do seu jeito.</p>
+            <div class="landing-actions">
+                <a class="landing-primary" href="/signup.php">Criar conta</a>
+                <a class="landing-secondary" href="/login.php">Entrar</a>
             </div>
-        </div>
-    </div>
-    <?php require_once dirname(__DIR__) . '/src/layout/footer.php'; ?>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+        </section>
+        <section class="landing-features">
+            <article><h2>Planejamento</h2><p>Monte cronogramas semanais independentes, com horários e exercícios.</p></article>
+            <article><h2>Registro flexível</h2><p>Modalidades e modelos definem os dados que fazem sentido para cada atividade.</p></article>
+            <article><h2>Biblioteca</h2><p>Use exercícios do StrideBR ou mantenha sua própria biblioteca reutilizável.</p></article>
+        </section>
+    </main>
+</div>
+<?php require dirname(__DIR__) . '/src/layout/footer.php'; ?>
 </body>
-
 </html>

@@ -1,16 +1,19 @@
 <?php
-require __DIR__ . '/../vendor/autoload.php';
-require __DIR__ . '/../src/config/pg_config.php';
-require __DIR__ . '/../src/function/atividade_modelo.php';
 
-try {
-    $created = atividadeGarantirModelosPadrao($pdo);
-    echo "Modelos garantidos: " . count($created) . "\n";
-    foreach ($created as $slug => $info) {
-        echo "- " . $slug . " => " . ($info['idmodelo'] ?? '') . "\n";
-    }
-} catch (Throwable $e) {
-    echo "Erro ao garantir modelos: " . $e->getMessage() . "\n";
+declare(strict_types=1);
+
+require __DIR__ . '/../src/config/pg_config.php';
+
+$sql = file_get_contents(__DIR__ . '/../src/database/stridebr_seed.sql');
+if ($sql === false) {
+    fwrite(STDERR, "Não foi possível ler o arquivo de seed.\n");
+    exit(1);
 }
 
-?>
+try {
+    $pdo->exec($sql);
+    echo "Seed aplicado com sucesso.\n";
+} catch (Throwable $e) {
+    fwrite(STDERR, "Falha ao aplicar o seed: {$e->getMessage()}\n");
+    exit(1);
+}
