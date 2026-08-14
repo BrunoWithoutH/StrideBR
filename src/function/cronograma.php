@@ -110,32 +110,31 @@ function cronogramaSalvarTreino(PDO $pdo, string $idUsuario, array $payload, ?st
             throw new RuntimeException('Treino não encontrado.');
         }
         $stmt = $pdo->prepare('UPDATE treinos_cronograma SET titulo = :titulo, descricao = :descricao, dia_semana = :dia, hora_inicio = :inicio, hora_fim = :fim, termina_dia_seguinte = :seguinte, data_atualizacao = NOW() WHERE idtreino = :id');
-        $stmt->execute([
-            ':titulo' => $titulo,
-            ':descricao' => trim((string) ($payload['descricao'] ?? '')) ?: null,
-            ':dia' => $dia,
-            ':inicio' => $inicio,
-            ':fim' => $fim,
-            ':seguinte' => $nextDay,
-            ':id' => $idTreino,
-        ]);
+        $stmt->bindValue(':titulo', $titulo, PDO::PARAM_STR);
+        $stmt->bindValue(':descricao', trim((string) ($payload['descricao'] ?? '')) ?: null, PDO::PARAM_STR);
+        $stmt->bindValue(':dia', $dia, PDO::PARAM_INT);
+        $stmt->bindValue(':inicio', $inicio, PDO::PARAM_STR);
+        $stmt->bindValue(':fim', $fim, PDO::PARAM_STR);
+        $stmt->bindValue(':seguinte', $nextDay, PDO::PARAM_BOOL);
+        $stmt->bindValue(':id', $idTreino, PDO::PARAM_STR);
+        $stmt->execute();
         $id = $idTreino;
     } else {
         $id = cronogramaGerarId();
         $stmt = $pdo->prepare('INSERT INTO treinos_cronograma (idtreino, idcronograma, titulo, descricao, dia_semana, hora_inicio, hora_fim, termina_dia_seguinte, ordem) VALUES (:id, :cronograma, :titulo, :descricao, :dia, :inicio, :fim, :seguinte, :ordem)');
         $orderStmt = $pdo->prepare('SELECT COALESCE(MAX(ordem), 0) + 1 FROM treinos_cronograma WHERE idcronograma = :cronograma AND dia_semana = :dia');
         $orderStmt->execute([':cronograma' => $idCronograma, ':dia' => $dia]);
-        $stmt->execute([
-            ':id' => $id,
-            ':cronograma' => $idCronograma,
-            ':titulo' => $titulo,
-            ':descricao' => trim((string) ($payload['descricao'] ?? '')) ?: null,
-            ':dia' => $dia,
-            ':inicio' => $inicio,
-            ':fim' => $fim,
-            ':seguinte' => $nextDay,
-            ':ordem' => (int) $orderStmt->fetchColumn(),
-        ]);
+        $ordem = (int) $orderStmt->fetchColumn();
+        $stmt->bindValue(':id', $id, PDO::PARAM_STR);
+        $stmt->bindValue(':cronograma', $idCronograma, PDO::PARAM_STR);
+        $stmt->bindValue(':titulo', $titulo, PDO::PARAM_STR);
+        $stmt->bindValue(':descricao', trim((string) ($payload['descricao'] ?? '')) ?: null, PDO::PARAM_STR);
+        $stmt->bindValue(':dia', $dia, PDO::PARAM_INT);
+        $stmt->bindValue(':inicio', $inicio, PDO::PARAM_STR);
+        $stmt->bindValue(':fim', $fim, PDO::PARAM_STR);
+        $stmt->bindValue(':seguinte', $nextDay, PDO::PARAM_BOOL);
+        $stmt->bindValue(':ordem', $ordem, PDO::PARAM_INT);
+        $stmt->execute();
     }
 
     $pdo->prepare('UPDATE cronogramas SET data_atualizacao = NOW() WHERE idcronograma = :id')->execute([':id' => $idCronograma]);

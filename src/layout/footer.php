@@ -2,7 +2,7 @@
     <div class="footer-inner">
         <div class="footer-top">
             <div class="footer-brand">
-                <img src="/assets/img/logos/stridebr-logo-white.png" alt="StrideBR" class="footer-logo">
+                <img src="/assets/img/logos/stridebr-logo-white.svg" alt="StrideBR" class="footer-logo" width="82" height="32" loading="lazy" decoding="async">
                 <p>Planeje e registre atividades físicas do seu jeito.</p>
             </div>
             <div class="footer-column">

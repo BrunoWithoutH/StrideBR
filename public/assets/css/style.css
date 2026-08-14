@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
-
 * {
     box-sizing: border-box;
 }
@@ -13,7 +11,7 @@ body {
     margin: 0;
     background: #e7e7e7;
     color: #1f2937;
-    font-family: 'Poppins', system-ui, sans-serif;
+    font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     display: flex;
     flex-direction: column;
 }
@@ -590,4 +588,34 @@ body {
 
 .static-content a {
     color: #2563eb;
+}
+
+
+/* Mobile header: stable before/after stylesheet load and safe on narrow iPhones. */
+.brand-link { min-width: 0; }
+.nav-logo { flex: 0 0 auto; aspect-ratio: 1408.82 / 552.6; }
+
+@media (max-width: 900px) {
+    .site-header { position: relative; }
+    .header-inner {
+        width: min(100% - 20px, 1400px);
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        gap: 8px;
+    }
+    .brand-link { justify-self: start; overflow: hidden; }
+    .nav-logo { width: auto; height: 30px; max-width: 110px; }
+    .nav-toggle { order: initial; justify-self: end; width: 42px; height: 42px; padding: 0; }
+    .usersection { order: initial; min-width: 42px; }
+    .main-nav {
+        max-height: calc(100dvh - 62px);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+}
+
+@media (max-width: 380px) {
+    .header-inner { width: calc(100% - 12px); }
+    .nav-logo { height: 27px; max-width: 92px; }
+    .nav-toggle { width: 38px; height: 38px; }
+    .userimage { width: 32px; height: 32px; }
 }

@@ -3,7 +3,7 @@
 }
 
 .AtividadeForm {
-    display: none;
+    display: block;
     margin: 16px auto;
     max-width: 500px;
     padding: 40px;
@@ -283,16 +283,14 @@
 }
 
 .addbutton {
-    position: relative;
-    left: 50%;
-    transform: translate(-50%);
     background-color: #7380a3;
     color: #fdfdfd;
     border: 2px #40507c solid;
     border-radius: 20px;
     max-width: 250px;
     padding: 8px 16px;
-    margin-bottom: 16px;
+    margin: 0;
+    flex-shrink: 0;
 }
 
 .col-sm-6.col-md-4.col-lg-3 {
@@ -451,10 +449,8 @@
     }
 
     .addbutton {
-        max-width: calc(100% - 24px);
-        margin-left: 12px;
-        margin-right: 12px;
-        margin-bottom: 12px;
+        max-width: 100%;
+        margin: 0;
     }
 
     .delete-modal-content {
@@ -570,9 +566,8 @@
     }
 
     .addbutton {
-        max-width: calc(100% - 16px);
-        margin-left: 8px;
-        margin-right: 8px;
+        max-width: 100%;
+        margin: 0;
         padding: 8px 12px;
         font-size: 12px;
     }
@@ -609,10 +604,15 @@
 
 .activity-heading {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 24px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
     margin-bottom: 24px;
+}
+
+.activity-heading .addbutton {
+    margin: 0;
+    align-self: flex-start;
 }
 
 .activity-heading h1,
@@ -771,5 +771,65 @@
 
     .AtividadeForm {
         padding: 18px;
+    }
+}
+
+
+.activity-card-date {
+    margin: 0 0 14px;
+    color: #6b7280;
+    font-size: .9rem;
+}
+
+.activity-card-stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.activity-card-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 12px;
+    border-radius: 9px;
+    background: #f3f4f6;
+}
+
+.activity-card-stat span {
+    color: #6b7280;
+    font-size: .76rem;
+}
+
+.activity-card-stat strong {
+    color: #1f2937;
+    font-size: .96rem;
+    font-weight: 600;
+}
+
+.activity-card-unit {
+    margin-top: 14px;
+}
+
+.activity-card-unit-title {
+    display: block;
+    margin-bottom: -4px;
+    color: #4b5563;
+    font-size: .82rem;
+    font-weight: 600;
+}
+
+.activity-card-notes {
+    margin: 16px 0 0;
+    padding-top: 12px;
+    border-top: 1px solid #e5e7eb;
+    color: #4b5563;
+    font-size: .9rem;
+}
+
+@media (max-width: 520px) {
+    .activity-card-stats {
+        grid-template-columns: 1fr;
     }
 }
