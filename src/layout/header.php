@@ -17,7 +17,7 @@ $headerPhoto = $headerPhoto !== '' ? $headerPhoto : '/assets/img/ui/userdefault.
 <header class="site-header">
     <div class="header-inner">
         <a class="brand-link" href="<?php echo $headerLoggedIn ? '/home.php' : '/index.php'; ?>" aria-label="StrideBR">
-            <img src="/assets/img/logos/stridebr-logo-white.png" alt="StrideBR" class="nav-logo">
+            <img src="/assets/img/logos/stridebr-logo-white.svg" alt="StrideBR" class="nav-logo" width="87" height="34" decoding="async">
         </a>
         <button class="nav-toggle" type="button" data-nav-toggle aria-expanded="false" aria-label="Abrir navegação">☰</button>
         <nav class="main-nav" data-nav-menu>

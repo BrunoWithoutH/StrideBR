@@ -23,16 +23,59 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const views = document.querySelectorAll('[data-calendar-view]');
     const viewButtons = document.querySelectorAll('[data-view]');
+    let currentView = localStorage.getItem('stridebr.schedule.view') || 'week';
     const activateView = name => {
+        currentView = name;
+        localStorage.setItem('stridebr.schedule.view', name);
         views.forEach(view => {
             view.hidden = view.dataset.calendarView !== name;
         });
         viewButtons.forEach(button => {
             button.classList.toggle('is-active', button.dataset.view === name);
         });
+        document.querySelector('[data-zoom-controls]')?.toggleAttribute('hidden', name !== 'week');
     };
     viewButtons.forEach(button => button.addEventListener('click', () => activateView(button.dataset.view)));
-    if (window.matchMedia('(max-width: 720px)').matches && views.length) activateView('agenda');
+    if (views.length) activateView(currentView === 'agenda' ? 'agenda' : 'week');
+
+    const calendar = document.querySelector('[data-calendar-scroll]');
+    const zoomLabel = document.querySelector('[data-zoom-label]');
+    const zoomLevels = [60, 70, 80, 90, 100, 110, 120, 130, 140];
+    let zoom = Number(localStorage.getItem('stridebr.schedule.zoom')) || 100;
+    if (!zoomLevels.includes(zoom)) zoom = 100;
+    const applyZoom = value => {
+        zoom = Math.max(60, Math.min(140, value));
+        const factor = zoom / 100;
+        if (calendar) {
+            calendar.style.setProperty('--hour-height', `${Math.round(48 * factor)}px`);
+            calendar.style.setProperty('--day-width', `${Math.round(160 * factor)}px`);
+        }
+        if (zoomLabel) zoomLabel.textContent = `${zoom}%`;
+        localStorage.setItem('stridebr.schedule.zoom', String(zoom));
+    };
+    applyZoom(zoom);
+    document.querySelector('[data-zoom-out]')?.addEventListener('click', () => {
+        const index = Math.max(0, zoomLevels.indexOf(zoom) - 1);
+        applyZoom(zoomLevels[index]);
+    });
+    document.querySelector('[data-zoom-in]')?.addEventListener('click', () => {
+        const index = Math.min(zoomLevels.length - 1, zoomLevels.indexOf(zoom) + 1);
+        applyZoom(zoomLevels[index]);
+    });
+    document.querySelector('[data-zoom-fit]')?.addEventListener('click', () => {
+        if (!calendar) return;
+        const available = Math.max(320, calendar.clientWidth - 64);
+        const dayWidth = Math.max(70, Math.min(160, available / 7));
+        const fitted = Math.max(60, Math.min(100, Math.round((dayWidth / 160) * 100 / 10) * 10));
+        applyZoom(fitted);
+        calendar.scrollLeft = 0;
+    });
+    calendar?.addEventListener('wheel', event => {
+        if (!event.ctrlKey) return;
+        event.preventDefault();
+        const index = zoomLevels.indexOf(zoom);
+        applyZoom(zoomLevels[Math.max(0, Math.min(zoomLevels.length - 1, index + (event.deltaY < 0 ? 1 : -1)))]);
+    }, {passive: false});
 
     const editor = document.querySelector('[data-workout-editor]');
     const newWorkout = document.querySelector('[data-new-workout]');
@@ -52,13 +95,60 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const title = editor.querySelector('[data-editor-title]');
             if (title) title.textContent = 'Novo treino';
-            editor.scrollIntoView({behavior: 'smooth', block: 'start'});
             editor.querySelector('input[name="titulo"]')?.focus();
         });
     }
     if (closeWorkout && editor) {
         closeWorkout.addEventListener('click', () => editor.classList.remove('is-open'));
     }
+
+    const previewModal = document.querySelector('[data-workout-preview-modal]');
+    const previewContents = document.querySelectorAll('[data-workout-preview-content]');
+    const closePreview = () => {
+        if (!previewModal) return;
+        previewModal.hidden = true;
+        document.documentElement.style.overflow = '';
+    };
+    document.querySelectorAll('[data-preview-workout]').forEach(button => {
+        button.addEventListener('click', () => {
+            if (!previewModal) return;
+            const id = button.dataset.previewWorkout;
+            previewContents.forEach(content => content.hidden = content.dataset.workoutPreviewContent !== id);
+            previewModal.hidden = false;
+            document.documentElement.style.overflow = 'hidden';
+            previewModal.querySelector('[data-close-preview]')?.focus();
+        });
+    });
+    document.querySelectorAll('[data-close-preview]').forEach(button => button.addEventListener('click', closePreview));
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && previewModal && !previewModal.hidden) closePreview();
+    });
+
+    const importPanel = document.querySelector('[data-import-panel]');
+    document.querySelector('[data-open-import]')?.addEventListener('click', () => {
+        if (importPanel) importPanel.hidden = false;
+    });
+    document.querySelector('[data-close-import]')?.addEventListener('click', () => {
+        if (importPanel) importPanel.hidden = true;
+    });
+    document.querySelector('[data-discover-schedules]')?.addEventListener('click', () => {
+        window.alert('Descobrir cronogramas entra na próxima etapa. A base de importar/exportar já está pronta.');
+    });
+
+    document.querySelector('[data-print-schedule]')?.addEventListener('click', () => {
+        const oldView = currentView;
+        activateView('agenda');
+        setTimeout(() => {
+            window.print();
+            activateView(oldView);
+        }, 50);
+    });
+
+    document.addEventListener('click', event => {
+        document.querySelectorAll('.schedule-export-menu[open]').forEach(details => {
+            if (!details.contains(event.target)) details.removeAttribute('open');
+        });
+    });
 
     const rowsContainer = document.querySelector('[data-exercise-rows]');
     const rowTemplate = document.querySelector('[data-exercise-row-template]');

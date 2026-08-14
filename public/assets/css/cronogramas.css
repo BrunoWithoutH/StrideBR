@@ -723,3 +723,547 @@
         width: 100%;
     }
 }
+
+/* ===== Cronograma 2026: viewport, zoom, preview e mobile ===== */
+.schedule-body {
+    height: 100dvh;
+    min-height: 100dvh;
+    overflow: hidden;
+}
+
+.schedule-body .container-fluid {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.schedule-body .site-header {
+    flex: 0 0 auto;
+}
+
+.schedule-body .cronograma-page {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+}
+
+.schedule-body .site-footer {
+    display: none;
+}
+
+.schedule-body .schedule-shell {
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 20px 0 16px;
+}
+
+.schedule-body .schedule-heading {
+    flex: 0 0 auto;
+    margin-bottom: 12px;
+}
+
+.schedule-body .schedule-heading h1 {
+    font-size: clamp(1.55rem, 2.6vw, 2.25rem);
+}
+
+.schedule-toolbar {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    align-items: end;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    padding: 8px 0 10px;
+    margin-bottom: 10px;
+}
+
+.schedule-toolbar > * {
+    flex: 0 0 auto;
+}
+
+.schedule-toolbar form {
+    margin-left: 0;
+}
+
+.schedule-select-label select {
+    min-width: 250px;
+    max-width: 360px;
+}
+
+.zoom-controls {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid #d0d5dd;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #fff;
+}
+
+.zoom-controls .view-button {
+    border: 0;
+    border-radius: 0;
+    min-width: 38px;
+}
+
+.zoom-controls [data-zoom-label] {
+    min-width: 52px;
+    padding: 0 6px;
+    text-align: center;
+    color: #475467;
+    font-size: .82rem;
+    font-weight: 700;
+}
+
+.schedule-export-menu {
+    position: relative;
+}
+
+.schedule-export-menu summary {
+    list-style: none;
+}
+
+.schedule-export-menu summary::-webkit-details-marker {
+    display: none;
+}
+
+.schedule-export-content {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 7px);
+    right: 0;
+    min-width: 190px;
+    padding: 6px;
+    border: 1px solid #d0d5dd;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 16px 36px rgba(15, 23, 42, .16);
+}
+
+.schedule-export-content a,
+.schedule-export-content button {
+    width: 100%;
+    display: block;
+    padding: 9px 10px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: #344054;
+    text-align: left;
+    text-decoration: none;
+    font: inherit;
+    cursor: pointer;
+}
+
+.schedule-export-content a:hover,
+.schedule-export-content button:hover {
+    background: #f2f4f7;
+}
+
+.schedule-import-panel {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 10px;
+    padding: 12px 14px;
+    border: 1px solid #d0d5dd;
+    border-radius: 12px;
+    background: #fff;
+}
+
+.schedule-import-panel[hidden] {
+    display: none;
+}
+
+.schedule-import-panel p {
+    margin: 3px 0 0;
+    color: #667085;
+    font-size: .85rem;
+}
+
+.schedule-body .workout-editor {
+    flex: 0 0 auto;
+    max-height: 46vh;
+    overflow: auto;
+    margin-bottom: 10px;
+}
+
+.calendar-view,
+.agenda-view {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.calendar-view {
+    --hour-height: 48px;
+    --day-width: 160px;
+    overflow: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x pan-y;
+}
+
+.week-calendar {
+    grid-template-columns: 64px repeat(7, var(--day-width));
+    min-width: max-content;
+}
+
+.time-track,
+.day-track {
+    height: calc(24 * var(--hour-height));
+}
+
+.time-track span,
+.hour-line {
+    top: calc(var(--hour) * var(--hour-height));
+}
+
+.workout-card {
+    top: calc((var(--start-min) / 60) * var(--hour-height));
+    height: max(24px, calc((var(--duration-min) / 60) * var(--hour-height)));
+    width: auto;
+    appearance: none;
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
+}
+
+.agenda-view {
+    overflow: auto;
+    overscroll-behavior: contain;
+    padding-right: 3px;
+}
+
+.agenda-card-main {
+    min-width: 0;
+    flex: 1 1 auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
+}
+
+.agenda-card-main:hover strong {
+    text-decoration: underline;
+}
+
+.workout-preview[hidden] {
+    display: none;
+}
+
+.workout-preview {
+    position: fixed;
+    z-index: 1000;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+}
+
+.workout-preview-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, .56);
+    backdrop-filter: blur(3px);
+}
+
+.workout-preview-dialog {
+    position: relative;
+    z-index: 1;
+    width: min(650px, 100%);
+    max-height: min(82dvh, 760px);
+    overflow: auto;
+    padding: 24px;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 24px 70px rgba(15, 23, 42, .3);
+}
+
+.workout-preview-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+}
+
+.workout-preview-content[hidden] {
+    display: none;
+}
+
+.workout-preview-heading {
+    padding-right: 36px;
+}
+
+.workout-preview-heading > span {
+    color: #667085;
+    font-size: .82rem;
+    font-weight: 700;
+}
+
+.workout-preview-heading h2 {
+    margin: 4px 0 6px;
+    font-size: 1.55rem;
+}
+
+.workout-preview-heading p {
+    margin: 0;
+    color: #667085;
+}
+
+.workout-preview-exercises {
+    display: grid;
+    gap: 8px;
+    margin-top: 20px;
+}
+
+.preview-exercise {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr);
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid #e4e7ec;
+    border-radius: 12px;
+    background: #f8fafc;
+}
+
+.preview-exercise-number {
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: #e2e8f0;
+    color: #334155;
+    font-size: .8rem;
+    font-weight: 800;
+}
+
+.preview-exercise strong {
+    display: block;
+}
+
+.preview-exercise-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px 8px;
+    margin-top: 4px;
+}
+
+.preview-exercise-meta span {
+    padding: 3px 7px;
+    border-radius: 999px;
+    background: #eef2f7;
+    color: #475467;
+    font-size: .76rem;
+}
+
+.preview-exercise small {
+    display: block;
+    margin-top: 7px;
+    color: #667085;
+}
+
+.preview-empty {
+    margin: 0;
+    padding: 18px;
+    border: 1px dashed #d0d5dd;
+    border-radius: 12px;
+    color: #667085;
+    text-align: center;
+}
+
+.workout-preview-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+@media (max-width: 720px) {
+    .schedule-body .schedule-shell {
+        width: calc(100% - 12px);
+        padding: 10px 0 8px;
+    }
+
+    .schedule-body .schedule-heading {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 4px;
+    }
+
+    .schedule-body .schedule-heading h1 {
+        margin: 0;
+        font-size: 1.28rem;
+    }
+
+    .schedule-body .schedule-heading p {
+        display: none;
+    }
+
+    .schedule-heading-actions {
+        width: auto;
+        margin-left: auto;
+        flex-wrap: nowrap;
+    }
+
+    .schedule-heading-actions .primary-button,
+    .schedule-heading-actions .secondary-button {
+        flex: 0 0 auto;
+        padding: 8px 10px;
+        font-size: .78rem;
+    }
+
+    .schedule-toolbar {
+        gap: 7px;
+        padding: 5px 0 8px;
+    }
+
+    .schedule-toolbar .primary-button,
+    .schedule-toolbar .secondary-button,
+    .schedule-toolbar .danger-button,
+    .schedule-toolbar .view-button {
+        padding: 8px 10px;
+        font-size: .78rem;
+    }
+
+    .schedule-select-label {
+        font-size: .72rem;
+    }
+
+    .schedule-select-label select {
+        min-width: 190px;
+        max-width: 210px;
+        padding: 7px 8px;
+        font-size: .8rem;
+    }
+
+    .zoom-controls [data-zoom-label] {
+        min-width: 44px;
+        font-size: .75rem;
+    }
+
+    .schedule-import-panel {
+        align-items: stretch;
+        flex-direction: column;
+        padding: 10px;
+    }
+
+    .schedule-import-panel .compact-form {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .schedule-import-panel input[type="file"] {
+        max-width: 100%;
+        font-size: .8rem;
+    }
+
+    .schedule-body .workout-editor {
+        max-height: 55dvh;
+    }
+
+    .calendar-view {
+        --day-width: 145px;
+        max-height: none;
+        border-radius: 12px;
+    }
+
+    .week-calendar {
+        grid-template-columns: 52px repeat(7, var(--day-width));
+    }
+
+    .calendar-corner,
+    .day-header {
+        height: 40px;
+        font-size: .78rem;
+    }
+
+    .time-track span {
+        right: 5px;
+        font-size: .64rem;
+    }
+
+    .workout-card {
+        left: 3px;
+        right: 3px;
+        padding: 4px 5px;
+    }
+
+    .workout-preview {
+        align-items: end;
+        padding: 0;
+    }
+
+    .workout-preview-dialog {
+        width: 100%;
+        max-height: 88dvh;
+        padding: 20px 14px 16px;
+        border-radius: 18px 18px 0 0;
+    }
+
+    .workout-preview-actions {
+        position: sticky;
+        bottom: 0;
+        margin: 18px -14px -16px;
+        padding: 12px 14px max(12px, env(safe-area-inset-bottom));
+        background: rgba(255,255,255,.96);
+        border-top: 1px solid #e4e7ec;
+    }
+
+    .workout-preview-actions > * {
+        flex: 1;
+    }
+
+    .agenda-card {
+        align-items: stretch;
+    }
+}
+
+@media print {
+    body.schedule-body {
+        height: auto;
+        overflow: visible;
+        background: #fff;
+    }
+    .schedule-body .container-fluid,
+    .schedule-body .cronograma-page,
+    .schedule-body .schedule-shell {
+        height: auto;
+        overflow: visible;
+    }
+    .schedule-body .site-header,
+    .schedule-heading-actions,
+    .schedule-toolbar,
+    .schedule-create-panel,
+    .schedule-import-panel,
+    .workout-editor,
+    .calendar-view,
+    .workout-preview {
+        display: none !important;
+    }
+    .schedule-body .schedule-heading {
+        display: block;
+        margin: 0 0 20px;
+    }
+    .schedule-body .schedule-heading p {
+        display: block;
+    }
+    .agenda-view {
+        display: grid !important;
+        overflow: visible;
+    }
+    .agenda-actions {
+        display: none !important;
+    }
+    .agenda-card {
+        break-inside: avoid;
+        box-shadow: none;
+    }
+}
