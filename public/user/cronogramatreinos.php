@@ -10,6 +10,9 @@ $idUsuario = stridebr_require_login();
 require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
 require_once dirname(__DIR__, 2) . '/vendor/autoload.php';
 require_once dirname(__DIR__, 2) . '/src/function/cronograma.php';
+require_once dirname(__DIR__, 2) . '/src/function/cronograma_compartilhar.php';
+$friendsEnabled = stridebr_feature_enabled($pdo, 'friends.enabled', false);
+$workoutSessionsEnabled = stridebr_feature_enabled($pdo, 'workout_sessions.enabled', false);
 $errors = [];
 $dias = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
@@ -52,11 +55,21 @@ function cronogramaImportData(PDO $pdo, string $idUsuario, array $data): string
     if (($data['format'] ?? '') !== 'stridebr-schedule' || (int) ($data['version'] ?? 0) !== 1 || !is_array($data['cronograma'] ?? null) || !is_array($data['treinos'] ?? null)) {
         throw new InvalidArgumentException('Arquivo de cronograma inválido ou incompatível.');
     }
+
+    if (count($data['treinos']) > 200) {
+        throw new InvalidArgumentException('O arquivo possui treinos demais para uma única importação.');
+    }
+
     $nome = cronogramaNomeImportado($pdo, $idUsuario, (string) ($data['cronograma']['nome'] ?? 'Cronograma importado'));
-    $idCronograma = cronogramaCriar($pdo, $idUsuario, $nome, $data['cronograma']['descricao'] ?? null);
+    $pdo->beginTransaction();
+
     try {
+        $idCronograma = cronogramaCriar($pdo, $idUsuario, $nome, $data['cronograma']['descricao'] ?? null);
+        $totalExercicios = 0;
+
         foreach ($data['treinos'] as $treino) {
             if (!is_array($treino)) continue;
+
             $payload = [
                 'idcronograma' => $idCronograma,
                 'titulo' => (string) ($treino['titulo'] ?? ''),
@@ -65,11 +78,22 @@ function cronogramaImportData(PDO $pdo, string $idUsuario, array $data): string
                 'hora_inicio' => substr((string) ($treino['hora_inicio'] ?? '18:00'), 0, 5),
                 'hora_fim' => substr((string) ($treino['hora_fim'] ?? '19:00'), 0, 5),
             ];
-            if (stridebr_db_bool($treino['termina_dia_seguinte'] ?? false)) $payload['termina_dia_seguinte'] = '1';
+
+            if (stridebr_db_bool($treino['termina_dia_seguinte'] ?? false)) {
+                $payload['termina_dia_seguinte'] = '1';
+            }
+
             $idTreino = cronogramaSalvarTreino($pdo, $idUsuario, $payload);
             $rows = [];
+
             foreach (($treino['exercicios'] ?? []) as $exercicio) {
                 if (!is_array($exercicio)) continue;
+
+                $totalExercicios++;
+                if ($totalExercicios > 2000) {
+                    throw new InvalidArgumentException('O arquivo possui exercícios demais para uma única importação.');
+                }
+
                 $rows[] = [
                     'nome' => (string) ($exercicio['nome_snapshot'] ?? $exercicio['nome'] ?? ''),
                     'series' => $exercicio['series'] ?? '',
@@ -81,11 +105,18 @@ function cronogramaImportData(PDO $pdo, string $idUsuario, array $data): string
                     'observacoes' => $exercicio['observacoes'] ?? '',
                 ];
             }
-            if ($rows !== []) cronogramaSalvarExercicios($pdo, $idTreino, $idUsuario, $rows, []);
+
+            if ($rows !== []) {
+                cronogramaSalvarExercicios($pdo, $idTreino, $idUsuario, $rows, []);
+            }
         }
+
+        $pdo->commit();
         return $idCronograma;
     } catch (Throwable $e) {
-        cronogramaExcluir($pdo, $idCronograma, $idUsuario);
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         throw $e;
     }
 }
@@ -109,6 +140,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: /user/cronogramatreinos.php');
             exit;
         }
+        if ($action === 'update_schedule_visibility') {
+            $id = (string) ($_POST['idcronograma'] ?? '');
+            $visibility = (string) ($_POST['visibilidade'] ?? 'privado');
+            if (!in_array($visibility, ['privado', 'amigos', 'publico'], true)) throw new InvalidArgumentException('Visibilidade inválida.');
+            $stmt = $pdo->prepare('UPDATE cronogramas SET visibilidade = :visibilidade, data_atualizacao = NOW() WHERE idcronograma = :id AND idusuario = :usuario');
+            $stmt->execute([':visibilidade' => $visibility, ':id' => $id, ':usuario' => $idUsuario]);
+            if ($stmt->rowCount() !== 1) throw new RuntimeException('Cronograma não encontrado.');
+            stridebr_flash('success', 'Privacidade do cronograma atualizada.');
+            header('Location: /user/cronogramatreinos.php?id=' . urlencode($id));
+            exit;
+        }
         if ($action === 'save_workout') {
             $idTreino = trim((string) ($_POST['idtreino'] ?? '')) ?: null;
             $saved = cronogramaSalvarTreino($pdo, $idUsuario, $_POST, $idTreino);
@@ -125,17 +167,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: /user/cronogramatreinos.php?id=' . urlencode($idCronograma));
             exit;
         }
+        if ($action === 'share_snapshot') {
+            if (!$friendsEnabled) throw new RuntimeException('O compartilhamento com amigos está temporariamente desativado.');
+            $idCronograma = trim((string) ($_POST['idcronograma'] ?? ''));
+            $destino = trim((string) ($_POST['idusuario_destino'] ?? ''));
+            $friend = $pdo->prepare("SELECT 1 FROM amizades WHERE status = 'aceita' AND ((idusuario_solicitante = :me1 AND idusuario_destino = :dest1) OR (idusuario_solicitante = :dest2 AND idusuario_destino = :me2)) LIMIT 1");
+            $friend->execute([':me1' => $idUsuario, ':dest1' => $destino, ':dest2' => $destino, ':me2' => $idUsuario]);
+            if (!$friend->fetchColumn()) throw new RuntimeException('Esse usuário não está na sua lista de amigos.');
+            $snapshot = compartilhamentoCronogramaSnapshot($pdo, $idUsuario, $idCronograma);
+            $stmt = $pdo->prepare("INSERT INTO cronograma_compartilhamentos (idcompartilhamento, idcronograma_origem, idusuario_origem, idusuario_destino, tipo, snapshot) VALUES (:id, :cronograma, :origem, :destino, 'snapshot', CAST(:snapshot AS jsonb))");
+            $stmt->execute([
+                ':id' => stridebr_generate_id(), ':cronograma' => $idCronograma, ':origem' => $idUsuario, ':destino' => $destino,
+                ':snapshot' => json_encode($snapshot, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            ]);
+            stridebr_flash('success', 'Cronograma enviado como uma cópia.');
+            header('Location: /user/cronogramatreinos.php?id=' . urlencode($idCronograma));
+            exit;
+        }
         if ($action === 'import_schedule') {
-            if (!isset($_FILES['schedule_file']) || !is_uploaded_file($_FILES['schedule_file']['tmp_name'])) {
+            if (!isset($_FILES['schedule_file']) || !is_array($_FILES['schedule_file'])) {
                 throw new InvalidArgumentException('Selecione um arquivo .json exportado pelo StrideBR.');
             }
-            if ((int) $_FILES['schedule_file']['size'] > 2 * 1024 * 1024) {
-                throw new InvalidArgumentException('O arquivo é grande demais.');
+            if ((int) ($_FILES['schedule_file']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || !is_uploaded_file((string) ($_FILES['schedule_file']['tmp_name'] ?? ''))) {
+                throw new InvalidArgumentException('Não foi possível receber o arquivo selecionado.');
             }
-            $raw = file_get_contents($_FILES['schedule_file']['tmp_name']);
-            $data = json_decode((string) $raw, true, 64, JSON_THROW_ON_ERROR);
+            if ((int) ($_FILES['schedule_file']['size'] ?? 0) <= 0 || (int) $_FILES['schedule_file']['size'] > 2 * 1024 * 1024) {
+                throw new InvalidArgumentException('O arquivo deve ter no máximo 2 MB.');
+            }
+            $raw = file_get_contents((string) $_FILES['schedule_file']['tmp_name']);
+            if ($raw === false || trim($raw) === '') {
+                throw new InvalidArgumentException('O arquivo está vazio ou não pôde ser lido.');
+            }
+            try {
+                $data = json_decode($raw, true, 64, JSON_THROW_ON_ERROR);
+            } catch (JsonException) {
+                throw new InvalidArgumentException('O arquivo não contém um JSON válido.');
+            }
+            if (!is_array($data)) {
+                throw new InvalidArgumentException('Arquivo de cronograma inválido.');
+            }
             $idImportado = cronogramaImportData($pdo, $idUsuario, $data);
-            stridebr_flash('success', 'Cronograma importado.');
+            stridebr_flash('success', 'Cronograma importado como uma cópia privada.');
             header('Location: /user/cronogramatreinos.php?id=' . urlencode($idImportado));
             exit;
         }
@@ -200,6 +272,12 @@ $exerciciosPorTreino = [];
 foreach ($treinos as $treino) {
     $exerciciosPorTreino[$treino['idtreino']] = cronogramaListarTreinoExercicios($pdo, (string) $treino['idtreino'], $idUsuario);
 }
+$friends = [];
+if ($friendsEnabled) {
+    $friendsStmt = $pdo->prepare("SELECT u.idusuario, COALESCE(NULLIF(u.nome_exibicao, ''), u.nomeusuario) AS nome_exibicao, u.username FROM amizades a JOIN usuarios u ON u.idusuario = CASE WHEN a.idusuario_solicitante = :me_case THEN a.idusuario_destino ELSE a.idusuario_solicitante END WHERE a.status = 'aceita' AND (a.idusuario_solicitante = :me_left OR a.idusuario_destino = :me_right) ORDER BY nome_exibicao");
+    $friendsStmt->execute([':me_case' => $idUsuario, ':me_left' => $idUsuario, ':me_right' => $idUsuario]);
+    $friends = $friendsStmt->fetchAll();
+}
 $treinoEdicao = [];
 $idTreinoEdicao = (string) ($_GET['treino'] ?? '');
 if ($idTreinoEdicao !== '') {
@@ -231,12 +309,10 @@ $flashes = stridebr_take_flashes();
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/png" href="/assets/img/favicon/favicon.png">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.0/css/line.css">
-    <link rel="stylesheet" href="/assets/css/style.css">
-    <link rel="stylesheet" href="/assets/css/cronogramas.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <link rel="icon" type="image/png" href="<?php echo stridebr_e(stridebr_asset('/assets/img/favicon/favicon.png')); ?>">
+    <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/style.css')); ?>">
+    <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/cronogramas.css')); ?>">
     <title>Cronogramas | StrideBR</title>
 </head>
 <body class="schedule-body">
@@ -251,7 +327,8 @@ $flashes = stridebr_take_flashes();
                 </div>
                 <div class="schedule-heading-actions">
                     <a class="secondary-button" href="/user/bibliotecaexercicios.php">Biblioteca</a>
-                    <button type="button" class="primary-button" data-open-schedule-create>Novo cronograma</button>
+                    <button type="button" class="secondary-button" data-discover-schedules>Descobrir</button>
+                    <button type="button" class="primary-button" data-open-schedule-create>+ Novo</button>
                 </div>
             </div>
 
@@ -263,31 +340,88 @@ $flashes = stridebr_take_flashes();
             <?php endforeach; ?>
 
             <section class="schedule-create-panel" data-schedule-create hidden>
-                <form method="POST" class="compact-form">
-                    <?php echo stridebr_csrf_field(); ?>
-                    <input type="hidden" name="action" value="create_schedule">
-                    <label>Nome
-                        <input type="text" name="nome" maxlength="120" placeholder="Ex.: Corrida 5 km" required>
-                    </label>
-                    <label>Descrição
-                        <input type="text" name="descricao" maxlength="300" placeholder="Opcional">
-                    </label>
-                    <div class="form-actions">
-                        <button type="submit" class="primary-button">Criar</button>
-                        <button type="button" class="secondary-button" data-close-schedule-create>Cancelar</button>
+                <div class="schedule-create-header">
+                    <div>
+                        <span class="eyebrow">Novo cronograma</span>
+                        <h2 data-schedule-create-title>Como você quer começar?</h2>
                     </div>
-                </form>
+                    <button type="button" class="icon-button" data-close-schedule-create aria-label="Fechar">×</button>
+                </div>
+
+                <div class="schedule-create-options" data-schedule-create-options>
+                    <button type="button" class="schedule-create-option" data-schedule-create-mode="blank">
+                        <span class="schedule-create-option-icon" aria-hidden="true">+</span>
+                        <strong>Criar do zero</strong>
+                        <small>Comece com um cronograma vazio e adicione seus treinos.</small>
+                    </button>
+                    <button type="button" class="schedule-create-option" data-schedule-create-mode="import">
+                        <span class="schedule-create-option-icon" aria-hidden="true">↑</span>
+                        <strong>Importar cronograma</strong>
+                        <small>Use um arquivo <code>.stridebr.json</code> exportado pelo StrideBR.</small>
+                    </button>
+                </div>
+
+                <div class="schedule-create-form" data-schedule-create-form="blank" hidden>
+                    <form method="POST" class="compact-form">
+                        <?php echo stridebr_csrf_field(); ?>
+                        <input type="hidden" name="action" value="create_schedule">
+                        <label>Nome
+                            <input type="text" name="nome" maxlength="120" placeholder="Ex.: Corrida 5 km" required>
+                        </label>
+                        <label>Descrição
+                            <input type="text" name="descricao" maxlength="300" placeholder="Opcional">
+                        </label>
+                        <div class="form-actions">
+                            <button type="submit" class="primary-button">Criar cronograma</button>
+                            <button type="button" class="secondary-button" data-schedule-create-back>Voltar</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="schedule-create-form" data-schedule-create-form="import" hidden>
+                    <form method="POST" enctype="multipart/form-data" class="schedule-import-create-form">
+                        <?php echo stridebr_csrf_field(); ?>
+                        <input type="hidden" name="action" value="import_schedule">
+                        <label class="schedule-file-picker">
+                            <span>Arquivo do StrideBR</span>
+                            <input type="file" name="schedule_file" accept="application/json,.json,.stridebr.json" required data-schedule-import-file>
+                            <small>Máximo de 2 MB. A importação cria uma cópia privada e independente.</small>
+                        </label>
+                        <div class="schedule-import-preview" data-schedule-import-preview hidden>
+                            <div>
+                                <span>Nome</span>
+                                <strong data-import-preview-name>—</strong>
+                            </div>
+                            <div>
+                                <span>Treinos</span>
+                                <strong data-import-preview-workouts>0</strong>
+                            </div>
+                            <div>
+                                <span>Exercícios</span>
+                                <strong data-import-preview-exercises>0</strong>
+                            </div>
+                        </div>
+                        <p class="schedule-import-error" data-schedule-import-error hidden></p>
+                        <div class="form-actions">
+                            <button type="submit" class="primary-button" data-schedule-import-submit disabled>Importar e criar</button>
+                            <button type="button" class="secondary-button" data-schedule-create-back>Voltar</button>
+                        </div>
+                    </form>
+                </div>
             </section>
 
             <?php if ($cronogramas === []): ?>
                 <section class="empty-state">
                     <h2>Crie seu primeiro cronograma</h2>
                     <p>Um cronograma pode representar academia, corrida, calistenia ou qualquer outra rotina semanal.</p>
-                    <button type="button" class="primary-button" data-open-schedule-create>Criar cronograma</button>
+                    <div class="form-actions">
+                        <button type="button" class="primary-button" data-open-schedule-create>Criar cronograma</button>
+                        <button type="button" class="secondary-button" data-open-schedule-import>Importar arquivo</button>
+                    </div>
                 </section>
             <?php else: ?>
                 <section class="schedule-toolbar" data-schedule-toolbar>
-                    <label class="schedule-select-label">Cronograma
+                    <label class="schedule-select-label"><span>Cronograma</span>
                         <select data-schedule-selector>
                             <?php foreach ($cronogramas as $item): ?>
                                 <option value="<?php echo stridebr_e($item['idcronograma']); ?>"<?php echo $item['idcronograma'] === $idSelecionado ? ' selected' : ''; ?>><?php echo stridebr_e($item['nome']); ?></option>
@@ -298,44 +432,63 @@ $flashes = stridebr_take_flashes();
                         <button type="button" class="view-button is-active" data-view="week">Semana</button>
                         <button type="button" class="view-button" data-view="agenda">Agenda</button>
                     </div>
-                    <button type="button" class="primary-button" data-new-workout>Novo treino</button>
-                    <button type="button" class="secondary-button" data-discover-schedules>Descobrir cronogramas</button>
+                    <button type="button" class="primary-button schedule-new-workout" data-new-workout>+ Treino</button>
+                    <div class="schedule-toolbar-spacer"></div>
                     <div class="zoom-controls" data-zoom-controls aria-label="Zoom da semana">
                         <button type="button" class="view-button" data-zoom-out aria-label="Diminuir zoom">−</button>
                         <span data-zoom-label>100%</span>
                         <button type="button" class="view-button" data-zoom-in aria-label="Aumentar zoom">+</button>
-                        <button type="button" class="view-button" data-zoom-fit>Ajustar</button>
+                        <button type="button" class="view-button zoom-fit-button" data-zoom-fit title="Ajustar à área visível">Ajustar</button>
                     </div>
-                    <details class="schedule-export-menu">
-                        <summary class="secondary-button">Exportar</summary>
-                        <div class="schedule-export-content">
-                            <a href="?id=<?php echo urlencode($idSelecionado); ?>&export=json">Arquivo StrideBR</a>
-                            <a href="?id=<?php echo urlencode($idSelecionado); ?>&export=csv">Planilha CSV</a>
+                    <details class="schedule-actions-menu">
+                        <summary class="secondary-button icon-only-button" aria-label="Mais ações" title="Mais ações">•••</summary>
+                        <div class="schedule-actions-content">
+                            <strong>Compartilhar e arquivos</strong>
+                            <a href="?id=<?php echo urlencode($idSelecionado); ?>&export=json">Exportar arquivo StrideBR</a>
+                            <a href="?id=<?php echo urlencode($idSelecionado); ?>&export=csv">Exportar planilha CSV</a>
                             <button type="button" data-print-schedule>Imprimir / PDF</button>
+                            <?php if ($friendsEnabled): ?><button type="button" data-open-share>Compartilhar com amigo</button><?php endif; ?>
+                            <button type="button" data-open-schedule-import>Importar cronograma</button>
+                            <hr>
+                            <strong>Privacidade</strong>
+                            <form method="POST" class="schedule-visibility-form">
+                                <?php echo stridebr_csrf_field(); ?>
+                                <input type="hidden" name="action" value="update_schedule_visibility">
+                                <input type="hidden" name="idcronograma" value="<?php echo stridebr_e($idSelecionado); ?>">
+                                <select name="visibilidade" onchange="this.form.submit()" aria-label="Visibilidade do cronograma">
+                                    <option value="privado"<?php echo ($cronograma['visibilidade'] ?? 'privado') === 'privado' ? ' selected' : ''; ?>>Privado</option>
+                                    <option value="amigos"<?php echo ($cronograma['visibilidade'] ?? '') === 'amigos' ? ' selected' : ''; ?>>Amigos</option>
+                                    <option value="publico"<?php echo ($cronograma['visibilidade'] ?? '') === 'publico' ? ' selected' : ''; ?>>Público</option>
+                                </select>
+                            </form>
+                            <hr>
+                            <form method="POST" onsubmit="return confirm('Excluir este cronograma e todos os treinos dele?');">
+                                <?php echo stridebr_csrf_field(); ?>
+                                <input type="hidden" name="action" value="delete_schedule">
+                                <input type="hidden" name="idcronograma" value="<?php echo stridebr_e($idSelecionado); ?>">
+                                <button type="submit" class="menu-danger">Excluir cronograma</button>
+                            </form>
                         </div>
                     </details>
-                    <button type="button" class="secondary-button" data-open-import>Importar</button>
-                    <form method="POST" onsubmit="return confirm('Excluir este cronograma e todos os treinos dele?');">
-                        <?php echo stridebr_csrf_field(); ?>
-                        <input type="hidden" name="action" value="delete_schedule">
-                        <input type="hidden" name="idcronograma" value="<?php echo stridebr_e($idSelecionado); ?>">
-                        <button type="submit" class="danger-button">Excluir</button>
-                    </form>
                 </section>
 
-                <section class="schedule-import-panel" data-import-panel hidden>
-                    <div>
-                        <strong>Importar cronograma</strong>
-                        <p>Use um arquivo <code>.stridebr.json</code> exportado pelo StrideBR. O cronograma será criado como uma cópia nova.</p>
-                    </div>
-                    <form method="POST" enctype="multipart/form-data" class="compact-form">
-                        <?php echo stridebr_csrf_field(); ?>
-                        <input type="hidden" name="action" value="import_schedule">
-                        <input type="file" name="schedule_file" accept="application/json,.json,.stridebr.json" required>
-                        <button type="submit" class="primary-button">Importar</button>
-                        <button type="button" class="secondary-button" data-close-import>Cancelar</button>
-                    </form>
+                <?php if ($friendsEnabled): ?>
+                <section class="schedule-share-panel" data-share-panel hidden>
+                    <div><strong>Compartilhar uma cópia</strong><p>Seu amigo recebe exatamente esta versão. Mudanças futuras no seu cronograma não alteram a cópia dele.</p></div>
+                    <?php if ($friends === []): ?>
+                        <div class="share-empty">Adicione um amigo primeiro. <a href="/user/amigos.php">Ir para Amigos</a></div>
+                    <?php else: ?>
+                        <form method="POST" class="compact-form">
+                            <?php echo stridebr_csrf_field(); ?>
+                            <input type="hidden" name="action" value="share_snapshot">
+                            <input type="hidden" name="idcronograma" value="<?php echo stridebr_e($idSelecionado); ?>">
+                            <label>Enviar para<select name="idusuario_destino" required><?php foreach ($friends as $friend): ?><option value="<?php echo stridebr_e($friend['idusuario']); ?>"><?php echo stridebr_e($friend['nome_exibicao']); ?><?php echo $friend['username'] ? ' (@' . stridebr_e($friend['username']) . ')' : ''; ?></option><?php endforeach; ?></select></label>
+                            <button type="submit" class="primary-button">Enviar cópia</button>
+                            <button type="button" class="secondary-button" data-close-share>Cancelar</button>
+                        </form>
+                    <?php endif; ?>
                 </section>
+                <?php endif; ?>
 
                 <section class="workout-editor<?php echo $treinoEdicao !== [] ? ' is-open' : ''; ?>" data-workout-editor>
                     <div class="editor-title-row">
@@ -482,8 +635,16 @@ $flashes = stridebr_take_flashes();
                                     <?php endif; ?>
                                 </div>
                                 <div class="workout-preview-actions">
+                                    <?php if ($workoutSessionsEnabled): ?><button type="button" class="primary-button" data-start-workout="<?php echo stridebr_e($item['idtreino']); ?>">Iniciar treino</button><?php endif; ?>
                                     <a class="secondary-button" href="/user/cronogramatreinos.php?id=<?php echo urlencode($idSelecionado); ?>&treino=<?php echo urlencode($item['idtreino']); ?>">Editar treino</a>
-                                    <a class="primary-button" href="/user/exercicioscronograma.php?idtreino=<?php echo urlencode($item['idtreino']); ?>">Editar exercícios</a>
+                                    <a class="secondary-button" href="/user/exercicioscronograma.php?idtreino=<?php echo urlencode($item['idtreino']); ?>">Editar exercícios</a>
+                                    <form method="POST" class="preview-delete-form" onsubmit="return confirm('Remover este treino do cronograma?');">
+                                        <?php echo stridebr_csrf_field(); ?>
+                                        <input type="hidden" name="action" value="delete_workout">
+                                        <input type="hidden" name="idcronograma" value="<?php echo stridebr_e($idSelecionado); ?>">
+                                        <input type="hidden" name="idtreino" value="<?php echo stridebr_e($item['idtreino']); ?>">
+                                        <button type="submit" class="danger-button">Excluir treino</button>
+                                    </form>
                                 </div>
                             </div>
                         <?php endforeach; ?>
@@ -494,6 +655,6 @@ $flashes = stridebr_take_flashes();
     </main>
 </div>
 <?php require dirname(__DIR__, 2) . '/src/layout/footer.php'; ?>
-<script src="/assets/js/cronogramas.js"></script>
+<script src="<?php echo stridebr_e(stridebr_asset('/assets/js/cronogramas.js')); ?>"></script>
 </body>
 </html>

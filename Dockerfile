@@ -16,4 +16,6 @@ COPY . .
 
 RUN a2enmod rewrite \
     && sed -ri -e 's!/var/www/html!/var/www/html/public!g' /etc/apache2/sites-available/*.conf /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf \
+    && printf '<Directory /var/www/html/public>\n    AllowOverride All\n    Require all granted\n</Directory>\n' > /etc/apache2/conf-available/stridebr-public.conf \
+    && a2enconf stridebr-public \
     && chown -R www-data:www-data /var/www/html

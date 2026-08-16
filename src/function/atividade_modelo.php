@@ -304,20 +304,19 @@ function atividadeInserirValor(PDO $pdo, string $idRegistro, ?string $idUnidade,
         'INSERT INTO valores_atividade (idvalor, idregistro, idunidade_atividade, idcampo, valor_texto, valor_inteiro, valor_decimal, valor_booleano, valor_data, valor_hora, valor_intervalo, idopcao)
          VALUES (:idvalor, :idregistro, :idunidade, :idcampo, :valor_texto, :valor_inteiro, :valor_decimal, :valor_booleano, :valor_data, :valor_hora, CAST(:valor_intervalo AS interval), :idopcao)'
     );
-    $stmt->execute([
-        ':idvalor' => atividadeGerarId(),
-        ':idregistro' => $idRegistro,
-        ':idunidade' => $idUnidade,
-        ':idcampo' => $campo['idcampo'],
-        ':valor_texto' => $valor['valor_texto'],
-        ':valor_inteiro' => $valor['valor_inteiro'],
-        ':valor_decimal' => $valor['valor_decimal'],
-        ':valor_booleano' => $valor['valor_booleano'],
-        ':valor_data' => $valor['valor_data'],
-        ':valor_hora' => $valor['valor_hora'],
-        ':valor_intervalo' => $valor['valor_intervalo'],
-        ':idopcao' => $valor['idopcao'],
-    ]);
+    $stmt->bindValue(':idvalor', atividadeGerarId());
+    $stmt->bindValue(':idregistro', $idRegistro);
+    $stmt->bindValue(':idunidade', $idUnidade, $idUnidade === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+    $stmt->bindValue(':idcampo', $campo['idcampo']);
+    $stmt->bindValue(':valor_texto', $valor['valor_texto'], $valor['valor_texto'] === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+    $stmt->bindValue(':valor_inteiro', $valor['valor_inteiro'], $valor['valor_inteiro'] === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+    $stmt->bindValue(':valor_decimal', $valor['valor_decimal'], $valor['valor_decimal'] === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+    $stmt->bindValue(':valor_booleano', $valor['valor_booleano'], $valor['valor_booleano'] === null ? PDO::PARAM_NULL : PDO::PARAM_BOOL);
+    $stmt->bindValue(':valor_data', $valor['valor_data'], $valor['valor_data'] === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+    $stmt->bindValue(':valor_hora', $valor['valor_hora'], $valor['valor_hora'] === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+    $stmt->bindValue(':valor_intervalo', $valor['valor_intervalo'], $valor['valor_intervalo'] === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+    $stmt->bindValue(':idopcao', $valor['idopcao'], $valor['idopcao'] === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+    $stmt->execute();
 }
 
 function atividadeSalvarRegistro(PDO $pdo, string $idUsuario, array $payload, ?string $idRegistro = null): string
@@ -343,6 +342,23 @@ function atividadeSalvarRegistro(PDO $pdo, string $idUsuario, array $payload, ?s
     if (!in_array($status, ['rascunho', 'ativo', 'concluido', 'cancelado'], true)) {
         throw new InvalidArgumentException('Status da atividade inválido.');
     }
+
+    $fimSql = null;
+    $fimRaw = trim((string) ($payload['data_fim'] ?? ''));
+    if ($fimRaw !== '') {
+        $fim = DateTimeImmutable::createFromFormat('!Y-m-d H:i', $fimRaw);
+        if (!$fim || $fim->format('Y-m-d H:i') !== $fimRaw || $fim < $inicio) {
+            throw new InvalidArgumentException('Horário final da atividade inválido.');
+        }
+        $fimSql = $fim->format('Y-m-d H:i:s');
+    }
+
+    $origem = (string) ($payload['origem'] ?? 'manual');
+    if (!in_array($origem, ['manual', 'gps', 'importacao', 'api'], true)) {
+        throw new InvalidArgumentException('Origem da atividade inválida.');
+    }
+    $idCronograma = trim((string) ($payload['idcronograma'] ?? '')) ?: null;
+    $idTreinoCronograma = trim((string) ($payload['idtreino_cronograma'] ?? '')) ?: null;
 
     $visibilidade = (string) ($payload['visibilidade'] ?? 'privado');
     if (!in_array($visibilidade, ['privado', 'amigos', 'publico'], true)) {
@@ -392,17 +408,21 @@ function atividadeSalvarRegistro(PDO $pdo, string $idUsuario, array $payload, ?s
             $pdo->prepare('DELETE FROM unidades_atividade WHERE idregistro = :id')->execute([':id' => $idRegistro]);
         } else {
             $idRegistro = atividadeGerarId();
-            $stmt = $pdo->prepare('INSERT INTO registros_atividade (idregistro, idusuario, idmodalidade, idmodelo, titulo, observacoes, data_inicio, status, visibilidade) VALUES (:id, :usuario, :modalidade, :modelo, :titulo, :observacoes, :inicio, :status, :visibilidade)');
+            $stmt = $pdo->prepare('INSERT INTO registros_atividade (idregistro, idusuario, idmodalidade, idmodelo, idcronograma, idtreino_cronograma, titulo, observacoes, data_inicio, data_fim, status, visibilidade, origem) VALUES (:id, :usuario, :modalidade, :modelo, :cronograma, :treino, :titulo, :observacoes, :inicio, :fim, :status, :visibilidade, :origem)');
             $stmt->execute([
                 ':id' => $idRegistro,
                 ':usuario' => $idUsuario,
                 ':modalidade' => $modelo['idmodalidade'],
                 ':modelo' => $modelo['idmodelo'],
+                ':cronograma' => $idCronograma,
+                ':treino' => $idTreinoCronograma,
                 ':titulo' => $titulo,
                 ':observacoes' => trim((string) ($payload['observacoes'] ?? '')) ?: null,
                 ':inicio' => $inicio->format('Y-m-d H:i:s'),
+                ':fim' => $fimSql,
                 ':status' => $status,
                 ':visibilidade' => $visibilidade,
+                ':origem' => $origem,
             ]);
         }
 

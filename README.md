@@ -22,11 +22,19 @@ StrideBR is built around configurable modalities instead of assuming one fixed s
 - Dynamic activity modalities, models and fields
 - Repeated activity units such as attempts, laps, intervals or sets
 - Typed and normalized measurement values
-- Basic training timer and counter tools
+- Global stopwatch, timer and set-counter tools
+- Workout execution from a scheduled workout, with set/exercise progress and activity creation
+- Profiles, usernames, onboarding and privacy controls
+- Mutual friends and snapshot schedule sharing
+- Exercise image/video references by URL
+- Moderator/admin/owner roles, feature flags and audit logs
+- Closed-alpha feedback with moderation queue
+- Versioned legal acceptance, email-verification/password-reset foundation and invite-only registration
+- Admin user management with block/unblock/edit/delete controls
 
-Route drawing, statistics, records, community publishing, events, API and mobile clients are planned features.
+Route drawing, deeper statistics, synchronized shared schedules, public discovery, events, API and mobile clients remain planned features.
 
-The architecture and product rules are documented in [`docs/architecture.md`](docs/architecture.md).
+The architecture and product rules are documented in [`docs/architecture.md`](docs/architecture.md). Deployment notes are in [`docs/DEPLOY_ALWAYS_DATA.md`](docs/DEPLOY_ALWAYS_DATA.md) and the current product roadmap is in [`docs/PRODUCT_ROADMAP.md`](docs/PRODUCT_ROADMAP.md).
 
 ## Stack
 
@@ -79,6 +87,8 @@ The first database startup automatically executes, in order:
 src/database/stridebr.sql
 src/database/stridebr_activities_schema.sql
 src/database/stridebr_seed.sql
+src/database/migrations/20260815_product_foundation.sql
+src/database/migrations/20260815_alpha_readiness.sql
 ```
 
 Database initialization scripts run only when the PostgreSQL data volume is empty. To recreate a development database from scratch:
@@ -143,7 +153,7 @@ The default Docker development ports are:
 
 ```text
 Web:        localhost:8080
-PostgreSQL: localhost:5433
+PostgreSQL: localhost:5434
 ```
 
 The application container connects to PostgreSQL internally through `postgres:5432`.
@@ -164,7 +174,7 @@ Install dependencies:
 composer install
 ```
 
-Create a PostgreSQL database and execute the three SQL files from `src/database/` in the order shown above. Then provide the database connection through environment variables.
+Create a PostgreSQL database and execute the SQL files in the order shown above. Then provide the database connection through environment variables.
 
 ## Project structure
 

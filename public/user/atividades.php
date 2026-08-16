@@ -89,6 +89,50 @@ function atividadeCardFormatarValor(array $campo, mixed $valor): string
     return $unidade !== '' ? $texto . ' ' . $unidade : $texto;
 }
 
+function atividadeCardMetricas(array $detalhes, int $limite = 3): array
+{
+    $camposPorId = [];
+    foreach ($detalhes['campos'] ?? [] as $campo) $camposPorId[$campo['idcampo']] = $campo;
+    $candidatos = [];
+    $adicionar = static function (string $idCampo, mixed $valor) use (&$candidatos, $camposPorId): void {
+        $campo = $camposPorId[$idCampo] ?? null;
+        if (!$campo) return;
+        $texto = atividadeCardFormatarValor($campo, $valor);
+        if ($texto === '') return;
+        $chave = stridebr_lower(trim((string) (($campo['slug'] ?? '') . ' ' . ($campo['rotulo'] ?? ''))));
+        foreach (['intensidade', 'feeling', 'sensacao', 'sensação', 'esforco', 'esforço', 'observa', 'nota'] as $ocultar) {
+            if (str_contains($chave, $ocultar)) return;
+        }
+        $prioridade = 50;
+        $grupos = [
+            0 => ['distancia', 'distância'],
+            1 => ['duracao', 'duração', 'tempo'],
+            2 => ['ritmo', 'pace', 'velocidade'],
+            3 => ['elevacao', 'elevação', 'desnivel', 'desnível'],
+            4 => ['series', 'séries', 'sets'],
+            5 => ['repeticoes', 'repetições', 'reps'],
+            6 => ['carga', 'peso'],
+        ];
+        foreach ($grupos as $rank => $termos) {
+            foreach ($termos as $termo) if (str_contains($chave, $termo)) { $prioridade = $rank; break 2; }
+        }
+        $candidatos[] = ['rotulo' => (string) $campo['rotulo'], 'valor' => $texto, 'prioridade' => $prioridade, 'ordem' => (int) ($campo['ordem'] ?? 999)];
+    };
+    foreach ($detalhes['record_values'] ?? [] as $idCampo => $valor) $adicionar((string) $idCampo, $valor);
+    foreach ($detalhes['unidades'] ?? [] as $unidade) {
+        foreach ($unidade['values'] ?? [] as $idCampo => $valor) $adicionar((string) $idCampo, $valor);
+    }
+    usort($candidatos, static fn(array $a, array $b): int => [$a['prioridade'], $a['ordem']] <=> [$b['prioridade'], $b['ordem']]);
+    $unicos = [];
+    foreach ($candidatos as $item) {
+        $key = stridebr_lower($item['rotulo']);
+        if (isset($unicos[$key])) continue;
+        $unicos[$key] = $item;
+        if (count($unicos) >= $limite) break;
+    }
+    return array_values($unicos);
+}
+
 $flashes = stridebr_take_flashes();
 $firstModalidade = $catalogo[0]['idmodalidade'] ?? '';
 $firstModelo = $catalogo[0]['modelos'][0]['idmodelo'] ?? '';
@@ -97,12 +141,10 @@ $firstModelo = $catalogo[0]['modelos'][0]['idmodelo'] ?? '';
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/png" href="/assets/img/favicon/favicon.png">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.0/css/line.css">
-    <link rel="stylesheet" href="/assets/css/style.css">
-    <link rel="stylesheet" href="/assets/css/atividades.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <link rel="icon" type="image/png" href="<?php echo stridebr_e(stridebr_asset('/assets/img/favicon/favicon.png')); ?>">
+    <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/style.css')); ?>">
+    <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/atividades.css')); ?>">
     <title>Suas Atividades | StrideBR</title>
 </head>
 <body>
@@ -255,63 +297,17 @@ $firstModelo = $catalogo[0]['modelos'][0]['idmodelo'] ?? '';
                                 $detalhes = $registro['detalhes'] ?? [];
                                 $campos = $detalhes['campos'] ?? [];
                                 $camposPorId = [];
-                                foreach ($campos as $campo) {
-                                    $camposPorId[$campo['idcampo']] = $campo;
-                                }
+                                foreach ($campos as $campo) $camposPorId[$campo['idcampo']] = $campo;
+                                $metricasPrincipais = atividadeCardMetricas($detalhes);
                                 ?>
-
-                                <?php if (!empty($detalhes['record_values'])): ?>
-                                    <div class="activity-card-stats">
-                                        <?php foreach ($detalhes['record_values'] as $idCampo => $valor): ?>
-                                            <?php
-                                            $campo = $camposPorId[$idCampo] ?? null;
-                                            if ($campo === null) {
-                                                continue;
-                                            }
-                                            $valorExibicao = atividadeCardFormatarValor($campo, $valor);
-                                            if ($valorExibicao === '') {
-                                                continue;
-                                            }
-                                            ?>
-                                            <div class="activity-card-stat">
-                                                <span><?php echo stridebr_e($campo['rotulo']); ?></span>
-                                                <strong><?php echo stridebr_e($valorExibicao); ?></strong>
-                                            </div>
+                                <?php if ($metricasPrincipais !== []): ?>
+                                    <div class="activity-card-primary-stats">
+                                        <?php foreach ($metricasPrincipais as $metrica): ?>
+                                            <div><strong><?php echo stridebr_e($metrica['valor']); ?></strong><span><?php echo stridebr_e($metrica['rotulo']); ?></span></div>
                                         <?php endforeach; ?>
                                     </div>
                                 <?php endif; ?>
-
-                                <?php foreach ($detalhes['unidades'] ?? [] as $indice => $unidade): ?>
-                                    <?php if (!empty($unidade['values'])): ?>
-                                        <div class="activity-card-unit">
-                                            <?php if ((int) $registro['total_unidades'] > 1 || !empty($unidade['rotulo'])): ?>
-                                                <span class="activity-card-unit-title"><?php echo stridebr_e($unidade['rotulo'] ?: (($detalhes['rotulo_unidade'] ?? 'Unidade') . ' ' . ($indice + 1))); ?></span>
-                                            <?php endif; ?>
-                                            <div class="activity-card-stats">
-                                                <?php foreach ($unidade['values'] as $idCampo => $valor): ?>
-                                                    <?php
-                                                    $campo = $camposPorId[$idCampo] ?? null;
-                                                    if ($campo === null) {
-                                                        continue;
-                                                    }
-                                                    $valorExibicao = atividadeCardFormatarValor($campo, $valor);
-                                                    if ($valorExibicao === '') {
-                                                        continue;
-                                                    }
-                                                    ?>
-                                                    <div class="activity-card-stat">
-                                                        <span><?php echo stridebr_e($campo['rotulo']); ?></span>
-                                                        <strong><?php echo stridebr_e($valorExibicao); ?></strong>
-                                                    </div>
-                                                <?php endforeach; ?>
-                                            </div>
-                                        </div>
-                                    <?php endif; ?>
-                                <?php endforeach; ?>
-
-                                <?php if (!empty($registro['observacoes'])): ?>
-                                    <p class="activity-card-notes"><?php echo nl2br(stridebr_e($registro['observacoes'])); ?></p>
-                                <?php endif; ?>
+                                <button type="button" class="activity-card-details-button" data-open-activity-detail="<?php echo stridebr_e($registro['idregistro']); ?>">Ver detalhes</button>
 
                                 <div class="activity-card-actions">
                                     <a class="btn btn-sm btn-outline-primary" href="/user/editatividade.php?id=<?php echo rawurlencode($registro['idregistro']); ?>">Editar</a>
@@ -322,6 +318,16 @@ $firstModelo = $catalogo[0]['modelos'][0]['idmodelo'] ?? '';
                                     </form>
                                 </div>
                             </article>
+                            <div class="activity-detail-modal" data-activity-detail="<?php echo stridebr_e($registro['idregistro']); ?>" hidden>
+                                <button type="button" class="activity-detail-backdrop" data-close-activity-detail aria-label="Fechar"></button>
+                                <section class="activity-detail-panel" role="dialog" aria-modal="true">
+                                    <header><div><span><?php echo stridebr_e($registro['modalidade_nome']); ?></span><h2><?php echo stridebr_e($registro['titulo'] ?: $registro['modalidade_nome']); ?></h2><p><?php echo stridebr_e((new DateTimeImmutable($registro['data_inicio']))->format('d/m/Y H:i')); ?></p></div><button type="button" data-close-activity-detail aria-label="Fechar">×</button></header>
+                                    <?php if (!empty($detalhes['record_values'])): ?><div class="activity-detail-section"><h3>Atividade</h3><div class="activity-detail-stats"><?php foreach ($detalhes['record_values'] as $idCampo => $valor): ?><?php $campo = $camposPorId[$idCampo] ?? null; $valorExibicao = $campo ? atividadeCardFormatarValor($campo, $valor) : ''; if (!$campo || $valorExibicao === '') continue; ?><div><span><?php echo stridebr_e($campo['rotulo']); ?></span><strong><?php echo stridebr_e($valorExibicao); ?></strong></div><?php endforeach; ?></div></div><?php endif; ?>
+                                    <?php foreach ($detalhes['unidades'] ?? [] as $indice => $unidade): ?><?php if (!empty($unidade['values'])): ?><div class="activity-detail-section"><h3><?php echo stridebr_e($unidade['rotulo'] ?: (($detalhes['rotulo_unidade'] ?? 'Unidade') . ' ' . ($indice + 1))); ?></h3><div class="activity-detail-stats"><?php foreach ($unidade['values'] as $idCampo => $valor): ?><?php $campo = $camposPorId[$idCampo] ?? null; $valorExibicao = $campo ? atividadeCardFormatarValor($campo, $valor) : ''; if (!$campo || $valorExibicao === '') continue; ?><div><span><?php echo stridebr_e($campo['rotulo']); ?></span><strong><?php echo stridebr_e($valorExibicao); ?></strong></div><?php endforeach; ?></div></div><?php endif; ?><?php endforeach; ?>
+                                    <?php if (!empty($registro['observacoes'])): ?><div class="activity-detail-section"><h3>Observações</h3><p><?php echo nl2br(stridebr_e($registro['observacoes'])); ?></p></div><?php endif; ?>
+                                    <footer><a class="btn btn-outline-primary" href="/user/editatividade.php?id=<?php echo rawurlencode($registro['idregistro']); ?>">Editar atividade</a></footer>
+                                </section>
+                            </div>
                         <?php endforeach; ?>
                     </div>
                 <?php endif; ?>
@@ -329,6 +335,6 @@ $firstModelo = $catalogo[0]['modelos'][0]['idmodelo'] ?? '';
         </main>
     </div>
     <?php require dirname(__DIR__, 2) . '/src/layout/footer.php'; ?>
-    <script src="/assets/js/atividades.js"></script>
+    <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/atividades.js')); ?>"></script>
 </body>
 </html>

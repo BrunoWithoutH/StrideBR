@@ -46,6 +46,8 @@ function cronogramaCriar(PDO $pdo, string $idUsuario, string $nome, ?string $des
         ':nome' => $nome,
         ':descricao' => $descricao !== null && trim($descricao) !== '' ? trim($descricao) : null,
     ]);
+    $member = $pdo->prepare("INSERT INTO cronograma_membros (idcronograma, idusuario, papel) VALUES (:cronograma, :usuario, 'owner') ON CONFLICT (idcronograma, idusuario) DO NOTHING");
+    $member->execute([':cronograma' => $id, ':usuario' => $idUsuario]);
     return $id;
 }
 
@@ -165,7 +167,7 @@ function cronogramaDuracaoMinutos(array $treino): int
 function cronogramaListarExerciciosBiblioteca(PDO $pdo, string $idUsuario): array
 {
     $stmt = $pdo->prepare(
-        "SELECT e.idexercicio, e.nome, e.descricao, e.idusuario,
+        "SELECT e.idexercicio, e.nome, e.descricao, e.idusuario, e.imagem_url, e.video_url,
                 COALESCE(string_agg(DISTINCT c.nome, ', ' ORDER BY c.nome), '') AS categorias,
                 COALESCE(string_agg(DISTINCT m.nome, ', ' ORDER BY m.nome), '') AS modalidades
          FROM exercicios e
@@ -218,10 +220,26 @@ function cronogramaCriarCategoria(PDO $pdo, string $idUsuario, string $nome): st
     return $id;
 }
 
-function cronogramaCriarExercicio(PDO $pdo, string $idUsuario, string $nome, ?string $descricao = null, array $categorias = []): string
+function cronogramaNormalizarUrlMidia(?string $url): ?string
+{
+    $url = trim((string) $url);
+    if ($url === '') return null;
+    if (strlen($url) > 2000 || filter_var($url, FILTER_VALIDATE_URL) === false) {
+        throw new InvalidArgumentException('Informe uma URL de mídia válida.');
+    }
+    $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+    if (!in_array($scheme, ['http', 'https'], true)) {
+        throw new InvalidArgumentException('A URL de mídia precisa usar http ou https.');
+    }
+    return $url;
+}
+
+function cronogramaCriarExercicio(PDO $pdo, string $idUsuario, string $nome, ?string $descricao = null, array $categorias = [], ?string $imagemUrl = null, ?string $videoUrl = null): string
 {
     $nome = trim($nome);
     $slug = stridebr_slug($nome);
+    $imagemUrl = cronogramaNormalizarUrlMidia($imagemUrl);
+    $videoUrl = cronogramaNormalizarUrlMidia($videoUrl);
     if ($nome === '' || stridebr_length($nome) > 120 || $slug === '') {
         throw new InvalidArgumentException('Informe um nome válido para o exercício.');
     }
@@ -230,9 +248,11 @@ function cronogramaCriarExercicio(PDO $pdo, string $idUsuario, string $nome, ?st
     $existing = $stmt->fetch();
     if ($existing) {
         if (!stridebr_db_bool($existing['ativo'])) {
-            $pdo->prepare('UPDATE exercicios SET ativo = TRUE, nome = :nome, descricao = :descricao, data_atualizacao = NOW() WHERE idexercicio = :id AND idusuario = :usuario')->execute([
+            $pdo->prepare('UPDATE exercicios SET ativo = TRUE, nome = :nome, descricao = :descricao, imagem_url = :imagem, video_url = :video, data_atualizacao = NOW() WHERE idexercicio = :id AND idusuario = :usuario')->execute([
                 ':nome' => $nome,
                 ':descricao' => $descricao !== null && trim($descricao) !== '' ? trim($descricao) : null,
+                ':imagem' => $imagemUrl,
+                ':video' => $videoUrl,
                 ':id' => $existing['idexercicio'],
                 ':usuario' => $idUsuario,
             ]);
@@ -241,14 +261,20 @@ function cronogramaCriarExercicio(PDO $pdo, string $idUsuario, string $nome, ?st
     }
 
     $id = cronogramaGerarId();
-    $pdo->beginTransaction();
+    $ownsTransaction = !$pdo->inTransaction();
+    if ($ownsTransaction) {
+        $pdo->beginTransaction();
+    }
+
     try {
-        $pdo->prepare('INSERT INTO exercicios (idexercicio, idusuario, nome, slug, descricao) VALUES (:id, :usuario, :nome, :slug, :descricao)')->execute([
+        $pdo->prepare('INSERT INTO exercicios (idexercicio, idusuario, nome, slug, descricao, imagem_url, video_url) VALUES (:id, :usuario, :nome, :slug, :descricao, :imagem, :video)')->execute([
             ':id' => $id,
             ':usuario' => $idUsuario,
             ':nome' => $nome,
             ':slug' => $slug,
             ':descricao' => $descricao !== null && trim($descricao) !== '' ? trim($descricao) : null,
+            ':imagem' => $imagemUrl,
+            ':video' => $videoUrl,
         ]);
         $catStmt = $pdo->prepare('SELECT idcategoria FROM categorias_exercicio WHERE idcategoria = :categoria AND (idusuario IS NULL OR idusuario = :usuario)');
         $insertCat = $pdo->prepare('INSERT INTO exercicios_categorias (idexercicio, idcategoria) VALUES (:exercicio, :categoria) ON CONFLICT DO NOTHING');
@@ -258,10 +284,14 @@ function cronogramaCriarExercicio(PDO $pdo, string $idUsuario, string $nome, ?st
                 $insertCat->execute([':exercicio' => $id, ':categoria' => $categoria]);
             }
         }
-        $pdo->commit();
+        if ($ownsTransaction) {
+            $pdo->commit();
+        }
         return $id;
     } catch (Throwable $e) {
-        if ($pdo->inTransaction()) $pdo->rollBack();
+        if ($ownsTransaction && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         throw $e;
     }
 }
@@ -313,7 +343,11 @@ function cronogramaSalvarExercicios(PDO $pdo, string $idTreino, string $idUsuari
     $bibliotecaIds = array_column($biblioteca, null, 'idexercicio');
     $extraById = array_column($camposExtras, null, 'idcampo');
 
-    $pdo->beginTransaction();
+    $ownsTransaction = !$pdo->inTransaction();
+    if ($ownsTransaction) {
+        $pdo->beginTransaction();
+    }
+
     try {
         $pdo->prepare('UPDATE treinos_exercicios SET ordem = ordem + 1000000 WHERE idtreino = :treino')->execute([':treino' => $idTreino]);
         $seen = [];
@@ -425,9 +459,13 @@ function cronogramaSalvarExercicios(PDO $pdo, string $idTreino, string $idUsuari
                 $pdo->prepare('DELETE FROM treinos_exercicios WHERE idtreino_exercicio = :id AND idtreino = :treino')->execute([':id' => $id, ':treino' => $idTreino]);
             }
         }
-        $pdo->commit();
+        if ($ownsTransaction) {
+            $pdo->commit();
+        }
     } catch (Throwable $e) {
-        if ($pdo->inTransaction()) $pdo->rollBack();
+        if ($ownsTransaction && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         throw $e;
     }
 }
@@ -611,16 +649,16 @@ function cronogramaAssociarExercicio(PDO $pdo, string $idExercicio, string $idUs
     }
 }
 
-function cronogramaCriarExercicioCompleto(PDO $pdo, string $idUsuario, string $nome, ?string $descricao, array $categorias, array $modalidades): string
+function cronogramaCriarExercicioCompleto(PDO $pdo, string $idUsuario, string $nome, ?string $descricao, array $categorias, array $modalidades, ?string $imagemUrl = null, ?string $videoUrl = null): string
 {
-    $id = cronogramaCriarExercicio($pdo, $idUsuario, $nome, $descricao, []);
+    $id = cronogramaCriarExercicio($pdo, $idUsuario, $nome, $descricao, [], $imagemUrl, $videoUrl);
     cronogramaAssociarExercicio($pdo, $id, $idUsuario, $categorias, $modalidades);
     return $id;
 }
 
 function cronogramaDuplicarExercicioSistema(PDO $pdo, string $idUsuario, string $idExercicio): string
 {
-    $stmt = $pdo->prepare('SELECT idexercicio, nome, slug, descricao FROM exercicios WHERE idexercicio = :id AND idusuario IS NULL AND ativo = TRUE LIMIT 1');
+    $stmt = $pdo->prepare('SELECT idexercicio, nome, slug, descricao, imagem_url, video_url FROM exercicios WHERE idexercicio = :id AND idusuario IS NULL AND ativo = TRUE LIMIT 1');
     $stmt->execute([':id' => $idExercicio]);
     $source = $stmt->fetch();
     if (!$source) {
@@ -651,7 +689,9 @@ function cronogramaDuplicarExercicioSistema(PDO $pdo, string $idUsuario, string 
         $name,
         $source['descricao'],
         array_column($categories->fetchAll(), 'idcategoria'),
-        array_column($modalities->fetchAll(), 'idmodalidade')
+        array_column($modalities->fetchAll(), 'idmodalidade'),
+        $source['imagem_url'] ?? null,
+        $source['video_url'] ?? null
     );
 }
 
@@ -663,10 +703,12 @@ function cronogramaDesativarExercicioPessoal(PDO $pdo, string $idUsuario, string
 }
 
 
-function cronogramaAtualizarExercicioPessoal(PDO $pdo, string $idUsuario, string $idExercicio, string $nome, ?string $descricao, array $categorias, array $modalidades): bool
+function cronogramaAtualizarExercicioPessoal(PDO $pdo, string $idUsuario, string $idExercicio, string $nome, ?string $descricao, array $categorias, array $modalidades, ?string $imagemUrl = null, ?string $videoUrl = null): bool
 {
     $nome = trim($nome);
     $slug = stridebr_slug($nome);
+    $imagemUrl = cronogramaNormalizarUrlMidia($imagemUrl);
+    $videoUrl = cronogramaNormalizarUrlMidia($videoUrl);
     if ($nome === '' || stridebr_length($nome) > 120 || $slug === '') {
         throw new InvalidArgumentException('Informe um nome válido para o exercício.');
     }
@@ -677,11 +719,13 @@ function cronogramaAtualizarExercicioPessoal(PDO $pdo, string $idUsuario, string
         throw new InvalidArgumentException('Já existe outro exercício pessoal com esse nome.');
     }
 
-    $stmt = $pdo->prepare('UPDATE exercicios SET nome = :nome, slug = :slug, descricao = :descricao, data_atualizacao = NOW() WHERE idexercicio = :id AND idusuario = :usuario');
+    $stmt = $pdo->prepare('UPDATE exercicios SET nome = :nome, slug = :slug, descricao = :descricao, imagem_url = :imagem, video_url = :video, data_atualizacao = NOW() WHERE idexercicio = :id AND idusuario = :usuario');
     $stmt->execute([
         ':nome' => $nome,
         ':slug' => $slug,
         ':descricao' => $descricao !== null && trim($descricao) !== '' ? trim($descricao) : null,
+        ':imagem' => $imagemUrl,
+        ':video' => $videoUrl,
         ':id' => $idExercicio,
         ':usuario' => $idUsuario,
     ]);

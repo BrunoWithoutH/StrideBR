@@ -1,5 +1,20 @@
 <?php
-$pageTitle = 'Privacidade';
-$pageDescription = 'Resumo provisório do tratamento de dados na versão atual.';
-$pageHtml = '<p>O sistema armazena dados necessários para conta, perfil, cronogramas, exercícios e atividades. Senhas são armazenadas como hash, não como texto simples.</p><h2>Visibilidade</h2><p>A estrutura já prevê níveis privado, amigos e público, mas recursos sociais ainda não estão implementados. O padrão das áreas pessoais é privado.</p><h2>Infraestrutura</h2><p>Credenciais do banco devem ser fornecidas por variáveis de ambiente e não fazem parte do código-fonte.</p>';
-require dirname(__DIR__, 3) . '/src/layout/static_page.php';
+
+declare(strict_types=1);
+require_once dirname(__DIR__,3).'/src/includes/app.php';
+$pageTitle='Política de Privacidade';
+$pageDescription='Versão '.stridebr_privacy_version().' · alpha fechada';
+$pageHtml='<p class="legal-lead"><strong>Última atualização: 15 de agosto de 2026.</strong> Esta política explica quais dados o StrideBR trata, para quais finalidades e quais controles estão sendo preparados para a fase alpha.</p>
+<h2>1. Dados tratados</h2><ul><li>Conta: nome, nome de exibição, e-mail, senha armazenada como hash e identificadores internos.</li><li>Perfil: username, foto por URL, bio, esportes e preferências que você decidir informar.</li><li>Treino: cronogramas, exercícios, séries, registros de atividade, duração, distância e outros campos escolhidos pelo usuário.</li><li>Social: solicitações de amizade e compartilhamentos.</li><li>Segurança e operação: data de cadastro/login, IP e user-agent quando o registro de acessos estiver ativado.</li><li>Feedback: texto enviado, categoria e página/contexto. Se você escolher o envio anônimo, o feedback não é vinculado à sua conta e o StrideBR não grava IP nem user-agent nesse envio.</li></ul>
+<h2>2. Finalidades</h2><p>Os dados são usados para autenticar contas, manter preferências, entregar as funções de treino, permitir compartilhamentos escolhidos pelo usuário, prevenir abuso, investigar erros e administrar a alpha.</p>
+<h2>3. Dados de treino e campos livres</h2><p>Registros de atividade podem revelar informações relacionadas à condição física. Evite inserir diagnósticos, documentos, informações médicas desnecessárias ou dados de terceiros em campos de observação. O StrideBR não precisa dessas informações para funcionar.</p>
+<h2>4. Privacidade por padrão</h2><p>Perfis e cronogramas possuem níveis de visibilidade como privado, amigos e público. A disponibilização pública depende das configurações e das feature flags do serviço. O foco social do StrideBR é compartilhamento entre amigos, não um feed público amplo.</p>
+<h2>5. Senhas e tokens</h2><p>Senhas são armazenadas usando funções de hash próprias para senhas. Quando ativados, verificação de e-mail e recuperação de senha usam tokens aleatórios, com expiração e uso único; o token original não é salvo no banco.</p>
+<h2>6. Logs de acesso</h2><p>Quando o recurso de logs estiver ativado, o StrideBR pode registrar IP, horário e user-agent para segurança e métricas operacionais. O painel administrativo limita a visualização desses dados a papéis autorizados e o projeto prevê retenção curta para esses registros.</p>
+<h2>7. Compartilhamento</h2><p>Dados não são vendidos a anunciantes. Informações são compartilhadas com outros usuários apenas quando a funcionalidade e a configuração escolhida exigirem isso, como amizade, perfil público ou envio de cronograma. A hospedagem e provedores técnicos podem processar dados necessários para operar o serviço.</p>
+<h2>8. Crianças e adolescentes</h2><p>O projeto considera o melhor interesse de usuários menores de idade no desenho de privacidade e segurança. Recursos públicos devem ser ativados com cautela e a coleta de dados deve se limitar ao necessário para as funções oferecidas.</p>
+<h2>9. Seus controles</h2><p>Você pode editar dados do perfil e configurações disponíveis no aplicativo. Solicitações de acesso, correção ou exclusão que ainda não tenham fluxo automático podem ser feitas pelo suporte. Administradores possuem ferramentas para bloquear ou excluir contas quando necessário.</p>
+<h2>10. Retenção e exclusão</h2><p>Dados são mantidos enquanto necessários para a conta, segurança e funcionamento do serviço. Logs técnicos podem possuir prazos próprios de retenção. A exclusão de conta remove dados associados conforme as relações e regras do banco, ressalvadas obrigações legais aplicáveis.</p>
+<h2>11. Mudanças</h2><p>A versão aceita da Política é registrada no cadastro. Mudanças relevantes podem resultar em novo aviso ou novo aceite.</p>
+<h2>12. Contato</h2><p>Durante a alpha, use as páginas de suporte e contato do StrideBR para solicitações relacionadas a privacidade.</p>';
+require dirname(__DIR__,3).'/src/layout/static_page.php';

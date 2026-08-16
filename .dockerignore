@@ -6,3 +6,6 @@
 node_modules
 vendor
 *.log
+
+stridebr.sql
+*.dump

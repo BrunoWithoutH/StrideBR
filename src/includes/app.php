@@ -153,3 +153,143 @@ function stridebr_slug(string $value): string
 }
 
 stridebr_start_session();
+
+function stridebr_display_name(): string
+{
+    $name = trim((string) ($_SESSION['NomeExibicao'] ?? $_SESSION['NomeUsuario'] ?? ''));
+    return $name !== '' ? $name : 'Usuário';
+}
+
+function stridebr_username_is_valid(string $username): bool
+{
+    return preg_match('/^[a-z0-9][a-z0-9._-]{2,39}$/', $username) === 1;
+}
+
+function stridebr_user_role(): string
+{
+    $role = (string) ($_SESSION['PapelUsuario'] ?? 'user');
+    return in_array($role, ['user', 'moderator', 'admin', 'owner'], true) ? $role : 'user';
+}
+
+function stridebr_role_rank(string $role): int
+{
+    return match ($role) {
+        'owner' => 40,
+        'admin' => 30,
+        'moderator' => 20,
+        default => 10,
+    };
+}
+
+function stridebr_has_role(string $minimumRole): bool
+{
+    return stridebr_role_rank(stridebr_user_role()) >= stridebr_role_rank($minimumRole);
+}
+
+function stridebr_require_role(string $minimumRole): void
+{
+    stridebr_require_login();
+    if (!stridebr_has_role($minimumRole)) {
+        http_response_code(403);
+        exit('Você não tem permissão para acessar esta área.');
+    }
+}
+
+function stridebr_generate_id(int $length = 21): string
+{
+    $bytes = random_bytes((int) ceil($length * 3 / 4) + 2);
+    return substr(rtrim(strtr(base64_encode($bytes), '+/', '-_'), '='), 0, $length);
+}
+
+function stridebr_request_ip(): ?string
+{
+    return stridebr_client_ip();
+}
+
+function stridebr_feature_enabled(PDO $pdo, string $key, bool $default = false): bool
+{
+    static $cache = [];
+    if (array_key_exists($key, $cache)) {
+        return $cache[$key];
+    }
+    try {
+        $stmt = $pdo->prepare('SELECT ativo FROM feature_flags WHERE chave = :chave LIMIT 1');
+        $stmt->execute([':chave' => $key]);
+        $value = $stmt->fetchColumn();
+        $cache[$key] = $value === false ? $default : stridebr_db_bool($value);
+    } catch (Throwable) {
+        $cache[$key] = $default;
+    }
+    return $cache[$key];
+}
+
+
+function stridebr_terms_version(): string
+{
+    return trim((string) (getenv('STRIDEBR_TERMS_VERSION') ?: '2026-08-15-alpha-1'));
+}
+
+function stridebr_privacy_version(): string
+{
+    return trim((string) (getenv('STRIDEBR_PRIVACY_VERSION') ?: '2026-08-15-alpha-1'));
+}
+
+function stridebr_app_url(): string
+{
+    $configured = rtrim(trim((string) (getenv('STRIDEBR_APP_URL') ?: '')), '/');
+    if ($configured !== '' && filter_var($configured, FILTER_VALIDATE_URL)) {
+        $scheme = stridebr_lower((string) parse_url($configured, PHP_URL_SCHEME));
+        if (in_array($scheme, ['http', 'https'], true)) {
+            return $configured;
+        }
+    }
+
+    $host = (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
+    if (!preg_match('/^[a-z0-9.-]+(?::\d{1,5})?$/i', $host)) {
+        $host = 'localhost';
+    }
+    $secure = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+    return ($secure ? 'https://' : 'http://') . $host;
+}
+
+function stridebr_destroy_session(): void
+{
+    $_SESSION = [];
+    if (ini_get('session.use_cookies')) {
+        $params = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'] ?? '', (bool) $params['secure'], (bool) $params['httponly']);
+    }
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_destroy();
+    }
+}
+
+function stridebr_rate_limit(string $key, int $maxAttempts, int $windowSeconds): bool
+{
+    $now = time();
+    $bucket = $_SESSION['rate_limits'][$key] ?? ['count' => 0, 'started' => $now];
+    if (!is_array($bucket)) {
+        $bucket = ['count' => 0, 'started' => $now];
+    }
+    $started = (int) ($bucket['started'] ?? $now);
+    if ($now - $started >= $windowSeconds) {
+        $bucket = ['count' => 0, 'started' => $now];
+    }
+    if ((int) ($bucket['count'] ?? 0) >= $maxAttempts) {
+        $_SESSION['rate_limits'][$key] = $bucket;
+        return false;
+    }
+    $bucket['count'] = (int) ($bucket['count'] ?? 0) + 1;
+    $_SESSION['rate_limits'][$key] = $bucket;
+    return true;
+}
+
+function stridebr_asset(string $path): string
+{
+    $path = '/' . ltrim($path, '/');
+    $fullPath = dirname(__DIR__, 2) . '/public' . $path;
+    if (!is_file($fullPath)) {
+        return $path;
+    }
+    return $path . '?v=' . filemtime($fullPath);
+}
