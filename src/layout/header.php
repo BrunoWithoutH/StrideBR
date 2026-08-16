@@ -17,10 +17,10 @@ $headerPhoto = $headerPhoto !== '' ? $headerPhoto : '/assets/img/ui/userdefault.
 <header class="site-header">
     <div class="header-inner">
         <a class="brand-link" href="<?php echo $headerLoggedIn ? '/home.php' : '/index.php'; ?>" aria-label="StrideBR">
-            <img src="/assets/img/logos/stridebr-logo-white.svg" alt="StrideBR" class="nav-logo" width="87" height="34" decoding="async">
+            <img src="<?php echo stridebr_e(stridebr_asset('/assets/img/logos/stridebr-logo-white.svg')); ?>" alt="StrideBR" class="nav-logo" width="87" height="34" decoding="async">
         </a>
         <button class="nav-toggle" type="button" data-nav-toggle aria-expanded="false" aria-label="Abrir navegação">☰</button>
-        <nav class="main-nav" data-nav-menu>
+        <nav class="main-nav" data-nav-menu aria-label="Navegação principal">
             <a href="/home.php">Início</a>
             <a href="/user/cronogramatreinos.php">Cronogramas</a>
             <a href="/user/atividades.php">Atividades</a>
@@ -31,9 +31,12 @@ $headerPhoto = $headerPhoto !== '' ? $headerPhoto : '/assets/img/ui/userdefault.
         <div class="usersection">
             <?php if ($headerLoggedIn): ?>
                 <details class="user-menu">
-                    <summary><img class="userimage" src="<?php echo stridebr_e($headerPhoto); ?>" alt="Perfil"></summary>
+                    <summary aria-label="Abrir menu do perfil"><img class="userimage" src="<?php echo stridebr_e($headerPhoto); ?>" alt="Perfil"></summary>
                     <div class="user-menu-content">
+                        <?php if (!empty($_SESSION['Username'])): ?><a href="/u/<?php echo rawurlencode((string) $_SESSION['Username']); ?>">Meu perfil</a><?php endif; ?>
+                        <a href="/user/amigos.php">Amigos</a>
                         <a href="/user/settings.php">Configurações</a>
+                        <?php if (stridebr_has_role('moderator')): ?><a href="/admin/index.php">Administração</a><?php endif; ?>
                         <form method="POST" action="/function/logout.php">
                             <?php echo stridebr_csrf_field(); ?>
                             <button type="submit">Sair</button>

@@ -1,246 +1,177 @@
-header {
-    position: relative;
-    top: 10px;
+.auth-layout {
+    width: min(100% - 28px, 560px);
+    margin: 0 auto;
+    padding: 24px 0 56px;
+}
+
+.auth-layout header,
+.container-fluid > header {
+    padding: 8px 0 18px;
     text-align: center;
-    .logo {
-        fill: #000;
-        position: relative;
-        height: 50px;
-        width: auto;
-        top: 5px;
-        margin-bottom: 10px;
-    }
 }
 
-.container-fluid{
-    position: relative;
+.auth-layout header .logo,
+.container-fluid > header .logo {
+    display: block;
+    width: 116px;
+    height: auto;
+    margin: 0 auto 10px;
 }
 
-.container-fluid .form{
-    margin: 16px;
-    position: relative;
-    left: 50%;
-    transform: translate(-50%);
-    max-width: 500px;
-    padding: 30px;
-    background-color: #fdfdfd;
-    border: 1px #ccc solid;
-    border-radius: 10px;
-    box-shadow: 0px 5px 8px 0px rgba(0,0,0,0.2);
-}
-
-.container-fluid .form .title{
-    position: relative;
-    font-size: 27px;
+.auth-layout header h2,
+.container-fluid > header h2 {
+    margin: 0;
+    color: #475467;
+    font-size: 1rem;
     font-weight: 600;
 }
 
-.form .input-field{
-    position: relative;
-    height: 50px;
-    max-width: 430px;
-    margin-top: 30px;
+.container-fluid .forms {
+    width: min(100% - 28px, 560px);
+    margin: 0 auto;
 }
 
-.input-field input{
-    position: absolute;
-    height: 100%;
+.container-fluid .form {
     width: 100%;
-    padding: 0 35px;
-    border: none;
-    outline: none;
-    font-size: 16px;
-    border-bottom: 2px solid #ccc;
-    border-top: 2px solid transparent;
-    transition: all 0.2s ease;
+    margin: 0 auto;
+    padding: 28px;
+    border: 1px solid #d0d5dd;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 12px 34px rgba(15, 23, 42, .09);
 }
 
-.input-field input:is(:focus, :valid){
-    border-bottom-color: #7380a3;
+.container-fluid .form .title {
+    display: block;
+    margin-bottom: 8px;
+    color: #1f2937;
+    font-size: 1.65rem;
+    font-weight: 750;
 }
 
-.input-field i{
+.form .input-field {
+    position: relative;
+    width: 100%;
+    margin-top: 18px;
+}
+
+.form .input-field input:not([type="checkbox"]) {
+    width: 100%;
+    min-height: 48px;
+    padding: 11px 12px;
+    border: 1px solid #d0d5dd;
+    border-radius: 10px;
+    outline: 0;
+    background: #fff;
+    color: #1f2937;
+    font: inherit;
+    font-size: 1rem;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.form .input-field input.password {
+    padding-right: 86px;
+}
+
+.form .input-field input:focus {
+    border-color: #7380a3;
+    box-shadow: 0 0 0 3px rgba(115, 128, 163, .15);
+}
+
+.showHidePw {
     position: absolute;
+    right: 7px;
     top: 50%;
     transform: translateY(-50%);
-    color: #999;
-    font-size: 23px;
-    transition: all 0.2s ease;
-}
-
-.input-field input:focus,
-.input-field input:valid {
-    border-bottom-color: #7380a3;
-}
-
-.input-field i.icon{
-    left: 0;
-}
-
-.input-field i.showHidePw{
-    right: 0;
+    min-height: 34px;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: 7px;
+    background: #f2f4f7;
+    color: #475467;
+    font: inherit;
+    font-size: .78rem;
+    font-weight: 700;
     cursor: pointer;
-    padding: 10px;
 }
 
-.form .checkbox-text{
+.form .checkbox-text {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-top: 20px;
+    gap: 12px;
+    margin-top: 18px;
 }
 
-.checkbox-text .checkbox-content{
+.checkbox-text .checkbox-content {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
+    gap: 8px;
 }
 
-.checkbox-content input{
-    margin-right: 10px;
+.checkbox-content input {
+    margin-top: 2px;
     accent-color: #7380a3;
 }
 
-.form .text{
-    color: #333;
-    font-size: 14px;
+.form .text {
+    color: #475467;
+    font-size: .86rem;
 }
 
-.form a.text{
-    color: #7380a3;
+.form a {
+    color: #40507c;
     text-decoration: none;
 }
 
-.form a:hover{
+.form a:hover {
     text-decoration: underline;
 }
 
-.form .button{
-    margin-top: 35px;
+.form .button {
+    margin-top: 24px;
 }
 
-.form .button input{
-    border: none;
-    color: #fff;
-    font-size: 17px;
-    font-weight: 500;
-    letter-spacing: 1px;
-    border-radius: 6px;
-    background-color: #7380a3;
+.form .button input {
+    border: 0 !important;
+    background: #40507c !important;
+    color: #fff !important;
+    font-weight: 750 !important;
     cursor: pointer;
-    transition: all 0.3s ease;
 }
 
 .form .button input:hover {
-    background-color: #40507c;
+    background: #334266 !important;
 }
 
-.form .login-signup{
-    margin-top: 30px;
+.form .login-signup {
+    margin-top: 20px;
     text-align: center;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 520px) {
+    .auth-layout,
+    .container-fluid .forms {
+        width: min(100% - 20px, 560px);
+    }
+
+    .auth-layout {
+        padding-top: 12px;
+    }
+
     .container-fluid .form {
-        margin: 16px;
-        max-width: calc(100% - 32px);
-        padding: 20px;
+        padding: 20px 16px;
+        border-radius: 14px;
     }
 
     .container-fluid .form .title {
-        font-size: 22px;
+        font-size: 1.4rem;
     }
 
-    .form .input-field {
-        height: 45px;
-        max-width: 100%;
-        margin-top: 20px;
-    }
-
-    .input-field input {
-        padding: 0 30px;
+    .form .input-field input:not([type="checkbox"]) {
+        min-height: 46px;
         font-size: 16px;
     }
-
-    .input-field i {
-        font-size: 20px;
-    }
-
-    .form .text {
-        font-size: 12px;
-    }
-
-    .form .button input {
-        font-size: 15px;
-    }
-
-    .form .checkbox-text {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 10px;
-    }
 }
-
-@media (max-width: 375px) {
-    header .logo {
-        height: 40px;
-    }
-
-    .container-fluid .form {
-        margin: 12px;
-        max-width: calc(100% - 24px);
-        padding: 16px;
-        border-radius: 8px;
-        box-shadow: 0px 3px 6px 0px rgba(0,0,0,0.15);
-    }
-
-    .container-fluid .form .title {
-        font-size: 18px;
-        margin-bottom: 16px;
-    }
-
-    .form .input-field {
-        height: 40px;
-        max-width: 100%;
-        margin-top: 16px;
-    }
-
-    .input-field input {
-        padding: 0 28px;
-        font-size: 14px;
-        height: 40px;
-    }
-
-    .input-field i {
-        font-size: 18px;
-    }
-
-    .form .checkbox-text {
-        margin-top: 14px;
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 8px;
-    }
-
-    .checkbox-content input {
-        margin-right: 8px;
-    }
-
-    .form .text {
-        font-size: 11px;
-    }
-
-    .form .button {
-        margin-top: 24px;
-    }
-
-    .form .button input {
-        font-size: 13px;
-        padding: 10px;
-        letter-spacing: 0.5px;
-    }
-
-    .form .login-signup {
-        margin-top: 16px;
-        font-size: 11px;
-    }
-}
+.auth-inline-links { width:100%; }
+.auth-alpha-note { max-width:520px; }

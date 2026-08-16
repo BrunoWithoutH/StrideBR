@@ -11,10 +11,9 @@ stridebr_require_login();
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/png" href="/assets/img/favicon/favicon.png">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" crossorigin="anonymous">
-    <link rel="stylesheet" href="/assets/css/style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <link rel="icon" type="image/png" href="<?php echo stridebr_e(stridebr_asset('/assets/img/favicon/favicon.png')); ?>">
+    <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/style.css')); ?>">
     <title>Ferramentas de treino | StrideBR</title>
 </head>
 <body>
@@ -47,13 +46,13 @@ stridebr_require_login();
                         <button type="button" data-timer-pause disabled>Pausar</button>
                         <button type="button" data-timer-reset>Resetar</button>
                     </div>
-                    <audio src="/assets/audio/alarm1.mp3" preload="auto" data-timer-alarm></audio>
+                    <audio src="<?php echo stridebr_e(stridebr_asset('/assets/audio/alarm1.mp3')); ?>" preload="auto" data-timer-alarm></audio>
                 </section>
             </div>
         </div>
     </main>
 </div>
 <?php require dirname(__DIR__, 2) . '/src/layout/footer.php'; ?>
-<script src="/assets/js/treino.js"></script>
+<script src="<?php echo stridebr_e(stridebr_asset('/assets/js/treino.js')); ?>"></script>
 </body>
 </html>

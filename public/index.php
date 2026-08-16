@@ -14,12 +14,11 @@ if (stridebr_is_logged_in()) {
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="author" content="Bruno Evaristo Pinheiro">
-    <link rel="icon" type="image/png" href="/assets/img/favicon/favicon.png">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" crossorigin="anonymous">
-    <link rel="stylesheet" href="/assets/css/style.css">
-    <link rel="stylesheet" href="/assets/css/index.css">
+    <link rel="icon" type="image/png" href="<?php echo stridebr_e(stridebr_asset('/assets/img/favicon/favicon.png')); ?>">
+    <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/style.css')); ?>">
+    <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/index.css')); ?>">
     <title>StrideBR</title>
 </head>
 <body>
@@ -27,7 +26,7 @@ if (stridebr_is_logged_in()) {
     <?php require dirname(__DIR__) . '/src/layout/header.php'; ?>
     <main class="main-content">
         <section class="intro landing-intro">
-            <img src="/assets/img/logos/stridebr-icon-black.png" alt="" class="landing-icon">
+            <img src="<?php echo stridebr_e(stridebr_asset('/assets/img/logos/stridebr-icon.svg')); ?>" alt="" class="landing-icon" width="74" height="74" decoding="async">
             <h1>StrideBR</h1>
             <p>Uma plataforma flexível para planejar treinos e registrar atividades físicas do seu jeito.</p>
             <div class="landing-actions">

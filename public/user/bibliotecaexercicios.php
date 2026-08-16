@@ -10,6 +10,7 @@ $idUsuario = stridebr_require_login();
 require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
 require_once dirname(__DIR__, 2) . '/vendor/autoload.php';
 require_once dirname(__DIR__, 2) . '/src/function/cronograma.php';
+$mediaEnabled = stridebr_feature_enabled($pdo, 'exercise_media.enabled', false);
 $errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -26,7 +27,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 (string) ($_POST['nome'] ?? ''),
                 $_POST['descricao'] ?? null,
                 is_array($_POST['categorias'] ?? null) ? $_POST['categorias'] : [],
-                is_array($_POST['modalidades'] ?? null) ? $_POST['modalidades'] : []
+                is_array($_POST['modalidades'] ?? null) ? $_POST['modalidades'] : [],
+                $mediaEnabled ? ($_POST['imagem_url'] ?? null) : null,
+                $mediaEnabled ? ($_POST['video_url'] ?? null) : null
             );
             stridebr_flash('success', 'Exercício salvo na sua biblioteca.');
         } elseif ($action === 'duplicate_system') {
@@ -42,7 +45,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 (string) ($_POST['nome'] ?? ''),
                 $_POST['descricao'] ?? null,
                 is_array($_POST['categorias'] ?? null) ? $_POST['categorias'] : [],
-                is_array($_POST['modalidades'] ?? null) ? $_POST['modalidades'] : []
+                is_array($_POST['modalidades'] ?? null) ? $_POST['modalidades'] : [],
+                $mediaEnabled ? ($_POST['imagem_url'] ?? null) : null,
+                $mediaEnabled ? ($_POST['video_url'] ?? null) : null
             )) {
                 throw new RuntimeException('Exercício pessoal não encontrado.');
             }
@@ -89,12 +94,10 @@ $flashes = stridebr_take_flashes();
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/png" href="/assets/img/favicon/favicon.png">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.0/css/line.css">
-    <link rel="stylesheet" href="/assets/css/style.css">
-    <link rel="stylesheet" href="/assets/css/cronogramas.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <link rel="icon" type="image/png" href="<?php echo stridebr_e(stridebr_asset('/assets/img/favicon/favicon.png')); ?>">
+    <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/style.css')); ?>">
+    <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/cronogramas.css')); ?>">
     <title>Biblioteca de exercícios | StrideBR</title>
 </head>
 <body>
@@ -125,6 +128,10 @@ $flashes = stridebr_take_flashes();
                         <input type="hidden" name="action" value="create_exercise">
                         <label>Nome<input type="text" name="nome" maxlength="120" required></label>
                         <label>Descrição<textarea name="descricao" rows="3"></textarea></label>
+                        <?php if ($mediaEnabled): ?>
+                            <label>Imagem principal (URL)<input type="url" name="imagem_url" maxlength="2000" placeholder="https://..."></label>
+                            <label>Vídeo demonstrativo (URL)<input type="url" name="video_url" maxlength="2000" placeholder="https://..."></label>
+                        <?php endif; ?>
                         <fieldset>
                             <legend>Categorias</legend>
                             <div class="choice-grid">
@@ -175,6 +182,10 @@ $flashes = stridebr_take_flashes();
                                 <input type="hidden" name="idexercicio" value="<?php echo stridebr_e($item['idexercicio']); ?>">
                                 <label>Nome<input type="text" name="nome" value="<?php echo stridebr_e($item['nome']); ?>" maxlength="120" required></label>
                                 <label>Descrição<textarea name="descricao" rows="3"><?php echo stridebr_e($item['descricao'] ?? ''); ?></textarea></label>
+                                <?php if ($mediaEnabled): ?>
+                                    <label>Imagem principal (URL)<input type="url" name="imagem_url" maxlength="2000" value="<?php echo stridebr_e($item['imagem_url'] ?? ''); ?>" placeholder="https://..."></label>
+                                    <label>Vídeo demonstrativo (URL)<input type="url" name="video_url" maxlength="2000" value="<?php echo stridebr_e($item['video_url'] ?? ''); ?>" placeholder="https://..."></label>
+                                <?php endif; ?>
                                 <fieldset>
                                     <legend>Categorias</legend>
                                     <div class="choice-grid small">
@@ -194,6 +205,9 @@ $flashes = stridebr_take_flashes();
                                 <div class="form-actions"><button type="submit" class="primary-button">Salvar</button><a class="secondary-button" href="/user/bibliotecaexercicios.php">Cancelar</a></div>
                             </form>
                         <?php else: ?>
+                            <?php if ($mediaEnabled && !empty($item['imagem_url'])): ?>
+                                <div class="library-exercise-media"><img src="<?php echo stridebr_e($item['imagem_url']); ?>" alt="Demonstração de <?php echo stridebr_e($item['nome']); ?>" loading="lazy" decoding="async"></div>
+                            <?php endif; ?>
                             <div class="library-card-top">
                                 <span class="library-origin"><?php echo $isPersonal ? 'Sua biblioteca' : 'StrideBR'; ?></span>
                                 <h2><?php echo stridebr_e($item['nome']); ?></h2>
@@ -201,6 +215,7 @@ $flashes = stridebr_take_flashes();
                             <?php if (!empty($item['descricao'])): ?><p><?php echo stridebr_e($item['descricao']); ?></p><?php endif; ?>
                             <?php if (!empty($item['categorias'])): ?><div class="library-meta"><strong>Categorias:</strong> <?php echo stridebr_e($item['categorias']); ?></div><?php endif; ?>
                             <?php if (!empty($item['modalidades'])): ?><div class="library-meta"><strong>Modalidades:</strong> <?php echo stridebr_e($item['modalidades']); ?></div><?php endif; ?>
+                            <?php if ($mediaEnabled && !empty($item['video_url'])): ?><a class="exercise-video-link" href="<?php echo stridebr_e($item['video_url']); ?>" target="_blank" rel="noopener noreferrer">▶ Ver vídeo demonstrativo</a><?php endif; ?>
                             <div class="library-card-actions">
                                 <?php if ($isPersonal): ?>
                                     <a class="secondary-button" href="/user/bibliotecaexercicios.php?edit=<?php echo urlencode($item['idexercicio']); ?>">Editar</a>
@@ -227,6 +242,6 @@ $flashes = stridebr_take_flashes();
     </main>
 </div>
 <?php require dirname(__DIR__, 2) . '/src/layout/footer.php'; ?>
-<script src="/assets/js/cronogramas.js"></script>
+<script src="<?php echo stridebr_e(stridebr_asset('/assets/js/cronogramas.js')); ?>"></script>
 </body>
 </html>

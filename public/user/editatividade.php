@@ -55,12 +55,10 @@ $inicio = new DateTimeImmutable($registro['data_inicio']);
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/png" href="/assets/img/favicon/favicon.png">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.0/css/line.css">
-    <link rel="stylesheet" href="/assets/css/style.css">
-    <link rel="stylesheet" href="/assets/css/atividades.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <link rel="icon" type="image/png" href="<?php echo stridebr_e(stridebr_asset('/assets/img/favicon/favicon.png')); ?>">
+    <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/style.css')); ?>">
+    <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/atividades.css')); ?>">
     <title>Editar atividade | StrideBR</title>
 </head>
 <body>
@@ -177,6 +175,6 @@ $inicio = new DateTimeImmutable($registro['data_inicio']);
         </main>
     </div>
     <?php require dirname(__DIR__, 2) . '/src/layout/footer.php'; ?>
-    <script src="/assets/js/atividades.js"></script>
+    <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/atividades.js')); ?>"></script>
 </body>
 </html>

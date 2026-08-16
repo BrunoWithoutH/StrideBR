@@ -1,18 +1,10 @@
-document.querySelectorAll('.showHidePw').forEach((button) => {
-    const toggle = () => {
+document.querySelectorAll('.showHidePw').forEach(button => {
+    button.addEventListener('click', () => {
         const field = button.closest('.input-field')?.querySelector('.password')
         if (!field) return
         const show = field.type === 'password'
         field.type = show ? 'text' : 'password'
-        button.classList.toggle('uil-eye', show)
-        button.classList.toggle('uil-eye-slash', !show)
-    }
-
-    button.addEventListener('click', toggle)
-    button.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault()
-            toggle()
-        }
+        button.textContent = show ? 'Ocultar' : 'Mostrar'
+        button.setAttribute('aria-label', show ? 'Ocultar senha' : 'Mostrar senha')
     })
 })

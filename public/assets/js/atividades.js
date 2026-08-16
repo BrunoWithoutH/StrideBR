@@ -94,4 +94,28 @@ document.addEventListener('DOMContentLoaded', () => {
     })
 
     document.querySelectorAll('[data-units]').forEach(refreshRemoveButtons)
+
+    const closeActivityDetails = () => {
+        document.querySelectorAll('[data-activity-detail]').forEach((modal) => { modal.hidden = true })
+        document.documentElement.classList.remove('activity-detail-open')
+    }
+    document.querySelectorAll('[data-open-activity-detail]').forEach((button) => {
+        button.addEventListener('click', () => {
+            closeActivityDetails()
+            const modal = document.querySelector(`[data-activity-detail="${CSS.escape(button.dataset.openActivityDetail || '')}"]`)
+            if (!modal) return
+            modal.hidden = false
+            document.documentElement.classList.add('activity-detail-open')
+            modal.querySelector('[data-close-activity-detail]')?.focus()
+        })
+    })
+    document.querySelectorAll('[data-close-activity-detail]').forEach((button) => button.addEventListener('click', closeActivityDetails))
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeActivityDetails() })
+
+    const highlightId = new URLSearchParams(window.location.search).get('highlight')
+    if (highlightId) {
+        const highlighted = document.querySelector(`[data-open-activity-detail="${CSS.escape(highlightId)}"]`)?.closest('.activity-card')
+        highlighted?.classList.add('is-highlighted')
+        highlighted?.scrollIntoView({behavior: 'smooth', block: 'center'})
+    }
 })

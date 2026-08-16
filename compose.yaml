@@ -6,6 +6,11 @@ services:
     restart: unless-stopped
     environment:
       STRIDEBR_APP_ENV: development
+      STRIDEBR_APP_URL: ${STRIDEBR_APP_URL:-http://localhost:8080}
+      STRIDEBR_MAIL_FROM: ${STRIDEBR_MAIL_FROM:-}
+      STRIDEBR_MAIL_FROM_NAME: ${STRIDEBR_MAIL_FROM_NAME:-StrideBR}
+      STRIDEBR_TERMS_VERSION: ${STRIDEBR_TERMS_VERSION:-2026-08-15-alpha-1}
+      STRIDEBR_PRIVACY_VERSION: ${STRIDEBR_PRIVACY_VERSION:-2026-08-15-alpha-1}
       STRIDEBR_DB_HOST: postgres
       STRIDEBR_DB_PORT: 5432
       STRIDEBR_DB_NAME: ${STRIDEBR_DB_NAME:-stridebr}
@@ -35,6 +40,8 @@ services:
       - ./src/database/stridebr.sql:/docker-entrypoint-initdb.d/01-stridebr.sql:ro
       - ./src/database/stridebr_activities_schema.sql:/docker-entrypoint-initdb.d/02-activities.sql:ro
       - ./src/database/stridebr_seed.sql:/docker-entrypoint-initdb.d/03-seed.sql:ro
+      - ./src/database/migrations/20260815_product_foundation.sql:/docker-entrypoint-initdb.d/04-product-foundation.sql:ro
+      - ./src/database/migrations/20260815_alpha_readiness.sql:/docker-entrypoint-initdb.d/05-alpha-readiness.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${STRIDEBR_DB_USER:-stridebr} -d ${STRIDEBR_DB_NAME:-stridebr}"]
       interval: 5s
