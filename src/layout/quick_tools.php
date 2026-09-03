@@ -10,10 +10,12 @@ $globalCsrf = stridebr_csrf_token();
         </button>
     </div>
 
-    <div class="pinned-tools" data-pinned-tools aria-label="Ferramentas fixadas"></div>
-    <button class="quick-tools-launcher" type="button" data-quick-tools-open aria-label="Abrir ferramentas rápidas" title="Ferramentas rápidas">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm0 4v6l4 2"/></svg>
-    </button>
+    <div class="floating-utility-dock" aria-label="Atalhos rápidos">
+        <div class="pinned-tools" data-pinned-tools aria-label="Ferramentas fixadas"></div>
+        <button class="quick-tools-launcher" type="button" data-quick-tools-open aria-label="Abrir ferramentas rápidas" title="Ferramentas rápidas">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm0 4v6l4 2"/></svg>
+        </button>
+    </div>
 
     <div class="quick-tools-modal" data-quick-tools-modal hidden>
         <button type="button" class="quick-tools-backdrop" data-quick-tools-close aria-label="Fechar ferramentas"></button>
@@ -25,7 +27,7 @@ $globalCsrf = stridebr_csrf_token();
             <div class="quick-tools-tabs" role="tablist">
                 <button type="button" class="is-active" data-quick-tool-tab="timer">Timer</button>
                 <button type="button" data-quick-tool-tab="stopwatch">Cronômetro</button>
-                <button type="button" data-quick-tool-tab="sets">Sets</button>
+                <button type="button" data-quick-tool-tab="sets">Séries</button>
             </div>
 
             <section class="quick-tool-view is-active" data-quick-tool-view="timer">
@@ -36,7 +38,7 @@ $globalCsrf = stridebr_csrf_token();
                 <div class="quick-timer-inputs"><label>Min<input type="number" min="0" max="999" value="1" data-quick-timer-minutes></label><label>Seg<input type="number" min="0" max="59" value="0" data-quick-timer-seconds></label></div>
                 <output class="quick-tool-output" data-quick-timer-output>01:00</output>
                 <div class="quick-tool-actions"><button type="button" class="primary" data-quick-timer-start>Iniciar</button><button type="button" data-quick-timer-pause>Pausar</button><button type="button" data-quick-timer-reset>Resetar</button><button type="button" data-quick-timer-plus>+30s</button></div>
-                <audio src="<?php echo stridebr_e(stridebr_asset('/assets/audio/alarm1.mp3')); ?>" preload="auto" data-quick-timer-alarm></audio>
+                <audio src="<?php echo stridebr_e(stridebr_asset('/assets/audio/alarm1.mp3')); ?>" preload="none" data-quick-timer-alarm></audio>
             </section>
 
             <section class="quick-tool-view" data-quick-tool-view="stopwatch" hidden>
@@ -46,9 +48,9 @@ $globalCsrf = stridebr_csrf_token();
             </section>
 
             <section class="quick-tool-view" data-quick-tool-view="sets" hidden>
-                <div class="quick-tool-title-row"><div><h3>Contador de sets</h3><p>Contagem rápida para não perder a série.</p></div><button type="button" class="pin-tool-button" data-pin-tool="sets" aria-label="Fixar contador de sets">☆</button></div>
+                <div class="quick-tool-title-row"><div><h3>Contador de séries</h3><p>Contagem rápida para não perder em qual série você está.</p></div><button type="button" class="pin-tool-button" data-pin-tool="sets" aria-label="Fixar contador de séries">☆</button></div>
                 <output class="quick-tool-output" data-sets-output>0</output>
-                <div class="quick-tool-actions"><button type="button" data-sets-minus>−</button><button type="button" class="primary" data-sets-plus>+ Set</button><button type="button" data-sets-reset>Resetar</button></div>
+                <div class="quick-tool-actions"><button type="button" data-sets-minus>−</button><button type="button" class="primary" data-sets-plus>+ Série</button><button type="button" data-sets-reset>Resetar</button></div>
             </section>
         </section>
     </div>
@@ -63,15 +65,44 @@ $globalCsrf = stridebr_csrf_token();
             <div class="workout-session-exercises" data-session-exercises></div>
             <footer class="workout-session-actions">
                 <button type="button" class="session-cancel" data-cancel-workout-session>Cancelar treino</button>
+                <button type="button" class="session-mark-all" data-mark-all-workout>Marcar tudo</button>
                 <button type="button" class="session-finish" data-finish-workout-session>Finalizar treino</button>
             </footer>
             <section class="workout-finish-sheet" data-workout-finish-sheet hidden>
                 <div class="workout-finish-heading"><div><span class="eyebrow">Fechar sessão</span><h3>Como foi o treino?</h3><p data-workout-finish-summary></p></div><button type="button" data-close-workout-finish aria-label="Voltar">×</button></div>
+                <div class="workout-finish-time">
+                    <div><strong>Horário real</strong><small>Se você abriu o treino só no final, corrija aqui antes de salvar.</small></div>
+                    <div class="workout-finish-time-grid">
+                        <label>Início<input type="datetime-local" data-finish-start></label>
+                        <label>Término<input type="datetime-local" data-finish-end></label>
+                    </div>
+                    <span data-finish-duration-preview></span>
+                </div>
                 <div class="workout-finish-field"><span>Intensidade</span><div class="workout-choice-row"><button type="button" data-finish-intensity="leve">Leve</button><button type="button" data-finish-intensity="moderado">Moderado</button><button type="button" data-finish-intensity="intenso">Intenso</button></div></div>
                 <div class="workout-finish-field"><span>Sensação</span><div class="workout-choice-row workout-feeling-row"><button type="button" data-finish-feeling="1">1</button><button type="button" data-finish-feeling="2">2</button><button type="button" data-finish-feeling="3">3</button><button type="button" data-finish-feeling="4">4</button><button type="button" data-finish-feeling="5">5</button></div><small>1 = pesado · 5 = excelente</small></div>
                 <label class="workout-finish-notes">Observações<textarea rows="3" maxlength="1000" data-finish-notes placeholder="Algo que vale lembrar no próximo treino?"></textarea></label>
                 <div class="workout-finish-actions"><button type="button" data-close-workout-finish>Voltar</button><button type="button" class="session-finish" data-confirm-workout-finish>Salvar atividade</button></div>
             </section>
+        </section>
+    </div>
+
+    <div class="workout-complete-modal" data-workout-complete-modal hidden>
+        <button type="button" class="workout-session-backdrop" data-workout-complete-close aria-label="Fechar resumo do treino"></button>
+        <section class="workout-complete-card" role="dialog" aria-modal="true" aria-labelledby="workout-complete-title">
+            <span class="workout-complete-mark" aria-hidden="true">✓</span>
+            <span class="eyebrow">Treino registrado</span>
+            <h2 id="workout-complete-title" data-workout-complete-title>Treino concluído</h2>
+            <p class="workout-complete-lead" data-workout-complete-lead>Seu treino virou uma atividade no histórico.</p>
+            <div class="workout-complete-stats">
+                <div><strong data-workout-complete-duration>00:00</strong><span>Duração</span></div>
+                <div><strong data-workout-complete-exercises>0/0</strong><span>Exercícios</span></div>
+                <div><strong data-workout-complete-sets>0/0</strong><span>Séries</span></div>
+            </div>
+            <p class="workout-complete-feedback" data-workout-complete-feedback hidden></p>
+            <div class="workout-complete-actions">
+                <button type="button" class="secondary-button" data-workout-complete-close>Continuar</button>
+                <a class="primary-button" href="/user/atividades.php" data-workout-complete-activity>Ver atividade</a>
+            </div>
         </section>
     </div>
 </div>

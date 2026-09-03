@@ -10,24 +10,33 @@ $idUsuario = stridebr_require_login();
 require_once dirname(__DIR__) . '/src/config/pg_config.php';
 
 if (!stridebr_feature_enabled($pdo, 'feedback.enabled', false)) {
-    http_response_code(404);
-    exit('Feedback indisponível.');
+    stridebr_error_document(404);
 }
 
 $anonymousEnabled = stridebr_feature_enabled($pdo, 'feedback.anonymous.enabled', true);
 $errors = [];
+if (!isset($_SESSION['feedback_form_token']) || !is_string($_SESSION['feedback_form_token'])) {
+    $_SESSION['feedback_form_token'] = bin2hex(random_bytes(24));
+}
+$feedbackFormToken = $_SESSION['feedback_form_token'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     stridebr_verify_csrf();
-
-    if (!stridebr_rate_limit('feedback', 8, 3600)) {
+    $submittedFormToken = (string) ($_POST['feedback_form_token'] ?? '');
+    $validFormToken = $submittedFormToken !== '' && hash_equals($feedbackFormToken, $submittedFormToken);
+    if (!$validFormToken) {
+        $errors[] = 'Esse feedback já foi enviado ou o formulário expirou. Atualize a página e tente novamente.';
+    } elseif (stridebr_auth_limit_is_blocked($pdo, 'feedback-user', $idUsuario)) {
         $errors[] = 'Você enviou muitos feedbacks em pouco tempo. Tente novamente mais tarde.';
+    } else {
+        stridebr_auth_limit_record_attempt($pdo, 'feedback-user', $idUsuario, 8, 3600, 3600);
     }
 
     $tipo = (string) ($_POST['tipo'] ?? 'outro');
     $titulo = trim((string) ($_POST['titulo'] ?? ''));
     $mensagem = trim((string) ($_POST['mensagem'] ?? ''));
     $pagina = trim((string) ($_POST['pagina'] ?? ''));
+    $contextoTecnico = trim((string) ($_POST['contexto_tecnico'] ?? ''));
     $anonimo = $anonymousEnabled && (string) ($_POST['anonimo'] ?? '') === '1';
 
     if (!in_array($tipo, ['bug', 'ideia', 'ux', 'elogio', 'outro'], true)) {
@@ -44,6 +53,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($pagina !== '' && stridebr_length($pagina) > 1000) {
         $pagina = substr($pagina, 0, 1000);
+    }
+    if ($contextoTecnico !== '') {
+        $contextoTecnico = preg_replace('/[^\P{C}\n\t]+/u', '', $contextoTecnico) ?? '';
+        $separator = "\n\n--- Contexto técnico automático ---\n";
+        $availableContext = max(0, 5000 - stridebr_length($mensagem) - stridebr_length($separator));
+        $contextLimit = min(1200, $availableContext);
+        if ($contextLimit > 0 && stridebr_length($contextoTecnico) > $contextLimit) {
+            $contextoTecnico = function_exists('mb_substr') ? mb_substr($contextoTecnico, 0, $contextLimit, 'UTF-8') : substr($contextoTecnico, 0, $contextLimit);
+        }
+        if ($contextLimit > 0 && $contextoTecnico !== '') {
+            $mensagem .= $separator . $contextoTecnico;
+        }
     }
 
     if ($errors === []) {
@@ -70,12 +91,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->bindValue(':ua', $userAgent, $userAgent === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
         $stmt->bindValue(':ip', $ip, $ip === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
         $stmt->execute();
+        $_SESSION['feedback_form_token'] = bin2hex(random_bytes(24));
+        stridebr_auth_limit_cleanup($pdo);
 
         stridebr_flash(
             'success',
             $anonimo
                 ? 'Feedback enviado anonimamente. Ele não ficará vinculado à sua conta nem aparecerá em Meus envios.'
-                : 'Feedback enviado. Valeu por ajudar a quebrar a alpha.'
+                : 'Feedback enviado. Valeu por ajudar a melhorar o StrideBR.'
         );
 
         header('Location: /feedback.php');
@@ -97,12 +120,14 @@ $mine = $mine->fetchAll();
 $flashes = stridebr_take_flashes();
 ?>
 <!doctype html>
-<html lang="pt-BR">
+<html lang="<?php echo function_exists('stridebr_html_lang') ? stridebr_e(stridebr_html_lang()) : 'pt-BR'; ?>">
 <head>
+    <?php if (function_exists('stridebr_ui_boot_script')) echo stridebr_ui_boot_script(); ?>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/style.css')); ?>">
     <title>Feedback | StrideBR</title>
+    <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>">
 </head>
 <body>
 <div class="container-fluid">
@@ -110,7 +135,7 @@ $flashes = stridebr_take_flashes();
     <main class="main-content">
         <div class="page-shell feedback-shell">
             <div class="page-heading">
-                <span class="eyebrow">Alpha fechada</span>
+                <span class="eyebrow">Feedback</span>
                 <h1>Feedback</h1>
                 <p>Achou bug, interface estranha ou teve uma ideia? Manda aqui com o máximo de contexto que conseguir.</p>
             </div>
@@ -125,16 +150,19 @@ $flashes = stridebr_take_flashes();
 
             <div class="feedback-grid">
                 <section class="content-card">
-                    <form method="post" class="feedback-form">
+                    <form method="post" class="feedback-form" data-feedback-form>
                         <?php echo stridebr_csrf_field(); ?>
+                        <input type="hidden" name="feedback_form_token" value="<?php echo stridebr_e($feedbackFormToken); ?>">
+                        <input type="hidden" name="contexto_tecnico" value="" data-feedback-context>
 
                         <label>Tipo
+                            <?php $feedbackType = (string) ($_POST['tipo'] ?? $_GET['type'] ?? 'bug'); ?>
                             <select name="tipo">
-                                <option value="bug">Bug</option>
-                                <option value="ux">Interface / UX</option>
-                                <option value="ideia">Ideia</option>
-                                <option value="elogio">Elogio</option>
-                                <option value="outro">Outro</option>
+                                <option value="bug"<?php echo $feedbackType === 'bug' ? ' selected' : ''; ?>>Bug</option>
+                                <option value="ux"<?php echo $feedbackType === 'ux' ? ' selected' : ''; ?>>Interface / UX</option>
+                                <option value="ideia"<?php echo $feedbackType === 'ideia' ? ' selected' : ''; ?>>Ideia</option>
+                                <option value="elogio"<?php echo $feedbackType === 'elogio' ? ' selected' : ''; ?>>Elogio</option>
+                                <option value="outro"<?php echo $feedbackType === 'outro' ? ' selected' : ''; ?>>Outro</option>
                             </select>
                         </label>
 
@@ -160,7 +188,8 @@ $flashes = stridebr_take_flashes();
                             </label>
                         <?php endif; ?>
 
-                        <button class="primary-action" type="submit">Enviar feedback</button>
+                        <p class="feedback-context-note">Página, tamanho da tela, fuso e versão do StrideBR serão anexados automaticamente para facilitar o diagnóstico.</p>
+                        <button class="primary-action feedback-submit" type="submit" data-feedback-submit>Enviar feedback</button>
                     </form>
                 </section>
 
@@ -168,7 +197,7 @@ $flashes = stridebr_take_flashes();
                     <h2>Meus envios</h2>
                     <div class="feedback-list">
                         <?php if ($mine === []): ?>
-                            <p>Nenhum feedback identificado enviado ainda.</p>
+                            <div class="feedback-empty-copy"><strong>Nenhum envio identificado ainda.</strong><span>Se algo te incomodar durante o uso, descreva ao lado; o contexto técnico básico vai junto automaticamente.</span></div>
                         <?php endif; ?>
 
                         <?php foreach ($mine as $item): ?>
@@ -185,5 +214,6 @@ $flashes = stridebr_take_flashes();
     </main>
 </div>
 <?php require dirname(__DIR__) . '/src/layout/footer.php'; ?>
+<script src="<?php echo stridebr_e(stridebr_asset('/assets/js/feedback.js')); ?>"></script>
 </body>
 </html>

@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /user/
+Disallow: /function/
+Disallow: /api/
+Disallow: /accept-legal.php
+Disallow: /errors/
+
+Sitemap: https://stridebr.alwaysdata.net/sitemap.xml

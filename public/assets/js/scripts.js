@@ -1,3 +1,209 @@
+(() => {
+    const requestKey = () => {
+        const bytes = new Uint8Array(16)
+        crypto.getRandomValues(bytes)
+        return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')
+    }
+    const ensureIdempotency = options => {
+        if (String(options?.method || 'GET').toUpperCase() !== 'POST') return options
+        const body = options?.body
+        if (body instanceof FormData || body instanceof URLSearchParams) {
+            if (!body.has('_idempotency_key')) body.set('_idempotency_key', requestKey())
+        }
+        return options
+    }
+    const request = async (resource, options = {}, timeoutMs = 12000) => {
+        ensureIdempotency(options)
+        const controller = new AbortController()
+        const parentSignal = options.signal
+        let timedOut = false
+        const abortFromParent = () => controller.abort()
+        if (parentSignal?.aborted) throw new DOMException('Operação cancelada.', 'AbortError')
+        parentSignal?.addEventListener('abort', abortFromParent, {once: true})
+        const timer = window.setTimeout(() => {
+            timedOut = true
+            controller.abort()
+        }, timeoutMs)
+        try {
+            return await fetch(resource, {...options, signal: controller.signal})
+        } catch (error) {
+            if (timedOut) {
+                const timeoutError = new Error('A resposta demorou demais. Tente novamente.')
+                timeoutError.name = 'TimeoutError'
+                throw timeoutError
+            }
+            if (error?.name === 'AbortError') throw error
+            if (!navigator.onLine) {
+                const offlineError = new Error('Você está sem conexão. O que já foi preenchido continua nesta tela; tente salvar novamente quando a internet voltar.')
+                offlineError.name = 'OfflineError'
+                throw offlineError
+            }
+            if (error instanceof TypeError) {
+                const networkError = new Error('Não foi possível falar com o StrideBR. Confira a conexão e tente novamente.')
+                networkError.name = 'NetworkError'
+                throw networkError
+            }
+            throw error
+        } finally {
+            window.clearTimeout(timer)
+            parentSignal?.removeEventListener('abort', abortFromParent)
+        }
+    }
+    window.StrideBRNet = {fetch: request, requestKey, ensureIdempotency}
+})();
+
+(() => {
+    const toastHost = () => {
+        const existing = document.querySelector('[data-ui-toast-host]')
+        if (existing) return existing
+        const host = document.createElement('div')
+        host.className = 'ui-toast-host'
+        host.dataset.uiToastHost = ''
+        host.setAttribute('aria-live', 'polite')
+        host.setAttribute('aria-relevant', 'additions removals')
+        document.body.appendChild(host)
+        return host
+    }
+
+    const closeToast = toast => {
+        if (!(toast instanceof HTMLElement) || toast.dataset.closing === '1') return
+        toast.dataset.closing = '1'
+        toast.classList.add('is-leaving')
+        window.setTimeout(() => toast.remove(), 180)
+    }
+
+    const createToast = ({message, type = 'info', timeout = 4200, actionLabel = '', onAction = null, undo = false} = {}) => {
+        const text = String(message || '').trim()
+        if (!text) return {close: () => {}, element: null}
+        const normalizedType = ['success', 'error', 'warning', 'info'].includes(type) ? type : 'info'
+        const toast = document.createElement('div')
+        toast.className = `ui-toast${undo ? ' is-undo' : ''}`
+        toast.dataset.type = normalizedType
+        toast.setAttribute('role', normalizedType === 'error' ? 'alert' : 'status')
+
+        const mark = document.createElement('span')
+        mark.className = 'ui-toast-mark'
+        mark.setAttribute('aria-hidden', 'true')
+
+        const copy = document.createElement('div')
+        copy.className = 'ui-toast-copy'
+        const messageNode = document.createElement('span')
+        messageNode.className = 'ui-toast-message'
+        messageNode.textContent = text
+        copy.appendChild(messageNode)
+
+        const actions = document.createElement('div')
+        actions.className = 'ui-toast-actions'
+        let actionButton = null
+        if (actionLabel && typeof onAction === 'function') {
+            actionButton = document.createElement('button')
+            actionButton.type = 'button'
+            actionButton.className = 'ui-toast-action'
+            actionButton.textContent = actionLabel
+            actions.appendChild(actionButton)
+        }
+        const close = document.createElement('button')
+        close.type = 'button'
+        close.className = 'ui-toast-close'
+        close.setAttribute('aria-label', 'Fechar aviso')
+        close.textContent = '×'
+        actions.appendChild(close)
+
+        toast.append(mark, copy, actions)
+        close.addEventListener('click', () => closeToast(toast))
+
+        let timer = 0
+        let remaining = Math.max(0, Number(timeout) || 0)
+        let startedAt = 0
+        const clearTimer = () => {
+            if (timer) window.clearTimeout(timer)
+            timer = 0
+        }
+        const startTimer = () => {
+            if (remaining <= 0 || toast.dataset.closing === '1') return
+            startedAt = performance.now()
+            clearTimer()
+            timer = window.setTimeout(() => closeToast(toast), remaining)
+        }
+        const pauseTimer = () => {
+            if (!timer) return
+            remaining = Math.max(0, remaining - (performance.now() - startedAt))
+            clearTimer()
+        }
+        toast.addEventListener('mouseenter', pauseTimer)
+        toast.addEventListener('mouseleave', startTimer)
+        toast.addEventListener('focusin', pauseTimer)
+        toast.addEventListener('focusout', event => {
+            if (!toast.contains(event.relatedTarget)) startTimer()
+        })
+
+        if (actionButton) {
+            actionButton.addEventListener('click', async () => {
+                if (actionButton.disabled) return
+                pauseTimer()
+                actionButton.disabled = true
+                const original = actionButton.textContent
+                actionButton.textContent = undo ? 'Desfazendo…' : 'Aguarde…'
+                try {
+                    await onAction()
+                    closeToast(toast)
+                } catch (error) {
+                    actionButton.disabled = false
+                    actionButton.textContent = original
+                    startTimer()
+                    createToast({message: error?.message || 'Não foi possível concluir a ação.', type: 'error', timeout: 6000})
+                }
+            })
+        }
+
+        toastHost().appendChild(toast)
+        startTimer()
+        return {close: () => { clearTimer(); closeToast(toast) }, element: toast}
+    }
+
+    const notify = (message, type = 'info', timeout = 4200) => {
+        if (typeof timeout === 'object' && timeout !== null) {
+            return createToast({message, type, ...timeout})
+        }
+        return createToast({message, type, timeout})
+    }
+
+    const confirmAction = (message, options = {}) => new Promise(resolve => {
+        const supportsDialog = typeof HTMLDialogElement !== 'undefined'
+        const overlay = document.createElement(supportsDialog ? 'dialog' : 'div')
+        overlay.className = 'ui-confirm-overlay'
+        overlay.innerHTML = `<button type="button" class="ui-confirm-backdrop" data-ui-confirm-cancel aria-label="Cancelar"></button><div class="ui-confirm-dialog" role="document"><h2></h2><p></p><div class="ui-confirm-actions"><button type="button" class="ui-confirm-cancel" data-ui-confirm-cancel>Cancelar</button><button type="button" class="ui-confirm-ok">Confirmar</button></div></div>`
+        overlay.querySelector('h2').textContent = options.title || 'Confirmar ação'
+        overlay.querySelector('p').textContent = String(message || 'Confirmar esta ação?')
+        const ok = overlay.querySelector('.ui-confirm-ok')
+        ok.textContent = options.confirmLabel || 'Confirmar'
+        ok.classList.toggle('is-danger', Boolean(options.danger))
+        let settled = false
+        const finish = value => {
+            if (settled) return
+            settled = true
+            if (supportsDialog && overlay.open) overlay.close()
+            overlay.remove()
+            resolve(value)
+        }
+        overlay.querySelectorAll('[data-ui-confirm-cancel]').forEach(button => button.addEventListener('click', () => finish(false)))
+        ok.addEventListener('click', () => finish(true))
+        overlay.addEventListener('cancel', event => { event.preventDefault(); finish(false) })
+        overlay.addEventListener('keydown', event => { if (event.key === 'Escape' && !supportsDialog) finish(false) })
+        document.body.appendChild(overlay)
+        if (supportsDialog && typeof overlay.showModal === 'function') overlay.showModal()
+        ok.focus()
+    })
+
+    const undo = (message, action, timeout = 8000) => {
+        document.querySelectorAll('.ui-toast.is-undo').forEach(closeToast)
+        return createToast({message, type: 'info', timeout, actionLabel: 'Desfazer', onAction: action, undo: true})
+    }
+
+    window.StrideBRUI = {notify, toast: notify, confirm: confirmAction, undo}
+})()
+
+
 document.addEventListener('DOMContentLoaded', () => {
     const toggle = document.querySelector('[data-nav-toggle]');
     const menu = document.querySelector('[data-nav-menu]');
@@ -8,9 +214,91 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const headerMenus = document.querySelectorAll('[data-header-menu]');
+    const hoverMenus = document.querySelectorAll('[data-header-menu="hover-toggle"]');
+    const toggleMenus = document.querySelectorAll('[data-header-menu="toggle"]');
+    const hoverCloseTimers = new WeakMap();
+    const clearHoverClose = details => {
+        const timer = hoverCloseTimers.get(details);
+        if (timer) window.clearTimeout(timer);
+        hoverCloseTimers.delete(details);
+    };
+    const setDetailsOpen = (details, open) => {
+        if (!(details instanceof HTMLDetailsElement)) return;
+        if (open) details.setAttribute('open', '');
+        else details.removeAttribute('open');
+        details.querySelector(':scope > summary')?.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+    const closeDetailsMenu = details => {
+        if (!(details instanceof HTMLDetailsElement)) return;
+        clearHoverClose(details);
+        setDetailsOpen(details, false);
+        delete details.dataset.pinnedOpen;
+    };
+    const closeOtherMenus = current => {
+        headerMenus.forEach(details => {
+            if (details !== current) closeDetailsMenu(details);
+        });
+    };
+    const bindToggleMenu = details => {
+        if (!(details instanceof HTMLDetailsElement)) return;
+        const summary = details.querySelector(':scope > summary');
+        summary?.setAttribute('aria-expanded', details.open ? 'true' : 'false');
+        summary?.addEventListener('click', event => {
+            event.preventDefault();
+            const shouldOpen = !details.open;
+            closeOtherMenus(details);
+            setDetailsOpen(details, shouldOpen);
+        });
+        details.addEventListener('keydown', event => {
+            if (event.key !== 'Escape' || !details.open) return;
+            closeDetailsMenu(details);
+            summary?.focus();
+        });
+    };
+    const bindHoverToggleMenu = details => {
+        if (!(details instanceof HTMLDetailsElement)) return;
+        const summary = details.querySelector(':scope > summary');
+        summary?.setAttribute('aria-expanded', details.open ? 'true' : 'false');
+        summary?.addEventListener('click', event => {
+            event.preventDefault();
+            clearHoverClose(details);
+            if (details.dataset.pinnedOpen === '1') {
+                closeDetailsMenu(details);
+                return;
+            }
+            closeOtherMenus(details);
+            details.dataset.pinnedOpen = '1';
+            setDetailsOpen(details, true);
+        });
+        details.addEventListener('mouseenter', () => {
+            clearHoverClose(details);
+            closeOtherMenus(details);
+            setDetailsOpen(details, true);
+        });
+        details.addEventListener('mouseleave', () => {
+            if (details.dataset.pinnedOpen === '1') return;
+            clearHoverClose(details);
+            hoverCloseTimers.set(details, window.setTimeout(() => {
+                if (details.dataset.pinnedOpen !== '1') setDetailsOpen(details, false);
+                hoverCloseTimers.delete(details);
+            }, 140));
+        });
+        details.addEventListener('keydown', event => {
+            if (event.key !== 'Escape' || !details.open) return;
+            closeDetailsMenu(details);
+            summary?.focus();
+        });
+    };
+    hoverMenus.forEach(bindHoverToggleMenu);
+    toggleMenus.forEach(bindToggleMenu);
+
+    const userMenu = document.querySelector('.user-menu');
+    const globalCreateMenu = document.querySelector('.global-create-menu');
+
     document.addEventListener('click', event => {
-        document.querySelectorAll('.user-menu[open]').forEach(details => {
-            if (!details.contains(event.target)) details.removeAttribute('open');
+        headerMenus.forEach(details => {
+            if (details.open && !details.contains(event.target)) closeDetailsMenu(details);
         });
     });
 
@@ -34,6 +322,647 @@ document.addEventListener('DOMContentLoaded', () => {
     moreSheet?.querySelector('[data-quick-tools-open]')?.addEventListener('click', closeMore);
 
     document.addEventListener('keydown', event => {
-        if (event.key === 'Escape') closeMore();
+        if (event.key === 'Escape') {
+            closeMore();
+            globalCreateMenu?.removeAttribute('open');
+        }
+    });
+
+    document.addEventListener('submit', async event => {
+        const form = event.target.closest?.('form[data-confirm]');
+        if (!form) return;
+        if (form.dataset.confirmed === '1') {
+            delete form.dataset.confirmed;
+            return;
+        }
+        event.preventDefault();
+        const message = form.dataset.confirm || 'Confirmar esta ação?';
+        const confirmed = await window.StrideBRUI.confirm(message, {danger: /apagar|excluir|encerrar|remover/i.test(message)});
+        if (!confirmed) return;
+        form.dataset.confirmed = '1';
+        form.requestSubmit(event.submitter || undefined);
+    });
+
+    const loggedInUi = Boolean(document.querySelector('.mobile-bottom-nav'));
+    document.querySelectorAll('.alert').forEach(alert => {
+        const isError = alert.classList.contains('alert-danger') || alert.classList.contains('alert-error') || alert.classList.contains('error');
+        const type = alert.classList.contains('alert-success') ? 'success' : alert.classList.contains('alert-warning') ? 'warning' : 'info';
+        if (loggedInUi && !isError) {
+            window.StrideBRUI?.notify(alert.textContent || '', type);
+            alert.remove();
+            return;
+        }
+        if (isError) return;
+        window.setTimeout(() => {
+            alert.classList.add('is-leaving');
+            window.setTimeout(() => alert.remove(), 220);
+        }, 5000);
+    });
+
+    document.querySelectorAll('[data-auto-submit]').forEach(field => {
+        field.addEventListener('change', () => field.form?.requestSubmit());
+    });
+
+    document.querySelectorAll('[data-phone-mask]').forEach(input => {
+        const format = () => {
+            const raw = String(input.value || '').trim();
+            if (raw.startsWith('+')) return;
+            const digits = raw.replace(/\D/g, '').slice(0, 11);
+            if (digits.length <= 2) { input.value = digits; return; }
+            const area = digits.slice(0, 2);
+            const rest = digits.slice(2);
+            if (rest.length <= 4) { input.value = `(${area}) ${rest}`; return; }
+            const split = rest.length > 8 ? 5 : 4;
+            input.value = `(${area}) ${rest.slice(0, split)}-${rest.slice(split)}`;
+        };
+        input.addEventListener('input', format);
+        input.addEventListener('blur', format);
     });
 });
+
+document.addEventListener('DOMContentLoaded', () => {
+    const input = document.querySelector('[data-avatar-input]');
+    const preview = document.querySelector('[data-avatar-preview]');
+    const status = document.querySelector('[data-avatar-status]');
+    if (!(input instanceof HTMLInputElement) || !(preview instanceof HTMLImageElement)) return;
+
+    const say = message => {
+        if (status instanceof HTMLElement) status.textContent = message;
+    };
+
+    const previewFile = file => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            if (typeof reader.result !== 'string') {
+                reject(new Error('prévia indisponível'));
+                return;
+            }
+            preview.onload = () => resolve();
+            preview.onerror = () => reject(new Error('formato sem prévia no navegador'));
+            preview.src = reader.result;
+        };
+        reader.onerror = () => reject(new Error('não foi possível ler a imagem'));
+        reader.readAsDataURL(file);
+    });
+
+    const optimizeFile = async file => {
+        if (!('DataTransfer' in window) || !HTMLCanvasElement.prototype.toBlob || !('createImageBitmap' in window)) return null;
+        const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+        const targetSize = 512;
+        const crop = Math.min(bitmap.width, bitmap.height);
+        const sourceX = Math.max(0, Math.floor((bitmap.width - crop) / 2));
+        const sourceY = Math.max(0, Math.floor((bitmap.height - crop) / 2));
+        const canvas = document.createElement('canvas');
+        canvas.width = targetSize;
+        canvas.height = targetSize;
+        const context = canvas.getContext('2d', { alpha: true });
+        if (!context) throw new Error('canvas indisponível');
+        context.drawImage(bitmap, sourceX, sourceY, crop, crop, 0, 0, targetSize, targetSize);
+        bitmap.close?.();
+        const blob = await new Promise((resolve, reject) => {
+            canvas.toBlob(value => value ? resolve(value) : reject(new Error('falha ao converter')), 'image/webp', 0.82);
+        });
+        return new File([blob], `${file.name.replace(/\.[^.]+$/, '') || 'avatar'}.webp`, { type: 'image/webp', lastModified: Date.now() });
+    };
+
+    const putInInput = file => {
+        const transfer = new DataTransfer();
+        transfer.items.add(file);
+        input.files = transfer.files;
+    };
+
+    input.addEventListener('change', async () => {
+        const original = input.files && input.files[0];
+        if (!original) {
+            say('JPG, PNG ou WebP · até 4 MB.');
+            return;
+        }
+        if (!original.type.startsWith('image/')) {
+            say('Escolha uma imagem válida.');
+            return;
+        }
+        say(`Selecionada: ${original.name}`);
+        try {
+            await previewFile(original);
+        } catch (_) {
+            say('Imagem selecionada, mas este navegador não conseguiu gerar a prévia.');
+        }
+        try {
+            const optimized = await optimizeFile(original);
+            if (!optimized) return;
+            putInInput(optimized);
+            await previewFile(optimized);
+            say(`Pronta para enviar · ${Math.max(1, Math.round(optimized.size / 1024))} KB`);
+        } catch (_) {
+            // Mantém o arquivo original; o backend fará a validação final.
+        }
+    });
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    const catalog = document.querySelector('[data-settings-sports-catalog]');
+    const search = document.querySelector('[data-settings-sport-search]');
+    const count = document.querySelector('[data-sports-count]');
+    const hint = document.querySelector('[data-sports-hint]');
+    const familyGrid = catalog?.querySelector('[data-settings-sport-family-grid]');
+    const panels = catalog ? [...catalog.querySelectorAll('[data-settings-sport-family-panel]')] : [];
+    const empty = catalog?.querySelector('[data-settings-sport-empty]');
+    if (!(catalog instanceof HTMLElement)) return;
+    if (window.location.hash === '#esportes') catalog.closest('details')?.setAttribute('open', '');
+
+    const cards = [...catalog.querySelectorAll('[data-settings-sport]')];
+
+    const refreshCardState = card => {
+        const practice = card.querySelector('[data-sport-practice]');
+        const favorite = card.querySelector('[data-sport-favorite]');
+        card.classList.toggle('is-practiced', practice instanceof HTMLInputElement && practice.checked);
+        card.classList.toggle('is-favorite', favorite instanceof HTMLInputElement && favorite.checked);
+    };
+
+    const refreshCount = () => {
+        if (!(count instanceof HTMLElement)) return;
+        const practiced = cards.filter(card => card.querySelector('[data-sport-practice]')?.checked).length;
+        const favorites = cards.filter(card => card.querySelector('[data-sport-favorite]')?.checked).length;
+        count.textContent = `${practiced} praticados · ${favorites} favoritos`;
+    };
+
+    const resetFamilies = () => {
+        catalog.classList.remove('is-searching');
+        if (familyGrid instanceof HTMLElement) familyGrid.hidden = false;
+        panels.forEach(panel => panel.hidden = true);
+        catalog.querySelectorAll('[data-settings-sport-more-list]').forEach(list => list.hidden = true);
+        catalog.querySelectorAll('[data-settings-sport-more]').forEach(button => button.setAttribute('aria-expanded', 'false'));
+        cards.forEach(card => card.hidden = false);
+        if (empty instanceof HTMLElement) empty.hidden = true;
+        if (hint instanceof HTMLElement) hint.textContent = 'Escolha uma categoria ou busque pelo nome do esporte.';
+    };
+
+    catalog.querySelectorAll('[data-settings-sport-family-open]').forEach(button => button.addEventListener('click', () => {
+        const key = button.dataset.settingsSportFamilyOpen || '';
+        if (familyGrid instanceof HTMLElement) familyGrid.hidden = true;
+        panels.forEach(panel => panel.hidden = panel.dataset.settingsSportFamilyPanel !== key);
+        if (hint instanceof HTMLElement) hint.textContent = 'Os esportes mais comuns aparecem primeiro. Abra “Mais esportes” para ver o restante.';
+    }));
+
+    catalog.querySelectorAll('[data-settings-sport-family-back]').forEach(button => button.addEventListener('click', resetFamilies));
+    catalog.querySelectorAll('[data-settings-sport-more]').forEach(button => button.addEventListener('click', () => {
+        const list = button.nextElementSibling;
+        if (!(list instanceof HTMLElement)) return;
+        const expanding = list.hidden;
+        list.hidden = !expanding;
+        button.setAttribute('aria-expanded', expanding ? 'true' : 'false');
+    }));
+
+    const filterCards = () => {
+        const query = search instanceof HTMLInputElement ? search.value.trim().toLocaleLowerCase('pt-BR') : '';
+        if (query === '') {
+            resetFamilies();
+            return;
+        }
+        catalog.classList.add('is-searching');
+        if (familyGrid instanceof HTMLElement) familyGrid.hidden = true;
+        let visible = 0;
+        panels.forEach(panel => {
+            let panelVisible = 0;
+            panel.querySelectorAll('[data-settings-sport-more-list]').forEach(list => list.hidden = false);
+            panel.querySelectorAll('[data-settings-sport]').forEach(card => {
+                const match = String(card.dataset.searchText || '').includes(query);
+                card.hidden = !match;
+                if (match) {
+                    visible += 1;
+                    panelVisible += 1;
+                }
+            });
+            panel.hidden = panelVisible === 0;
+        });
+        if (empty instanceof HTMLElement) empty.hidden = visible !== 0;
+        if (hint instanceof HTMLElement) hint.textContent = visible ? 'Resultados em todas as categorias.' : 'Nenhum esporte encontrado.';
+    };
+
+    cards.forEach(card => {
+        card.querySelectorAll('input[type="checkbox"]').forEach(input => input.addEventListener('change', () => {
+            refreshCardState(card);
+            refreshCount();
+        }));
+        refreshCardState(card);
+    });
+    if (search instanceof HTMLInputElement) search.addEventListener('input', filterCards);
+    refreshCount();
+    resetFamilies();
+});
+
+
+document.addEventListener('DOMContentLoaded', () => {
+    const prefix = 'stridebr:draft:';
+    const ignoredNames = new Set(['csrf_token', 'feedback_form_token']);
+    const serialize = (form) => {
+        const values = {};
+        form.querySelectorAll('[name]').forEach((field) => {
+            if (!(field instanceof HTMLInputElement || field instanceof HTMLSelectElement || field instanceof HTMLTextAreaElement)) return;
+            if (ignoredNames.has(field.name) || field instanceof HTMLInputElement && ['password', 'file', 'submit', 'button'].includes(field.type)) return;
+            if (field instanceof HTMLInputElement && (field.type === 'checkbox' || field.type === 'radio')) {
+                if (!values[field.name]) values[field.name] = [];
+                if (field.checked) values[field.name].push(field.value);
+                return;
+            }
+            values[field.name] = field.value;
+        });
+        return values;
+    };
+    const apply = (form, values) => {
+        form.dispatchEvent(new CustomEvent('stridebr:draft-before-restore', {detail: {values}}));
+        Object.entries(values).forEach(([name, value]) => {
+            const fields = Array.from(form.querySelectorAll('[name]')).filter((field) => field.name === name);
+            fields.forEach((field) => {
+                if (!(field instanceof HTMLInputElement || field instanceof HTMLSelectElement || field instanceof HTMLTextAreaElement)) return;
+                if (field instanceof HTMLInputElement && (field.type === 'checkbox' || field.type === 'radio')) {
+                    field.checked = Array.isArray(value) && value.includes(field.value);
+                } else if (!Array.isArray(value)) {
+                    field.value = String(value ?? '');
+                }
+                field.dispatchEvent(new Event('change', {bubbles: true}));
+                field.dispatchEvent(new Event('input', {bubbles: true}));
+            });
+        });
+        form.querySelectorAll('[data-duration-field]').forEach((field) => {
+            const hidden = field.querySelector('[data-duration-value]');
+            const match = String(hidden?.value || '').match(/^(\d+):([0-5]\d):([0-5]\d)$/);
+            if (!match) return;
+            const hours = field.querySelector('[data-duration-hours]');
+            const minutes = field.querySelector('[data-duration-minutes]');
+            const seconds = field.querySelector('[data-duration-seconds]');
+            if (hours) hours.value = String(Number(match[1]));
+            if (minutes) minutes.value = match[2];
+            if (seconds) seconds.value = match[3];
+        });
+        const clock = form.querySelector('[data-clock-value]');
+        const clockMatch = String(clock?.value || '').match(/^([0-2]\d):([0-5]\d)$/);
+        if (clockMatch) {
+            const hours = form.querySelector('[data-clock-hours]');
+            const minutes = form.querySelector('[data-clock-minutes]');
+            if (hours) hours.value = clockMatch[1];
+            if (minutes) minutes.value = clockMatch[2];
+        }
+        form.dispatchEvent(new CustomEvent('stridebr:draft-restored', {detail: {values}}));
+    };
+    document.querySelectorAll('form[data-draft-key]').forEach((form) => {
+        const key = prefix + String(form.dataset.draftKey || '');
+        if (key === prefix) return;
+        const isActivityDraft = String(form.dataset.draftKey || '') === 'activity-new';
+        let changed = false;
+        let timer = 0;
+        let recoveryNotice = null;
+        const status = document.createElement('small');
+        status.className = 'form-draft-status';
+        status.textContent = 'Rascunho salvo somente neste dispositivo.';
+        status.hidden = true;
+        if (!isActivityDraft) form.appendChild(status);
+        const save = () => {
+            if (!changed) return;
+            try {
+                localStorage.setItem(key, JSON.stringify({savedAt: Date.now(), values: serialize(form)}));
+                if (!isActivityDraft) {
+                    status.hidden = false;
+                    status.textContent = `Rascunho salvo neste dispositivo · ${new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})}`;
+                }
+            } catch (_) {
+                status.hidden = true;
+            }
+        };
+        const scheduleSave = () => {
+            changed = true;
+            window.clearTimeout(timer);
+            timer = window.setTimeout(save, 450);
+        };
+        form.addEventListener('input', scheduleSave);
+        form.addEventListener('change', scheduleSave);
+        form.addEventListener('submit', () => {
+            if (isActivityDraft) return;
+            window.clearTimeout(timer);
+            try { localStorage.removeItem(key); } catch (_) {}
+        });
+        form.addEventListener('stridebr:draft-clear', () => {
+            window.clearTimeout(timer);
+            changed = false;
+            try { localStorage.removeItem(key); } catch (_) {}
+            recoveryNotice?.remove();
+            recoveryNotice = null;
+        });
+        let draft = null;
+        try { draft = JSON.parse(localStorage.getItem(key) || 'null'); } catch (_) {}
+        if (!draft || !draft.values || Number(draft.savedAt || 0) < Date.now() - 7 * 86400000) {
+            if (draft) try { localStorage.removeItem(key); } catch (_) {}
+            return;
+        }
+        const recovery = document.createElement('div');
+        recoveryNotice = recovery;
+        recovery.className = isActivityDraft ? 'draft-recovery-toast' : 'draft-recovery';
+        recovery.setAttribute('role', 'status');
+        const when = new Date(Number(draft.savedAt)).toLocaleString('pt-BR', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'});
+        recovery.innerHTML = `<div><strong>Rascunho encontrado</strong><span>Salvo neste dispositivo em ${when}.</span></div><div><button type="button" data-draft-restore>${isActivityDraft ? 'Continuar' : 'Restaurar'}</button><button type="button" data-draft-discard>Descartar</button></div>`;
+        if (isActivityDraft) document.body.appendChild(recovery);
+        else form.prepend(recovery);
+        recovery.querySelector('[data-draft-restore]')?.addEventListener('click', () => {
+            if (isActivityDraft) document.querySelector('[data-toggle-activity-form]')?.click();
+            apply(form, draft.values);
+            changed = true;
+            recovery.remove();
+            if (!isActivityDraft) {
+                status.hidden = false;
+                status.textContent = 'Rascunho restaurado. Continue de onde parou.';
+            }
+        });
+        recovery.querySelector('[data-draft-discard]')?.addEventListener('click', () => {
+            try { localStorage.removeItem(key); } catch (_) {}
+            recovery.remove();
+        });
+    });
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    const networkBanner = document.querySelector('[data-network-status]');
+    const refreshNetworkState = () => {
+        if (!(networkBanner instanceof HTMLElement)) return;
+        networkBanner.hidden = navigator.onLine;
+        document.documentElement.classList.toggle('is-offline', !navigator.onLine);
+    };
+    window.addEventListener('online', refreshNetworkState);
+    window.addEventListener('offline', refreshNetworkState);
+    refreshNetworkState();
+
+    document.addEventListener('submit', event => {
+        const form = event.target
+        if (!(form instanceof HTMLFormElement) || String(form.method || 'get').toLowerCase() !== 'post') return
+        if (form.querySelector('input[name="_idempotency_key"]')) return
+        const input = document.createElement('input')
+        input.type = 'hidden'
+        input.name = '_idempotency_key'
+        input.value = window.StrideBRNet?.requestKey?.() || String(Date.now())
+        form.appendChild(input)
+    }, true)
+
+    const unlockForm = form => {
+        if (!(form instanceof HTMLFormElement)) return;
+        form.dataset.submitLocked = '0';
+        form.classList.remove('is-submitting');
+        form.removeAttribute('aria-busy');
+        form.querySelectorAll('[data-submit-lock-disabled="1"]').forEach(button => {
+            button.disabled = false;
+            button.classList.remove('is-submitting');
+            button.removeAttribute('aria-busy');
+            delete button.dataset.submitLockDisabled;
+        });
+    };
+
+    document.addEventListener('submit', event => {
+        const form = event.target;
+        if (!(form instanceof HTMLFormElement) || form.hasAttribute('data-no-submit-lock')) return;
+        if (form.dataset.submitLocked === '1') {
+            event.preventDefault();
+            return;
+        }
+        window.setTimeout(() => {
+            if (event.defaultPrevented) return;
+            form.dataset.submitLocked = '1';
+            form.classList.add('is-submitting');
+            form.setAttribute('aria-busy', 'true');
+            form.querySelectorAll('button[type="submit"], input[type="submit"]').forEach(button => {
+                if (!(button instanceof HTMLButtonElement || button instanceof HTMLInputElement) || button.disabled) return;
+                button.disabled = true;
+                button.dataset.submitLockDisabled = '1';
+                button.classList.add('is-submitting');
+                button.setAttribute('aria-busy', 'true');
+            });
+            window.setTimeout(() => unlockForm(form), 15000);
+        }, 0);
+    });
+
+    window.addEventListener('pageshow', () => {
+        document.querySelectorAll('form[data-submit-locked="1"]').forEach(unlockForm);
+    });
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('[data-copy-profile-link]').forEach(button => {
+        button.addEventListener('click', async () => {
+            const url = window.location.href.split('#')[0];
+            const original = button.textContent;
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText(url);
+                } else {
+                    const input = document.createElement('input');
+                    input.value = url;
+                    input.setAttribute('readonly', '');
+                    input.style.position = 'fixed';
+                    input.style.opacity = '0';
+                    document.body.append(input);
+                    input.select();
+                    document.execCommand('copy');
+                    input.remove();
+                }
+                button.textContent = 'Link copiado';
+            } catch (_) {
+                button.textContent = 'Não foi possível copiar';
+            }
+            window.setTimeout(() => { button.textContent = original; }, 1800);
+        });
+    });
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    const preview = document.querySelector('[data-banner-preview]');
+    const input = document.querySelector('[data-banner-input]');
+    const color = document.querySelector('[data-banner-color]');
+    const status = document.querySelector('[data-banner-status]');
+    if (!(preview instanceof HTMLElement)) return;
+    if (color instanceof HTMLInputElement) {
+        color.addEventListener('input', () => preview.style.setProperty('--settings-banner-color', color.value));
+    }
+    if (input instanceof HTMLInputElement) {
+        input.addEventListener('change', () => {
+            const file = input.files?.[0];
+            if (!file) return;
+            if (status instanceof HTMLElement) status.textContent = `Selecionada: ${file.name}`;
+            const url = URL.createObjectURL(file);
+            preview.style.setProperty('--settings-banner-image', `url("${url}")`);
+        });
+    }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('[data-profile-highlight-slot]').forEach(slot => {
+        const select = slot.querySelector('[data-profile-highlight-type]');
+        const custom = slot.querySelector('[data-profile-highlight-custom]');
+        if (!(select instanceof HTMLSelectElement) || !(custom instanceof HTMLElement)) return;
+        const sync = () => { custom.hidden = select.value !== 'custom'; };
+        select.addEventListener('change', sync);
+        sync();
+    });
+});
+
+window.StrideBRSportPickerInit = (root = document) => {
+    const scope = root instanceof Element || root instanceof Document ? root : document;
+    const pickers = [...scope.querySelectorAll('[data-generic-sport-picker]')];
+    pickers.forEach(picker => {
+        if (picker.dataset.sportPickerReady === '1') return;
+        picker.dataset.sportPickerReady = '1';
+        const native = picker.querySelector('[data-generic-sport-native]');
+        const trigger = picker.querySelector('[data-generic-sport-trigger]');
+        const triggerLabel = picker.querySelector('[data-generic-sport-trigger-label]');
+        const triggerIcon = picker.querySelector('[data-generic-sport-trigger-icon]');
+        const popover = picker.querySelector('[data-generic-sport-popover]');
+        const search = picker.querySelector('[data-generic-sport-search]');
+        const browser = picker.querySelector('[data-generic-sport-browser]');
+        const familyGrid = picker.querySelector('[data-generic-sport-family-grid]');
+        const panels = [...picker.querySelectorAll('[data-generic-sport-family-panel]')];
+        const options = [...picker.querySelectorAll('[data-generic-sport-option]')];
+        const noResults = picker.querySelector('[data-generic-sport-no-results]');
+        if (!(native instanceof HTMLSelectElement) || !(trigger instanceof HTMLButtonElement) || !(popover instanceof HTMLElement)) return;
+
+        const resetBrowser = () => {
+            browser?.classList.remove('is-searching');
+            if (familyGrid instanceof HTMLElement) familyGrid.hidden = false;
+            panels.forEach(panel => panel.hidden = true);
+            picker.querySelectorAll('[data-generic-sport-more-list]').forEach(list => list.hidden = true);
+            picker.querySelectorAll('[data-generic-sport-more]').forEach(button => button.setAttribute('aria-expanded', 'false'));
+            options.forEach(option => option.hidden = false);
+            if (noResults instanceof HTMLElement) noResults.hidden = true;
+        };
+
+        const syncTrigger = () => {
+            const selectedId = native.value;
+            const matched = options.find(option => option.dataset.sportId === selectedId);
+            options.forEach(option => option.setAttribute('aria-selected', option.dataset.sportId === selectedId ? 'true' : 'false'));
+            if (matched) {
+                if (triggerLabel instanceof HTMLElement) triggerLabel.textContent = matched.dataset.sportName || native.selectedOptions[0]?.textContent?.trim() || 'Esporte';
+                const icon = matched.querySelector('.sport-option-icon');
+                if (triggerIcon instanceof HTMLElement && icon instanceof HTMLElement) triggerIcon.innerHTML = icon.innerHTML;
+            } else {
+                if (triggerLabel instanceof HTMLElement) triggerLabel.textContent = native.selectedOptions[0]?.textContent?.trim() || 'Escolha um esporte';
+                if (triggerIcon instanceof HTMLElement) triggerIcon.innerHTML = '<span aria-hidden="true">◎</span>';
+            }
+        };
+
+        const clearPopoverPlacement = () => {
+            ['position', 'left', 'top', 'right', 'bottom', 'width', 'maxHeight'].forEach(property => popover.style.removeProperty(property));
+        };
+
+        const placePopover = () => {
+            if (popover.hidden) return;
+            if (window.matchMedia('(max-width: 620px)').matches) {
+                clearPopoverPlacement();
+                return;
+            }
+            const rect = trigger.getBoundingClientRect();
+            const padding = 12;
+            const gap = 6;
+            const maxWidth = Math.max(240, Math.min(520, window.innerWidth - padding * 2));
+            const width = Math.min(maxWidth, Math.max(rect.width, 360));
+            const left = Math.min(Math.max(padding, rect.left), Math.max(padding, window.innerWidth - width - padding));
+            const below = Math.max(0, window.innerHeight - rect.bottom - gap - padding);
+            const above = Math.max(0, rect.top - gap - padding);
+            const openAbove = below < 260 && above > below;
+            const available = Math.max(180, Math.min(560, openAbove ? above : below));
+            popover.style.position = 'fixed';
+            popover.style.left = `${Math.round(left)}px`;
+            popover.style.right = 'auto';
+            popover.style.bottom = 'auto';
+            popover.style.width = `${Math.round(width)}px`;
+            popover.style.maxHeight = `${Math.round(available)}px`;
+            const measured = Math.min(popover.scrollHeight, available);
+            const top = openAbove ? Math.max(padding, rect.top - gap - measured) : Math.min(window.innerHeight - padding - measured, rect.bottom + gap);
+            popover.style.top = `${Math.round(Math.max(padding, top))}px`;
+        };
+
+        const close = () => {
+            popover.hidden = true;
+            trigger.setAttribute('aria-expanded', 'false');
+            clearPopoverPlacement();
+            if (search instanceof HTMLInputElement) search.value = '';
+            resetBrowser();
+        };
+
+        const open = () => {
+            document.querySelectorAll('[data-generic-sport-picker] [data-generic-sport-popover]:not([hidden])').forEach(other => {
+                if (other !== popover) {
+                    other.hidden = true;
+                    other.closest('[data-generic-sport-picker]')?.querySelector('[data-generic-sport-trigger]')?.setAttribute('aria-expanded', 'false');
+                }
+            });
+            resetBrowser();
+            popover.hidden = false;
+            trigger.setAttribute('aria-expanded', 'true');
+            placePopover();
+            window.setTimeout(() => search instanceof HTMLInputElement && search.focus(), 20);
+        };
+
+        trigger.addEventListener('click', () => popover.hidden ? open() : close());
+        picker.querySelectorAll('[data-generic-sport-family-open]').forEach(button => button.addEventListener('click', () => {
+            const key = button.dataset.genericSportFamilyOpen || '';
+            if (familyGrid instanceof HTMLElement) familyGrid.hidden = true;
+            panels.forEach(panel => panel.hidden = panel.dataset.genericSportFamilyPanel !== key);
+        }));
+        picker.querySelectorAll('[data-generic-sport-family-back]').forEach(button => button.addEventListener('click', resetBrowser));
+        picker.querySelectorAll('[data-generic-sport-more]').forEach(button => button.addEventListener('click', () => {
+            const list = button.nextElementSibling;
+            if (!(list instanceof HTMLElement)) return;
+            const expanding = list.hidden;
+            list.hidden = !expanding;
+            button.setAttribute('aria-expanded', expanding ? 'true' : 'false');
+        }));
+        options.forEach(option => option.addEventListener('click', () => {
+            native.value = option.dataset.sportId || '';
+            native.dispatchEvent(new Event('change', {bubbles: true}));
+            syncTrigger();
+            close();
+        }));
+        picker.querySelector('[data-generic-sport-empty]')?.addEventListener('click', () => {
+            native.value = '';
+            native.dispatchEvent(new Event('change', {bubbles: true}));
+            syncTrigger();
+            close();
+        });
+        search?.addEventListener('input', () => {
+            const query = String(search.value || '').trim().toLocaleLowerCase('pt-BR');
+            if (query === '') {
+                resetBrowser();
+                return;
+            }
+            browser?.classList.add('is-searching');
+            if (familyGrid instanceof HTMLElement) familyGrid.hidden = true;
+            let visible = 0;
+            panels.forEach(panel => {
+                const panelOptions = [...panel.querySelectorAll('[data-generic-sport-option]')];
+                let panelVisible = 0;
+                panel.querySelectorAll('[data-generic-sport-more-list]').forEach(list => list.hidden = false);
+                panelOptions.forEach(option => {
+                    const match = String(option.dataset.searchText || '').includes(query);
+                    option.hidden = !match;
+                    if (match) {
+                        visible += 1;
+                        panelVisible += 1;
+                    }
+                });
+                panel.hidden = panelVisible === 0;
+            });
+            if (noResults instanceof HTMLElement) noResults.hidden = visible !== 0;
+        });
+        native.addEventListener('change', syncTrigger);
+        window.addEventListener('resize', placePopover);
+        window.addEventListener('scroll', placePopover, true);
+        document.addEventListener('pointerdown', event => {
+            if (!popover.hidden && !picker.contains(event.target)) close();
+        });
+        picker.addEventListener('keydown', event => {
+            if (event.key === 'Escape' && !popover.hidden) {
+                event.preventDefault();
+                close();
+                trigger.focus();
+            }
+        });
+        syncTrigger();
+    });
+};
+
+document.addEventListener('DOMContentLoaded', () => window.StrideBRSportPickerInit(document));

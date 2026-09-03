@@ -1,5 +1,7 @@
 <?php
 $pageTitle = 'Créditos';
-$pageDescription = 'Tecnologias e projetos usados pelo StrideBR.';
-$pageHtml = '<p>O StrideBR utiliza PHP, PostgreSQL, JavaScript, CSS e o pacote NanoID para PHP. O projeto também utiliza recursos visuais próprios presentes no repositório.</p>';
+$pageDescription = 'Tecnologias, dados e projetos usados pelo StrideBR.';
+$pageHtml = '<p class="static-lead">O StrideBR é construído sobre ferramentas e dados abertos que tornam o projeto possível.</p>
+<div class="credits-grid"><article><h2>Aplicação</h2><ul><li><strong>PHP</strong> — backend e renderização do produto.</li><li><strong>PostgreSQL</strong> — banco de dados.</li><li><strong>JavaScript e CSS</strong> — interface no navegador.</li><li><strong>NanoID para PHP</strong> — geração de identificadores em partes do sistema.</li></ul></article><article><h2>Mapas e elevação</h2><ul><li><strong>Leaflet</strong> — interface interativa de mapas.</li><li><strong>OpenStreetMap</strong> — dados cartográficos e tiles conforme o provedor configurado.</li><li><strong>Open-Meteo Elevation API</strong> — consulta de elevação.</li><li><strong>Copernicus DEM</strong> — dados de terreno usados pela fonte de elevação conforme informado pelo serviço.</li></ul></article><article><h2>Ícones e identidade</h2><ul><li><strong>Tabler Icons</strong> — ícones gerais armazenados localmente sob licença MIT.</li><li><strong>SVG Repo</strong> — alguns pictogramas esportivos identificados como CC0; as fontes específicas ficam documentadas em <code>public/assets/icons/sports/SOURCES.md</code>.</li><li>A marca, logo e identidade do StrideBR fazem parte do próprio projeto.</li></ul></article></div>
+<p>As atribuições exigidas por serviços de mapa também aparecem nas interfaces em que esses dados são utilizados.</p>';
 require dirname(__DIR__, 3) . '/src/layout/static_page.php';

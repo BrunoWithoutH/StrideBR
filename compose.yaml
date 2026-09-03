@@ -9,8 +9,43 @@ services:
       STRIDEBR_APP_URL: ${STRIDEBR_APP_URL:-http://localhost:8080}
       STRIDEBR_MAIL_FROM: ${STRIDEBR_MAIL_FROM:-}
       STRIDEBR_MAIL_FROM_NAME: ${STRIDEBR_MAIL_FROM_NAME:-StrideBR}
-      STRIDEBR_TERMS_VERSION: ${STRIDEBR_TERMS_VERSION:-2026-08-15-alpha-1}
-      STRIDEBR_PRIVACY_VERSION: ${STRIDEBR_PRIVACY_VERSION:-2026-08-15-alpha-1}
+      STRIDEBR_TERMS_VERSION: ${STRIDEBR_TERMS_VERSION:-2026-08-19-alpha-2}
+      STRIDEBR_PRIVACY_VERSION: ${STRIDEBR_PRIVACY_VERSION:-2026-08-19-alpha-2}
+      STRIDEBR_INTEGRATIONS_SECRET: ${STRIDEBR_INTEGRATIONS_SECRET:-}
+      GARMIN_OAUTH_CLIENT_ID: ${GARMIN_OAUTH_CLIENT_ID:-}
+      GARMIN_OAUTH_CLIENT_SECRET: ${GARMIN_OAUTH_CLIENT_SECRET:-}
+      GARMIN_OAUTH_AUTHORIZE_URL: ${GARMIN_OAUTH_AUTHORIZE_URL:-}
+      GARMIN_OAUTH_TOKEN_URL: ${GARMIN_OAUTH_TOKEN_URL:-}
+      GARMIN_OAUTH_SCOPE: ${GARMIN_OAUTH_SCOPE:-}
+      GARMIN_OAUTH_TOKEN_AUTH: ${GARMIN_OAUTH_TOKEN_AUTH:-basic}
+      GARMIN_OAUTH_INCLUDE_CLIENT_ID: ${GARMIN_OAUTH_INCLUDE_CLIENT_ID:-0}
+      STRAVA_CLIENT_ID: ${STRAVA_CLIENT_ID:-}
+      STRAVA_CLIENT_SECRET: ${STRAVA_CLIENT_SECRET:-}
+      POLAR_CLIENT_ID: ${POLAR_CLIENT_ID:-}
+      POLAR_CLIENT_SECRET: ${POLAR_CLIENT_SECRET:-}
+      POLAR_OAUTH_SCOPE: ${POLAR_OAUTH_SCOPE:-accesslink.read_all}
+      SUUNTO_CLIENT_ID: ${SUUNTO_CLIENT_ID:-}
+      SUUNTO_CLIENT_SECRET: ${SUUNTO_CLIENT_SECRET:-}
+      SUUNTO_OAUTH_AUTHORIZE_URL: ${SUUNTO_OAUTH_AUTHORIZE_URL:-https://cloudapi-oauth.suunto.com/oauth/authorize}
+      SUUNTO_OAUTH_TOKEN_URL: ${SUUNTO_OAUTH_TOKEN_URL:-https://cloudapi-oauth.suunto.com/oauth/token}
+      SUUNTO_OAUTH_SCOPE: ${SUUNTO_OAUTH_SCOPE:-workout}
+      SUUNTO_OAUTH_TOKEN_AUTH: ${SUUNTO_OAUTH_TOKEN_AUTH:-basic}
+      SUUNTO_API_BASE_URL: ${SUUNTO_API_BASE_URL:-https://cloudapi.suunto.com}
+      SUUNTO_SUBSCRIPTION_KEY: ${SUUNTO_SUBSCRIPTION_KEY:-}
+      FITBIT_CLIENT_ID: ${FITBIT_CLIENT_ID:-}
+      FITBIT_CLIENT_SECRET: ${FITBIT_CLIENT_SECRET:-}
+      FITBIT_OAUTH_SCOPE: ${FITBIT_OAUTH_SCOPE:-activity profile heartrate location}
+      STRIDEBR_ADS_ENABLED: ${STRIDEBR_ADS_ENABLED:-0}
+      STRIDEBR_ADS_PLACEHOLDERS: ${STRIDEBR_ADS_PLACEHOLDERS:-0}
+      STRIDEBR_ADS_DEV_PREVIEW: ${STRIDEBR_ADS_DEV_PREVIEW:-0}
+      STRIDEBR_ADSENSE_CLIENT: ${STRIDEBR_ADSENSE_CLIENT:-}
+      STRIDEBR_ADSENSE_SLOT_FOOTER: ${STRIDEBR_ADSENSE_SLOT_FOOTER:-}
+      STRIDEBR_ADSENSE_SLOT_RAIL_LEFT: ${STRIDEBR_ADSENSE_SLOT_RAIL_LEFT:-}
+      STRIDEBR_ADSENSE_SLOT_RAIL_RIGHT: ${STRIDEBR_ADSENSE_SLOT_RAIL_RIGHT:-}
+      STRIDEBR_DONATION_ENABLED: ${STRIDEBR_DONATION_ENABLED:-0}
+      STRIDEBR_DONATION_PIX_KEY: ${STRIDEBR_DONATION_PIX_KEY:-}
+      STRIDEBR_DONATION_PIX_NAME: ${STRIDEBR_DONATION_PIX_NAME:-}
+      STRIDEBR_DONATION_URL: ${STRIDEBR_DONATION_URL:-}
       STRIDEBR_DB_HOST: postgres
       STRIDEBR_DB_PORT: 5432
       STRIDEBR_DB_NAME: ${STRIDEBR_DB_NAME:-stridebr}
@@ -19,8 +54,8 @@ services:
     ports:
       - "${STRIDEBR_HTTP_PORT:-8080}:80"
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     volumes:
       - .:/var/www/html
       - /var/www/html/vendor
@@ -34,19 +69,34 @@ services:
       POSTGRES_USER: ${STRIDEBR_DB_USER:-stridebr}
       POSTGRES_PASSWORD: ${STRIDEBR_DB_PASSWORD:-stridebr_dev}
     ports:
-      - "${STRIDEBR_DB_EXPOSED_PORT:-5434}:5432"
+      - "127.0.0.1:${STRIDEBR_DB_EXPOSED_PORT:-5434}:5432"
     volumes:
       - stridebr-postgres-data:/var/lib/postgresql/data
       - ./src/database/stridebr.sql:/docker-entrypoint-initdb.d/01-stridebr.sql:ro
       - ./src/database/stridebr_activities_schema.sql:/docker-entrypoint-initdb.d/02-activities.sql:ro
       - ./src/database/stridebr_seed.sql:/docker-entrypoint-initdb.d/03-seed.sql:ro
-      - ./src/database/migrations/20260815_product_foundation.sql:/docker-entrypoint-initdb.d/04-product-foundation.sql:ro
-      - ./src/database/migrations/20260815_alpha_readiness.sql:/docker-entrypoint-initdb.d/05-alpha-readiness.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${STRIDEBR_DB_USER:-stridebr} -d ${STRIDEBR_DB_NAME:-stridebr}"]
       interval: 5s
       timeout: 5s
       retries: 12
+
+  migrate:
+    image: postgres:17-alpine
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    working_dir: /workspace
+    environment:
+      STRIDEBR_DB_HOST: postgres
+      STRIDEBR_DB_PORT: 5432
+      STRIDEBR_DB_NAME: ${STRIDEBR_DB_NAME:-stridebr}
+      STRIDEBR_DB_USER: ${STRIDEBR_DB_USER:-stridebr}
+      STRIDEBR_DB_PASSWORD: ${STRIDEBR_DB_PASSWORD:-stridebr_dev}
+    volumes:
+      - .:/workspace:ro
+    command: ["sh", "./scripts/migrate_product.sh"]
 
 volumes:
   stridebr-postgres-data:

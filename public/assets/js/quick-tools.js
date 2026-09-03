@@ -27,13 +27,18 @@
         }
     };
 
+    const maxTimerMs = (999 * 60 + 59) * 1000;
+    const clampTimerMs = ms => Math.min(maxTimerMs, Math.max(0, Number(ms) || 0));
     let state = load();
+    state.timer.durationMs = clampTimerMs(state.timer.durationMs);
+    state.timer.remainingMs = clampTimerMs(state.timer.remainingMs);
+    if (state.timer.running && state.timer.endsAt - Date.now() > maxTimerMs) state.timer.endsAt = Date.now() + maxTimerMs;
     let activeTool = 'timer';
     let lastTimerPositive = true;
     const save = () => localStorage.setItem(storageKey, JSON.stringify(state));
     const pad = number => String(number).padStart(2, '0');
     const formatTimer = ms => {
-        const total = Math.max(0, Math.ceil(ms / 1000));
+        const total = Math.ceil(clampTimerMs(ms) / 1000);
         const minutes = Math.floor(total / 60);
         const seconds = total % 60;
         return `${pad(minutes)}:${pad(seconds)}`;
@@ -65,7 +70,7 @@
 
     const syncTimerInputs = ms => {
         if (!timerMinutes || !timerSeconds) return;
-        const secondsTotal = Math.max(0, Math.round(ms / 1000));
+        const secondsTotal = Math.round(clampTimerMs(ms) / 1000);
         timerMinutes.value = String(Math.floor(secondsTotal / 60));
         timerSeconds.value = String(secondsTotal % 60);
     };
@@ -78,7 +83,7 @@
             button.setAttribute('aria-pressed', pinned ? 'true' : 'false');
         });
         if (!pinnedContainer) return;
-        const labels = {timer: 'Timer', stopwatch: 'Cronômetro', sets: 'Sets'};
+        const labels = {timer: 'Timer', stopwatch: 'Cronômetro', sets: 'Séries'};
         const icons = {timer: '⏱', stopwatch: '◷', sets: '#'};
         pinnedContainer.innerHTML = '';
         state.pins.forEach(tool => {
@@ -90,6 +95,15 @@
             button.addEventListener('click', () => open(tool));
             pinnedContainer.appendChild(button);
         });
+    };
+
+    let renderTimer = 0;
+    const scheduleRender = () => {
+        window.clearTimeout(renderTimer);
+        renderTimer = 0;
+        if (!state.timer.running && !state.stopwatch.running) return;
+        const delay = document.hidden ? 1000 : (state.stopwatch.running ? 100 : 250);
+        renderTimer = window.setTimeout(render, delay);
     };
 
     const render = () => {
@@ -110,6 +124,7 @@
             if (lastTimerPositive) timerAlarm?.play().catch(() => {});
         }
         lastTimerPositive = remaining > 0;
+        scheduleRender();
     };
 
     const activate = tool => {
@@ -150,12 +165,12 @@
     }));
 
     const timerFromInputs = () => {
-        const minutes = Math.max(0, Number.parseInt(timerMinutes?.value || '0', 10) || 0);
+        const minutes = Math.min(999, Math.max(0, Number.parseInt(timerMinutes?.value || '0', 10) || 0));
         const seconds = Math.min(59, Math.max(0, Number.parseInt(timerSeconds?.value || '0', 10) || 0));
         return (minutes * 60 + seconds) * 1000;
     };
     const setTimerDuration = ms => {
-        const clean = Math.max(0, ms);
+        const clean = clampTimerMs(ms);
         state.timer.durationMs = clean;
         state.timer.remainingMs = clean;
         state.timer.running = false;
@@ -165,8 +180,14 @@
         render();
     };
     root.querySelectorAll('[data-timer-preset]').forEach(button => button.addEventListener('click', () => setTimerDuration(Number(button.dataset.timerPreset || 0) * 1000)));
-    timerMinutes?.addEventListener('input', () => { if (!state.timer.running) setTimerDuration(timerFromInputs()); });
-    timerSeconds?.addEventListener('input', () => { if (!state.timer.running) setTimerDuration(timerFromInputs()); });
+    const sanitizeTimerInput = (input, max) => {
+        if (!input) return
+        const raw = String(input.value || '').replace(/\D/g, '')
+        if (raw === '') return
+        input.value = String(Math.min(max, Number.parseInt(raw, 10) || 0))
+    };
+    timerMinutes?.addEventListener('input', () => { sanitizeTimerInput(timerMinutes, 999); if (!state.timer.running) setTimerDuration(timerFromInputs()); });
+    timerSeconds?.addEventListener('input', () => { sanitizeTimerInput(timerSeconds, 59); if (!state.timer.running) setTimerDuration(timerFromInputs()); });
     timerStart?.addEventListener('click', () => {
         let remaining = timerRemaining();
         if (remaining <= 0) remaining = timerFromInputs();
@@ -191,7 +212,7 @@
         setTimerDuration(timerFromInputs() || state.timer.durationMs || 60000);
     });
     root.querySelector('[data-quick-timer-plus]')?.addEventListener('click', () => {
-        const remaining = timerRemaining() + 30000;
+        const remaining = clampTimerMs(timerRemaining() + 30000);
         state.timer.remainingMs = remaining;
         if (state.timer.running) state.timer.endsAt = Date.now() + remaining;
         state.timer.durationMs = Math.max(state.timer.durationMs, remaining);
@@ -231,9 +252,11 @@
         state.timer.endsAt = 0;
     }
     if (!state.timer.running) syncTimerInputs(state.timer.remainingMs || state.timer.durationMs || 60000);
+    document.addEventListener('visibilitychange', () => {
+        if (state.timer.running || state.stopwatch.running) render();
+    });
     renderPins();
     render();
-    window.setInterval(render, 100);
 
     window.StrideBRQuickTools = {open, close, setTimer: seconds => { setTimerDuration(Math.max(0, Number(seconds) || 0) * 1000); open('timer'); }};
 })();

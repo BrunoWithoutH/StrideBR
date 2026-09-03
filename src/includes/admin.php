@@ -37,9 +37,17 @@ function stridebr_admin_nav(string $active): string
 {
     $items = [
         'dashboard' => ['/admin/index.php', 'Visão geral'],
-        'users' => ['/admin/users.php', 'Usuários'],
         'feedback' => ['/admin/feedback.php', 'Feedback'],
     ];
+    if (stridebr_has_role('admin')) {
+        $items = [
+            'dashboard' => ['/admin/index.php', 'Visão geral'],
+            'users' => ['/admin/users.php', 'Usuários'],
+            'events' => ['/admin/events.php', 'Eventos'],
+            'feedback' => ['/admin/feedback.php', 'Feedback'],
+            'diagnostics' => ['/admin/diagnostics.php', 'Diagnóstico'],
+        ];
+    }
     $html = '<nav class="admin-subnav" aria-label="Administração">';
     foreach ($items as $key => [$href, $label]) {
         $html .= '<a href="' . stridebr_e($href) . '"' . ($key === $active ? ' class="is-active"' : '') . '>' . stridebr_e($label) . '</a>';

@@ -8,3 +8,9 @@ document.querySelectorAll('.showHidePw').forEach(button => {
         button.setAttribute('aria-label', show ? 'Ocultar senha' : 'Mostrar senha')
     })
 })
+
+document.querySelectorAll('[data-verification-code]').forEach(field => {
+    field.addEventListener('input', () => {
+        field.value = field.value.replace(/\D/g, '').slice(0, 6)
+    })
+})
