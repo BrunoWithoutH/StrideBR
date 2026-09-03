@@ -2,354 +2,415 @@
 
 ![GitHub repo size](https://img.shields.io/github/repo-size/BrunoWithoutH/StrideBR?style=for-the-badge)
 ![GitHub license](https://img.shields.io/github/license/BrunoWithoutH/StrideBR?style=for-the-badge)
+![GitHub tag](https://img.shields.io/github/v/tag/BrunoWithoutH/StrideBR?style=for-the-badge&label=release)
 
 <img src="public/assets/img/logos/stridebr-banner.svg" width="100%" alt="StrideBR banner">
 
-> **StrideBR** is a flexible platform for planning, organizing and recording physical activities.
+> Plataforma web para planejar, organizar, registrar e acompanhar atividades físicas.
 
-StrideBR is built around configurable modalities instead of assuming one fixed sport. The project combines weekly training planning, a reusable exercise library and a dynamic activity-recording engine in one web application.
+**Versão atual:** `1.0.0-rc.1`
 
-## Current capabilities
+StrideBR é uma plataforma esportiva flexível construída em torno de modalidades, modelos de atividade e campos configuráveis. Em vez de assumir um único esporte ou formato de treino, o sistema permite registrar desde corrida e ciclismo até musculação, esportes de raquete, modalidades coletivas, lutas e atividades com tentativas, voltas, séries ou intervalos.
 
-- User signup, authentication and profile settings
-- Multiple independent weekly training plans
-- Calendar-style week and agenda views
-- Planned workouts with start/end times, including workouts that cross midnight
-- Exercise library with global and personal exercises
-- Exercise categories and modality associations
-- Workout prescriptions with sets, repetitions, load, rest, block and cluster
-- Custom exercise-prescription columns
-- Dynamic activity modalities, models and fields
-- Repeated activity units such as attempts, laps, intervals or sets
-- Typed and normalized measurement values
-- Global stopwatch, timer and set-counter tools
-- Workout execution from a scheduled workout, with set/exercise progress and activity creation
-- Profiles, usernames, onboarding and privacy controls
-- Mutual friends, snapshot sharing and read-only synchronized schedules
-- Exercise image/video references by URL
-- Moderator/admin/owner roles, feature flags and audit logs
-- Permanent feedback channel with moderation queue
-- Versioned legal acceptance, public registration, optional invite mode, email verification and password recovery
-- Admin user management with block/unblock/edit/delete controls
-- Route drawing for compatible activities, backend distance validation, terrain-elevation estimates and branded activity-share cards
-- Rich goals with sport filters, custom deadlines, active-day targets and completion history
-- Release-ready goals with continuous targets, email verification and password recovery
-- Public sports-event calendar with admin-managed sources, images and saved events
-- Self-service account data export and account deletion
-- Contextual Home, self-comparison progress and A/B activity comparison
-- Internal notifications, trainer overview with permission boundaries and product analytics opt-out
-- Reversible activity deletion and per-account/per-activity route-sharing privacy defaults
-- Best-effort GPS Web recording with quick start, offline/local recovery, goals, manual laps and editable review
-- Connected-service foundation for Garmin, Strava, Polar, Fitbit, Suunto, Health Connect, Samsung Health and Apple Health, with automatic import currently implemented for Strava, Polar, Fitbit and Suunto
-- Sport-specific progress hub with strength load/repetition logging, exercise progression, estimated 1RM, training calendar and muscle-distribution summaries
-- Category-first sport picker with common sports first and an expandable full catalog
-- Sport-aware calorie estimates using historical weight, objective activity data and device-provided calories when available
-- Athletics attempts/marks and sport-specific session fields for racket, team, combat and precision sports
-- Optional donations and public-page advertising foundation, disabled by default and isolated from authenticated athlete data
+O projeto começou com foco em corrida e evoluiu para reunir planejamento de treinos, registro de atividades, acompanhamento de progresso, rotas, GPS Web, eventos, equipamentos e integrações em uma única aplicação.
 
-Deeper analysis, richer trainer workflows, broader public discovery, API and dedicated mobile clients remain planned features.
+## Principais recursos
 
-The architecture and product rules are documented in [`docs/architecture.md`](docs/architecture.md). Deployment notes are in [`docs/DEPLOY_ALWAYS_DATA.md`](docs/DEPLOY_ALWAYS_DATA.md) and the current product roadmap is in [`docs/PRODUCT_ROADMAP.md`](docs/PRODUCT_ROADMAP.md).
+### Atividades
 
-The sports-event admin/import workflow is documented in [`docs/EVENTS_IMPORT_GUIDE.md`](docs/EVENTS_IMPORT_GUIDE.md).
+- Registro manual por modalidade e modelo de atividade
+- Campos dinâmicos e valores tipados/normalizados
+- Unidades repetidas como séries, voltas, tentativas e intervalos
+- Distância, duração, ritmo, elevação e outras métricas esportivas
+- Registro específico para força, esportes de raquete, coletivos, combate e precisão
+- Histórico com filtros, comparação entre atividades e restauração após exclusão
+- Importação de atividades em FIT, TCX e GPX
+- Exportação em GPX, TCX, JSON e arquivo original quando disponível
+- Compartilhamento com cards e controles de privacidade
 
-Connected services are documented in [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md). The server/provider actions still required before production are collected in [`docs/FINAL_SETUP_CHECKLIST.md`](docs/FINAL_SETUP_CHECKLIST.md).
+### GPS e rotas
 
-The GPS Web recorder and its browser limitations are documented in [`docs/GPS_WEB_V1.md`](docs/GPS_WEB_V1.md).
+- Gravação GPS diretamente pelo navegador
+- Início rápido de atividade
+- Recuperação local/offline
+- Voltas manuais e metas durante a gravação
+- Revisão e edição antes de salvar
+- Rotas com validação de distância
+- Elevação e perfil de percurso
+- Privacidade configurável para compartilhamento de rotas
 
-### Importação e exportação de atividades
+### Treinos e planejamento
 
-O StrideBR importa atividades de relógios e outros serviços em **FIT, TCX e GPX**, com preview, detecção de percursos e duplicatas. Atividades podem ser exportadas em GPX, TCX, JSON e, quando preservado, no arquivo original. Consulte `docs/ACTIVITY_IMPORT_EXPORT.md`.
+- Múltiplos cronogramas semanais
+- Visualização semanal e agenda mensal
+- Treinos planejados com horários
+- Suporte a treinos que atravessam a meia-noite
+- Biblioteca global e pessoal de exercícios
+- Séries, repetições, carga, descanso, blocos e clusters
+- Campos personalizados por exercício
+- Execução de treino planejado com acompanhamento de progresso
+- Compartilhamento e sincronização de cronogramas em modo somente leitura
 
+### Progresso
+
+- Metas por modalidade e métrica
+- Prazos personalizados
+- Metas contínuas e por dias ativos
+- Histórico de conclusão
+- Comparação do usuário consigo mesmo
+- Comparação A/B entre atividades
+- Evolução de exercícios de força
+- Estimativa de 1RM
+- Calendário de treinamento
+- Distribuição por grupos musculares
+- Estimativas de gasto energético
+
+### Conta e comunidade
+
+- Cadastro e login
+- Verificação de e-mail
+- Recuperação de senha
+- Google Sign-In
+- Perfil e username
+- Onboarding
+- Preferências de idioma e tema
+- Amigos mútuos
+- Notificações internas
+- Exportação dos dados da conta
+- Exclusão da conta
+- Controles de privacidade
+- Perfis de treinador e atleta com limites de permissão
+
+### Eventos, equipamentos e integrações
+
+- Calendário público de eventos esportivos
+- Eventos salvos pelo usuário
+- Gestão administrativa de fontes e eventos
+- Equipamentos associados às atividades
+- Fundação para integrações com Garmin, Strava, Polar, Fitbit, Suunto, Health Connect, Samsung Health e Apple Health
+- Importação automática implementada para Strava, Polar, Fitbit e Suunto
+
+### Administração e produto
+
+- Papéis de moderador, administrador e owner
+- Gerenciamento de usuários
+- Bloqueio e desbloqueio de contas
+- Feature flags
+- Auditoria
+- Canal permanente de feedback
+- Fila de moderação
+- Métricas internas de produto com opt-out
+- Fundação para anúncios em páginas públicas e apoio voluntário, desativada por padrão
+
+## Estado do projeto
+
+A versão `1.0.0-rc.1` é a primeira Release Candidate do StrideBR.
+
+A RC consolida o trabalho realizado após a closed alpha e serve como base para estabilização, correção de bugs, validação de deploy e preparação da versão `1.0.0`.
+
+Ainda estão planejados, entre outros:
+
+- fluxos mais avançados para treinadores;
+- descoberta pública mais ampla;
+- API pública;
+- clientes móveis dedicados;
+- integrações adicionais e maior automação de sincronização.
+
+Consulte [`docs/PRODUCT_ROADMAP.md`](docs/PRODUCT_ROADMAP.md) e [`docs/V1_RELEASE_NOTES.md`](docs/V1_RELEASE_NOTES.md).
 
 ## Stack
 
-| Technology | Purpose |
+| Tecnologia | Uso |
 |---|---|
-| PHP 8.4 | Application backend |
-| Apache 2.4 | Web server |
-| PostgreSQL 17 | Database |
-| PDO | Database access |
-| Composer | PHP dependency management |
-| JavaScript | Client-side interactions |
-| HTML / CSS | User interface |
-| Docker Compose | Local development environment |
+| PHP 8.x | Backend |
+| PostgreSQL | Banco de dados |
+| Apache | Servidor web |
+| PDO | Acesso ao PostgreSQL |
+| JavaScript | Interações no cliente |
+| HTML / CSS | Interface |
+| Composer | Dependências PHP |
+| Docker Compose | Ambiente local |
 
-## Quick start with Docker
+## Executando localmente
 
-### Requirements
+### Requisitos
 
 - Git
-- Docker with Docker Compose
+- Docker
+- Docker Compose
 
-Clone the repository:
+Clone o repositório:
 
 ```bash
 git clone https://github.com/BrunoWithoutH/StrideBR.git
 cd StrideBR
 ```
 
-Optionally create a local environment file:
+Crie o arquivo de ambiente local:
 
 ```bash
 cp .env.example .env
 ```
 
-Start the application and PostgreSQL:
+Suba a aplicação:
 
 ```bash
 docker compose up --build
 ```
 
-Open:
+Acesse:
 
 ```text
 http://localhost:8080
 ```
 
-The first database startup creates the base schema and seed data. Then the
-`migrate` service applies every pending migration before Apache starts:
-
-```text
-src/database/stridebr.sql
-src/database/stridebr_activities_schema.sql
-src/database/stridebr_seed.sql
-src/database/migrations/20260815_alpha_readiness.sql
-src/database/migrations/20260815_feedback_anonymous.sql
-src/database/migrations/20260815_fix_cronograma_delete_activity_trigger.sql
-src/database/migrations/20260815_product_foundation.sql
-src/database/migrations/20260903_v1_rc.sql
-```
-
-Applied versions are stored in `public.stridebr_schema_migrations`. Normal starts
-preserve the PostgreSQL volume and apply only new migrations:
+Para executar em segundo plano:
 
 ```bash
 docker compose up -d --build
 ```
 
-To recreate a development database from scratch (this deletes local data):
+Para parar:
+
+```bash
+docker compose down
+```
+
+Para recriar completamente o banco de desenvolvimento:
 
 ```bash
 docker compose down -v
 docker compose up --build
 ```
 
-Run the application in the background:
+> Esse comando remove os dados armazenados no volume local do PostgreSQL.
 
-```bash
-docker compose up -d --build
-```
+## Banco de dados e migrations
 
-Check services:
+Na primeira inicialização, o ambiente cria o schema base, aplica os seeds e executa as migrations pendentes.
 
-```bash
-docker compose ps
-```
-
-Open a shell in the application container:
-
-```bash
-docker compose exec app bash
-```
-
-Open PostgreSQL:
-
-```bash
-docker compose exec postgres psql -U stridebr -d stridebr
-```
-
-Stop the environment:
-
-```bash
-docker compose down
-```
-
-## Environment variables
-
-The application reads these database variables:
+Arquivos base:
 
 ```text
-STRIDEBR_DB_HOST
-STRIDEBR_DB_PORT
-STRIDEBR_DB_NAME
-STRIDEBR_DB_USER
-STRIDEBR_DB_PASSWORD
-STRIDEBR_ELEVATION_API_ENABLED
+src/database/stridebr.sql
+src/database/stridebr_activities_schema.sql
+src/database/stridebr_seed.sql
 ```
 
-`STRIDEBR_ELEVATION_API_ENABLED=0` disables external elevation lookup without disabling route saving, which is useful for integration tests and temporary API outages.
-
-Application error visibility can be controlled with:
+Migrations atualmente publicadas:
 
 ```text
+src/database/migrations/
+├── 20260815_alpha_readiness.sql
+├── 20260815_feedback_anonymous.sql
+├── 20260815_fix_cronograma_delete_activity_trigger.sql
+├── 20260815_product_foundation.sql
+└── 20260903_v1_rc.sql
+```
+
+As versões aplicadas são registradas em:
+
+```text
+public.stridebr_schema_migrations
+```
+
+O runner executa somente migrations ainda não registradas e suporta execução idempotente.
+
+Documentação:
+
+- [`docs/MIGRATIONS_CLI.md`](docs/MIGRATIONS_CLI.md)
+- [`docs/MIGRATIONS_PGADMIN.md`](docs/MIGRATIONS_PGADMIN.md)
+- [`docs/architecture.md`](docs/architecture.md)
+
+## Variáveis de ambiente
+
+O StrideBR usa variáveis de ambiente para banco, aplicação e serviços externos.
+
+Exemplo:
+
+```env
 STRIDEBR_APP_ENV=development
-STRIDEBR_APP_ENV=production
+
+STRIDEBR_DB_HOST=postgres
+STRIDEBR_DB_PORT=5432
+STRIDEBR_DB_NAME=stridebr
+STRIDEBR_DB_USER=stridebr
+STRIDEBR_DB_PASSWORD=
+
+STRIDEBR_ELEVATION_API_ENABLED=0
 ```
 
-Never commit production credentials. `.env` files are ignored by Git; `.env.example` contains development-only defaults.
+Use `.env.example` como referência.
 
-The default Docker development ports are:
+Arquivos `.env` reais não devem ser enviados ao Git.
 
-```text
-Web:        localhost:8080
-PostgreSQL: localhost:5434
-```
+## Integrações
 
-The application container connects to PostgreSQL internally through `postgres:5432`.
+As integrações externas são configuradas por variáveis de ambiente e permanecem desacopladas do funcionamento principal da aplicação.
 
-## Manual setup
+Documentação:
 
-A manual environment needs:
+- [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md)
+- [`docs/INTEGRATIONS_SETUP.md`](docs/INTEGRATIONS_SETUP.md)
+- [`docs/GOOGLE_SIGNIN_SETUP.md`](docs/GOOGLE_SIGNIN_SETUP.md)
 
-- PHP 8.4 or compatible PHP 8.x
-- `pdo_pgsql`
-- PostgreSQL 17 or compatible supported version
-- Composer
-- a web server configured with `public/` as its document root
+O Google Sign-In usa OAuth 2.0 / OpenID Connect com authorization code flow no servidor.
 
-Install dependencies:
+## Importação e exportação
 
-```bash
-composer install
-```
+O StrideBR aceita atividades em:
 
-Create a PostgreSQL database and execute the SQL files in the order shown above. Then provide the database connection through environment variables.
+- FIT
+- TCX
+- GPX
 
-## Project structure
+O fluxo possui preview, detecção de duplicatas e suporte a percurso.
+
+As atividades podem ser exportadas em:
+
+- GPX
+- TCX
+- JSON
+- arquivo original, quando preservado
+
+Consulte [`docs/ACTIVITY_IMPORT_EXPORT.md`](docs/ACTIVITY_IMPORT_EXPORT.md).
+
+## GPS Web
+
+O gravador GPS funciona diretamente no navegador e foi desenvolvido como alternativa web para registrar atividades externas sem exigir aplicativo nativo.
+
+Por depender das APIs e restrições de cada navegador/sistema operacional, existem limitações específicas de execução em background.
+
+Consulte [`docs/GPS_WEB_V1.md`](docs/GPS_WEB_V1.md).
+
+## Eventos
+
+O StrideBR possui calendário de eventos esportivos com administração de fontes, imagens e eventos salvos.
+
+Consulte [`docs/EVENTS_IMPORT_GUIDE.md`](docs/EVENTS_IMPORT_GUIDE.md).
+
+## Estrutura do projeto
 
 ```text
 StrideBR/
 ├── docs/
-│   └── architecture.md
 ├── public/
+│   ├── admin/
+│   ├── api/
 │   ├── assets/
-│   ├── function/
+│   ├── auth/
+│   ├── errors/
 │   ├── pages/
-│   ├── user/
-│   ├── calendario.php
-│   ├── home.php
-│   ├── index.php
-│   ├── login.php
-│   └── signup.php
+│   ├── uploads/
+│   └── user/
+├── scripts/
+│   └── tests/
 ├── src/
 │   ├── config/
 │   ├── database/
+│   │   └── migrations/
 │   ├── function/
+│   ├── i18n/
 │   ├── includes/
 │   └── layout/
-├── Dockerfile
 ├── compose.yaml
+├── Dockerfile
 ├── composer.json
 └── README.md
 ```
 
-## Database model
+## Testes
 
-The planning side is centered on:
-
-```text
-user
-└── cronograms
-    └── planned workouts
-        └── exercise occurrences
-            ├── standard prescription fields
-            └── custom prescription fields
-```
-
-The activity-recording side is centered on:
-
-```text
-modality
-└── activity model
-    └── fields
-
-user
-└── activity record
-    └── activity units
-        └── typed values
-```
-
-A unit is intentionally generic and can represent an attempt, lap, interval, set, throw, descent or another model-defined occurrence.
-
-See [`docs/architecture.md`](docs/architecture.md) for the complete design and development boundaries.
-
-## Development checks
-
-Lint every project PHP file:
+A suíte completa pode ser executada com:
 
 ```bash
-find public src scripts -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+./scripts/test_all.sh
 ```
 
-Check JavaScript syntax:
+Os testes incluem verificações de:
+
+- sintaxe PHP;
+- sintaxe JavaScript;
+- scripts shell;
+- migrations;
+- autenticação;
+- atividades;
+- rotas;
+- cronogramas;
+- sessões de treino;
+- amizades;
+- treinador;
+- permissões;
+- GPS Web;
+- integrações;
+- segurança;
+- interface e consistência estática.
+
+Para validar uma instalação limpa do banco:
 
 ```bash
-find public/assets/js -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+./scripts/tests/test_migrations_clean.sh
 ```
 
-Run the pre-release checks with:
+Para verificações de release:
 
 ```bash
 ./scripts/release_check.sh
 ```
 
-To include the isolated PostgreSQL integration suite:
+E incluindo a suíte isolada de PostgreSQL:
 
 ```bash
 ./scripts/release_check.sh --full
 ```
 
-The full runner creates a separate PostgreSQL test database, applies all migrations from scratch, verifies the migration registry/idempotent second run and executes integration suites without touching the normal development database. Static/unit checks remain available directly with `./scripts/test_static.sh`.
+## Backup e restore
 
-The release checklist is in [`docs/V1_RELEASE_CHECKLIST.md`](docs/V1_RELEASE_CHECKLIST.md).
-
-## Database backup
-
-With the `STRIDEBR_DB_*` environment variables exported and PostgreSQL client tools installed:
+Com as variáveis `STRIDEBR_DB_*` configuradas:
 
 ```bash
 ./scripts/backup_db.sh
 ```
 
-Restore tests must use a separate database:
+Para testar uma restauração em banco separado:
 
 ```bash
 STRIDEBR_DB_NAME=stridebr_restore_test ./scripts/restore_db.sh backups/ARQUIVO.dump --yes
 ```
 
-Dump files are ignored by Git.
+Dumps de banco são ignorados pelo Git.
 
-## Security
+## Segurança
 
-- Passwords use PHP password hashing APIs.
-- Authenticated identity comes from the server-side session.
-- State-changing browser operations use CSRF protection.
-- User-owned resources are checked against the authenticated user.
-- SQL input is handled through PDO prepared statements.
-- Database secrets come from environment variables.
+Entre as proteções adotadas pelo projeto:
 
-If a credential has ever been committed to a public Git history, rotating it is required even after removing it from the current files.
+- hash de senha pelas APIs nativas do PHP;
+- sessão no servidor;
+- proteção CSRF em operações mutáveis;
+- validação de propriedade dos recursos;
+- queries parametrizadas com PDO;
+- segredos via variáveis de ambiente;
+- controles de permissão por papel e relacionamento.
 
-## License
+Falhas de segurança devem ser reportadas conforme [`SECURITY.md`](SECURITY.md).
 
-See [LICENSE](LICENSE).
+## Documentação
 
-## Interface language, appearance and Google sign-in
+Alguns pontos de entrada:
 
-The interface supports Portuguese (Brazil) and an initial English localization. Appearance can follow the operating system or be forced to Light or Dark. Signed-in users can save both choices under Profile and preferences; the authentication pages also expose quick language and appearance controls.
+- [`docs/architecture.md`](docs/architecture.md) — arquitetura e regras do produto
+- [`docs/ACTIVITIES_V2.md`](docs/ACTIVITIES_V2.md) — sistema de atividades
+- [`docs/ACTIVITY_SHARING_V2.md`](docs/ACTIVITY_SHARING_V2.md) — compartilhamento
+- [`docs/ACTIVITY_IMPORT_EXPORT.md`](docs/ACTIVITY_IMPORT_EXPORT.md) — importação e exportação
+- [`docs/GPS_WEB_V1.md`](docs/GPS_WEB_V1.md) — GPS Web
+- [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md) — integrações
+- [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md) — performance
+- [`docs/MONETIZATION.md`](docs/MONETIZATION.md) — monetização
+- [`docs/PRODUCT_ROADMAP.md`](docs/PRODUCT_ROADMAP.md) — roadmap
+- [`docs/V1_RELEASE_NOTES.md`](docs/V1_RELEASE_NOTES.md) — notas da RC/1.0
 
-Google sign-in uses a server-side OAuth 2.0 / OpenID Connect authorization-code flow. Configure a **Web application** OAuth client and set:
+## Licença
 
-```env
-GOOGLE_OAUTH_ENABLED=0
-GOOGLE_OAUTH_CLIENT_ID=...
-GOOGLE_OAUTH_CLIENT_SECRET=...
-GOOGLE_OAUTH_REDIRECT_URI=https://your-host/auth/google-callback.php
-```
+StrideBR é distribuído sob a **GNU General Public License v3.0**.
 
-Apply `src/database/migrations/20260903_v1_rc.sql` before enabling Google sign-in. Set `GOOGLE_OAUTH_ENABLED=1` only when you want the feature active. With `GOOGLE_OAUTH_ENABLED=0` (the default), the Google button stays hidden and OAuth entry is blocked even if the credentials remain configured; email/password authentication continues normally.
-
-## Configuração de ambiente e Conexões
-
-Antes de habilitar integrações externas, rode `./scripts/setup_env.sh` (local) ou `./scripts/setup_env.sh --production --url https://seu-dominio` (servidor). Veja `docs/INTEGRATIONS_SETUP.md` e `docs/FINAL_SETUP_CHECKLIST.md`.
+Consulte [`LICENSE`](LICENSE).
