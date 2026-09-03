@@ -8,20 +8,22 @@ require_once dirname(__DIR__, 2) . '/src/includes/app.php';
 stridebr_require_login();
 ?>
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="<?php echo function_exists('stridebr_html_lang') ? stridebr_e(stridebr_html_lang()) : 'pt-BR'; ?>">
 <head>
+    <?php if (function_exists('stridebr_ui_boot_script')) echo stridebr_ui_boot_script(); ?>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <link rel="icon" type="image/png" href="<?php echo stridebr_e(stridebr_asset('/assets/img/favicon/favicon.png')); ?>">
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/style.css')); ?>">
     <title>Ferramentas de treino | StrideBR</title>
+    <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>">
 </head>
 <body>
 <div class="container-fluid">
     <?php require dirname(__DIR__, 2) . '/src/layout/header.php'; ?>
     <main class="main-content">
         <div class="page-shell">
-            <div class="page-heading"><h1>Ferramentas de treino</h1><p>Utilitários simples que funcionam direto no navegador.</p></div>
+            <div class="page-heading"><h1>Ferramentas de treino</h1></div>
             <div class="tools-grid">
                 <section class="tool-card">
                     <h2>Contador</h2>

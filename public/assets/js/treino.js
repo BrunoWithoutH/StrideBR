@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let running = false;
 
     const inputSeconds = () => {
-        const minutes = Math.max(0, Number.parseInt(minutesInput?.value || '0', 10) || 0);
+        const minutes = Math.min(999, Math.max(0, Number.parseInt(minutesInput?.value || '0', 10) || 0));
         const seconds = Math.min(59, Math.max(0, Number.parseInt(secondsInput?.value || '0', 10) || 0));
         return minutes * 60 + seconds;
     };
@@ -64,8 +64,15 @@ document.addEventListener('DOMContentLoaded', () => {
         renderTimer();
     };
 
-    minutesInput?.addEventListener('input', syncFromInputs);
-    secondsInput?.addEventListener('input', syncFromInputs);
+    const sanitizeTimerInput = (input, max) => {
+        if (!input) return
+        const raw = String(input.value || '').replace(/\D/g, '')
+        if (raw === '') return
+        input.value = String(Math.min(max, Number.parseInt(raw, 10) || 0))
+    };
+
+    minutesInput?.addEventListener('input', () => { sanitizeTimerInput(minutesInput, 999); syncFromInputs(); });
+    secondsInput?.addEventListener('input', () => { sanitizeTimerInput(secondsInput, 59); syncFromInputs(); });
 
     startButton?.addEventListener('click', () => {
         if (running) return;

@@ -25,10 +25,12 @@ CREATE TABLE usuarios (
     ultimologin TIMESTAMPTZ,
     ipregistro VARCHAR(45),
     ipultimologin VARCHAR(45),
-    notificacoesconfig JSONB NOT NULL DEFAULT '{}'::jsonb
+    notificacoesconfig JSONB NOT NULL DEFAULT '{}'::jsonb,
+    google_sub VARCHAR(255)
 );
 
 CREATE UNIQUE INDEX ux_usuarios_email ON usuarios (lower(emailusuario));
+CREATE UNIQUE INDEX ux_usuarios_google_sub ON usuarios (google_sub) WHERE google_sub IS NOT NULL;
 
 CREATE TABLE cronogramas (
     idcronograma VARCHAR(21) PRIMARY KEY,
@@ -50,6 +52,8 @@ CREATE TABLE treinos_cronograma (
     idtreino VARCHAR(21) PRIMARY KEY,
     idcronograma VARCHAR(21) NOT NULL REFERENCES cronogramas(idcronograma) ON DELETE CASCADE,
     titulo VARCHAR(120) NOT NULL CHECK (length(trim(titulo)) > 0),
+    codigo VARCHAR(24),
+    foco VARCHAR(80),
     descricao TEXT,
     dia_semana SMALLINT NOT NULL CHECK (dia_semana BETWEEN 0 AND 6),
     hora_inicio TIME NOT NULL,

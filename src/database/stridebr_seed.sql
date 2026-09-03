@@ -160,6 +160,231 @@ INSERT INTO campos_modelo_opcoes (idopcao, idcampo, rotulo, valor, ordem) VALUES
 ('o_nat_borb', 'f_nat_estilo', 'Borboleta', 'borboleta', 4)
 ON CONFLICT DO NOTHING;
 
+UPDATE modalidades SET categoria = 'Corrida e caminhada', icone = '🏃', ordem_catalogo = 10, metrica_derivada = 'pace_km' WHERE slug = 'corrida';
+UPDATE modalidades SET categoria = 'Corrida e caminhada', icone = '🚶', ordem_catalogo = 20, metrica_derivada = 'pace_km' WHERE slug = 'caminhada';
+UPDATE modalidades SET categoria = 'Corrida e caminhada', icone = '🏃', ordem_catalogo = 30, metrica_derivada = 'pace_km' WHERE slug = 'marcha-atletica';
+UPDATE modalidades SET categoria = 'Corrida e caminhada', icone = '🥾', ordem_catalogo = 40, metrica_derivada = 'pace_km' WHERE slug = 'trilha';
+UPDATE modalidades SET categoria = 'Ciclismo', icone = '🚴', ordem_catalogo = 100, metrica_derivada = 'velocidade_kmh' WHERE slug = 'ciclismo';
+UPDATE modalidades SET categoria = 'Ciclismo', icone = '🚵', ordem_catalogo = 110, metrica_derivada = 'velocidade_kmh' WHERE slug = 'mountain-bike';
+UPDATE modalidades SET categoria = 'Ciclismo', icone = '🚵', ordem_catalogo = 120, metrica_derivada = 'velocidade_kmh' WHERE slug = 'downhill';
+UPDATE modalidades SET categoria = 'Ciclismo', icone = '🚲', ordem_catalogo = 130, metrica_derivada = 'velocidade_kmh' WHERE slug = 'bmx';
+UPDATE modalidades SET categoria = 'Aquáticos', icone = '🏊', ordem_catalogo = 200, metrica_derivada = 'pace_100m' WHERE slug = 'natacao';
+UPDATE modalidades SET categoria = 'Raquete', icone = '🎾', ordem_catalogo = 300 WHERE slug = 'tenis';
+UPDATE modalidades SET categoria = 'Raquete', icone = '🏓', ordem_catalogo = 310 WHERE slug = 'tenis-de-mesa';
+UPDATE modalidades SET categoria = 'Raquete', icone = '🏸', ordem_catalogo = 320 WHERE slug = 'badminton';
+UPDATE modalidades SET categoria = 'Raquete', icone = '🎾', ordem_catalogo = 330 WHERE slug = 'padel';
+UPDATE modalidades SET categoria = 'Raquete', icone = '🎾', ordem_catalogo = 340 WHERE slug = 'beach-tennis';
+UPDATE modalidades SET categoria = 'Atletismo', icone = '🏟️', ordem_catalogo = 700 WHERE slug IN ('arremesso-de-peso', 'lancamento-de-disco', 'lancamento-de-dardo', 'lancamento-de-martelo');
+UPDATE modalidades SET categoria = 'Força e condicionamento', icone = '🏋️', ordem_catalogo = 500 WHERE slug = 'musculacao';
+UPDATE modalidades SET categoria = 'Força e condicionamento', icone = '🤸', ordem_catalogo = 510 WHERE slug = 'calistenia';
+UPDATE modalidades SET categoria = 'Lutas', icone = '🥋', ordem_catalogo = 600 WHERE slug = 'karate';
+UPDATE modalidades SET categoria = 'Outras atividades', icone = '＋', ordem_catalogo = 9999 WHERE slug = 'outra-atividade';
+
+INSERT INTO modalidades (idmodalidade, nome, slug, descricao, visibilidade, status_publicacao, categoria, icone, ordem_catalogo, metrica_derivada) VALUES
+('m_trailrun', 'Corrida em trilha', 'corrida-em-trilha', 'Corrida em trilhas e terreno natural.', 'publico', 'publicado', 'Corrida e caminhada', '🏃', 15, 'pace_km'),
+('m_treadmill', 'Corrida em esteira', 'corrida-em-esteira', 'Corrida em esteira ou ambiente interno.', 'publico', 'publicado', 'Corrida e caminhada', '🏃', 16, 'pace_km'),
+('m_wheelchair', 'Cadeira de rodas esportiva', 'cadeira-de-rodas', 'Atividade esportiva em cadeira de rodas.', 'publico', 'publicado', 'Corrida e caminhada', '♿', 50, 'velocidade_kmh'),
+('m_gravel', 'Gravel', 'gravel', 'Ciclismo em estradas de cascalho e terreno misto.', 'publico', 'publicado', 'Ciclismo', '🚴', 105, 'velocidade_kmh'),
+('m_ebike', 'Bicicleta elétrica', 'bicicleta-eletrica', 'Pedalada com bicicleta elétrica.', 'publico', 'publicado', 'Ciclismo', '🚲', 115, 'velocidade_kmh'),
+('m_emtb', 'E-Mountain Bike', 'e-mountain-bike', 'Mountain bike com assistência elétrica.', 'publico', 'publicado', 'Ciclismo', '🚵', 116, 'velocidade_kmh'),
+('m_cicindoor', 'Ciclismo indoor', 'ciclismo-indoor', 'Treino em bicicleta ergométrica, spinning ou rolo.', 'publico', 'publicado', 'Ciclismo', '🚴', 140, 'velocidade_kmh'),
+('m_handcycle', 'Handcycle', 'handcycle', 'Ciclismo com bicicleta de mão.', 'publico', 'publicado', 'Ciclismo', '♿', 150, 'velocidade_kmh'),
+('m_velomovel', 'Velomóvel', 'velomovel', 'Ciclismo em velomóvel.', 'publico', 'publicado', 'Ciclismo', '🚲', 160, 'velocidade_kmh'),
+('m_remo', 'Remo', 'remo', 'Remo em água.', 'publico', 'publicado', 'Aquáticos', '🚣', 210, 'split_500m'),
+('m_remoind', 'Remo indoor', 'remo-indoor', 'Treino em ergômetro de remo.', 'publico', 'publicado', 'Aquáticos', '🚣', 211, 'split_500m'),
+('m_canoa', 'Canoagem', 'canoagem', 'Atividade de canoa.', 'publico', 'publicado', 'Aquáticos', '🛶', 220, 'velocidade_kmh'),
+('m_caiaque', 'Caiaque', 'caiaque', 'Atividade de caiaque.', 'publico', 'publicado', 'Aquáticos', '🛶', 230, 'velocidade_kmh'),
+('m_sup', 'Stand Up Paddle', 'stand-up-paddle', 'Stand up paddle.', 'publico', 'publicado', 'Aquáticos', '🏄', 240, 'velocidade_kmh'),
+('m_surf', 'Surfe', 'surfe', 'Sessão de surfe.', 'publico', 'publicado', 'Aquáticos', '🏄', 250, 'nenhuma'),
+('m_kitesurf', 'Kitesurf', 'kitesurf', 'Sessão de kitesurf.', 'publico', 'publicado', 'Aquáticos', '🏄', 260, 'velocidade_kmh'),
+('m_windsurf', 'Windsurf', 'windsurf', 'Sessão de windsurf.', 'publico', 'publicado', 'Aquáticos', '🏄', 270, 'velocidade_kmh'),
+('m_vela', 'Vela', 'vela', 'Atividade de vela.', 'publico', 'publicado', 'Aquáticos', '⛵', 280, 'nenhuma'),
+('m_pickle', 'Pickleball', 'pickleball', 'Treino ou partida de pickleball.', 'publico', 'publicado', 'Raquete', '🏓', 350, 'nenhuma'),
+('m_squash', 'Squash', 'squash', 'Treino ou partida de squash.', 'publico', 'publicado', 'Raquete', '🎾', 360, 'nenhuma'),
+('m_raquetebol', 'Raquetebol', 'raquetebol', 'Treino ou partida de raquetebol.', 'publico', 'publicado', 'Raquete', '🎾', 370, 'nenhuma'),
+('m_futebol', 'Futebol', 'futebol', 'Treino ou partida de futebol.', 'publico', 'publicado', 'Esportes coletivos', '⚽', 400, 'nenhuma'),
+('m_futsal', 'Futsal', 'futsal', 'Treino ou partida de futsal.', 'publico', 'publicado', 'Esportes coletivos', '⚽', 410, 'nenhuma'),
+('m_basquete', 'Basquete', 'basquete', 'Treino ou partida de basquete.', 'publico', 'publicado', 'Esportes coletivos', '🏀', 420, 'nenhuma'),
+('m_volei', 'Vôlei', 'volei', 'Treino ou partida de vôlei.', 'publico', 'publicado', 'Esportes coletivos', '🏐', 430, 'nenhuma'),
+('m_volei_praia', 'Vôlei de praia', 'volei-de-praia', 'Treino ou partida de vôlei de praia.', 'publico', 'publicado', 'Esportes coletivos', '🏐', 431, 'nenhuma'),
+('m_handebol', 'Handebol', 'handebol', 'Treino ou partida de handebol.', 'publico', 'publicado', 'Esportes coletivos', '🤾', 440, 'nenhuma'),
+('m_rugby', 'Rugby', 'rugby', 'Treino ou partida de rugby.', 'publico', 'publicado', 'Esportes coletivos', '🏉', 450, 'nenhuma'),
+('m_futam', 'Futebol americano', 'futebol-americano', 'Treino ou partida de futebol americano.', 'publico', 'publicado', 'Esportes coletivos', '🏈', 460, 'nenhuma'),
+('m_criquete', 'Críquete', 'criquete', 'Treino ou partida de críquete.', 'publico', 'publicado', 'Esportes coletivos', '🏏', 470, 'nenhuma'),
+('m_crossfit', 'CrossFit', 'crossfit', 'Sessão de CrossFit.', 'publico', 'publicado', 'Força e condicionamento', '🏋️', 520, 'nenhuma'),
+('m_hiit', 'HIIT', 'hiit', 'Treino intervalado de alta intensidade.', 'publico', 'publicado', 'Força e condicionamento', '⚡', 530, 'nenhuma'),
+('m_funcional', 'Treino funcional', 'treino-funcional', 'Treino funcional ou circuito.', 'publico', 'publicado', 'Força e condicionamento', '🏋️', 540, 'nenhuma'),
+('m_cardio', 'Cardio', 'cardio', 'Sessão geral de cardio.', 'publico', 'publicado', 'Força e condicionamento', '❤', 550, 'nenhuma'),
+('m_eliptico', 'Elíptico', 'eliptico', 'Treino em aparelho elíptico.', 'publico', 'publicado', 'Força e condicionamento', '🏃', 560, 'nenhuma'),
+('m_escadas', 'Simulador de escada', 'simulador-de-escada', 'Treino em simulador de escada.', 'publico', 'publicado', 'Força e condicionamento', '↗', 570, 'nenhuma'),
+('m_corda', 'Pular corda', 'pular-corda', 'Treino com corda.', 'publico', 'publicado', 'Força e condicionamento', '➰', 580, 'nenhuma'),
+('m_yoga', 'Yoga', 'yoga', 'Sessão de yoga.', 'publico', 'publicado', 'Força e condicionamento', '🧘', 590, 'nenhuma'),
+('m_pilates', 'Pilates', 'pilates', 'Sessão de pilates.', 'publico', 'publicado', 'Força e condicionamento', '🧘', 591, 'nenhuma'),
+('m_mobilidade', 'Mobilidade', 'mobilidade', 'Mobilidade, alongamento e trabalho de amplitude.', 'publico', 'publicado', 'Força e condicionamento', '🤸', 592, 'nenhuma'),
+('m_danca', 'Dança', 'danca', 'Sessão de dança.', 'publico', 'publicado', 'Força e condicionamento', '💃', 593, 'nenhuma'),
+('m_judo', 'Judô', 'judo', 'Treino de judô.', 'publico', 'publicado', 'Lutas', '🥋', 610, 'nenhuma'),
+('m_jiujitsu', 'Jiu-jítsu', 'jiu-jitsu', 'Treino de jiu-jítsu.', 'publico', 'publicado', 'Lutas', '🥋', 620, 'nenhuma'),
+('m_boxe', 'Boxe', 'boxe', 'Treino de boxe.', 'publico', 'publicado', 'Lutas', '🥊', 630, 'nenhuma'),
+('m_muaythai', 'Muay Thai', 'muay-thai', 'Treino de Muay Thai.', 'publico', 'publicado', 'Lutas', '🥊', 640, 'nenhuma'),
+('m_taekwondo', 'Taekwondo', 'taekwondo', 'Treino de taekwondo.', 'publico', 'publicado', 'Lutas', '🥋', 650, 'nenhuma'),
+('m_capoeira', 'Capoeira', 'capoeira', 'Treino ou roda de capoeira.', 'publico', 'publicado', 'Lutas', '🤸', 660, 'nenhuma'),
+('m_wrestling', 'Luta olímpica', 'luta-olimpica', 'Treino de luta olímpica.', 'publico', 'publicado', 'Lutas', '🤼', 670, 'nenhuma'),
+('m_kickbox', 'Kickboxing', 'kickboxing', 'Treino de kickboxing.', 'publico', 'publicado', 'Lutas', '🥊', 680, 'nenhuma'),
+('m_esgrima', 'Esgrima', 'esgrima', 'Treino de esgrima.', 'publico', 'publicado', 'Lutas', '🤺', 690, 'nenhuma'),
+('m_atletismo', 'Atletismo', 'atletismo', 'Treino geral de atletismo.', 'publico', 'publicado', 'Atletismo', '🏟️', 701, 'nenhuma'),
+('m_salto_dist', 'Salto em distância', 'salto-em-distancia', 'Treinos e provas de salto em distância.', 'publico', 'publicado', 'Atletismo', '🏟️', 710, 'nenhuma'),
+('m_salto_alt', 'Salto em altura', 'salto-em-altura', 'Treinos e provas de salto em altura.', 'publico', 'publicado', 'Atletismo', '🏟️', 720, 'nenhuma'),
+('m_salto_vara', 'Salto com vara', 'salto-com-vara', 'Treinos e provas de salto com vara.', 'publico', 'publicado', 'Atletismo', '🏟️', 730, 'nenhuma'),
+('m_escalada', 'Escalada', 'escalada', 'Escalada esportiva em rocha ou parede.', 'publico', 'publicado', 'Escalada', '🧗', 800, 'nenhuma'),
+('m_boulder', 'Boulder', 'boulder', 'Sessão de boulder.', 'publico', 'publicado', 'Escalada', '🧗', 810, 'nenhuma'),
+('m_patins', 'Patinação inline', 'patinacao-inline', 'Patinação com patins inline.', 'publico', 'publicado', 'Rodas', '🛼', 850, 'velocidade_kmh'),
+('m_skate', 'Skate', 'skate', 'Sessão de skate.', 'publico', 'publicado', 'Rodas', '🛹', 860, 'nenhuma'),
+('m_rollerski', 'Roller ski', 'roller-ski', 'Treino de roller ski.', 'publico', 'publicado', 'Rodas', '🎿', 870, 'velocidade_kmh'),
+('m_esqui_alp', 'Esqui alpino', 'esqui-alpino', 'Sessão de esqui alpino.', 'publico', 'publicado', 'Inverno', '🎿', 900, 'velocidade_kmh'),
+('m_esqui_nord', 'Esqui nórdico', 'esqui-nordico', 'Sessão de esqui nórdico.', 'publico', 'publicado', 'Inverno', '🎿', 910, 'velocidade_kmh'),
+('m_esqui_back', 'Esqui fora de pista', 'esqui-fora-de-pista', 'Sessão de esqui fora de pista.', 'publico', 'publicado', 'Inverno', '🎿', 920, 'velocidade_kmh'),
+('m_snowboard', 'Snowboard', 'snowboard', 'Sessão de snowboard.', 'publico', 'publicado', 'Inverno', '🏂', 930, 'velocidade_kmh'),
+('m_raquete_neve', 'Raquete de neve', 'raquete-de-neve', 'Caminhada com raquetes de neve.', 'publico', 'publicado', 'Inverno', '🥾', 940, 'pace_km'),
+('m_patgelo', 'Patinação no gelo', 'patinacao-no-gelo', 'Sessão de patinação no gelo.', 'publico', 'publicado', 'Inverno', '⛸️', 950, 'velocidade_kmh'),
+('m_golfe', 'Golfe', 'golfe', 'Partida ou treino de golfe.', 'publico', 'publicado', 'Outras atividades', '⛳', 1000, 'nenhuma'),
+('m_equita', 'Equitação', 'equitacao', 'Sessão de equitação.', 'publico', 'publicado', 'Outras atividades', '🐎', 1010, 'nenhuma')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO modelos_modalidade (
+    idmodelo, idmodalidade, nome, slug, descricao, tipo_unidade_padrao, rotulo_unidade,
+    permite_multiplas_unidades, versao, padrao, visibilidade, status_publicacao
+)
+SELECT
+    'md' || substr(md5(m.idmodalidade), 1, 19),
+    m.idmodalidade,
+    'Registro padrão',
+    'padrao',
+    'Registro rápido da modalidade.',
+    'sessao',
+    'Sessão',
+    FALSE,
+    1,
+    TRUE,
+    'publico',
+    'publicado'
+FROM modalidades m
+WHERE m.idusuario IS NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM modelos_modalidade mm
+      WHERE mm.idmodalidade = m.idmodalidade
+        AND mm.ativo = TRUE
+        AND mm.padrao = TRUE
+  )
+ON CONFLICT DO NOTHING;
+
+
+UPDATE modelos_modalidade
+SET padrao = FALSE, ativo = FALSE
+WHERE idmodelo = 'md_geral';
+
+INSERT INTO modelos_modalidade (
+    idmodelo, idmodalidade, idusuario, idmodelo_anterior, nome, slug, descricao,
+    tipo_unidade_padrao, rotulo_unidade, permite_multiplas_unidades, versao,
+    padrao, ativo, visibilidade, status_publicacao
+) VALUES (
+    'md_geral_v2', 'm_geral', NULL, 'md_geral', 'Registro livre', 'livre',
+    'Registro livre com campos opcionais escolhidos no momento do cadastro.',
+    'sessao', 'Sessão', FALSE, 2, TRUE, TRUE, 'publico', 'publicado'
+)
+ON CONFLICT (idmodelo) DO UPDATE
+SET padrao = TRUE, ativo = TRUE;
+
+
+UPDATE modalidades_usuario
+SET idmodelo_ativo = 'md_geral_v2'
+WHERE idmodalidade = 'm_geral'
+  AND idmodelo_ativo = 'md_geral';
+
+INSERT INTO campos_modelo (
+    idcampo, idmodelo, nome, slug, rotulo, tipo_campo, escopo,
+    idgrandeza, idunidade, obrigatorio, ordem, exibicao_padrao, grupo_ui
+) VALUES
+('f_ger2_dur', 'md_geral_v2', 'duracao', 'duracao', 'Duração', 'intervalo', 'unidade', 'g_tempo', NULL, FALSE, 1, TRUE, 'principal'),
+('f_ger2_dist', 'md_geral_v2', 'distancia', 'distancia', 'Distância', 'decimal', 'unidade', 'g_distancia', 'u_km', FALSE, 2, FALSE, 'extras'),
+('f_ger2_elev', 'md_geral_v2', 'elevacao', 'elevacao', 'Elevação', 'decimal', 'unidade', 'g_distancia', 'u_m', FALSE, 3, FALSE, 'extras'),
+('f_ger2_fc', 'md_geral_v2', 'fc_media', 'fc-media', 'FC média (bpm)', 'inteiro', 'unidade', NULL, NULL, FALSE, 4, FALSE, 'extras'),
+('f_ger2_steps', 'md_geral_v2', 'passos', 'passos', 'Passos', 'inteiro', 'unidade', NULL, NULL, FALSE, 5, FALSE, 'extras'),
+('f_ger2_sets', 'md_geral_v2', 'series', 'series', 'Séries', 'inteiro', 'unidade', NULL, NULL, FALSE, 6, FALSE, 'extras'),
+('f_ger2_reps', 'md_geral_v2', 'repeticoes', 'repeticoes', 'Repetições', 'inteiro', 'unidade', NULL, NULL, FALSE, 7, FALSE, 'extras'),
+('f_ger2_load', 'md_geral_v2', 'carga', 'carga', 'Carga', 'decimal', 'unidade', 'g_massa', 'u_kg', FALSE, 8, FALSE, 'extras'),
+('f_ger2_cad', 'md_geral_v2', 'cadencia', 'cadencia', 'Cadência', 'inteiro', 'unidade', NULL, NULL, FALSE, 9, FALSE, 'extras'),
+('f_ger2_power', 'md_geral_v2', 'potencia', 'potencia', 'Potência (W)', 'inteiro', 'unidade', NULL, NULL, FALSE, 10, FALSE, 'extras'),
+('f_ger2_obs', 'md_geral_v2', 'observacoes', 'observacoes', 'Observações específicas', 'texto_longo', 'registro', NULL, NULL, FALSE, 11, FALSE, 'extras')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO campos_modelo (
+    idcampo, idmodelo, nome, slug, rotulo, tipo_campo, escopo,
+    idgrandeza, idunidade, obrigatorio, ordem, exibicao_padrao, grupo_ui
+)
+SELECT
+    'fd' || substr(md5(mm.idmodelo || ':duracao'), 1, 19),
+    mm.idmodelo,
+    'duracao',
+    'duracao',
+    'Duração',
+    'intervalo',
+    'unidade',
+    'g_tempo',
+    NULL,
+    FALSE,
+    COALESCE((SELECT MAX(c.ordem) FROM campos_modelo c WHERE c.idmodelo = mm.idmodelo), 0) + 1,
+    TRUE,
+    'principal'
+FROM modelos_modalidade mm
+JOIN modalidades m ON m.idmodalidade = mm.idmodalidade
+WHERE mm.ativo = TRUE
+  AND mm.padrao = TRUE
+  AND m.idusuario IS NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM campos_modelo c
+      WHERE c.idmodelo = mm.idmodelo AND lower(c.slug) = 'duracao'
+  )
+ON CONFLICT DO NOTHING;
+
+INSERT INTO campos_modelo (
+    idcampo, idmodelo, nome, slug, rotulo, tipo_campo, escopo,
+    idgrandeza, idunidade, obrigatorio, ordem, exibicao_padrao, grupo_ui
+)
+SELECT
+    'ds' || substr(md5(mm.idmodelo || ':distancia'), 1, 19),
+    mm.idmodelo,
+    'distancia',
+    'distancia',
+    'Distância',
+    'decimal',
+    'unidade',
+    'g_distancia',
+    CASE WHEN m.metrica_derivada IN ('pace_100m', 'split_500m') THEN 'u_m' ELSE 'u_km' END,
+    FALSE,
+    COALESCE((SELECT MAX(c.ordem) FROM campos_modelo c WHERE c.idmodelo = mm.idmodelo), 0) + 1,
+    TRUE,
+    'principal'
+FROM modelos_modalidade mm
+JOIN modalidades m ON m.idmodalidade = mm.idmodalidade
+WHERE mm.ativo = TRUE
+  AND mm.padrao = TRUE
+  AND m.idusuario IS NULL
+  AND m.metrica_derivada <> 'nenhuma'
+  AND NOT EXISTS (
+      SELECT 1 FROM campos_modelo c
+      WHERE c.idmodelo = mm.idmodelo AND lower(c.slug) = 'distancia'
+  )
+ON CONFLICT DO NOTHING;
+
+UPDATE campos_modelo
+SET grupo_ui = 'principal', exibicao_padrao = TRUE
+WHERE lower(slug) IN ('distancia', 'duracao');
+
+UPDATE campos_modelo
+SET grupo_ui = 'extras', exibicao_padrao = FALSE
+WHERE obrigatorio = FALSE
+  AND lower(slug) IN ('elevacao', 'terreno', 'sensacao', 'observacoes', 'intensidade');
+
 INSERT INTO categorias_exercicio (idcategoria, nome, slug) VALUES
 ('c_peito', 'Peito', 'peito'),
 ('c_costas', 'Costas', 'costas'),
@@ -214,6 +439,36 @@ INSERT INTO exercicios_modalidades (idexercicio, idmodalidade) VALUES
 ('e_agachamento', 'm_calistenia'),
 ('e_prancha', 'm_calistenia'),
 ('e_burpee', 'm_calistenia')
+ON CONFLICT DO NOTHING;
+
+UPDATE modalidades
+SET permite_rota = TRUE
+WHERE idusuario IS NULL
+  AND lower(slug) IN ('caminhada', 'corrida', 'trilha', 'ciclismo', 'mountain-bike', 'marcha-atletica', 'downhill', 'bmx', 'patins', 'skate', 'canoagem', 'caiaque', 'remo', 'vela', 'esqui', 'snowboard');
+
+INSERT INTO modalidades (
+    idmodalidade, nome, slug, descricao, visibilidade, status_publicacao,
+    categoria, icone, ordem_catalogo, metrica_derivada, permite_rota
+) VALUES (
+    'm_triatlo', 'Triatlo', 'triatlo', 'Sessão multiesporte com etapas de natação, ciclismo, corrida e outras modalidades.',
+    'publico', 'publicado', 'Multiesporte', '🏊', 180, 'nenhuma', FALSE
+) ON CONFLICT DO NOTHING;
+
+INSERT INTO modelos_modalidade (
+    idmodelo, idmodalidade, nome, slug, descricao, tipo_unidade_padrao,
+    rotulo_unidade, permite_multiplas_unidades, versao, padrao, visibilidade, status_publicacao
+) VALUES (
+    'md_triatlo', 'm_triatlo', 'Triatlo', 'basico', 'Registro de uma sessão multiesporte organizada em trechos.',
+    'etapa', 'Trecho', TRUE, 1, TRUE, 'publico', 'publicado'
+) ON CONFLICT DO NOTHING;
+
+INSERT INTO campos_modelo (
+    idcampo, idmodelo, nome, slug, rotulo, tipo_campo, escopo,
+    idgrandeza, idunidade, obrigatorio, ordem, exibicao_padrao, grupo_ui
+) VALUES
+    ('f_triat_dist', 'md_triatlo', 'distancia', 'distancia', 'Distância', 'decimal', 'unidade', 'g_distancia', 'u_km', FALSE, 10, TRUE, 'principal'),
+    ('f_triat_dur', 'md_triatlo', 'duracao', 'duracao', 'Duração', 'intervalo', 'unidade', 'g_tempo', NULL, FALSE, 20, TRUE, 'principal'),
+    ('f_triat_elev', 'md_triatlo', 'elevacao', 'elevacao', 'Elevação', 'decimal', 'unidade', 'g_distancia', 'u_m', FALSE, 30, FALSE, 'extras')
 ON CONFLICT DO NOTHING;
 
 COMMIT;

@@ -25,16 +25,42 @@ StrideBR is built around configurable modalities instead of assuming one fixed s
 - Global stopwatch, timer and set-counter tools
 - Workout execution from a scheduled workout, with set/exercise progress and activity creation
 - Profiles, usernames, onboarding and privacy controls
-- Mutual friends and snapshot schedule sharing
+- Mutual friends, snapshot sharing and read-only synchronized schedules
 - Exercise image/video references by URL
 - Moderator/admin/owner roles, feature flags and audit logs
-- Closed-alpha feedback with moderation queue
-- Versioned legal acceptance, email-verification/password-reset foundation and invite-only registration
+- Permanent feedback channel with moderation queue
+- Versioned legal acceptance, public registration, optional invite mode, email verification and password recovery
 - Admin user management with block/unblock/edit/delete controls
+- Route drawing for compatible activities, backend distance validation, terrain-elevation estimates and branded activity-share cards
+- Rich goals with sport filters, custom deadlines, active-day targets and completion history
+- Release-ready goals with continuous targets, email verification and password recovery
+- Public sports-event calendar with admin-managed sources, images and saved events
+- Self-service account data export and account deletion
+- Contextual Home, self-comparison progress and A/B activity comparison
+- Internal notifications, trainer overview with permission boundaries and product analytics opt-out
+- Reversible activity deletion and per-account/per-activity route-sharing privacy defaults
+- Best-effort GPS Web recording with quick start, offline/local recovery, goals, manual laps and editable review
+- Connected-service foundation for Garmin, Strava, Polar, Fitbit, Suunto, Health Connect, Samsung Health and Apple Health, with automatic import currently implemented for Strava, Polar, Fitbit and Suunto
+- Sport-specific progress hub with strength load/repetition logging, exercise progression, estimated 1RM, training calendar and muscle-distribution summaries
+- Category-first sport picker with common sports first and an expandable full catalog
+- Sport-aware calorie estimates using historical weight, objective activity data and device-provided calories when available
+- Athletics attempts/marks and sport-specific session fields for racket, team, combat and precision sports
+- Optional donations and public-page advertising foundation, disabled by default and isolated from authenticated athlete data
 
-Route drawing, deeper statistics, synchronized shared schedules, public discovery, events, API and mobile clients remain planned features.
+Deeper analysis, richer trainer workflows, broader public discovery, API and dedicated mobile clients remain planned features.
 
 The architecture and product rules are documented in [`docs/architecture.md`](docs/architecture.md). Deployment notes are in [`docs/DEPLOY_ALWAYS_DATA.md`](docs/DEPLOY_ALWAYS_DATA.md) and the current product roadmap is in [`docs/PRODUCT_ROADMAP.md`](docs/PRODUCT_ROADMAP.md).
+
+The sports-event admin/import workflow is documented in [`docs/EVENTS_IMPORT_GUIDE.md`](docs/EVENTS_IMPORT_GUIDE.md).
+
+Connected services are documented in [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md). The server/provider actions still required before production are collected in [`docs/FINAL_SETUP_CHECKLIST.md`](docs/FINAL_SETUP_CHECKLIST.md).
+
+The GPS Web recorder and its browser limitations are documented in [`docs/GPS_WEB_V1.md`](docs/GPS_WEB_V1.md).
+
+### Importação e exportação de atividades
+
+O StrideBR importa atividades de relógios e outros serviços em **FIT, TCX e GPX**, com preview, detecção de percursos e duplicatas. Atividades podem ser exportadas em GPX, TCX, JSON e, quando preservado, no arquivo original. Consulte `docs/ACTIVITY_IMPORT_EXPORT.md`.
+
 
 ## Stack
 
@@ -81,17 +107,28 @@ Open:
 http://localhost:8080
 ```
 
-The first database startup automatically executes, in order:
+The first database startup creates the base schema and seed data. Then the
+`migrate` service applies every pending migration before Apache starts:
 
 ```text
 src/database/stridebr.sql
 src/database/stridebr_activities_schema.sql
 src/database/stridebr_seed.sql
-src/database/migrations/20260815_product_foundation.sql
 src/database/migrations/20260815_alpha_readiness.sql
+src/database/migrations/20260815_feedback_anonymous.sql
+src/database/migrations/20260815_fix_cronograma_delete_activity_trigger.sql
+src/database/migrations/20260815_product_foundation.sql
+src/database/migrations/20260903_v1_rc.sql
 ```
 
-Database initialization scripts run only when the PostgreSQL data volume is empty. To recreate a development database from scratch:
+Applied versions are stored in `public.stridebr_schema_migrations`. Normal starts
+preserve the PostgreSQL volume and apply only new migrations:
+
+```bash
+docker compose up -d --build
+```
+
+To recreate a development database from scratch (this deletes local data):
 
 ```bash
 docker compose down -v
@@ -138,7 +175,10 @@ STRIDEBR_DB_PORT
 STRIDEBR_DB_NAME
 STRIDEBR_DB_USER
 STRIDEBR_DB_PASSWORD
+STRIDEBR_ELEVATION_API_ENABLED
 ```
+
+`STRIDEBR_ELEVATION_API_ENABLED=0` disables external elevation lookup without disabling route saving, which is useful for integration tests and temporary API outages.
 
 Application error visibility can be controlled with:
 
@@ -180,8 +220,6 @@ Create a PostgreSQL database and execute the SQL files in the order shown above.
 
 ```text
 StrideBR/
-├── .github/
-│   └── copilot-instructions.md
 ├── docs/
 │   └── architecture.md
 ├── public/
@@ -250,12 +288,37 @@ Check JavaScript syntax:
 find public/assets/js -type f -name '*.js' -print0 | xargs -0 -n1 node --check
 ```
 
-When Docker is available, a clean database initialization is the preferred integration check:
+Run the pre-release checks with:
 
 ```bash
-docker compose down -v
-docker compose up --build
+./scripts/release_check.sh
 ```
+
+To include the isolated PostgreSQL integration suite:
+
+```bash
+./scripts/release_check.sh --full
+```
+
+The full runner creates a separate PostgreSQL test database, applies all migrations from scratch, verifies the migration registry/idempotent second run and executes integration suites without touching the normal development database. Static/unit checks remain available directly with `./scripts/test_static.sh`.
+
+The release checklist is in [`docs/V1_RELEASE_CHECKLIST.md`](docs/V1_RELEASE_CHECKLIST.md).
+
+## Database backup
+
+With the `STRIDEBR_DB_*` environment variables exported and PostgreSQL client tools installed:
+
+```bash
+./scripts/backup_db.sh
+```
+
+Restore tests must use a separate database:
+
+```bash
+STRIDEBR_DB_NAME=stridebr_restore_test ./scripts/restore_db.sh backups/ARQUIVO.dump --yes
+```
+
+Dump files are ignored by Git.
 
 ## Security
 
@@ -271,3 +334,22 @@ If a credential has ever been committed to a public Git history, rotating it is 
 ## License
 
 See [LICENSE](LICENSE).
+
+## Interface language, appearance and Google sign-in
+
+The interface supports Portuguese (Brazil) and an initial English localization. Appearance can follow the operating system or be forced to Light or Dark. Signed-in users can save both choices under Profile and preferences; the authentication pages also expose quick language and appearance controls.
+
+Google sign-in uses a server-side OAuth 2.0 / OpenID Connect authorization-code flow. Configure a **Web application** OAuth client and set:
+
+```env
+GOOGLE_OAUTH_ENABLED=0
+GOOGLE_OAUTH_CLIENT_ID=...
+GOOGLE_OAUTH_CLIENT_SECRET=...
+GOOGLE_OAUTH_REDIRECT_URI=https://your-host/auth/google-callback.php
+```
+
+Apply `src/database/migrations/20260903_v1_rc.sql` before enabling Google sign-in. Set `GOOGLE_OAUTH_ENABLED=1` only when you want the feature active. With `GOOGLE_OAUTH_ENABLED=0` (the default), the Google button stays hidden and OAuth entry is blocked even if the credentials remain configured; email/password authentication continues normally.
+
+## Configuração de ambiente e Conexões
+
+Antes de habilitar integrações externas, rode `./scripts/setup_env.sh` (local) ou `./scripts/setup_env.sh --production --url https://seu-dominio` (servidor). Veja `docs/INTEGRATIONS_SETUP.md` e `docs/FINAL_SETUP_CHECKLIST.md`.

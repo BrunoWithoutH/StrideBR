@@ -8,13 +8,12 @@ require_once dirname(__DIR__, 2) . '/src/includes/app.php';
 $idUsuario = stridebr_require_login();
 
 require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
-require_once dirname(__DIR__, 2) . '/vendor/autoload.php';
 require_once dirname(__DIR__, 2) . '/src/function/cronograma.php';
+require_once dirname(__DIR__, 2) . '/src/function/notificacoes.php';
 $idTreino = (string) ($_GET['idtreino'] ?? $_POST['idtreino'] ?? '');
 $treino = $idTreino !== '' ? cronogramaBuscarTreino($pdo, $idTreino, $idUsuario) : [];
 if ($treino === []) {
-    http_response_code(404);
-    exit('Treino não encontrado.');
+    stridebr_error_document(404);
 }
 
 $errors = [];
@@ -25,19 +24,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($action === 'save_exercises') {
             $campos = cronogramaListarCamposExtras($pdo, $idTreino, $idUsuario);
             cronogramaSalvarExercicios($pdo, $idTreino, $idUsuario, is_array($_POST['rows'] ?? null) ? $_POST['rows'] : [], $campos);
+            notificacaoCronogramaSincronizadoAlterado($pdo, $idUsuario, (string) ($treino['idcronograma'] ?? ''), 'Os exercícios de um treino foram atualizados.');
             stridebr_flash('success', 'Exercícios salvos.');
         } elseif ($action === 'add_field') {
             cronogramaAdicionarCampoExtra($pdo, $idTreino, $idUsuario, (string) ($_POST['nome'] ?? ''), (string) ($_POST['tipo'] ?? 'texto'));
+            notificacaoCronogramaSincronizadoAlterado($pdo, $idUsuario, (string) ($treino['idcronograma'] ?? ''), 'A estrutura de um treino foi atualizada.');
             stridebr_flash('success', 'Coluna adicionada ao treino.');
         } elseif ($action === 'remove_field') {
             if (!cronogramaDesativarCampoExtra($pdo, $idTreino, $idUsuario, (string) ($_POST['idcampo'] ?? ''))) {
                 throw new RuntimeException('Coluna não encontrada.');
             }
+            notificacaoCronogramaSincronizadoAlterado($pdo, $idUsuario, (string) ($treino['idcronograma'] ?? ''), 'A estrutura de um treino foi atualizada.');
             stridebr_flash('success', 'Coluna removida deste treino.');
         } elseif ($action === 'copy_exercise') {
-            if (!cronogramaCopiarExercicio($pdo, $idUsuario, (string) ($_POST['idtreino_exercicio'] ?? ''), (string) ($_POST['idtreino_destino'] ?? ''))) {
+            $idTreinoDestino = (string) ($_POST['idtreino_destino'] ?? '');
+            if (!cronogramaCopiarExercicio($pdo, $idUsuario, (string) ($_POST['idtreino_exercicio'] ?? ''), $idTreinoDestino)) {
                 throw new RuntimeException('Não foi possível copiar o exercício.');
             }
+            $treinoDestino = cronogramaBuscarTreino($pdo, $idTreinoDestino, $idUsuario);
+            notificacaoCronogramaSincronizadoAlterado($pdo, $idUsuario, (string) ($treinoDestino['idcronograma'] ?? ''), 'Um exercício foi adicionado a um treino.');
             stridebr_flash('success', 'Exercício copiado para o treino escolhido.');
         }
         header('Location: /user/exercicioscronograma.php?idtreino=' . urlencode($idTreino));
@@ -75,14 +80,16 @@ function renderExtraInput(array $campo, mixed $valor, string $name): string
 }
 ?>
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="<?php echo function_exists('stridebr_html_lang') ? stridebr_e(stridebr_html_lang()) : 'pt-BR'; ?>">
 <head>
+    <?php if (function_exists('stridebr_ui_boot_script')) echo stridebr_ui_boot_script(); ?>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <link rel="icon" type="image/png" href="<?php echo stridebr_e(stridebr_asset('/assets/img/favicon/favicon.png')); ?>">
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/style.css')); ?>">
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/cronogramas.css')); ?>">
     <title><?php echo stridebr_e($treino['titulo']); ?> | StrideBR</title>
+    <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>">
 </head>
 <body>
 <div class="container-fluid">
@@ -95,7 +102,7 @@ function renderExtraInput(array $campo, mixed $valor, string $name): string
                     <h1><?php echo stridebr_e($treino['titulo']); ?></h1>
                     <p><?php echo stridebr_e(substr($treino['hora_inicio'], 0, 5)); ?>–<?php echo stridebr_e(substr($treino['hora_fim'], 0, 5)); ?><?php echo stridebr_db_bool($treino['termina_dia_seguinte']) ? ' · termina no dia seguinte' : ''; ?></p>
                 </div>
-                <a class="secondary-button" href="/user/bibliotecaexercicios.php">Abrir biblioteca</a>
+                <a class="secondary-button" href="/user/biblioteca.php?tab=exercicios">Abrir biblioteca</a>
             </div>
 
             <?php foreach ($flashes as $flash): ?>
@@ -126,7 +133,7 @@ function renderExtraInput(array $campo, mixed $valor, string $name): string
                 <?php if ($camposExtras !== []): ?>
                     <div class="custom-field-chips">
                         <?php foreach ($camposExtras as $campo): ?>
-                            <form method="POST" class="field-chip" onsubmit="return confirm('Remover esta coluna do treino?');">
+                            <form method="POST" class="field-chip" data-confirm="Remover esta coluna do treino?">
                                 <?php echo stridebr_csrf_field(); ?>
                                 <input type="hidden" name="action" value="remove_field">
                                 <input type="hidden" name="idtreino" value="<?php echo stridebr_e($idTreino); ?>">

@@ -36,9 +36,9 @@
     margin: 0 auto;
     padding: 28px;
     border: 1px solid #d0d5dd;
-    border-radius: 16px;
+    border-radius: var(--radius-sm);
     background: #fff;
-    box-shadow: 0 12px 34px rgba(15, 23, 42, .09);
+    box-shadow: none;
 }
 
 .container-fluid .form .title {
@@ -60,7 +60,7 @@
     min-height: 48px;
     padding: 11px 12px;
     border: 1px solid #d0d5dd;
-    border-radius: 10px;
+    border-radius: var(--radius-sm);
     outline: 0;
     background: #fff;
     color: #1f2937;
@@ -86,7 +86,7 @@
     min-height: 34px;
     padding: 6px 8px;
     border: 0;
-    border-radius: 7px;
+    border-radius: var(--radius-md);
     background: #f2f4f7;
     color: #475467;
     font: inherit;
@@ -161,7 +161,7 @@
 
     .container-fluid .form {
         padding: 20px 16px;
-        border-radius: 14px;
+        border-radius: var(--radius-sm);
     }
 
     .container-fluid .form .title {
@@ -174,4 +174,4 @@
     }
 }
 .auth-inline-links { width:100%; }
-.auth-alpha-note { max-width:520px; }
+.auth-note { max-width:520px; }

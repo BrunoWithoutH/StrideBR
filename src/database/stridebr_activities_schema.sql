@@ -38,12 +38,18 @@ CREATE TABLE modalidades (
     ativo BOOLEAN NOT NULL DEFAULT TRUE,
     visibilidade VARCHAR(10) NOT NULL DEFAULT 'privado' CHECK (visibilidade IN ('privado', 'amigos', 'publico')),
     status_publicacao VARCHAR(20) NOT NULL DEFAULT 'privado' CHECK (status_publicacao IN ('privado', 'pendente', 'publicado')),
+    categoria VARCHAR(60) NOT NULL DEFAULT 'Outras atividades',
+    icone VARCHAR(16),
+    ordem_catalogo INTEGER NOT NULL DEFAULT 999,
+    metrica_derivada VARCHAR(20) NOT NULL DEFAULT 'nenhuma',
+    permite_rota BOOLEAN NOT NULL DEFAULT FALSE,
     data_criacao TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     data_atualizacao TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE UNIQUE INDEX ux_modalidade_sistema_slug ON modalidades (lower(slug)) WHERE idusuario IS NULL;
 CREATE UNIQUE INDEX ux_modalidade_usuario_slug ON modalidades (idusuario, lower(slug)) WHERE idusuario IS NOT NULL;
+CREATE INDEX ix_modalidades_catalogo ON modalidades (categoria, ordem_catalogo, nome) WHERE ativo = TRUE;
 
 CREATE TABLE modelos_modalidade (
     idmodelo VARCHAR(21) PRIMARY KEY,
@@ -75,12 +81,17 @@ CREATE TABLE modalidades_usuario (
     idmodalidade VARCHAR(21) NOT NULL REFERENCES modalidades(idmodalidade) ON DELETE RESTRICT,
     idmodelo_ativo VARCHAR(21),
     ativo BOOLEAN NOT NULL DEFAULT TRUE,
+    favorita BOOLEAN NOT NULL DEFAULT FALSE,
+    ordem_preferencia INTEGER,
+    ultimo_uso TIMESTAMPTZ,
     data_ativacao TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     data_desativacao TIMESTAMPTZ,
     PRIMARY KEY (idusuario, idmodalidade),
     FOREIGN KEY (idmodalidade, idmodelo_ativo) REFERENCES modelos_modalidade(idmodalidade, idmodelo) ON DELETE RESTRICT,
     CONSTRAINT ck_modalidade_usuario_datas CHECK ((ativo AND data_desativacao IS NULL) OR (NOT ativo AND data_desativacao IS NOT NULL))
 );
+
+CREATE INDEX ix_modalidades_usuario_preferencias ON modalidades_usuario (idusuario, favorita DESC, ordem_preferencia, ultimo_uso DESC) WHERE ativo = TRUE;
 
 CREATE TABLE campos_modelo (
     idcampo VARCHAR(21) PRIMARY KEY,
@@ -95,6 +106,8 @@ CREATE TABLE campos_modelo (
     obrigatorio BOOLEAN NOT NULL DEFAULT FALSE,
     ordem INTEGER NOT NULL CHECK (ordem > 0),
     ativo BOOLEAN NOT NULL DEFAULT TRUE,
+    exibicao_padrao BOOLEAN NOT NULL DEFAULT TRUE,
+    grupo_ui VARCHAR(30) NOT NULL DEFAULT 'detalhes',
     data_criacao TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -128,6 +141,9 @@ CREATE TABLE registros_atividade (
     idmodelo VARCHAR(21) NOT NULL,
     idcronograma VARCHAR(21) REFERENCES cronogramas(idcronograma) ON DELETE SET NULL,
     idtreino_cronograma VARCHAR(21) REFERENCES treinos_cronograma(idtreino) ON DELETE SET NULL,
+    data_ocorrencia_origem DATE,
+    data_ocorrencia_planejada DATE,
+    hora_ocorrencia_planejada TIME,
     titulo VARCHAR(255),
     observacoes TEXT,
     data_inicio TIMESTAMPTZ NOT NULL,
@@ -135,6 +151,7 @@ CREATE TABLE registros_atividade (
     status VARCHAR(20) NOT NULL DEFAULT 'concluido' CHECK (status IN ('rascunho', 'ativo', 'concluido', 'cancelado')),
     visibilidade VARCHAR(10) NOT NULL DEFAULT 'privado' CHECK (visibilidade IN ('privado', 'amigos', 'publico')),
     origem VARCHAR(20) NOT NULL DEFAULT 'manual' CHECK (origem IN ('manual', 'gps', 'importacao', 'api')),
+    esforco_percebido SMALLINT CHECK (esforco_percebido IS NULL OR esforco_percebido BETWEEN 1 AND 10),
     data_criacao TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     data_atualizacao TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     FOREIGN KEY (idmodalidade, idmodelo) REFERENCES modelos_modalidade(idmodalidade, idmodelo) ON DELETE RESTRICT,
@@ -143,7 +160,33 @@ CREATE TABLE registros_atividade (
 );
 
 CREATE INDEX ix_registros_usuario_data ON registros_atividade (idusuario, data_inicio DESC);
+CREATE INDEX ix_registros_usuario_status_data ON registros_atividade (idusuario, status, data_inicio DESC);
 CREATE INDEX ix_registros_modalidade_data ON registros_atividade (idmodalidade, data_inicio DESC);
+
+CREATE TABLE equipamentos_usuario (
+    idequipamento VARCHAR(21) PRIMARY KEY,
+    idusuario VARCHAR(21) NOT NULL REFERENCES usuarios(idusuario) ON DELETE CASCADE,
+    nome VARCHAR(120) NOT NULL CHECK (length(trim(nome)) BETWEEN 1 AND 120),
+    categoria VARCHAR(40) NOT NULL DEFAULT 'outro' CHECK (length(trim(categoria)) BETWEEN 1 AND 40),
+    marca VARCHAR(80),
+    modelo VARCHAR(100),
+    data_inicio_uso DATE,
+    distancia_inicial_km NUMERIC(12,3) NOT NULL DEFAULT 0 CHECK (distancia_inicial_km >= 0),
+    observacoes TEXT,
+    ativo BOOLEAN NOT NULL DEFAULT TRUE,
+    data_criacao TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    data_atualizacao TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX ix_equipamentos_usuario_ativo ON equipamentos_usuario (idusuario, ativo, nome);
+
+CREATE TABLE registros_atividade_equipamentos (
+    idregistro VARCHAR(21) NOT NULL REFERENCES registros_atividade(idregistro) ON DELETE CASCADE,
+    idequipamento VARCHAR(21) NOT NULL REFERENCES equipamentos_usuario(idequipamento) ON DELETE CASCADE,
+    PRIMARY KEY (idregistro, idequipamento)
+);
+
+CREATE INDEX ix_registro_equipamento_equipamento ON registros_atividade_equipamentos (idequipamento, idregistro);
 
 CREATE TABLE unidades_atividade (
     idunidade_atividade VARCHAR(21) PRIMARY KEY,
@@ -178,6 +221,8 @@ CREATE TABLE valores_atividade (
 CREATE UNIQUE INDEX ux_valor_registro_campo ON valores_atividade (idregistro, idcampo) WHERE idunidade_atividade IS NULL;
 CREATE UNIQUE INDEX ux_valor_unidade_campo ON valores_atividade (idunidade_atividade, idcampo) WHERE idunidade_atividade IS NOT NULL;
 CREATE INDEX ix_valores_campo_normalizado ON valores_atividade (idcampo, valor_normalizado);
+CREATE INDEX ix_valores_atividade_registro ON valores_atividade (idregistro);
+CREATE INDEX ix_valores_atividade_unidade ON valores_atividade (idunidade_atividade) WHERE idunidade_atividade IS NOT NULL;
 
 CREATE TABLE rotas_atividade (
     idrota VARCHAR(21) PRIMARY KEY,
@@ -185,7 +230,16 @@ CREATE TABLE rotas_atividade (
     modo VARCHAR(20) NOT NULL CHECK (modo IN ('desenho_livre', 'seguir_ruas', 'gps', 'importada')),
     coordenadas JSONB NOT NULL,
     distancia_metros NUMERIC(14,3) CHECK (distancia_metros IS NULL OR distancia_metros >= 0),
-    data_criacao TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    ganho_elevacao_m NUMERIC(12,2),
+    perda_elevacao_m NUMERIC(12,2),
+    elevacao_min_m NUMERIC(10,2),
+    elevacao_max_m NUMERIC(10,2),
+    perfil_elevacao JSONB,
+    fonte_elevacao VARCHAR(40),
+    data_criacao TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    data_atualizacao TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT ck_rotas_elevacao_ganho_perda CHECK ((ganho_elevacao_m IS NULL OR ganho_elevacao_m >= 0) AND (perda_elevacao_m IS NULL OR perda_elevacao_m >= 0)),
+    CONSTRAINT ck_rotas_elevacao_faixa CHECK (elevacao_min_m IS NULL OR elevacao_max_m IS NULL OR elevacao_max_m >= elevacao_min_m)
 );
 
 CREATE OR REPLACE FUNCTION fn_valida_modalidade_usuario_modelo()
