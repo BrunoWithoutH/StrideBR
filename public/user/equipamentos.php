@@ -20,17 +20,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $id = trim((string) ($_POST['id'] ?? ''));
             $ativo = (string) ($_POST['ativo'] ?? '0') === '1';
             if (!atividadeDefinirEquipamentoAtivo($pdo, $idUsuario, $id, $ativo)) {
-                throw new InvalidArgumentException('Equipamento não encontrado.');
+                throw new InvalidArgumentException(stridebr_t('equipment.error.not_found'));
             }
-            stridebr_flash('success', $ativo ? 'Equipamento reativado.' : 'Equipamento arquivado.');
+            stridebr_flash('success', $ativo ? stridebr_t('equipment.flash.reactivated') : stridebr_t('equipment.flash.archived'));
         } else {
             atividadeSalvarEquipamento($pdo, $idUsuario, $_POST, $editId !== '' ? $editId : null);
-            stridebr_flash('success', $editId !== '' ? 'Equipamento atualizado.' : 'Equipamento adicionado.');
+            stridebr_flash('success', $editId !== '' ? stridebr_t('equipment.flash.updated') : stridebr_t('equipment.flash.added'));
         }
         header('Location: /user/equipamentos.php');
         exit;
     } catch (Throwable $e) {
-        $errors[] = $e instanceof InvalidArgumentException ? $e->getMessage() : 'Não foi possível salvar o equipamento.';
+        $errors[] = $e instanceof InvalidArgumentException ? $e->getMessage() : stridebr_t('equipment.error.save');
         if (!$e instanceof InvalidArgumentException) error_log($e->getMessage());
     }
 }
@@ -47,12 +47,12 @@ if ($editId !== '') {
 }
 
 $categorias = [
-    'tenis' => 'Tênis / calçado',
-    'bicicleta' => 'Bicicleta',
-    'raquete' => 'Raquete',
-    'relogio' => 'Relógio / sensor',
-    'protecao' => 'Proteção',
-    'outro' => 'Outro',
+    'tenis' => stridebr_t('equipment.category.shoes'),
+    'bicicleta' => stridebr_t('equipment.category.bike'),
+    'raquete' => stridebr_t('equipment.category.racket'),
+    'relogio' => stridebr_t('equipment.category.watch'),
+    'protecao' => stridebr_t('equipment.category.protection'),
+    'outro' => stridebr_t('equipment.category.other'),
 ];
 $flashes = stridebr_take_flashes();
 ?>
@@ -65,7 +65,7 @@ $flashes = stridebr_take_flashes();
     <link rel="icon" type="image/png" href="<?php echo stridebr_e(stridebr_asset('/assets/img/favicon/favicon.png')); ?>">
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/style.css')); ?>">
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/atividades.css')); ?>">
-    <title>Equipamentos | StrideBR</title>
+    <title><?php echo stridebr_e(stridebr_t('equipment.page_title')); ?> | StrideBR</title>
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>">
 </head>
 <body>
@@ -73,8 +73,8 @@ $flashes = stridebr_take_flashes();
     <?php require dirname(__DIR__, 2) . '/src/layout/header.php'; ?>
     <main class="main-content activities-page equipment-page">
         <header class="activities-toolbar">
-            <div class="activities-toolbar-title"><h1>Equipamentos</h1><span>Itens usados nas suas atividades</span></div>
-            <div class="activities-toolbar-actions"><a class="activity-toolbar-link" href="/user/atividades.php">← Atividades físicas</a></div>
+            <div class="activities-toolbar-title"><h1><?php echo stridebr_e(stridebr_t('activity.equipment')); ?></h1><span><?php echo stridebr_e(stridebr_t('equipment.subtitle')); ?></span></div>
+            <div class="activities-toolbar-actions"><a class="activity-toolbar-link" href="/user/atividades.php">← <?php echo stridebr_e(stridebr_t('equipment.back_activities')); ?></a></div>
         </header>
 
         <?php foreach ($flashes as $flash): ?><div class="alert alert-<?php echo stridebr_e($flash['type'] ?? 'info'); ?> activity-alert"><?php echo stridebr_e($flash['message'] ?? ''); ?></div><?php endforeach; ?>
@@ -82,30 +82,30 @@ $flashes = stridebr_take_flashes();
 
         <div class="equipment-layout">
             <section class="equipment-panel">
-                <div class="equipment-panel-heading"><h2><?php echo $editando ? 'Editar equipamento' : 'Adicionar equipamento'; ?></h2></div>
+                <div class="equipment-panel-heading"><h2><?php echo stridebr_e($editando ? stridebr_t('equipment.edit') : stridebr_t('equipment.add')); ?></h2></div>
                 <form method="POST" class="equipment-form" id="equipment-form">
                     <?php echo stridebr_csrf_field(); ?>
                     <?php if ($editando): ?><input type="hidden" name="id" value="<?php echo stridebr_e($editando['idequipamento']); ?>"><?php endif; ?>
                     <div class="activity-record-fields">
-                        <div class="input-field"><label for="nome">Nome</label><input id="nome" name="nome" maxlength="120" required value="<?php echo stridebr_e($editando['nome'] ?? ''); ?>" placeholder="Ex.: Corre 4, QR4"></div>
-                        <div class="input-field"><label for="categoria">Categoria</label><select id="categoria" name="categoria"><?php foreach ($categorias as $value => $label): ?><option value="<?php echo $value; ?>"<?php echo (($editando['categoria'] ?? 'outro') === $value) ? ' selected' : ''; ?>><?php echo stridebr_e($label); ?></option><?php endforeach; ?></select></div>
-                        <div class="input-field"><label for="marca">Marca</label><input id="marca" name="marca" maxlength="80" value="<?php echo stridebr_e($editando['marca'] ?? ''); ?>"></div>
-                        <div class="input-field"><label for="modelo">Modelo</label><input id="modelo" name="modelo" maxlength="100" value="<?php echo stridebr_e($editando['modelo'] ?? ''); ?>"></div>
-                        <div class="input-field"><label for="data_inicio_uso">Início de uso</label><input type="date" id="data_inicio_uso" name="data_inicio_uso" value="<?php echo stridebr_e($editando['data_inicio_uso'] ?? ''); ?>"></div>
-                        <div class="input-field"><label for="distancia_inicial_km">Quilometragem anterior <span class="field-unit">km</span></label><input type="number" min="0" step="0.001" inputmode="decimal" id="distancia_inicial_km" name="distancia_inicial_km" value="<?php echo stridebr_e($editando['distancia_inicial_km'] ?? '0'); ?>"></div>
+                        <div class="input-field"><label for="nome"><?php echo stridebr_e(stridebr_t('common.name')); ?></label><input id="nome" name="nome" maxlength="120" required value="<?php echo stridebr_e($editando['nome'] ?? ''); ?>" placeholder="<?php echo stridebr_e(stridebr_t('equipment.placeholder_name')); ?>"></div>
+                        <div class="input-field"><label for="categoria"><?php echo stridebr_e(stridebr_t('equipment.category')); ?></label><select id="categoria" name="categoria"><?php foreach ($categorias as $value => $label): ?><option value="<?php echo $value; ?>"<?php echo (($editando['categoria'] ?? 'outro') === $value) ? ' selected' : ''; ?>><?php echo stridebr_e($label); ?></option><?php endforeach; ?></select></div>
+                        <div class="input-field"><label for="marca"><?php echo stridebr_e(stridebr_t('equipment.brand')); ?></label><input id="marca" name="marca" maxlength="80" value="<?php echo stridebr_e($editando['marca'] ?? ''); ?>"></div>
+                        <div class="input-field"><label for="modelo"><?php echo stridebr_e(stridebr_t('equipment.model')); ?></label><input id="modelo" name="modelo" maxlength="100" value="<?php echo stridebr_e($editando['modelo'] ?? ''); ?>"></div>
+                        <div class="input-field"><label for="data_inicio_uso"><?php echo stridebr_e(stridebr_t('equipment.start_use')); ?></label><input type="date" id="data_inicio_uso" name="data_inicio_uso" value="<?php echo stridebr_e($editando['data_inicio_uso'] ?? ''); ?>"></div>
+                        <div class="input-field"><label for="distancia_inicial_km"><?php echo stridebr_e(stridebr_t('equipment.previous_mileage')); ?> <span class="field-unit">km</span></label><input type="number" min="0" step="0.001" inputmode="decimal" id="distancia_inicial_km" name="distancia_inicial_km" value="<?php echo stridebr_e($editando['distancia_inicial_km'] ?? '0'); ?>"></div>
                     </div>
-                    <div class="input-field equipment-notes"><label for="observacoes">Observações</label><textarea id="observacoes" name="observacoes" rows="3"><?php echo stridebr_e($editando['observacoes'] ?? ''); ?></textarea></div>
+                    <div class="input-field equipment-notes"><label for="observacoes"><?php echo stridebr_e(stridebr_t('activity.notes')); ?></label><textarea id="observacoes" name="observacoes" rows="3"><?php echo stridebr_e($editando['observacoes'] ?? ''); ?></textarea></div>
                     <div class="activity-form-actions">
-                        <?php if ($editando): ?><a class="activity-secondary-button" href="/user/equipamentos.php">Cancelar</a><?php endif; ?>
-                        <button class="activity-primary-action" type="submit"><?php echo $editando ? 'Salvar alterações' : 'Adicionar equipamento'; ?></button>
+                        <?php if ($editando): ?><a class="activity-secondary-button" href="/user/equipamentos.php"><?php echo stridebr_e(stridebr_t('common.cancel')); ?></a><?php endif; ?>
+                        <button class="activity-primary-action" type="submit"><?php echo stridebr_e($editando ? stridebr_t('equipment.save_changes') : stridebr_t('equipment.add')); ?></button>
                     </div>
                 </form>
             </section>
 
             <section class="equipment-panel">
-                <div class="equipment-panel-heading"><h2>Meus equipamentos</h2><span>Uso acumulado é somado a partir das atividades associadas.</span></div>
+                <div class="equipment-panel-heading"><h2><?php echo stridebr_e(stridebr_t('equipment.my')); ?></h2><span><?php echo stridebr_e(stridebr_t('equipment.accumulated_help')); ?></span></div>
                 <?php if (!$equipamentos): ?>
-                    <div class="activity-empty-state"><strong>Nenhum equipamento cadastrado.</strong><a class="activity-empty-action" href="#equipment-form">Adicionar primeiro equipamento</a></div>
+                    <div class="activity-empty-state"><strong><?php echo stridebr_e(stridebr_t('equipment.empty')); ?></strong><a class="activity-empty-action" href="#equipment-form"><?php echo stridebr_e(stridebr_t('activity.add_first_equipment')); ?></a></div>
                 <?php else: ?>
                     <div class="equipment-list">
                         <?php foreach ($equipamentos as $equipamento): ?>
@@ -114,16 +114,16 @@ $flashes = stridebr_take_flashes();
                                     <strong><?php echo stridebr_e($equipamento['nome']); ?></strong>
                                     <span><?php echo stridebr_e($categorias[$equipamento['categoria']] ?? ucfirst((string) $equipamento['categoria'])); ?><?php echo $equipamento['marca'] ? ' · ' . stridebr_e($equipamento['marca']) : ''; ?><?php echo $equipamento['modelo'] ? ' ' . stridebr_e($equipamento['modelo']) : ''; ?></span>
                                 </div>
-                                <div class="equipment-row-stat"><strong><?php echo number_format((float) $equipamento['distancia_total_km'], 1, ',', '.'); ?> km</strong><span>distância</span></div>
-                                <div class="equipment-row-stat"><strong><?php echo (int) $equipamento['total_atividades']; ?></strong><span>atividades</span></div>
+                                <div class="equipment-row-stat"><strong><?php echo stridebr_e(stridebr_format_number((float) $equipamento['distancia_total_km'], 1)); ?> km</strong><span><?php echo stridebr_e(stridebr_t('equipment.distance')); ?></span></div>
+                                <div class="equipment-row-stat"><strong><?php echo (int) $equipamento['total_atividades']; ?></strong><span><?php echo stridebr_e(stridebr_tn('equipment.activities.one', 'equipment.activities.other', (int) $equipamento['total_atividades'], ['count' => ''])); ?></span></div>
                                 <div class="equipment-row-actions">
-                                    <a href="/user/equipamentos.php?edit=<?php echo rawurlencode($equipamento['idequipamento']); ?>">Editar</a>
+                                    <a href="/user/equipamentos.php?edit=<?php echo rawurlencode($equipamento['idequipamento']); ?>"><?php echo stridebr_e(stridebr_t('activity.edit')); ?></a>
                                     <form method="POST">
                                         <?php echo stridebr_csrf_field(); ?>
                                         <input type="hidden" name="action" value="toggle">
                                         <input type="hidden" name="id" value="<?php echo stridebr_e($equipamento['idequipamento']); ?>">
                                         <input type="hidden" name="ativo" value="<?php echo stridebr_db_bool($equipamento['ativo']) ? '0' : '1'; ?>">
-                                        <button type="submit"><?php echo stridebr_db_bool($equipamento['ativo']) ? 'Arquivar' : 'Reativar'; ?></button>
+                                        <button type="submit"><?php echo stridebr_e(stridebr_db_bool($equipamento['ativo']) ? stridebr_t('equipment.archive') : stridebr_t('equipment.reactivate')); ?></button>
                                     </form>
                                 </div>
                             </article>

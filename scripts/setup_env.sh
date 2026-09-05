@@ -31,7 +31,7 @@ if [ ! -f "$env_file" ]; then
     cat > "$env_file" <<EOF
 STRIDEBR_APP_ENV=production
 STRIDEBR_APP_URL=${app_url}
-STRIDEBR_VERSION=Pré-1.0
+STRIDEBR_VERSION=1.0.0-rc.2
 STRIDEBR_BUILD=
 STRIDEBR_MAIL_FROM=
 STRIDEBR_MAIL_FROM_NAME=StrideBR

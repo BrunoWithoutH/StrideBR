@@ -1,4 +1,5 @@
 (() => {
+    const t = (key, values = {}, fallback = key) => window.StrideBRI18n?.t?.(key, values, fallback) ?? fallback;
     const root = document.querySelector('[data-global-tools]');
     if (!root) return;
 
@@ -83,7 +84,7 @@
             button.setAttribute('aria-pressed', pinned ? 'true' : 'false');
         });
         if (!pinnedContainer) return;
-        const labels = {timer: 'Timer', stopwatch: 'Cronômetro', sets: 'Séries'};
+        const labels = {timer: t('quick_tools.timer', {}, 'Timer'), stopwatch: t('quick_tools.stopwatch', {}, 'Stopwatch'), sets: t('quick_tools.sets', {}, 'Sets')};
         const icons = {timer: '⏱', stopwatch: '◷', sets: '#'};
         pinnedContainer.innerHTML = '';
         state.pins.forEach(tool => {
@@ -109,11 +110,11 @@
     const render = () => {
         const remaining = timerRemaining();
         if (timerOutput) timerOutput.value = formatTimer(remaining);
-        if (timerStart) timerStart.textContent = state.timer.running ? 'Rodando' : (remaining > 0 && remaining < state.timer.durationMs ? 'Continuar' : 'Iniciar');
+        if (timerStart) timerStart.textContent = state.timer.running ? t('quick_tools.running', {}, 'Running') : (remaining > 0 && remaining < state.timer.durationMs ? t('quick_tools.resume', {}, 'Resume') : t('quick_tools.start', {}, 'Start'));
         if (timerStart) timerStart.disabled = state.timer.running;
         if (timerPause) timerPause.disabled = !state.timer.running;
         if (stopwatchOutput) stopwatchOutput.value = formatStopwatch(stopwatchElapsed());
-        if (stopwatchToggle) stopwatchToggle.textContent = state.stopwatch.running ? 'Pausar' : (state.stopwatch.elapsedMs > 0 ? 'Continuar' : 'Iniciar');
+        if (stopwatchToggle) stopwatchToggle.textContent = state.stopwatch.running ? t('quick_tools.pause', {}, 'Pause') : (state.stopwatch.elapsedMs > 0 ? t('quick_tools.resume', {}, 'Resume') : t('quick_tools.start', {}, 'Start'));
         if (setsOutput) setsOutput.value = String(state.sets);
 
         if (state.timer.running && remaining <= 0) {

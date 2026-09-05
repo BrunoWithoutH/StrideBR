@@ -28,6 +28,17 @@ try {
 }
 $pending = array_values(array_diff($migrationFiles, array_keys($applied)));
 $unknownHistory = array_values(array_diff(array_keys($applied), $migrationFiles));
+$consolidatedVersions = [];
+$rcMigration = $migrationDirectory . '/20260903_v1_rc.sql';
+if (is_file($rcMigration)) {
+    $rcSql = (string) @file_get_contents($rcMigration);
+    if (preg_match_all('/^-- Consolidated from:\s*([^\r\n]+\.sql)\s*$/m', $rcSql, $matches)) {
+        $consolidatedVersions = array_values(array_unique(array_map('basename', $matches[1])));
+    }
+}
+$consolidatedHistory = array_values(array_intersect($unknownHistory, $consolidatedVersions));
+$orphanHistory = array_values(array_diff($unknownHistory, $consolidatedVersions));
+$currentApplied = count(array_intersect($migrationFiles, array_keys($applied)));
 
 $dbInfo = ['database' => '—', 'server' => '—', 'size' => '—', 'search_path' => '—'];
 try {
@@ -94,6 +105,7 @@ $criticalChecks = [
     $mailReady,
     $historyAvailable,
     $pending === [],
+    $orphanHistory === [],
     extension_loaded('pdo_pgsql'),
     extension_loaded('mbstring'),
     extension_loaded('fileinfo'),
@@ -110,8 +122,9 @@ $flashes = stridebr_take_flashes();
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/style.css')); ?>">
-    <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>">
+
     <title>Diagnóstico | StrideBR Admin</title>
+    <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>">
 </head>
 <body class="admin-body">
 <div class="container-fluid">
@@ -132,11 +145,12 @@ $flashes = stridebr_take_flashes();
 
         <article class="admin-card diagnostics-card"><div class="admin-card-heading"><div><h2>PostgreSQL</h2><p>Conexão e estado do schema atual.</p></div></div><dl class="diagnostic-definition-list"><div><dt>Banco</dt><dd><?php echo stridebr_e($dbInfo['database']); ?></dd></div><div><dt>PostgreSQL</dt><dd><?php echo stridebr_e($dbInfo['server']); ?></dd></div><div><dt>Tamanho</dt><dd><?php echo stridebr_e($dbInfo['size']); ?></dd></div><div><dt>search_path</dt><dd><code><?php echo stridebr_e($dbInfo['search_path']); ?></code></dd></div></dl></article>
 
-        <article class="admin-card diagnostics-card diagnostics-span-full"><div class="admin-card-heading"><div><h2>Migrations</h2><p>Compara os arquivos presentes no deploy com <code>public.stridebr_schema_migrations</code>.</p></div><span class="status-pill <?php echo $historyAvailable && $pending === [] ? 'is-ok' : ''; ?>"><?php echo count($applied); ?>/<?php echo count($migrationFiles); ?> registradas</span></div>
+        <article class="admin-card diagnostics-card diagnostics-span-full"><div class="admin-card-heading"><div><h2>Migrations</h2><p>Compara os arquivos presentes no deploy com <code>public.stridebr_schema_migrations</code>.</p></div><span class="status-pill <?php echo $historyAvailable && $pending === [] ? 'is-ok' : ''; ?>"><?php echo $currentApplied; ?>/<?php echo count($migrationFiles); ?> atuais</span></div>
             <?php if (!$historyAvailable): ?><div class="diagnostic-warning"><strong>Histórico indisponível.</strong><span>Crie <code>public.stridebr_schema_migrations</code> e registre/aplique as migrations antes da release.</span></div>
             <?php elseif ($pending !== []): ?><div class="diagnostic-warning"><strong><?php echo count($pending); ?> migration(s) pendente(s).</strong><div class="diagnostic-code-list"><?php foreach ($pending as $name): ?><code><?php echo stridebr_e($name); ?></code><?php endforeach; ?></div></div>
-            <?php else: ?><div class="diagnostic-success"><strong>Nenhuma migration pendente.</strong><span>O histórico contém todos os arquivos atuais do repositório.</span></div><?php endif; ?>
-            <?php if ($unknownHistory !== []): ?><div class="diagnostic-warning subtle"><strong>Entradas no histórico sem arquivo local:</strong><div class="diagnostic-code-list"><?php foreach ($unknownHistory as $name): ?><code><?php echo stridebr_e($name); ?></code><?php endforeach; ?></div></div><?php endif; ?>
+            <?php else: ?><div class="diagnostic-success"><strong>Nenhuma migration pendente.</strong><span>As <?php echo count($migrationFiles); ?> migrations atuais estão registradas no histórico.</span></div><?php endif; ?>
+            <?php if ($consolidatedHistory !== []): ?><div class="diagnostic-warning subtle"><strong><?php echo count($consolidatedHistory); ?> migrations históricas consolidadas.</strong><span>Esses registros são preservados para auditoria e hoje fazem parte de <code>20260903_v1_rc.sql</code>; não são pendências.</span></div><?php endif; ?>
+            <?php if ($orphanHistory !== []): ?><div class="diagnostic-warning"><strong>Entradas históricas não reconhecidas pelo deploy:</strong><div class="diagnostic-code-list"><?php foreach ($orphanHistory as $name): ?><code><?php echo stridebr_e($name); ?></code><?php endforeach; ?></div></div><?php endif; ?>
         </article>
 
         <article class="admin-card diagnostics-card"><div class="admin-card-heading"><div><h2>Uploads</h2><p>Pastas usadas por arquivos criados em produção.</p></div></div><div class="diagnostic-list"><?php foreach ($uploads as $directory): ?><div><span class="health-dot <?php echo $directory['writable'] ? 'ok' : ''; ?>"></span><strong><?php echo stridebr_e($directory['label']); ?></strong><span><?php echo $directory['writable'] ? ($directory['exists'] ? 'gravável' : 'pode ser criada') : 'sem permissão de escrita'; ?></span></div><?php endforeach; ?></div><p class="admin-note">O deploy deve preservar <code>public/uploads/</code>; não use um <code>rsync --delete</code> cru nessa pasta.</p></article>

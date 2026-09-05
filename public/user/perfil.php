@@ -157,44 +157,44 @@ if (!str_starts_with($profileMetaImage, 'http')) $profileMetaImage = stridebr_pu
                     </div>
                     <div class="profile-primary-action">
                         <?php if ($isSelf): ?>
-                            <a class="secondary-button" href="/user/edit-profile.php">Editar perfil</a>
+                            <a class="secondary-button" href="/user/edit-profile.php"><?php echo stridebr_e(stridebr_t('profile.edit')); ?></a>
                         <?php elseif ($isFriend): ?>
-                            <span class="profile-friend-badge">Amigos</span>
+                            <span class="profile-friend-badge"><?php echo stridebr_e(stridebr_t('common.friends')); ?></span>
                         <?php elseif ($viewer !== ''): ?>
-                            <a class="primary-button" href="/user/amigos.php?q=<?php echo urlencode('@' . (string) $profile['username']); ?>">Adicionar amigo</a>
+                            <a class="primary-button" href="/user/amigos.php?q=<?php echo urlencode('@' . (string) $profile['username']); ?>"><?php echo stridebr_e(stridebr_t('profile.add_friend')); ?></a>
                         <?php endif; ?>
-                        <button type="button" class="secondary-button" data-copy-profile-link>Copiar link</button>
+                        <button type="button" class="secondary-button" data-copy-profile-link><?php echo stridebr_e(stridebr_t('profile.copy_link')); ?></button>
                     </div>
                 </div>
                 <?php if ($canView): ?>
                     <div class="profile-banner-bottom">
-                        <span>Membro desde <?php echo stridebr_e($memberSince); ?></span>
-                        <?php if ($profileSocials !== []): ?><nav class="profile-social-inline" aria-label="Links do perfil"><?php foreach ($profileSocials as $socialKey => $socialUrl): ?><?php if (!isset($socialLabels[$socialKey])) continue; ?><a href="<?php echo stridebr_e((string) $socialUrl); ?>" target="_blank" rel="noopener noreferrer nofollow"><?php echo stridebr_e($socialLabels[$socialKey]); ?><span aria-hidden="true">↗</span></a><?php endforeach; ?></nav><?php endif; ?>
+                        <span><?php echo stridebr_e(stridebr_t('profile.member_since')); ?> <?php echo stridebr_e($memberSince); ?></span>
+                        <?php if ($profileSocials !== []): ?><nav class="profile-social-inline" aria-label="<?php echo stridebr_e(stridebr_t('profile.links')); ?>"><?php foreach ($profileSocials as $socialKey => $socialUrl): ?><?php if (!isset($socialLabels[$socialKey])) continue; ?><a href="<?php echo stridebr_e((string) $socialUrl); ?>" target="_blank" rel="noopener noreferrer nofollow"><?php echo stridebr_e($socialLabels[$socialKey]); ?><span aria-hidden="true">↗</span></a><?php endforeach; ?></nav><?php endif; ?>
                     </div>
                 <?php endif; ?>
             </section>
 
             <?php if (!$canView): ?>
-                <section class="content-card private-profile profile-private-v2"><strong>Perfil privado</strong><p>Esse usuário compartilha os detalhes do perfil apenas com amigos.</p></section>
+                <section class="content-card private-profile profile-private-v2"><strong><?php echo stridebr_e(stridebr_t('profile.private')); ?></strong><p><?php echo stridebr_e(stridebr_t('profile.private_help')); ?></p></section>
             <?php else: ?>
                 <div class="profile-overview-grid">
                     <section class="content-card profile-summary-card">
-                        <div class="profile-section-heading"><div><span>Resumo</span><h2>Destaques</h2></div><?php if ($isSelf): ?><a class="profile-section-edit" href="/user/settings.php#destaques">Editar</a><?php endif; ?></div>
+                        <div class="profile-section-heading"><div><span><?php echo stridebr_e(stridebr_t('profile.summary')); ?></span><h2><?php echo stridebr_e(stridebr_t('profile.highlights')); ?></h2></div><?php if ($isSelf): ?><a class="profile-section-edit" href="/user/settings.php#destaques"><?php echo stridebr_e(stridebr_t('common.edit')); ?></a><?php endif; ?></div>
                         <div class="profile-stat-grid" style="--profile-highlight-count: <?php echo max(1, count($renderedHighlights)); ?>;">
                             <?php foreach ($renderedHighlights as [$highlightValue, $highlightLabel]): ?><article><strong><?php echo stridebr_e((string) $highlightValue); ?></strong><span><?php echo stridebr_e((string) $highlightLabel); ?></span></article><?php endforeach; ?>
                         </div>
                     </section>
 
                     <section class="content-card profile-about-card">
-                        <div class="profile-section-heading"><div><span>Perfil</span><h2>Esportes</h2></div></div>
-                        <?php if ($sports !== []): ?><div class="profile-chips"><?php foreach ($sports as $sport): ?><span><?php echo stridebr_e($sport); ?></span><?php endforeach; ?></div><?php elseif ($isSelf): ?><div class="profile-empty-state"><strong>Nenhum esporte no perfil.</strong><a class="secondary-button" href="/user/settings.php#esportes">Escolher esportes</a></div><?php else: ?><p class="profile-empty-copy">Nenhum esporte adicionado ao perfil ainda.</p><?php endif; ?>
+                        <div class="profile-section-heading"><div><span><?php echo stridebr_e(stridebr_t('common.profile')); ?></span><h2><?php echo stridebr_e(stridebr_t('profile.sports')); ?></h2></div></div>
+                        <?php if ($sports !== []): ?><div class="profile-chips"><?php foreach ($sports as $sport): ?><span><?php echo stridebr_e($sport); ?></span><?php endforeach; ?></div><?php elseif ($isSelf): ?><div class="profile-empty-state"><strong><?php echo stridebr_e(stridebr_t('profile.no_sports')); ?></strong><a class="secondary-button" href="/user/settings.php#esportes"><?php echo stridebr_e(stridebr_t('profile.choose_sports')); ?></a></div><?php else: ?><p class="profile-empty-copy"><?php echo stridebr_e(stridebr_t('profile.no_sports_added')); ?></p><?php endif; ?>
                     </section>
                 </div>
 
                 <section class="profile-section profile-schedule-section">
-                    <div class="profile-section-heading"><div><span>Planejamento</span><h2>Cronogramas compartilhados</h2></div><span class="profile-section-count"><?php echo count($schedules); ?></span></div>
+                    <div class="profile-section-heading"><div><span><?php echo stridebr_e(stridebr_t('profile.planning')); ?></span><h2><?php echo stridebr_e(stridebr_t('profile.shared_schedules')); ?></h2></div><span class="profile-section-count"><?php echo count($schedules); ?></span></div>
                     <div class="profile-schedules">
-                        <?php if ($schedules === []): ?><div class="content-card profile-empty-card"><strong><?php echo $isSelf ? 'Nenhum cronograma para mostrar ainda' : 'Nada compartilhado por enquanto'; ?></strong><p><?php echo $isSelf ? 'Crie um cronograma e escolha a visibilidade do perfil.' : 'Quando houver um cronograma disponível para você, ele aparece aqui.'; ?></p><?php if ($isSelf): ?><a class="secondary-button" href="/user/cronogramatreinos.php">Criar cronograma</a><?php endif; ?></div><?php endif; ?>
+                        <?php if ($schedules === []): ?><div class="content-card profile-empty-card"><strong><?php echo $isSelf ? 'Nenhum cronograma para mostrar ainda' : 'Nada compartilhado por enquanto'; ?></strong><p><?php echo $isSelf ? 'Crie um cronograma e escolha a visibilidade do perfil.' : 'Quando houver um cronograma disponível para você, ele aparece aqui.'; ?></p><?php if ($isSelf): ?><a class="secondary-button" href="/user/cronogramatreinos.php"><?php echo stridebr_e(stridebr_t('profile.create_schedule')); ?></a><?php endif; ?></div><?php endif; ?>
                         <?php foreach ($schedules as $schedule): ?>
                             <article class="content-card profile-schedule-card">
                                 <div class="profile-schedule-meta"><span><?php echo stridebr_e($schedule['visibilidade'] === 'publico' ? 'Público' : ($schedule['visibilidade'] === 'amigos' ? 'Amigos' : 'Privado')); ?></span></div>

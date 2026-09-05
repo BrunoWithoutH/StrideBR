@@ -1,4 +1,6 @@
 (() => {
+    const t = (key, values = {}, fallback = key) => window.StrideBRI18n?.t?.(key, values, fallback) ?? fallback
+    const tn = (oneKey, otherKey, count, values = {}) => window.StrideBRI18n?.tn?.(oneKey, otherKey, count, values) ?? t(Number(count) === 1 ? oneKey : otherKey, {...values, count})
     const root = document.querySelector('[data-global-tools]');
     if (!root) return;
     const csrf = root.dataset.csrf || '';
@@ -48,7 +50,7 @@
         else console.error(message)
     };
     const confirmAction = message => window.StrideBRUI?.confirm
-        ? window.StrideBRUI.confirm(message, {title: 'Confirmar ação', confirmLabel: 'Confirmar', danger: true})
+        ? window.StrideBRUI.confirm(message, {title: t('common.confirm_action', {}, 'Confirm action'), confirmLabel: t('workout_session.confirm', {}, 'Confirm'), danger: true})
         : Promise.resolve(window.confirm(message));
 
     const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
@@ -65,20 +67,20 @@
         const end = new Date(finishEnd.value);
         const seconds = Math.max(0, Math.floor((end.getTime() - start.getTime()) / 1000));
         if (!Number.isFinite(seconds) || seconds <= 0) {
-            finishDurationPreview.textContent = 'Confira os horários.';
+            finishDurationPreview.textContent = t('workout_session.check_times', {}, 'Check the times.');
             return;
         }
         const hours = Math.floor(seconds / 3600);
         const minutes = Math.floor((seconds % 3600) / 60);
-        finishDurationPreview.textContent = `Duração registrada: ${hours > 0 ? `${hours}h ` : ''}${minutes}min`;
+        finishDurationPreview.textContent = t('workout_session.duration_registered', {duration: `${hours > 0 ? `${hours}h ` : ''}${minutes}min`}, `Recorded duration: ${hours > 0 ? `${hours}h ` : ''}${minutes}min`);
     };
     const post = async payload => {
         const body = new FormData();
         body.set('csrf_token', csrf);
         Object.entries(payload).forEach(([key, value]) => body.set(key, String(value)));
         const response = await (window.StrideBRNet?.fetch || fetch)('/function/treino_sessao.php', {method: 'POST', body, credentials: 'same-origin'}, 15000);
-        const data = await response.json().catch(() => ({ok: false, message: 'Resposta inválida do servidor.'}));
-        if (!response.ok && !data.session) throw new Error(data.message || 'Não foi possível atualizar o treino.');
+        const data = await response.json().catch(() => ({ok: false, message: t('workout_session.invalid_server_response', {}, 'Invalid server response.')}));
+        if (!response.ok && !data.session) throw new Error(data.message || t('workout_session.update_error', {}, 'Could not update the workout.'));
         return data;
     };
     const fetchCurrent = async ({force = false, includeHistory = false} = {}) => {
@@ -120,6 +122,9 @@
         const sets = exercises.flatMap(item => item.series || []);
         return {totalExercises, doneExercises, totalSets: sets.length, doneSets: sets.filter(item => item.concluida).length};
     };
+    const progressText = (doneExercises, totalExercises, doneSets, totalSets) => `${doneExercises}/${totalExercises} ${tn('workout_session.exercise_unit.one', 'workout_session.exercise_unit.other', totalExercises)} · ${doneSets}/${totalSets} ${tn('workout_session.set_unit.one', 'workout_session.set_unit.other', totalSets)}`
+    const setCountText = (done, total) => `${done}/${total} ${tn('workout_session.set_unit.one', 'workout_session.set_unit.other', total)}`
+
     const preserveHistory = next => {
         if (!next || !Array.isArray(next.exercicios) || !session?.exercicios) return next;
         const previous = new Map(session.exercicios.map(item => [String(item.idsessao_exercicio || ''), item.historico || {}]));
@@ -170,11 +175,11 @@
         const latest = history.ultima || null;
         if (!latest) return '';
         const details = [];
-        if (Number(latest.series_total || 0) > 0) details.push(`${Number(latest.series_concluidas || 0)}/${Number(latest.series_total || 0)} séries`);
+        if (Number(latest.series_total || 0) > 0) details.push(setCountText(Number(latest.series_concluidas || 0), Number(latest.series_total || 0)));
         if (latest.repeticoes) details.push(formatRepetitions(latest.repeticoes));
         if (latest.carga) details.push(String(latest.carga));
-        const best = history.melhor_carga ? `<span><b>Melhor carga recente</b>${escapeHtml(history.melhor_carga)}</span>` : '';
-        return `<div class="session-exercise-history"><span><b>Última vez · ${escapeHtml(latest.data || '')}</b>${escapeHtml(details.join(' · ') || 'Treino concluído')}</span>${best}</div>`;
+        const best = history.melhor_carga ? `<span><b>${escapeHtml(t('workout_session.best_recent_load', {}, 'Best recent load'))}</b>${escapeHtml(history.melhor_carga)}</span>` : '';
+        return `<div class="session-exercise-history"><span><b>${escapeHtml(t('workout_session.last_time', {date: latest.data || ''}, `Last time · ${latest.data || ''}`))}</b>${escapeHtml(details.join(' · ') || t('workout_session.completed', {}, 'Workout completed'))}</span>${best}</div>`;
     };
 
     const hideComplete = () => {
@@ -184,12 +189,12 @@
     const showComplete = (summary, activityId) => {
         if (!completeModal) return;
         const data = summary || {};
-        if (completeTitle) completeTitle.textContent = data.titulo || 'Treino concluído';
-        if (completeLead) completeLead.textContent = 'Seu treino foi salvo como atividade. Dá pra conferir os detalhes ou continuar por aqui.';
+        if (completeTitle) completeTitle.textContent = data.titulo || t('workout_session.completed', {}, 'Workout completed');
+        if (completeLead) completeLead.textContent = t('workout_session.completed_lead', {}, 'Your workout was saved as an activity.');
         if (completeDuration) completeDuration.textContent = formatDuration(data.duracao_segundos);
         if (completeExercises) completeExercises.textContent = `${Number(data.exercicios_concluidos || 0)}/${Number(data.exercicios_total || 0)}`;
         if (completeSets) completeSets.textContent = `${Number(data.series_concluidas || 0)}/${Number(data.series_total || 0)}`;
-        const feedback = [data.intensidade ? `Intensidade: ${data.intensidade}` : '', data.sensacao ? `Sensação: ${data.sensacao}/5` : ''].filter(Boolean).join(' · ');
+        const feedback = [data.intensidade ? t('workout_session.intensity', {value: data.intensidade}, `Intensity: ${data.intensidade}`) : '', data.sensacao ? t('workout_session.feeling', {value: data.sensacao}, `Feeling: ${data.sensacao}/5`) : ''].filter(Boolean).join(' · ');
         if (completeFeedback) {
             completeFeedback.textContent = feedback;
             completeFeedback.hidden = feedback === '';
@@ -203,11 +208,11 @@
         if (!exercisesContainer) return;
         const exercises = session?.exercicios || [];
         if (!exercises.length) {
-            exercisesContainer.innerHTML = '<div class="session-empty"><strong>Treino sem exercícios</strong><p>Você ainda pode usar o cronômetro e finalizar a sessão para registrar a duração.</p></div>';
+            exercisesContainer.innerHTML = `<div class="session-empty"><strong>${escapeHtml(t('workout_session.empty_title', {}, 'Workout without exercises'))}</strong><p>${escapeHtml(t('workout_session.empty_help', {}, 'You can still finish the session.'))}</p></div>`;
             return;
         }
         exercisesContainer.innerHTML = exercises.map((exercise, index) => {
-            const meta = [exercise.series_planejadas ? `${exercise.series_planejadas} séries` : '', exercise.repeticoes_snapshot ? formatRepetitions(exercise.repeticoes_snapshot) : '', exercise.carga_snapshot || ''].filter(Boolean).join(' · ');
+            const meta = [exercise.series_planejadas ? `${exercise.series_planejadas} ${tn('workout_session.set_unit.one', 'workout_session.set_unit.other', Number(exercise.series_planejadas))}` : '', exercise.repeticoes_snapshot ? formatRepetitions(exercise.repeticoes_snapshot) : '', exercise.carga_snapshot || ''].filter(Boolean).join(' · ');
             const previousSets = new Map(((exercise.historico || {}).ultima?.series || []).map(set => [Number(set.numero || 0), set]));
             const sets = (exercise.series || []).map(set => {
                 const previous = previousSets.get(Number(set.numero || 0)) || {};
@@ -215,18 +220,18 @@
                 const repsPlaceholder = previous.repeticoes || String(exercise.repeticoes_snapshot || '').replace(/\D.*$/, '') || 'reps';
                 return `<div class="session-set-row${set.concluida ? ' is-done' : ''}" data-session-set-row="${escapeHtml(set.idserie)}">
                     <span class="session-set-number">${set.numero}</span>
-                    <label><span>Carga</span><input type="number" min="0" max="9999.999" step="0.5" inputmode="decimal" data-session-set-load="${escapeHtml(set.idserie)}" value="${escapeHtml(set.carga_realizada || '')}" placeholder="${escapeHtml(loadPlaceholder)}"></label>
-                    <label><span>Reps</span><input type="number" min="0" max="999" step="1" inputmode="numeric" data-session-set-reps="${escapeHtml(set.idserie)}" value="${escapeHtml(set.repeticoes_realizadas || '')}" placeholder="${escapeHtml(repsPlaceholder)}"></label>
-                    <button type="button" class="session-set-check" data-toggle-session-set="${escapeHtml(set.idserie)}" data-next-value="${set.concluida ? '0' : '1'}" aria-label="${set.concluida ? `Reabrir série ${set.numero}` : `Concluir série ${set.numero}`}">${set.concluida ? '✓' : '○'}</button>
+                    <label><span>${escapeHtml(t('workout_session.load', {}, 'Load'))}</span><input type="number" min="0" max="9999.999" step="0.5" inputmode="decimal" data-session-set-load="${escapeHtml(set.idserie)}" value="${escapeHtml(set.carga_realizada || '')}" placeholder="${escapeHtml(loadPlaceholder)}"></label>
+                    <label><span>${escapeHtml(t('workout_session.repetitions', {}, 'Reps'))}</span><input type="number" min="0" max="999" step="1" inputmode="numeric" data-session-set-reps="${escapeHtml(set.idserie)}" value="${escapeHtml(set.repeticoes_realizadas || '')}" placeholder="${escapeHtml(repsPlaceholder)}"></label>
+                    <button type="button" class="session-set-check" data-toggle-session-set="${escapeHtml(set.idserie)}" data-next-value="${set.concluida ? '0' : '1'}" aria-label="${escapeHtml(set.concluida ? t('workout_session.reopen_set', {number:set.numero}, `Reopen set ${set.numero}`) : t('workout_session.complete_set', {number:set.numero}, `Complete set ${set.numero}`))}">${set.concluida ? '✓' : '○'}</button>
                 </div>`;
             }).join('');
             const rest = parseRestSeconds(exercise.descanso_snapshot);
             return `<article class="session-exercise${exercise.concluido ? ' is-done' : ''}">
-                <div class="session-exercise-heading"><span class="session-exercise-number">${index + 1}</span><div><strong>${escapeHtml(exercise.nome_snapshot)}</strong>${meta ? `<small>${escapeHtml(meta)}</small>` : ''}</div><button type="button" class="session-exercise-check" data-toggle-session-exercise="${escapeHtml(exercise.idsessao_exercicio)}" data-next-value="${exercise.concluido ? '0' : '1'}" aria-label="${exercise.concluido ? 'Reabrir exercício' : 'Concluir exercício'}">${exercise.concluido ? '✓' : '○'}</button></div>
+                <div class="session-exercise-heading"><span class="session-exercise-number">${index + 1}</span><div><strong>${escapeHtml(exercise.nome_snapshot)}</strong>${meta ? `<small>${escapeHtml(meta)}</small>` : ''}</div><button type="button" class="session-exercise-check" data-toggle-session-exercise="${escapeHtml(exercise.idsessao_exercicio)}" data-next-value="${exercise.concluido ? '0' : '1'}" aria-label="${escapeHtml(exercise.concluido ? t('workout_session.reopen_exercise', {}, 'Reopen exercise') : t('workout_session.complete_exercise', {}, 'Complete exercise'))}">${exercise.concluido ? '✓' : '○'}</button></div>
                 ${historyHtml(exercise)}
-                <div class="session-set-table-head"><span>Série</span><span>Carga</span><span>Reps</span><span>Feita</span></div>
+                <div class="session-set-table-head"><span>${escapeHtml(t('workout_session.series', {}, 'Set'))}</span><span>${escapeHtml(t('workout_session.load', {}, 'Load'))}</span><span>${escapeHtml(t('workout_session.repetitions', {}, 'Reps'))}</span><span>${escapeHtml(t('workout_session.done', {}, 'Done'))}</span></div>
                 <div class="session-sets">${sets}</div>
-                ${(exercise.descanso_snapshot || exercise.observacoes_snapshot) ? `<div class="session-exercise-footer">${exercise.descanso_snapshot ? `<span>Descanso: ${escapeHtml(exercise.descanso_snapshot)}</span>` : '<span></span>'}${rest > 0 ? `<button type="button" data-session-rest="${rest}">Iniciar descanso</button>` : ''}${exercise.observacoes_snapshot ? `<p>${escapeHtml(exercise.observacoes_snapshot)}</p>` : ''}</div>` : ''}
+                ${(exercise.descanso_snapshot || exercise.observacoes_snapshot) ? `<div class="session-exercise-footer">${exercise.descanso_snapshot ? `<span>${escapeHtml(t('workout_session.rest', {value: exercise.descanso_snapshot}, `Rest: ${exercise.descanso_snapshot}`))}</span>` : '<span></span>'}${rest > 0 ? `<button type="button" data-session-rest="${rest}">${escapeHtml(t('workout_session.start_rest', {}, 'Start rest'))}</button>` : ''}${exercise.observacoes_snapshot ? `<p>${escapeHtml(exercise.observacoes_snapshot)}</p>` : ''}</div>` : ''}
             </article>`;
         }).join('');
     };
@@ -257,13 +262,13 @@
             return;
         }
         const s = stats();
-        if (title) title.textContent = session.titulo_snapshot || 'Treino';
-        if (progress) progress.textContent = `${s.doneExercises}/${s.totalExercises} exercícios · ${s.doneSets}/${s.totalSets} séries`;
-        if (pillTitle) pillTitle.textContent = session.titulo_snapshot || 'Treino em andamento';
-        if (pillSummary) pillSummary.textContent = `${s.doneExercises}/${s.totalExercises} exercícios · ${s.doneSets}/${s.totalSets} séries`;
+        if (title) title.textContent = session.titulo_snapshot || t('workout_session.workout', {}, 'Workout');
+        if (progress) progress.textContent = progressText(s.doneExercises, s.totalExercises, s.doneSets, s.totalSets);
+        if (pillTitle) pillTitle.textContent = session.titulo_snapshot || t('workout_session.active', {}, 'Workout in progress');
+        if (pillSummary) pillSummary.textContent = progressText(s.doneExercises, s.totalExercises, s.doneSets, s.totalSets);
         if (markAllButton) {
             const allDone = s.totalSets > 0 ? s.doneSets === s.totalSets : s.totalExercises > 0 && s.doneExercises === s.totalExercises;
-            markAllButton.textContent = allDone ? 'Desmarcar tudo' : 'Marcar tudo';
+            markAllButton.textContent = allDone ? t('workout_session.unmark_all', {}, 'Unmark all') : t('workout_session.mark_all', {}, 'Mark all');
             markAllButton.dataset.nextValue = allDone ? '0' : '1';
         }
         if (modal && !modal.hidden) renderExercises();
@@ -381,7 +386,7 @@
     });
 
     root.querySelector('[data-cancel-workout-session]')?.addEventListener('click', async () => {
-        if (!await confirmAction('Cancelar este treino em andamento? O progresso desta sessão será encerrado.')) return;
+        if (!await confirmAction(t('workout_session.cancel_confirm', {}, 'Cancel this workout in progress?'))) return;
         try {
             await post({action: 'cancel'});
             session = null;
@@ -399,7 +404,7 @@
         if (finishStart) finishStart.value = localDateTimeValue(session?.data_inicio);
         if (finishEnd) finishEnd.value = localDateTimeValue();
         updateFinishDuration();
-        if (finishSummary) finishSummary.textContent = `${current.doneExercises}/${current.totalExercises} exercícios · ${current.doneSets}/${current.totalSets} séries`;
+        if (finishSummary) finishSummary.textContent = progressText(current.doneExercises, current.totalExercises, current.doneSets, current.totalSets);
         if (finishSheet) finishSheet.hidden = false;
     });
     root.querySelectorAll('[data-close-workout-finish]').forEach(button => button.addEventListener('click', hideFinish));

@@ -1,21 +1,31 @@
 <?php
 
 if (!function_exists('atividadeRenderizarRotaUnidade')) {
-    function atividadeRenderizarRotaUnidade(string $namePrefix, string $label, mixed $rawValue = ''): string
+    function atividadeRenderizarRotaUnidade(string $namePrefix, string $label, mixed $rawValue = '', array $editorState = []): string
     {
-        $value = '';
-        if (is_array($rawValue)) $value = json_encode($rawValue, JSON_UNESCAPED_SLASHES) ?: '';
-        else $value = (string) $rawValue;
+        $value = is_array($rawValue) ? (json_encode($rawValue, JSON_UNESCAPED_SLASHES) ?: '') : (string) $rawValue;
+        $mode = (string) ($editorState['route_editor_mode'] ?? '') === 'circuit' ? 'circuit' : 'free';
+        $laps = max(1, (int) ($editorState['route_editor_laps'] ?? 1));
+        $baseRaw = $editorState['route_editor_base'] ?? '';
+        $base = is_array($baseRaw) ? (json_encode($baseRaw, JSON_UNESCAPED_SLASHES) ?: '') : (string) $baseRaw;
         $hasRoute = trim($value) !== '';
-        $html = '<details class="activity-unit-route-editor" data-unit-route-editor>';
-        $html .= '<summary><span><strong>Rota de ' . stridebr_e($label) . '</strong><small>Opcional · útil para compartilhar este trecho separadamente</small></span><span data-unit-route-summary>' . ($hasRoute ? 'Rota adicionada' : 'Adicionar rota') . '</span></summary>';
+        $savedRoute = is_array($editorState['rota'] ?? null) ? $editorState['rota'] : [];
+        $savedMetrics = is_array($editorState['rota_metricas'] ?? null) ? $editorState['rota_metricas'] : [];
+        $title = stridebr_t('route.unit_title', ['label' => $label]);
+        $html = '<section class="activity-unit-route-editor' . ($hasRoute ? ' has-route' : '') . '" data-unit-route-editor data-unit-route-label="' . stridebr_e($label) . '" data-route-has-points="' . ($hasRoute ? '1' : '0') . '">';
         $html .= '<input type="hidden" name="' . stridebr_e($namePrefix) . '[rota_coordenadas]" value="' . stridebr_e($value) . '" data-unit-route-value>';
-        $html .= '<div class="activity-unit-route-workspace">';
-        $html .= '<div class="activity-unit-route-toolbar"><button type="button" data-unit-route-locate>Minha localização</button><button type="button" data-unit-route-undo>Desfazer</button><button type="button" data-unit-route-clear>Limpar</button></div>';
-        $html .= '<div class="activity-unit-route-map" data-unit-route-map aria-label="Mapa para desenhar a rota deste trecho"></div>';
-        $html .= '<div class="activity-unit-route-status"><span data-unit-route-status>Toque no mapa para adicionar pontos.</span><strong data-unit-route-distance>' . ($hasRoute ? 'Calculando…' : 'Sem rota') . '</strong><small data-unit-route-elevation>' . ($hasRoute ? 'Elevação será estimada.' : '') . '</small></div>';
-        $html .= '<small>Em uma sessão com trechos, esta rota pertence somente a este trecho.</small>';
-        $html .= '</div></details>';
+        $html .= '<input type="hidden" name="' . stridebr_e($namePrefix) . '[route_editor_mode]" value="' . stridebr_e($mode) . '" data-unit-route-mode-value>';
+        $html .= '<input type="hidden" name="' . stridebr_e($namePrefix) . '[route_editor_laps]" value="' . $laps . '" data-unit-route-laps-value>';
+        $html .= '<input type="hidden" name="' . stridebr_e($namePrefix) . '[route_editor_base]" value="' . stridebr_e($base) . '" data-unit-route-base-value>';
+        foreach (['distancia_metros', 'ganho_elevacao_m', 'perda_elevacao_m', 'elevacao_min_m', 'elevacao_max_m', 'fonte_elevacao'] as $metric) {
+            $metricValue = $savedMetrics[$metric] ?? ($savedRoute[$metric] ?? ($metric === 'ganho_elevacao_m' ? ($editorState['elevacao_m'] ?? '') : ''));
+            $enabled = $mode === 'circuit' && $hasRoute;
+            $html .= '<input type="hidden" name="' . stridebr_e($namePrefix) . '[rota_metricas][' . $metric . ']" value="' . stridebr_e((string) $metricValue) . '"' . ($enabled ? '' : ' disabled') . ' data-unit-route-metric="' . $metric . '">';
+        }
+        $html .= '<div class="activity-unit-route-summary-row">';
+        $html .= '<div><strong data-unit-route-title>' . stridebr_e($title) . '</strong><small data-unit-route-summary>' . stridebr_e(stridebr_t($hasRoute ? 'route.added' : 'common.optional')) . '</small></div>';
+        $html .= '<button type="button" class="activity-inline-action activity-row-action" data-unit-route-open>' . stridebr_e(stridebr_t($hasRoute ? 'route.edit' : 'route.add')) . '</button>';
+        $html .= '</div></section>';
         return $html;
     }
 }

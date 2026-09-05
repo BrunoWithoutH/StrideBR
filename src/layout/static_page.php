@@ -15,6 +15,7 @@ $metaDescription = $pageDescription !== '' ? $pageDescription : 'StrideBR: plane
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+    <?php if (function_exists('stridebr_ui_boot_script')) echo stridebr_ui_boot_script(); ?>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="description" content="<?php echo stridebr_e($metaDescription); ?>">
@@ -29,8 +30,9 @@ $metaDescription = $pageDescription !== '' ? $pageDescription : 'StrideBR: plane
     <link rel="canonical" href="<?php echo stridebr_e($canonical); ?>">
     <link rel="icon" type="image/png" href="<?php echo stridebr_e(stridebr_asset('/assets/img/favicon/favicon.png')); ?>">
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/style.css')); ?>">
-    <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>">
+
     <title><?php echo stridebr_e($pageTitle); ?> | StrideBR</title>
+    <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>">
 </head>
 <body>
 <div class="container-fluid">

@@ -646,9 +646,21 @@ function stridebr_feature_cache_clear(?string $key = null): void
 }
 
 
+function stridebr_maps_arcgis_key(): string
+{
+    return trim((string) (getenv('STRIDEBR_MAPS_ARCGIS_KEY') ?: ''));
+}
+
+function stridebr_maps_runtime_script(): string
+{
+    $src = stridebr_asset('/assets/js/map-basemaps.js');
+    $key = stridebr_e(stridebr_maps_arcgis_key());
+    return '<script src="' . stridebr_e($src) . '" data-arcgis-key="' . $key . '"></script>';
+}
+
 function stridebr_version(): string
 {
-    return trim((string) (getenv('STRIDEBR_VERSION') ?: 'Pré-1.0'));
+    return trim((string) (getenv('STRIDEBR_VERSION') ?: '1.0.0-rc.2'));
 }
 
 function stridebr_build(): string

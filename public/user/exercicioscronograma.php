@@ -24,31 +24,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($action === 'save_exercises') {
             $campos = cronogramaListarCamposExtras($pdo, $idTreino, $idUsuario);
             cronogramaSalvarExercicios($pdo, $idTreino, $idUsuario, is_array($_POST['rows'] ?? null) ? $_POST['rows'] : [], $campos);
-            notificacaoCronogramaSincronizadoAlterado($pdo, $idUsuario, (string) ($treino['idcronograma'] ?? ''), 'Os exercícios de um treino foram atualizados.');
-            stridebr_flash('success', 'Exercícios salvos.');
+            notificacaoCronogramaSincronizadoAlterado($pdo, $idUsuario, (string) ($treino['idcronograma'] ?? ''), stridebr_t('schedule.exercises_updated_notification'));
+            stridebr_flash('success', stridebr_t('schedule.exercises_saved'));
         } elseif ($action === 'add_field') {
             cronogramaAdicionarCampoExtra($pdo, $idTreino, $idUsuario, (string) ($_POST['nome'] ?? ''), (string) ($_POST['tipo'] ?? 'texto'));
             notificacaoCronogramaSincronizadoAlterado($pdo, $idUsuario, (string) ($treino['idcronograma'] ?? ''), 'A estrutura de um treino foi atualizada.');
             stridebr_flash('success', 'Coluna adicionada ao treino.');
         } elseif ($action === 'remove_field') {
             if (!cronogramaDesativarCampoExtra($pdo, $idTreino, $idUsuario, (string) ($_POST['idcampo'] ?? ''))) {
-                throw new RuntimeException('Coluna não encontrada.');
+                throw new RuntimeException(stridebr_t('schedule.column_not_found'));
             }
             notificacaoCronogramaSincronizadoAlterado($pdo, $idUsuario, (string) ($treino['idcronograma'] ?? ''), 'A estrutura de um treino foi atualizada.');
             stridebr_flash('success', 'Coluna removida deste treino.');
         } elseif ($action === 'copy_exercise') {
             $idTreinoDestino = (string) ($_POST['idtreino_destino'] ?? '');
             if (!cronogramaCopiarExercicio($pdo, $idUsuario, (string) ($_POST['idtreino_exercicio'] ?? ''), $idTreinoDestino)) {
-                throw new RuntimeException('Não foi possível copiar o exercício.');
+                throw new RuntimeException(stridebr_t('schedule.exercise_copy_error'));
             }
             $treinoDestino = cronogramaBuscarTreino($pdo, $idTreinoDestino, $idUsuario);
-            notificacaoCronogramaSincronizadoAlterado($pdo, $idUsuario, (string) ($treinoDestino['idcronograma'] ?? ''), 'Um exercício foi adicionado a um treino.');
-            stridebr_flash('success', 'Exercício copiado para o treino escolhido.');
+            notificacaoCronogramaSincronizadoAlterado($pdo, $idUsuario, (string) ($treinoDestino['idcronograma'] ?? ''), stridebr_t('schedule.exercise_added_notification'));
+            stridebr_flash('success', stridebr_t('schedule.exercise_copied'));
         }
         header('Location: /user/exercicioscronograma.php?idtreino=' . urlencode($idTreino));
         exit;
     } catch (Throwable $e) {
-        $errors[] = $e instanceof InvalidArgumentException || $e instanceof RuntimeException ? $e->getMessage() : 'Não foi possível concluir a operação.';
+        $errors[] = $e instanceof InvalidArgumentException || $e instanceof RuntimeException ? $e->getMessage() : stridebr_t('common.operation_failed');
         if (!$e instanceof InvalidArgumentException && !$e instanceof RuntimeException) {
             error_log($e->getMessage());
         }
@@ -74,7 +74,7 @@ function renderExtraInput(array $campo, mixed $valor, string $name): string
     }
     if ($type === 'booleano') {
         $raw = $valor === null ? '' : (stridebr_db_bool($valor) ? '1' : '0');
-        return '<select name="' . $escapedName . '"><option value="">—</option><option value="1"' . ($raw === '1' ? ' selected' : '') . '>Sim</option><option value="0"' . ($raw === '0' ? ' selected' : '') . '>Não</option></select>';
+        return '<select name="' . $escapedName . '"><option value="">—</option><option value="1"' . ($raw === '1' ? ' selected' : '') . '>' . stridebr_e(stridebr_t('common.yes')) . '</option><option value="0"' . ($raw === '0' ? ' selected' : '') . '>' . stridebr_e(stridebr_t('common.no')) . '</option></select>';
     }
     return '<input type="text" name="' . $escapedName . '" value="' . stridebr_e($valor ?? '') . '">';
 }
@@ -100,9 +100,9 @@ function renderExtraInput(array $campo, mixed $valor, string $name): string
                 <div>
                     <a class="back-link" href="/user/cronogramatreinos.php?id=<?php echo urlencode($treino['idcronograma']); ?>">← <?php echo stridebr_e($treino['cronograma_nome']); ?></a>
                     <h1><?php echo stridebr_e($treino['titulo']); ?></h1>
-                    <p><?php echo stridebr_e(substr($treino['hora_inicio'], 0, 5)); ?>–<?php echo stridebr_e(substr($treino['hora_fim'], 0, 5)); ?><?php echo stridebr_db_bool($treino['termina_dia_seguinte']) ? ' · termina no dia seguinte' : ''; ?></p>
+                    <p><?php echo stridebr_e(substr($treino['hora_inicio'], 0, 5)); ?>–<?php echo stridebr_e(substr($treino['hora_fim'], 0, 5)); ?><?php echo stridebr_db_bool($treino['termina_dia_seguinte']) ? ' · ' . stridebr_t('exercise.ends_next_day') : ''; ?></p>
                 </div>
-                <a class="secondary-button" href="/user/biblioteca.php?tab=exercicios">Abrir biblioteca</a>
+                <a class="secondary-button" href="/user/biblioteca.php?tab=exercicios"><?php echo stridebr_e(stridebr_t('common.open_library')); ?></a>
             </div>
 
             <?php foreach ($flashes as $flash): ?>
@@ -114,32 +114,32 @@ function renderExtraInput(array $campo, mixed $valor, string $name): string
 
             <section class="exercise-tools-card">
                 <div>
-                    <h2>Colunas deste treino</h2>
-                    <p>Séries, repetições, carga, bloco, cluster, descanso e observações ficam sempre disponíveis. Adicione outras informações quando precisar.</p>
+                    <h2><?php echo stridebr_e(stridebr_t('exercise.columns_title')); ?></h2>
+                    <p><?php echo stridebr_e(stridebr_t('exercise.columns_help')); ?></p>
                 </div>
                 <form method="POST" class="inline-field-form">
                     <?php echo stridebr_csrf_field(); ?>
                     <input type="hidden" name="action" value="add_field">
                     <input type="hidden" name="idtreino" value="<?php echo stridebr_e($idTreino); ?>">
-                    <input type="text" name="nome" maxlength="80" placeholder="Ex.: RPE" required>
+                    <input type="text" name="nome" maxlength="80" placeholder="<?php echo stridebr_e(stridebr_t('exercise.rpe_placeholder')); ?>" required>
                     <select name="tipo">
-                        <option value="texto">Texto</option>
-                        <option value="inteiro">Inteiro</option>
-                        <option value="decimal">Decimal</option>
-                        <option value="booleano">Sim/Não</option>
+                        <option value="texto"><?php echo stridebr_e(stridebr_t('exercise.type_text')); ?></option>
+                        <option value="inteiro"><?php echo stridebr_e(stridebr_t('exercise.type_integer')); ?></option>
+                        <option value="decimal"><?php echo stridebr_e(stridebr_t('exercise.type_decimal')); ?></option>
+                        <option value="booleano"><?php echo stridebr_e(stridebr_t('exercise.type_boolean')); ?></option>
                     </select>
-                    <button type="submit" class="secondary-button">Adicionar coluna</button>
+                    <button type="submit" class="secondary-button"><?php echo stridebr_e(stridebr_t('exercise.add_column')); ?></button>
                 </form>
                 <?php if ($camposExtras !== []): ?>
                     <div class="custom-field-chips">
                         <?php foreach ($camposExtras as $campo): ?>
-                            <form method="POST" class="field-chip" data-confirm="Remover esta coluna do treino?">
+                            <form method="POST" class="field-chip" data-confirm="<?php echo stridebr_e(stridebr_t('exercise.remove_column_confirm')); ?>">
                                 <?php echo stridebr_csrf_field(); ?>
                                 <input type="hidden" name="action" value="remove_field">
                                 <input type="hidden" name="idtreino" value="<?php echo stridebr_e($idTreino); ?>">
                                 <input type="hidden" name="idcampo" value="<?php echo stridebr_e($campo['idcampo']); ?>">
                                 <span><?php echo stridebr_e($campo['nome']); ?></span>
-                                <button type="submit" aria-label="Remover <?php echo stridebr_e($campo['nome']); ?>">×</button>
+                                <button type="submit" aria-label="<?php echo stridebr_e(stridebr_t('exercise.remove_named', ['name' => (string) $campo['nome']])); ?>">×</button>
                             </form>
                         <?php endforeach; ?>
                     </div>
@@ -155,16 +155,16 @@ function renderExtraInput(array $campo, mixed $valor, string $name): string
                         <thead>
                         <tr>
                             <th>#</th>
-                            <th>Biblioteca</th>
-                            <th>Exercício</th>
-                            <th>Séries</th>
-                            <th>Repetições</th>
-                            <th>Carga</th>
-                            <th>Bloco</th>
-                            <th>Cluster</th>
-                            <th>Descanso</th>
+                            <th><?php echo stridebr_e(stridebr_t('library.page_title')); ?></th>
+                            <th><?php echo stridebr_e(stridebr_t('home.exercise')); ?></th>
+                            <th><?php echo stridebr_e(stridebr_t('common.series')); ?></th>
+                            <th><?php echo stridebr_e(stridebr_t('common.repetitions')); ?></th>
+                            <th><?php echo stridebr_e(stridebr_t('common.load')); ?></th>
+                            <th><?php echo stridebr_e(stridebr_t('common.block')); ?></th>
+                            <th><?php echo stridebr_e(stridebr_t('common.cluster')); ?></th>
+                            <th><?php echo stridebr_e(stridebr_t('home.rest')); ?></th>
                             <?php foreach ($camposExtras as $campo): ?><th><?php echo stridebr_e($campo['nome']); ?></th><?php endforeach; ?>
-                            <th>Observações</th>
+                            <th><?php echo stridebr_e(stridebr_t('activity.notes')); ?></th>
                             <th></th>
                         </tr>
                         </thead>
@@ -175,7 +175,7 @@ function renderExtraInput(array $campo, mixed $valor, string $name): string
                                 <td>
                                     <input type="hidden" name="rows[<?php echo $index; ?>][idtreino_exercicio]" value="<?php echo stridebr_e($row['idtreino_exercicio']); ?>">
                                     <select name="rows[<?php echo $index; ?>][idexercicio]" data-library-select>
-                                        <option value="">Manual</option>
+                                        <option value=""><?php echo stridebr_e(stridebr_t('common.manual')); ?></option>
                                         <?php foreach ($biblioteca as $item): ?>
                                             <option value="<?php echo stridebr_e($item['idexercicio']); ?>" data-name="<?php echo stridebr_e($item['nome']); ?>"<?php echo $row['idexercicio'] === $item['idexercicio'] ? ' selected' : ''; ?>><?php echo stridebr_e($item['nome']); ?><?php echo $item['categorias'] ? ' · ' . stridebr_e($item['categorias']) : ''; ?><?php echo $item['idusuario'] === null ? ' · StrideBR' : ''; ?></option>
                                         <?php endforeach; ?>
@@ -192,7 +192,7 @@ function renderExtraInput(array $campo, mixed $valor, string $name): string
                                     <td><?php echo renderExtraInput($campo, $valoresExtras[$row['idtreino_exercicio']][$campo['idcampo']] ?? null, "rows[{$index}][extras][{$campo['idcampo']}]"); ?></td>
                                 <?php endforeach; ?>
                                 <td><textarea name="rows[<?php echo $index; ?>][observacoes]" rows="2"><?php echo stridebr_e($row['observacoes'] ?? ''); ?></textarea></td>
-                                <td><button type="button" class="remove-row-button" data-remove-exercise aria-label="Remover linha">×</button></td>
+                                <td><button type="button" class="remove-row-button" data-remove-exercise aria-label="<?php echo stridebr_e(stridebr_t('exercise.remove_row')); ?>">×</button></td>
                             </tr>
                         <?php endforeach; ?>
                         </tbody>
@@ -204,7 +204,7 @@ function renderExtraInput(array $campo, mixed $valor, string $name): string
                         <td>
                             <input type="hidden" name="rows[__INDEX__][idtreino_exercicio]" value="">
                             <select name="rows[__INDEX__][idexercicio]" data-library-select>
-                                <option value="">Manual</option>
+                                <option value=""><?php echo stridebr_e(stridebr_t('common.manual')); ?></option>
                                 <?php foreach ($biblioteca as $item): ?>
                                     <option value="<?php echo stridebr_e($item['idexercicio']); ?>" data-name="<?php echo stridebr_e($item['nome']); ?>"><?php echo stridebr_e($item['nome']); ?><?php echo $item['categorias'] ? ' · ' . stridebr_e($item['categorias']) : ''; ?><?php echo $item['idusuario'] === null ? ' · StrideBR' : ''; ?></option>
                                 <?php endforeach; ?>
@@ -219,18 +219,18 @@ function renderExtraInput(array $campo, mixed $valor, string $name): string
                         <td><input type="text" name="rows[__INDEX__][descanso]" maxlength="40" placeholder="90 s"></td>
                         <?php foreach ($camposExtras as $campo): ?><td><?php echo renderExtraInput($campo, null, "rows[__INDEX__][extras][{$campo['idcampo']}]"); ?></td><?php endforeach; ?>
                         <td><textarea name="rows[__INDEX__][observacoes]" rows="2"></textarea></td>
-                        <td><button type="button" class="remove-row-button" data-remove-exercise aria-label="Remover linha">×</button></td>
+                        <td><button type="button" class="remove-row-button" data-remove-exercise aria-label="<?php echo stridebr_e(stridebr_t('exercise.remove_row')); ?>">×</button></td>
                     </tr>
                 </template>
                 <div class="exercise-editor-actions">
-                    <button type="button" class="secondary-button" data-add-exercise>Adicionar exercício</button>
-                    <button type="submit" class="primary-button">Salvar alterações</button>
+                    <button type="button" class="secondary-button" data-add-exercise><?php echo stridebr_e(stridebr_t('common.add_exercise')); ?></button>
+                    <button type="submit" class="primary-button"><?php echo stridebr_e(stridebr_t('settings.save_changes')); ?></button>
                 </div>
             </form>
 
             <?php if ($exercicios !== [] && $destinos !== []): ?>
                 <section class="exercise-copy-card">
-                    <h2>Copiar para outro treino</h2>
+                    <h2><?php echo stridebr_e(stridebr_t('exercise.copy_to_workout')); ?></h2>
                     <form method="POST" class="copy-form">
                         <?php echo stridebr_csrf_field(); ?>
                         <input type="hidden" name="action" value="copy_exercise">
@@ -243,7 +243,7 @@ function renderExtraInput(array $campo, mixed $valor, string $name): string
                                 <option value="<?php echo stridebr_e($destino['idtreino']); ?>"><?php echo stridebr_e($destino['cronograma_nome'] . ' · ' . $destino['titulo']); ?></option>
                             <?php endforeach; ?>
                         </select>
-                        <button type="submit" class="secondary-button">Copiar exercício</button>
+                        <button type="submit" class="secondary-button"><?php echo stridebr_e(stridebr_t('exercise.copy_exercise')); ?></button>
                     </form>
                 </section>
             <?php endif; ?>

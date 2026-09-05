@@ -752,30 +752,50 @@ function atividadeRemapearValoresModelo(array $camposOrigem, array $camposDestin
     return ['record_values' => $mappedRecord, 'unidades' => $mappedUnits];
 }
 
-function atividadeIntervaloParaSegundos(mixed $valor): ?int
+function atividadeIntervaloParaSegundos(mixed $valor): ?float
 {
     $valor = trim((string) $valor);
     if ($valor === '') return null;
-    if (preg_match('/^(\d+):([0-5]\d):([0-5]\d)$/', $valor, $m)) return ((int)$m[1])*3600 + ((int)$m[2])*60 + (int)$m[3];
-    if (preg_match('/^(\d+):([0-5]\d)$/', $valor, $m)) return ((int)$m[1])*60 + (int)$m[2];
-    if (preg_match('/^(\d+)\s+seconds?$/i', $valor, $m)) return (int)$m[1];
+    if (preg_match('/^(\d+):([0-5]\d):([0-5]\d)(?:\.(\d{1,3}))?$/', $valor, $m)) {
+        $fraction = isset($m[4]) && $m[4] !== '' ? ((int) str_pad($m[4], 3, '0')) / 1000 : 0.0;
+        return ((int) $m[1]) * 3600 + ((int) $m[2]) * 60 + (int) $m[3] + $fraction;
+    }
+    if (preg_match('/^(\d+):([0-5]\d)(?:\.(\d{1,3}))?$/', $valor, $m)) {
+        $fraction = isset($m[3]) && $m[3] !== '' ? ((int) str_pad($m[3], 3, '0')) / 1000 : 0.0;
+        return ((int) $m[1]) * 60 + (int) $m[2] + $fraction;
+    }
+    if (preg_match('/^(\d+(?:\.\d{1,3})?)\s+seconds?$/i', $valor, $m)) return round((float) $m[1], 3);
     return null;
 }
-function atividadeDuracaoPayloadSegundos(array $recordValues, array $unidades, array $campos): ?int
+
+function atividadeSegundosParaIntervalo(float|int $segundos): string
+{
+    $totalMs = max(0, (int) round((float) $segundos * 1000));
+    $hours = intdiv($totalMs, 3600000);
+    $remaining = $totalMs % 3600000;
+    $minutes = intdiv($remaining, 60000);
+    $remaining %= 60000;
+    $seconds = intdiv($remaining, 1000);
+    $milliseconds = $remaining % 1000;
+    $base = sprintf('%02d:%02d:%02d', $hours, $minutes, $seconds);
+    return $milliseconds === 0 ? $base : $base . '.' . str_pad((string) $milliseconds, 3, '0', STR_PAD_LEFT);
+}
+
+function atividadeDuracaoPayloadSegundos(array $recordValues, array $unidades, array $campos): ?float
 {
     foreach ($campos as $campo) {
-        if (stridebr_lower((string)($campo['slug'] ?? '')) !== 'duracao') continue;
-        $id = (string)($campo['idcampo'] ?? ''); if ($id === '') return null;
+        if (stridebr_lower((string) ($campo['slug'] ?? '')) !== 'duracao') continue;
+        $id = (string) ($campo['idcampo'] ?? '');
+        if ($id === '') return null;
         $raw = (($campo['escopo'] ?? '') === 'registro') ? ($recordValues[$id] ?? null) : ($unidades[0]['values'][$id] ?? null);
         return atividadeIntervaloParaSegundos($raw);
     }
     return null;
 }
 
-function atividadeAplicarDuracaoCalculada(array &$recordValues, array &$unidades, array $campos, int $segundos): void
+function atividadeAplicarDuracaoCalculada(array &$recordValues, array &$unidades, array $campos, float|int $segundos): void
 {
-    $segundos = max(0, $segundos);
-    $texto = sprintf('%02d:%02d:%02d', intdiv($segundos, 3600), intdiv($segundos % 3600, 60), $segundos % 60);
+    $texto = atividadeSegundosParaIntervalo(max(0.0, (float) $segundos));
     foreach ($campos as $campo) {
         if (stridebr_lower((string) ($campo['slug'] ?? '')) !== 'duracao') continue;
         if (($campo['tipo_campo'] ?? '') !== 'intervalo') continue;
@@ -956,12 +976,25 @@ function atividadeFiltrarCamposPorModalidade(array $campos, string $familia, str
     }));
 }
 
+
+function atividadeRotuloCampoEditor(array $campo): string
+{
+    $slug = stridebr_lower(trim((string) ($campo['slug'] ?? '')));
+    if ($slug === 'cadencia') return stridebr_t('activity.average_cadence');
+    if ($slug === 'potencia') return stridebr_t('activity.average_power');
+    return stridebr_activity_field_label((string) ($campo['slug'] ?? ''), (string) ($campo['rotulo'] ?? stridebr_t('activity.field')));
+}
+
 function atividadeRenderizarCampo(array $campo, string $name, string $id, mixed $valor = null, bool $enforceRequired = true): string
 {
-    $label = stridebr_e($campo['rotulo'] ?? 'Campo');
+    $fieldLabel = atividadeRotuloCampoEditor($campo);
+    $label = stridebr_e($fieldLabel);
     $required = $enforceRequired && !empty($campo['obrigatorio']) ? ' required' : '';
     $unitSymbol = trim((string) ($campo['unidade_simbolo'] ?? ''));
-    $unit = $unitSymbol !== '' ? ' <span class="field-unit">' . stridebr_e($unitSymbol) . '</span>' : '';
+    $slug = stridebr_lower((string) ($campo['slug'] ?? 'campo'));
+    if ($slug === 'potencia') $unitSymbol = 'W';
+    $contextualUnit = in_array($slug, ['cadencia', 'potencia'], true);
+    $unit = ($unitSymbol !== '' || $contextualUnit) ? ' <span class="field-unit"' . ($contextualUnit ? ' data-contextual-field-unit' : '') . '>' . stridebr_e($unitSymbol) . '</span>' : '';
     $type = $campo['tipo_campo'] ?? 'texto';
     $slug = (string) ($campo['slug'] ?? 'campo');
     $group = (string) ($campo['grupo_ui'] ?? 'detalhes');
@@ -969,9 +1002,9 @@ function atividadeRenderizarCampo(array $campo, string $name, string $id, mixed 
     $hasValue = $valor !== null && $valor !== '';
     $defaultVisible = !array_key_exists('exibicao_padrao', $campo) || stridebr_db_bool($campo['exibicao_padrao']);
     $visible = !empty($campo['obrigatorio']) || $defaultVisible || $hasValue;
-    $classes = 'input-field dynamic-field' . ($visible ? '' : ' is-optional-hidden');
-    $html = '<div class="' . $classes . '" data-dynamic-field data-field-slug="' . stridebr_e($slug) . '" data-field-label="' . stridebr_e($campo['rotulo'] ?? 'Campo') . '" data-field-group="' . stridebr_e($group) . '" data-default-visible="' . ($defaultVisible ? '1' : '0') . '"' . ($visible ? '' : ' hidden') . '>';
-    $html .= '<label for="' . stridebr_e($id) . '">' . $label . $unit . '</label>';
+    $classes = 'input-field dynamic-field' . ($type === 'texto_longo' ? ' is-long-field' : '') . ($visible ? '' : ' is-optional-hidden');
+    $html = '<div class="' . $classes . '" data-dynamic-field data-field-slug="' . stridebr_e($slug) . '" data-field-label="' . stridebr_e($fieldLabel) . '" data-field-group="' . stridebr_e($group) . '" data-default-visible="' . ($defaultVisible ? '1' : '0') . '"' . ($visible ? '' : ' hidden') . '>';
+    $html .= '<label for="' . stridebr_e($id) . '"><span data-field-label-text>' . $label . '</span>' . $unit . '</label>';
 
     if ($type === 'texto_longo') {
         $html .= '<textarea id="' . stridebr_e($id) . '" name="' . stridebr_e($name) . '" rows="3"' . $required . '>' . stridebr_e($value) . '</textarea>';
@@ -983,9 +1016,9 @@ function atividadeRenderizarCampo(array $campo, string $name, string $id, mixed 
     } elseif ($type === 'booleano') {
         $isTrue = $hasValue && stridebr_db_bool($valor);
         $html .= '<select id="' . stridebr_e($id) . '" name="' . stridebr_e($name) . '"' . $required . '>';
-        $html .= '<option value="">Não informado</option>';
-        $html .= '<option value="1"' . ($hasValue && $isTrue ? ' selected' : '') . '>Sim</option>';
-        $html .= '<option value="0"' . ($hasValue && !$isTrue ? ' selected' : '') . '>Não</option>';
+        $html .= '<option value="">' . stridebr_e(stridebr_t('common.not_informed')) . '</option>';
+        $html .= '<option value="1"' . ($hasValue && $isTrue ? ' selected' : '') . '>' . stridebr_e(stridebr_t('common.yes')) . '</option>';
+        $html .= '<option value="0"' . ($hasValue && !$isTrue ? ' selected' : '') . '>' . stridebr_e(stridebr_t('common.no')) . '</option>';
         $html .= '</select>';
     } elseif ($type === 'data') {
         $html .= '<input type="date" id="' . stridebr_e($id) . '" name="' . stridebr_e($name) . '" value="' . stridebr_e($value) . '"' . $required . '>';
@@ -996,22 +1029,26 @@ function atividadeRenderizarCampo(array $campo, string $name, string $id, mixed 
         $hours = '';
         $minutes = '';
         $seconds = '';
-        if ($formatted !== '' && preg_match('/^(\d+):([0-5]\d):([0-5]\d)$/', $formatted, $parts)) {
+        $milliseconds = '';
+        if ($formatted !== '' && preg_match('/^(\d+):([0-5]\d):([0-5]\d)(?:\.(\d{3}))?$/', $formatted, $parts)) {
             $hours = (string) ((int) $parts[1]);
             $minutes = (string) ((int) $parts[2]);
             $seconds = (string) ((int) $parts[3]);
+            $milliseconds = isset($parts[4]) ? $parts[4] : '';
         }
         $html .= '<div class="duration-segments" data-duration-field>';
-        $html .= '<label><span>h</span><input type="text" inputmode="numeric" maxlength="3" value="' . stridebr_e($hours) . '" data-duration-hours aria-label="Horas" autocomplete="off"></label>';
+        $html .= '<label><span>h</span><input type="text" inputmode="numeric" maxlength="3" value="' . stridebr_e($hours) . '" data-duration-hours aria-label="' . stridebr_e(stridebr_t('activity.hours')) . '" autocomplete="off"></label>';
         $html .= '<span aria-hidden="true">:</span>';
-        $html .= '<label><span>min</span><input type="text" inputmode="numeric" maxlength="2" value="' . stridebr_e($minutes) . '" data-duration-minutes aria-label="Minutos" autocomplete="off"></label>';
+        $html .= '<label><span>min</span><input type="text" inputmode="numeric" maxlength="2" value="' . stridebr_e($minutes) . '" data-duration-minutes aria-label="' . stridebr_e(stridebr_t('activity.minutes')) . '" autocomplete="off"></label>';
         $html .= '<span aria-hidden="true">:</span>';
-        $html .= '<label><span>s</span><input type="text" inputmode="numeric" maxlength="2" value="' . stridebr_e($seconds) . '" data-duration-seconds aria-label="Segundos" autocomplete="off"></label>';
+        $html .= '<label><span>s</span><input type="text" inputmode="numeric" maxlength="2" value="' . stridebr_e($seconds) . '" data-duration-seconds aria-label="' . stridebr_e(stridebr_t('activity.seconds')) . '" autocomplete="off"></label>';
+        $html .= '<span class="duration-ms-separator" data-duration-ms-separator aria-hidden="true"' . ($milliseconds === '' ? ' hidden' : '') . '>.</span>';
+        $html .= '<label class="duration-ms-field" data-duration-ms-wrap' . ($milliseconds === '' ? ' hidden' : '') . '><span>ms</span><input type="text" inputmode="numeric" maxlength="3" value="' . stridebr_e($milliseconds) . '" data-duration-milliseconds aria-label="' . stridebr_e(stridebr_t('activity.milliseconds')) . '" autocomplete="off"></label>';
         $html .= '<input type="hidden" id="' . stridebr_e($id) . '" name="' . stridebr_e($name) . '" value="' . stridebr_e($formatted) . '" data-duration-value>';
         $html .= '</div>';
     } elseif ($type === 'selecao') {
         $html .= '<select id="' . stridebr_e($id) . '" name="' . stridebr_e($name) . '"' . $required . '>';
-        $html .= '<option value="">Selecione</option>';
+        $html .= '<option value="">' . stridebr_e(stridebr_t('common.select')) . '</option>';
         foreach ($campo['opcoes'] ?? [] as $opcao) {
             $selected = (string) $opcao['idopcao'] === $value ? ' selected' : '';
             $html .= '<option value="' . stridebr_e($opcao['idopcao']) . '"' . $selected . '>' . stridebr_e($opcao['rotulo']) . '</option>';
@@ -1022,7 +1059,7 @@ function atividadeRenderizarCampo(array $campo, string $name, string $id, mixed 
     }
 
     if (empty($campo['obrigatorio']) && !$defaultVisible) {
-        $html .= '<button type="button" class="field-remove-button" data-hide-optional-field aria-label="Remover campo">×</button>';
+        $html .= '<button type="button" class="field-remove-button" data-hide-optional-field aria-label="' . stridebr_e(stridebr_t('activity.remove_field')) . '">×</button>';
     }
     $html .= '</div>';
     return $html;
@@ -1031,39 +1068,29 @@ function atividadeRenderizarCampo(array $campo, string $name, string $id, mixed 
 function atividadeNormalizarIntervalo(mixed $valor): ?string
 {
     $valor = trim((string) $valor);
-    if ($valor === '') {
-        return null;
-    }
-
-    if (preg_match('/^(\d+):([0-5]\d):([0-5]\d)$/', $valor, $matches)) {
-        $horas = (int) $matches[1];
-        $minutos = (int) $matches[2];
-        $segundos = (int) $matches[3];
-    } elseif (preg_match('/^(\d+):([0-5]\d)$/', $valor, $matches)) {
-        $horas = 0;
-        $minutos = (int) $matches[1];
-        $segundos = (int) $matches[2];
-    } else {
-        throw new InvalidArgumentException('Use o formato HH:MM:SS ou MM:SS para durações.');
-    }
-
-    $total = $horas * 3600 + $minutos * 60 + $segundos;
-    return $total . ' seconds';
+    if ($valor === '') return null;
+    $seconds = atividadeIntervaloParaSegundos($valor);
+    if ($seconds === null) throw new InvalidArgumentException(stridebr_t('activity.duration_format_error'));
+    $normalized = number_format($seconds, 3, '.', '');
+    $normalized = rtrim(rtrim($normalized, '0'), '.');
+    if ($normalized === '') $normalized = '0';
+    return $normalized . ' seconds';
 }
 
 function atividadeFormatarIntervalo(mixed $valor): string
 {
-    if ($valor === null || $valor === '') {
-        return '';
+    if ($valor === null || $valor === '') return '';
+    $texto = trim((string) $valor);
+    $seconds = atividadeIntervaloParaSegundos($texto);
+    if ($seconds !== null) return atividadeSegundosParaIntervalo($seconds);
+    if (preg_match('/^(\d+) days? (\d+):([0-5]\d):([0-5]\d)(?:\.(\d{1,6}))?/', $texto, $matches)) {
+        $hours = (int) $matches[1] * 24 + (int) $matches[2];
+        $fraction = isset($matches[5]) && $matches[5] !== '' ? ((int) str_pad(substr($matches[5], 0, 3), 3, '0')) / 1000 : 0.0;
+        return atividadeSegundosParaIntervalo($hours * 3600 + (int) $matches[3] * 60 + (int) $matches[4] + $fraction);
     }
-
-    $texto = (string) $valor;
-    if (preg_match('/^(\d+):([0-5]\d):([0-5]\d)(?:\.\d+)?$/', $texto, $matches)) {
-        return sprintf('%02d:%02d:%02d', (int) $matches[1], (int) $matches[2], (int) $matches[3]);
-    }
-    if (preg_match('/^(\d+) days? (\d+):([0-5]\d):([0-5]\d)/', $texto, $matches)) {
-        $horas = (int) $matches[1] * 24 + (int) $matches[2];
-        return sprintf('%02d:%02d:%02d', $horas, (int) $matches[3], (int) $matches[4]);
+    if (preg_match('/^(\d+):(\d{2}):([0-5]\d)(?:\.(\d{1,6}))?$/', $texto, $matches)) {
+        $fraction = isset($matches[4]) && $matches[4] !== '' ? ((int) str_pad(substr($matches[4], 0, 3), 3, '0')) / 1000 : 0.0;
+        return atividadeSegundosParaIntervalo((int) $matches[1] * 3600 + (int) $matches[2] * 60 + (int) $matches[3] + $fraction);
     }
     return $texto;
 }
@@ -1071,11 +1098,12 @@ function atividadeFormatarIntervalo(mixed $valor): string
 function atividadePrepararValor(array $campo, mixed $raw, bool $permitirAusente = false): ?array
 {
     $tipo = $campo['tipo_campo'];
+    $fieldLabel = stridebr_activity_field_label((string) ($campo['slug'] ?? ''), (string) ($campo['rotulo'] ?? stridebr_t('activity.field')));
     $missing = $raw === null || (is_string($raw) && trim($raw) === '');
     if ($missing) {
         if ($permitirAusente) return null;
         if (!empty($campo['obrigatorio'])) {
-            throw new InvalidArgumentException('O campo "' . $campo['rotulo'] . '" é obrigatório.');
+            throw new InvalidArgumentException(stridebr_t('activity.field_required', ['field' => $fieldLabel]));
         }
         return null;
     }
@@ -1095,30 +1123,30 @@ function atividadePrepararValor(array $campo, mixed $raw, bool $permitirAusente 
         $bind['valor_texto'] = trim((string) $raw);
     } elseif ($tipo === 'inteiro') {
         if (filter_var($raw, FILTER_VALIDATE_INT) === false) {
-            throw new InvalidArgumentException('O campo "' . $campo['rotulo'] . '" precisa ser um número inteiro.');
+            throw new InvalidArgumentException(stridebr_t('activity.field_integer', ['field' => $fieldLabel]));
         }
         $bind['valor_inteiro'] = (int) $raw;
     } elseif ($tipo === 'decimal') {
         $normalizado = str_replace(',', '.', trim((string) $raw));
         if (!is_numeric($normalizado)) {
-            throw new InvalidArgumentException('O campo "' . $campo['rotulo'] . '" precisa ser numérico.');
+            throw new InvalidArgumentException(stridebr_t('activity.field_number', ['field' => $fieldLabel]));
         }
         $bind['valor_decimal'] = $normalizado;
     } elseif ($tipo === 'booleano') {
         if (!in_array($raw, [0, 1, '0', '1', false, true], true)) {
-            throw new InvalidArgumentException('Valor inválido no campo "' . $campo['rotulo'] . '".');
+            throw new InvalidArgumentException(stridebr_t('activity.field_invalid_value', ['field' => $fieldLabel]));
         }
         $bind['valor_booleano'] = in_array($raw, [1, '1', true], true);
     } elseif ($tipo === 'data') {
         $data = DateTimeImmutable::createFromFormat('!Y-m-d', (string) $raw);
         if (!$data || $data->format('Y-m-d') !== $raw) {
-            throw new InvalidArgumentException('Data inválida no campo "' . $campo['rotulo'] . '".');
+            throw new InvalidArgumentException(stridebr_t('activity.field_invalid_date', ['field' => $fieldLabel]));
         }
         $bind['valor_data'] = $raw;
     } elseif ($tipo === 'hora') {
         $hora = DateTimeImmutable::createFromFormat('!H:i', (string) $raw);
         if (!$hora) {
-            throw new InvalidArgumentException('Hora inválida no campo "' . $campo['rotulo'] . '".');
+            throw new InvalidArgumentException(stridebr_t('activity.field_invalid_time', ['field' => $fieldLabel]));
         }
         $bind['valor_hora'] = $hora->format('H:i:s');
     } elseif ($tipo === 'intervalo') {
@@ -1126,7 +1154,7 @@ function atividadePrepararValor(array $campo, mixed $raw, bool $permitirAusente 
     } elseif ($tipo === 'selecao') {
         $opcoes = array_column($campo['opcoes'] ?? [], 'idopcao');
         if (!in_array((string) $raw, $opcoes, true)) {
-            throw new InvalidArgumentException('Opção inválida no campo "' . $campo['rotulo'] . '".');
+            throw new InvalidArgumentException(stridebr_t('activity.field_invalid_option', ['field' => $fieldLabel]));
         }
         $bind['idopcao'] = (string) $raw;
     }
@@ -1490,10 +1518,7 @@ function atividadeSalvarRegistro(PDO $pdo, string $idUsuario, array $payload, ?s
                     $segmentDistanceM = $distanceUnit === 'm' ? (float) $distanceRaw : (float) $distanceRaw * 1000;
                 }
                 $durationRaw = trim((string) ($segmentMetrics['duracao'] ?? ''));
-                if ($durationRaw !== '') {
-                    $durationNormalized = atividadeNormalizarIntervalo($durationRaw);
-                    if (preg_match('/^(\d+) seconds$/', (string) $durationNormalized, $durationParts)) $segmentDurationS = (int) $durationParts[1];
-                }
+                if ($durationRaw !== '') $segmentDurationS = atividadeIntervaloParaSegundos($durationRaw);
                 $elevationRaw = $segmentMetrics['elevacao'] ?? null;
                 if (is_numeric($elevationRaw) && (float) $elevationRaw >= 0) $segmentElevationM = (float) $elevationRaw;
             }
@@ -1508,10 +1533,7 @@ function atividadeSalvarRegistro(PDO $pdo, string $idUsuario, array $payload, ?s
                 if ($segmentDistanceM === null && $slug === 'distancia' && is_numeric($fieldValue)) {
                     $segmentDistanceM = (($campo['unidade_simbolo'] ?? 'km') === 'm') ? (float) $fieldValue : (float) $fieldValue * 1000;
                 } elseif ($segmentDurationS === null && $slug === 'duracao' && trim((string) $fieldValue) !== '') {
-                    $formatted = atividadeFormatarIntervalo($fieldValue);
-                    if (preg_match('/^(\d+):([0-5]\d):([0-5]\d)$/', $formatted, $parts)) {
-                        $segmentDurationS = ((int) $parts[1] * 3600) + ((int) $parts[2] * 60) + (int) $parts[3];
-                    }
+                    $segmentDurationS = atividadeIntervaloParaSegundos(atividadeFormatarIntervalo($fieldValue));
                 } elseif ($segmentElevationM === null && in_array($slug, ['elevacao', 'desnivel'], true) && is_numeric($fieldValue)) {
                     $segmentElevationM = (($campo['unidade_simbolo'] ?? 'm') === 'km') ? (float) $fieldValue * 1000 : (float) $fieldValue;
                 }
@@ -1557,7 +1579,7 @@ function atividadeSalvarRegistro(PDO $pdo, string $idUsuario, array $payload, ?s
             if ($hasUnitDuration) {
                 $unitColumns[] = 'duracao_segundos';
                 $unitValuesSql[] = ':duracao';
-                $unitParams[':duracao'] = $segmentDurationS;
+                $unitParams[':duracao'] = $segmentDurationS !== null ? round($segmentDurationS, 3) : null;
             }
             if ($hasUnitElevation) {
                 $unitColumns[] = 'elevacao_m';

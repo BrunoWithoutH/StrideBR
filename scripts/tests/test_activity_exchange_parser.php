@@ -19,7 +19,7 @@ $parsedGpx = atividadeArquivoAnalisar('teste.gpx', $gpx);
 $assert($parsedGpx['file_type'] === 'atividade', 'GPX track não detectado como atividade');
 $assert($parsedGpx['modality_slug'] === 'corrida', 'modalidade GPX incorreta');
 $assert(count($parsedGpx['series']) === 2, 'trackpoints GPX não foram lidos');
-$assert(($parsedGpx['summary']['duration_s'] ?? null) === 60, 'duração GPX incorreta');
+$assert(abs((float) ($parsedGpx['summary']['duration_s'] ?? -1) - 60.0) < 0.0005, 'duração GPX incorreta');
 
 $gpxCourse = '<?xml version="1.0"?><gpx><trk><name>Percurso teste</name><trkseg>'
     . '<trkpt lat="-27.3600000" lon="-53.3900000"><ele>510</ele></trkpt>'

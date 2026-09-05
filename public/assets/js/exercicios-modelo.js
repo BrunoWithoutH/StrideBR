@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const t = (key, values = {}, fallback = key) => window.StrideBRI18n?.t?.(key, values, fallback) ?? fallback
     const editor = document.querySelector('[data-model-exercise-editor]');
     const list = editor?.querySelector('[data-model-exercise-list]');
     const template = editor?.querySelector('[data-model-exercise-template]');
@@ -8,7 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const renumber = () => {
         [...list.querySelectorAll('[data-model-exercise-row]')].forEach((row, index) => {
             const number = row.querySelector('[data-model-number]');
-            if (number) number.textContent = `Exercício ${index + 1}`;
+            if (number) number.textContent = t('library.exercise_number', {number: index + 1}, `Exercise ${index + 1}`);
         });
     };
     const wireRow = row => {
@@ -22,7 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const next = row.nextElementSibling;
             row.remove();
             renumber();
-            window.StrideBRUI?.undo?.('Exercício removido do treino salvo.', async () => {
+            window.StrideBRUI?.undo?.(t('library.saved_exercise_removed', {}, 'Exercise removed from saved workout.'), async () => {
                 if (next?.isConnected) list.insertBefore(row, next);
                 else list.appendChild(row);
                 renumber();

@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const t = (key, values = {}, fallback = key) => window.StrideBRI18n?.t?.(key, values, fallback) ?? fallback
+    const localDate = value => window.StrideBRI18n?.date?.(value, {year:'numeric', month:'short', day:'numeric'}) || String(value || '')
     const dialog = document.querySelector('[data-goal-dialog]');
     const openButtons = document.querySelectorAll('[data-goal-open]');
     const closeButtons = document.querySelectorAll('[data-goal-close]');
@@ -18,26 +20,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const units = {
         distancia: ['km', '20'],
         duracao: ['min', '180'],
-        atividades: ['atividades', '4'],
+        atividades: [t('goals.unit.activities', {}, 'activities'), '4'],
         elevacao: ['m', '500'],
-        dias_ativos: ['dias', '4'],
+        dias_ativos: [t('goals.unit.days', {}, 'days'), '4'],
         carga_maxima: ['kg', '200']
     };
 
     const syncSummary = () => {
         if (!summary) return;
-        const metricLabel = metric?.selectedOptions?.[0]?.textContent?.trim() || 'métrica';
-        const sportLabel = sport?.selectedOptions?.[0]?.textContent?.replace(/^★\s*/, '').trim() || 'Todos os esportes';
+        const metricLabel = metric?.selectedOptions?.[0]?.textContent?.trim() || t('goals.metric_fallback', {}, 'metric');
+        const sportLabel = sport?.selectedOptions?.[0]?.textContent?.replace(/^★\s*/, '').trim() || t('goals.all_sports', {}, 'All sports');
         const exerciseLabel = exercise?.selectedOptions?.[0]?.textContent?.trim() || '';
         const value = target?.value?.trim() || target?.placeholder || '0';
         const unitLabel = unit?.textContent?.trim() || '';
-        let deadline = 'sem prazo';
-        if (period?.value === 'personalizado') deadline = endDate?.value ? `até ${new Date(`${endDate.value}T12:00:00`).toLocaleDateString('pt-BR')}` : 'até a data escolhida';
-        if (period?.value === 'semanal') deadline = 'a cada semana';
-        if (period?.value === 'mensal') deadline = 'a cada mês';
-        if (period?.value === 'anual') deadline = 'a cada ano';
+        let deadline = t('goals.no_deadline', {}, 'no deadline');
+        if (period?.value === 'personalizado') deadline = endDate?.value ? t('goals.until_date', {date: localDate(`${endDate.value}T12:00:00`)}, `until ${localDate(`${endDate.value}T12:00:00`)}`) : t('goals.until_chosen_date', {}, 'until the selected date');
+        if (period?.value === 'semanal') deadline = t('goals.every_week', {}, 'every week');
+        if (period?.value === 'mensal') deadline = t('goals.every_month', {}, 'every month');
+        if (period?.value === 'anual') deadline = t('goals.every_year', {}, 'every year');
         const subject = metric?.value === 'carga_maxima' && exerciseLabel ? exerciseLabel : sportLabel;
-        summary.textContent = `${metricLabel}: ${value} ${unitLabel} · ${subject} · ${deadline}`;
+        summary.textContent = t('goals.summary_compact', {metric: metricLabel, value, unit: unitLabel, subject, deadline}, `${metricLabel}: ${value} ${unitLabel} · ${subject} · ${deadline}`);
     };
 
     const syncMetric = () => {
@@ -58,13 +60,13 @@ document.addEventListener('DOMContentLoaded', () => {
         goalOptionsPromise = (window.StrideBRNet?.fetch || fetch)('/api/dashboard-goal-options.php', {credentials: 'same-origin', headers: {'Accept': 'application/json'}}, 10000)
             .then(async response => {
                 const result = await response.json().catch(() => null);
-                if (!response.ok || !result?.ok) throw new Error(result?.error || 'Não foi possível carregar as opções.');
+                if (!response.ok || !result?.ok) throw new Error(result?.error || t('goals.load_options_error', {}, 'Could not load the options.'));
                 if (sport && !sport.closest('[data-generic-sport-picker]')) {
                     const current = sport.value;
                     sport.replaceChildren();
                     const all = document.createElement('option');
                     all.value = '';
-                    all.textContent = 'Todos os esportes';
+                    all.textContent = t('goals.all_sports', {}, 'All sports');
                     sport.append(all);
                     (result.modalities || []).forEach(item => {
                         const option = document.createElement('option');
@@ -79,7 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     exercise.replaceChildren();
                     const placeholder = document.createElement('option');
                     placeholder.value = '';
-                    placeholder.textContent = 'Escolha um exercício';
+                    placeholder.textContent = t('goals.choose_exercise', {}, 'Choose an exercise');
                     exercise.append(placeholder);
                     (result.exercises || []).forEach(item => {
                         const option = document.createElement('option');
@@ -94,7 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 syncSummary();
             })
             .catch(error => {
-                if (summary) summary.textContent = error?.message || 'Não foi possível carregar as opções de meta.';
+                if (summary) summary.textContent = error?.message || t('goals.load_options_error', {}, 'Could not load goal options.');
             })
             .finally(() => { goalOptionsPromise = null; });
         return goalOptionsPromise;
@@ -137,6 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
+    const t = (key, values = {}, fallback = key) => window.StrideBRI18n?.t?.(key, values, fallback) ?? fallback
     const root = document.querySelector('[data-dashboard-root]');
     const modules = document.querySelector('[data-dashboard-modules]');
     const customizeDialog = document.querySelector('[data-dashboard-customize-dialog]');
@@ -223,12 +226,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const request = window.StrideBRNet?.fetch || fetch;
             const response = await request('/api/dashboard-preferences.php', {method: 'POST', body, credentials: 'same-origin', headers: {'Accept': 'application/json'}}, 10000);
             const result = await response.json().catch(() => null);
-            if (!response.ok || !result?.ok) throw new Error(result?.error || 'Não foi possível salvar o painel.');
+            if (!response.ok || !result?.ok) throw new Error(result?.error || t('goals.save_dashboard_error', {}, 'Could not save the dashboard.'));
             applyPreferences(result.preferences?.order || order, result.preferences?.hidden || hidden);
             closeDialog();
-            window.StrideBRUI?.notify?.('Painel atualizado.', 'success', 2600);
+            window.StrideBRUI?.notify?.(t('goals.dashboard_updated', {}, 'Dashboard updated.'), 'success', 2600);
         } catch (error) {
-            window.StrideBRUI?.notify?.(error?.message || 'Não foi possível salvar o painel.', 'error');
+            window.StrideBRUI?.notify?.(error?.message || t('goals.save_dashboard_error', {}, 'Could not save the dashboard.'), 'error');
         } finally {
             saveButton.disabled = false;
             saveButton.removeAttribute('aria-busy');

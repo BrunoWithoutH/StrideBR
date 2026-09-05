@@ -169,7 +169,8 @@ function runScenario(string $name, array $payload, bool $modernSchema = true, bo
         assertTrue(abs((float) ($pdo->savedUnits[0][':distancia'] ?? -1) - 2000.0) < 0.001, "$name não converteu 2 km para 2000 m");
     }
     if ($modernSchema && $hasDuration) {
-        assertTrue((int) ($pdo->savedUnits[0][':duracao'] ?? -1) === 1200, "$name não converteu 20 min para 1200 s");
+        $expectedDuration = atividadeIntervaloParaSegundos((string) $values['field_duration']);
+        assertTrue($expectedDuration !== null && abs((float) ($pdo->savedUnits[0][':duracao'] ?? -1) - $expectedDuration) < 0.0005, "$name não preservou a duração em milissegundos");
     }
     assertTrue(count($pdo->savedValues) === (int) $hasDistance + (int) $hasDuration, "$name não persistiu exatamente os valores informados");
 }
@@ -187,6 +188,7 @@ try {
         runScenario('só distância', ['unidades' => [['values' => ['field_distance' => '2']]]]);
         runScenario('só duração', ['unidades' => [['values' => ['field_duration' => '00:20:00']]]]);
         runScenario('distância + duração', ['unidades' => [['values' => ['field_distance' => '2', 'field_duration' => '00:20:00']]]]);
+        runScenario('duração com milissegundos', ['unidades' => [['values' => ['field_duration' => '00:00:12.438']]]]);
         runScenario('atividade vazia com falha de preferência auxiliar', ['unidades' => [['values' => []]]], true, true);
         echo "✓ manual activity save fake integration (empty, partial, auxiliary failure)\n";
     }

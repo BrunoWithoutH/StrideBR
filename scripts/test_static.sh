@@ -16,6 +16,11 @@ printf '%s\n' '✓ PHP syntax'
 if command -v node >/dev/null 2>&1; then
   find public/assets/js -type f -name '*.js' -print0 | xargs -0 -n1 node --check >/dev/null
   printf '%s\n' '✓ JavaScript syntax'
+node scripts/tests/test_ui_boot.js
+node scripts/tests/test_activity_route_circuit.js
+node scripts/tests/test_share_route_scale.js
+node scripts/tests/test_share_route_export_png.js
+node scripts/tests/test_share_metric_defaults.js
 else
   printf '%s\n' '○ JavaScript syntax: node não encontrado, verificação ignorada'
 fi
@@ -49,15 +54,31 @@ php scripts/tests/test_activity_performance_static.php
 php scripts/tests/test_dashboard_ux_static.php
 php scripts/tests/test_desktop_release_finish_static.php
 php scripts/tests/test_activity_sharing_v2_static.php
+php scripts/tests/test_share_architecture_static.php
+php scripts/tests/test_share_route_scale_static.php
+php scripts/tests/test_share_map_metrics_static.php
+php scripts/tests/test_share_route_export_png_static.php
+php scripts/tests/test_activity_delete_modal_static.php
+php scripts/tests/test_activity_edit_embed_static.php
 php scripts/tests/test_gps_web_static.php
+php scripts/tests/test_pwa_foundation_static.php
 php scripts/tests/test_onboarding_copy_ux_static.php
+php scripts/tests/test_onboarding_i18n_static.php
 php scripts/tests/test_ux_consistency_static.php
 php scripts/tests/test_share_compact_ux_static.php
 php scripts/tests/test_activity_workspace_polish_static.php
 php scripts/tests/test_activity_segments_v2_static.php
+php scripts/tests/test_activity_duration_precision.php
+php scripts/tests/test_activity_editor_parity_static.php
+php scripts/tests/test_activity_consolidation_static.php
+php scripts/tests/test_activity_visibility_static.php
+php scripts/tests/test_activity_route_circuit_static.php
+php scripts/tests/test_activity_route_circuit_export.php
+php scripts/tests/test_map_basemaps_static.php
 php scripts/tests/test_activity_manual_save_fake.php
 STRIDEBR_FAKE_LEGACY=1 php scripts/tests/test_activity_manual_save_fake.php
 php scripts/tests/test_i18n_theme_google_static.php
+php scripts/tests/test_production_theme_migrations_static.php
 php scripts/tests/test_integrations_foundation_static.php
 php scripts/tests/test_sport_hub_monetization_static.php
 php scripts/tests/test_sport_taxonomy_energy_static.php
@@ -65,4 +86,7 @@ php scripts/tests/test_sport_picker_static.php
 php scripts/tests/test_manual_strength_ui_static.php
 php scripts/tests/test_migration_dependency_static.php
 php scripts/tests/test_radius_system_static.php
+php scripts/tests/test_design_system_static.php
+php scripts/tests/test_dark_contrast_static.php
+php scripts/tests/test_ui_consolidation_static.php
 php scripts/tests/test_templates.php

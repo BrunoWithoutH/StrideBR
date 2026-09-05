@@ -1,5 +1,6 @@
 'use strict';
 (() => {
+    const t = (key, values = {}, fallback = key) => window.StrideBRI18n?.t?.(key, values, fallback) ?? fallback
     let controller = null;
     let navigating = false;
 
@@ -42,19 +43,19 @@
                 window.location.href = response.url;
                 return;
             }
-            if (!response.ok) throw new Error(response.status >= 500 ? 'Não foi possível carregar este período agora.' : 'Não foi possível abrir esta visão do progresso.');
+            if (!response.ok) throw new Error(response.status >= 500 ? t('progress.load_period_error', {}, 'Could not load this period right now.') : t('progress.open_view_error', {}, 'Could not open this progress view.'));
             const html = await response.text();
             const doc = new DOMParser().parseFromString(html, 'text/html');
             const next = doc.querySelector('[data-progress-page]');
             const current = page();
-            if (!next || !current) throw new Error('A resposta do Progresso veio incompleta.');
+            if (!next || !current) throw new Error(t('progress.incomplete_response', {}, 'The Progress response was incomplete.'));
             current.replaceWith(next);
             if (doc.title) document.title = doc.title;
             if (push) history.pushState({progress: true}, '', `${url.pathname}${url.search}${url.hash}`);
             requestAnimationFrame(() => window.scrollTo({top: scrollY, behavior: 'auto'}));
         } catch (error) {
             if (error?.name === 'AbortError') return;
-            window.StrideBRUI?.notify(error?.message || 'Não foi possível atualizar o Progresso.', 'error', 6000);
+            window.StrideBRUI?.notify(error?.message || t('progress.update_error', {}, 'Could not update Progress.'), 'error', 6000);
         } finally {
             navigating = false;
             controller = null;

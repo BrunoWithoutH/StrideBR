@@ -42,3 +42,13 @@ RewriteRule ^sitemap\.xml$ sitemap.php [L]
 ErrorDocument 403 /errors/403.php
 ErrorDocument 404 /errors/404.php
 ErrorDocument 500 /errors/500.php
+
+<IfModule mod_setenvif.c>
+    SetEnvIfExpr "(%{REQUEST_URI} == '/user/editatividade.php' || %{REQUEST_URI} == '/function/apagaratividade.php') && %{QUERY_STRING} =~ /(^|&)embed=1(&|$)/" STRIDEBR_ACTIVITY_EDIT_EMBED=1
+</IfModule>
+<IfModule mod_headers.c>
+    Header always unset X-Frame-Options env=STRIDEBR_ACTIVITY_EDIT_EMBED
+    Header always unset Content-Security-Policy env=STRIDEBR_ACTIVITY_EDIT_EMBED
+    Header always set X-Frame-Options "SAMEORIGIN" env=STRIDEBR_ACTIVITY_EDIT_EMBED
+    Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: https:; media-src 'self'; connect-src 'self'" env=STRIDEBR_ACTIVITY_EDIT_EMBED
+</IfModule>

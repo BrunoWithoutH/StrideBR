@@ -40,6 +40,36 @@ function notificacaoListar(PDO $pdo, string $idUsuario, int $limite = 50): array
     }
 }
 
+
+function notificacaoApresentar(array $notificacao): array
+{
+    $tipo = (string) ($notificacao['tipo'] ?? '');
+    $dados = is_array($notificacao['dados'] ?? null) ? $notificacao['dados'] : json_decode((string) ($notificacao['dados'] ?? ''), true);
+    if (!is_array($dados)) $dados = [];
+    $map = [
+        'amizade_solicitacao' => ['notification.friend_request.title', 'notification.friend_request.message'],
+        'amizade_aceita' => ['notification.friend_accepted.title', 'notification.friend_accepted.message'],
+        'cronograma_sincronizado_aceito' => ['notification.schedule_accepted.title', 'notification.schedule_accepted.message'],
+        'cronograma_sincronizado_alterado' => ['notification.schedule_updated.title', 'notification.schedule_updated.message'],
+        'treinador_convite' => ['notification.coach_invite.title', 'notification.coach_invite.message'],
+        'treinador_solicitacao' => ['notification.athlete_request.title', 'notification.athlete_request.message'],
+        'treinador_vinculo_aceito' => ['notification.coach_link_accepted.title', 'notification.coach_link_accepted.message'],
+        'treino_prescrito' => ['notification.prescription.title', 'notification.prescription.message'],
+        'treino_feedback' => ['notification.feedback.title', 'notification.feedback.message'],
+    ];
+    if ($tipo === 'cronograma_sincronizado_convite') {
+        $nome = trim((string) ($dados['schedule_name'] ?? ''));
+        return [
+            'titulo' => stridebr_t('notification.schedule_invite.title'),
+            'mensagem' => $nome !== '' ? stridebr_t('notification.schedule_invite.message', ['name' => $nome]) : stridebr_t('notification.schedule_invite.message_generic'),
+        ];
+    }
+    if (isset($map[$tipo])) {
+        return ['titulo' => stridebr_t($map[$tipo][0]), 'mensagem' => stridebr_t($map[$tipo][1])];
+    }
+    return ['titulo' => (string) ($notificacao['titulo'] ?? ''), 'mensagem' => (string) ($notificacao['mensagem'] ?? '')];
+}
+
 function notificacaoContarNaoLidas(PDO $pdo, string $idUsuario): int
 {
     try {

@@ -54,18 +54,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $sourceWorkout = trim((string) ($_POST['idtreino_origem'] ?? ''));
 
             if (!treinadorDataValida($date, true)) {
-                throw new InvalidArgumentException('Data inválida. Use até 31 dias no passado ou os próximos dois anos.');
+                throw new InvalidArgumentException(stridebr_t('agenda.error.invalid_date'));
             }
             if (!treinadorHoraValida($time)) {
-                throw new InvalidArgumentException('Horário inválido.');
+                throw new InvalidArgumentException(stridebr_t('agenda.error.invalid_time'));
             }
             if (stridebr_length($description) > 5000) {
-                throw new InvalidArgumentException('A descrição deve ter no máximo 5.000 caracteres.');
+                throw new InvalidArgumentException(stridebr_t('agenda.error.description_long'));
             }
             $duration = null;
             if ($durationRaw !== '') {
                 if (filter_var($durationRaw, FILTER_VALIDATE_INT) === false || (int) $durationRaw < 1 || (int) $durationRaw > 1440) {
-                    throw new InvalidArgumentException('Duração prevista inválida.');
+                    throw new InvalidArgumentException(stridebr_t('agenda.error.invalid_duration'));
                 }
                 $duration = (int) $durationRaw;
             }
@@ -76,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($sourceWorkout !== '') {
                 $source = cronogramaBuscarTreino($pdo, $sourceWorkout, $idUsuario);
                 if ($source === []) {
-                    throw new RuntimeException('Treino de origem não encontrado.');
+                    throw new RuntimeException(stridebr_t('agenda.error.source_not_found'));
                 }
                 $originCronograma = $source['idcronograma'];
                 $originWorkout = $source['idtreino'];
@@ -93,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             if ($title === '' || stridebr_length($title) > 120) {
-                throw new InvalidArgumentException('Informe um título de até 120 caracteres.');
+                throw new InvalidArgumentException(stridebr_t('agenda.error.invalid_title'));
             }
 
             $idAgendamento = stridebr_generate_id();
@@ -143,12 +143,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 throw $e;
             }
-            stridebr_flash('success', 'Treino adicionado à agenda mensal.');
+            stridebr_flash('success', stridebr_t('agenda.flash.added'));
         } elseif ($action === 'cancel_scheduled') {
             treinadorCancelarPrescricao($pdo, $idUsuario, (string) ($_POST['idagendamento'] ?? ''));
-            stridebr_flash('success', 'Treino agendado cancelado.');
+            stridebr_flash('success', stridebr_t('agenda.flash.cancelled'));
         } else {
-            throw new InvalidArgumentException('Ação inválida.');
+            throw new InvalidArgumentException(stridebr_t('agenda.error.invalid_action'));
         }
 
         $redirectMonth = trim((string) ($_POST['month'] ?? ''));
@@ -159,7 +159,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . $location);
         exit;
     } catch (Throwable $e) {
-        $errors[] = $e instanceof InvalidArgumentException || $e instanceof RuntimeException ? $e->getMessage() : 'Não foi possível atualizar a agenda.';
+        $errors[] = $e instanceof InvalidArgumentException || $e instanceof RuntimeException ? $e->getMessage() : stridebr_t('agenda.error.update');
         if (!$e instanceof InvalidArgumentException && !$e instanceof RuntimeException) {
             error_log('StrideBR monthly agenda failed: ' . $e->getMessage());
         }
@@ -175,8 +175,7 @@ $monthEnd = $monthStart->modify('last day of this month');
 $prevMonth = $monthStart->modify('-1 month')->format('Y-m');
 $nextMonth = $monthStart->modify('+1 month')->format('Y-m');
 $monthKey = $monthStart->format('Y-m');
-$monthNames = [1 => 'Janeiro', 2 => 'Fevereiro', 3 => 'Março', 4 => 'Abril', 5 => 'Maio', 6 => 'Junho', 7 => 'Julho', 8 => 'Agosto', 9 => 'Setembro', 10 => 'Outubro', 11 => 'Novembro', 12 => 'Dezembro'];
-$monthTitle = $monthNames[(int) $monthStart->format('n')] . ' de ' . $monthStart->format('Y');
+$monthTitle = stridebr_format_month_year($monthStart);
 
 $scheduleFilter = trim((string) ($_GET['cronograma'] ?? ''));
 $schedulesStmt = $pdo->prepare('SELECT idcronograma, nome FROM cronogramas WHERE idusuario = :usuario AND ativo = TRUE ORDER BY data_atualizacao DESC');
@@ -222,7 +221,8 @@ $monthCompleted = $recurringCompleted + $scheduledCompleted;
 
 $prefs = is_array($targetUser['preferenciasusuario'] ?? null) ? $targetUser['preferenciasusuario'] : (json_decode((string) ($targetUser['preferenciasusuario'] ?? '{}'), true) ?: []);
 $mondayFirst = ($prefs['week_start'] ?? 'sunday') === 'monday';
-$dayNames = $mondayFirst ? ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'] : ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+$weekdayShort = stridebr_weekday_short_names();
+$dayNames = $mondayFirst ? [$weekdayShort[1], $weekdayShort[2], $weekdayShort[3], $weekdayShort[4], $weekdayShort[5], $weekdayShort[6], $weekdayShort[0]] : $weekdayShort;
 $firstWeekday = (int) $monthStart->format('w');
 $leading = $mondayFirst ? ($firstWeekday + 6) % 7 : $firstWeekday;
 $totalDays = (int) $monthEnd->format('j');
@@ -244,7 +244,7 @@ $flashes = stridebr_take_flashes();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/style.css')); ?>">
-    <title>Agenda mensal | StrideBR</title>
+    <title><?php echo stridebr_e(stridebr_t('agenda.page_title')); ?> | StrideBR</title>
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>">
 </head>
 <body>
@@ -252,62 +252,62 @@ $flashes = stridebr_take_flashes();
     <?php require dirname(__DIR__, 2) . '/src/layout/header.php'; ?>
     <main class="main-content">
         <div class="page-shell monthly-shell">
-            <div class="page-heading monthly-heading"><div><span class="eyebrow">Planejamento</span><h1 data-monthly-page-title><?php echo $selectedScheduleName !== '' ? stridebr_e($selectedScheduleName) : 'Agenda mensal'; ?></h1><p><?php echo $isSelf ? 'Veja recorrências e treinos marcados em datas específicas no mesmo calendário.' : 'Agenda de ' . stridebr_e(stridebr_person_name_for_display((string) $targetUser['nome_exibicao'], (string) ($targetUser['username'] ?? ''), 'Atleta', 60)) . '.'; ?></p></div></div>
-            <nav class="planning-subnav monthly-planning-subnav" aria-label="Navegação de planejamento">
-                <a href="/user/cronogramatreinos.php<?php echo !$isSelf ? '?atleta=' . rawurlencode($targetId) : ''; ?>">Cronogramas</a>
-                <a class="is-active" href="/user/agenda-mensal.php<?php echo !$isSelf ? '?atleta=' . rawurlencode($targetId) : ''; ?>">Agenda mensal</a>
-                <?php if (stridebr_feature_enabled($pdo, 'trainer.enabled', false)): ?><a href="/user/treinador.php<?php echo !$isSelf ? '?atleta=' . rawurlencode($targetId) : ''; ?>">Treinador e atletas</a><?php endif; ?>
-                <?php if ($selectedScheduleName !== ''): ?><a class="planning-subnav-context" href="<?php echo stridebr_e($returnScheduleUrl); ?>">Abrir cronograma selecionado →</a><?php endif; ?>
+            <div class="page-heading monthly-heading"><div><span class="eyebrow"><?php echo stridebr_e(stridebr_t('agenda.planning')); ?></span><h1 data-monthly-page-title><?php echo $selectedScheduleName !== '' ? stridebr_e($selectedScheduleName) : stridebr_e(stridebr_t('agenda.page_title')); ?></h1><p><?php echo stridebr_e($isSelf ? stridebr_t('agenda.subtitle_self') : stridebr_t('agenda.subtitle_other', ['name' => stridebr_person_name_for_display((string) $targetUser['nome_exibicao'], (string) ($targetUser['username'] ?? ''), stridebr_t('trainer.athlete'), 60)])); ?></p></div></div>
+            <nav class="planning-subnav monthly-planning-subnav" aria-label="<?php echo stridebr_e(stridebr_t('schedule.planning_navigation')); ?>">
+                <a href="/user/cronogramatreinos.php<?php echo !$isSelf ? '?atleta=' . rawurlencode($targetId) : ''; ?>"><?php echo stridebr_e(stridebr_t('common.schedules')); ?></a>
+                <a class="is-active" href="/user/agenda-mensal.php<?php echo !$isSelf ? '?atleta=' . rawurlencode($targetId) : ''; ?>"><?php echo stridebr_e(stridebr_t('agenda.page_title')); ?></a>
+                <?php if (stridebr_feature_enabled($pdo, 'trainer.enabled', false)): ?><a href="/user/treinador.php<?php echo !$isSelf ? '?atleta=' . rawurlencode($targetId) : ''; ?>"><?php echo stridebr_e(stridebr_t('nav.trainer')); ?></a><?php endif; ?>
+                <?php if ($selectedScheduleName !== ''): ?><a class="planning-subnav-context" href="<?php echo stridebr_e($returnScheduleUrl); ?>"><?php echo stridebr_e(stridebr_t('agenda.open_selected')); ?></a><?php endif; ?>
             </nav>
 
             <?php foreach ($flashes as $flash): ?><div class="alert alert-<?php echo stridebr_e($flash['type'] ?? 'info'); ?>"><?php echo stridebr_e($flash['message'] ?? ''); ?></div><?php endforeach; ?>
             <?php foreach ($errors as $error): ?><div class="alert alert-danger"><?php echo stridebr_e($error); ?></div><?php endforeach; ?>
 
             <div data-monthly-dynamic data-month-key="<?php echo stridebr_e($monthKey); ?>" data-is-self="<?php echo $isSelf ? '1' : '0'; ?>">
-            <section class="monthly-toolbar content-card" aria-label="Controles do calendário">
+            <section class="monthly-toolbar content-card" aria-label="<?php echo stridebr_e(stridebr_t('agenda.controls')); ?>">
                 <div class="monthly-nav">
-                    <a class="monthly-nav-button" data-month-nav href="?month=<?php echo rawurlencode($prevMonth); ?><?php echo !$isSelf ? '&atleta=' . rawurlencode($targetId) : ''; ?><?php echo $scheduleFilter !== '' ? '&cronograma=' . rawurlencode($scheduleFilter) : ''; ?>" aria-label="Mês anterior">‹</a>
-                    <div class="monthly-title-block"><strong><?php echo stridebr_e($monthTitle); ?></strong><span><?php echo $monthTotal; ?> treino(s) · <?php echo $monthCompleted; ?> realizado(s)</span><small data-monthly-load-status hidden>Atualizando…</small></div>
-                    <a class="monthly-nav-button" data-month-nav href="?month=<?php echo rawurlencode($nextMonth); ?><?php echo !$isSelf ? '&atleta=' . rawurlencode($targetId) : ''; ?><?php echo $scheduleFilter !== '' ? '&cronograma=' . rawurlencode($scheduleFilter) : ''; ?>" aria-label="Próximo mês">›</a>
-                    <?php if ($monthKey !== $currentMonthKey): ?><a class="secondary-button monthly-today-button" data-month-nav href="?month=<?php echo rawurlencode($currentMonthKey); ?><?php echo !$isSelf ? '&atleta=' . rawurlencode($targetId) : ''; ?><?php echo $scheduleFilter !== '' ? '&cronograma=' . rawurlencode($scheduleFilter) : ''; ?>">Hoje</a><?php endif; ?>
+                    <a class="monthly-nav-button" data-month-nav href="?month=<?php echo rawurlencode($prevMonth); ?><?php echo !$isSelf ? '&atleta=' . rawurlencode($targetId) : ''; ?><?php echo $scheduleFilter !== '' ? '&cronograma=' . rawurlencode($scheduleFilter) : ''; ?>" aria-label="<?php echo stridebr_e(stridebr_t('schedule.previous_month')); ?>">‹</a>
+                    <div class="monthly-title-block"><strong><?php echo stridebr_e($monthTitle); ?></strong><span><?php $completedText = stridebr_tn('agenda.completed_count.one', 'agenda.completed_count.other', $monthCompleted); echo stridebr_e(stridebr_tn('agenda.workouts_count.one', 'agenda.workouts_count.other', $monthTotal, ['completed' => $completedText])); ?></span><small data-monthly-load-status hidden><?php echo stridebr_e(stridebr_t('agenda.updating')); ?></small></div>
+                    <a class="monthly-nav-button" data-month-nav href="?month=<?php echo rawurlencode($nextMonth); ?><?php echo !$isSelf ? '&atleta=' . rawurlencode($targetId) : ''; ?><?php echo $scheduleFilter !== '' ? '&cronograma=' . rawurlencode($scheduleFilter) : ''; ?>" aria-label="<?php echo stridebr_e(stridebr_t('schedule.next_month')); ?>">›</a>
+                    <?php if ($monthKey !== $currentMonthKey): ?><a class="secondary-button monthly-today-button" data-month-nav href="?month=<?php echo rawurlencode($currentMonthKey); ?><?php echo !$isSelf ? '&atleta=' . rawurlencode($targetId) : ''; ?><?php echo $scheduleFilter !== '' ? '&cronograma=' . rawurlencode($scheduleFilter) : ''; ?>"><?php echo stridebr_e(stridebr_t('common.today')); ?></a><?php endif; ?>
                 </div>
                 <form method="GET" class="monthly-filter">
                     <?php if (!$isSelf): ?><input type="hidden" name="atleta" value="<?php echo stridebr_e($targetId); ?>"><?php endif; ?>
                     <input type="hidden" name="month" value="<?php echo stridebr_e($monthKey); ?>">
-                    <label><span>Cronograma</span><select name="cronograma"><option value="">Todos</option><?php foreach ($schedules as $schedule): ?><option value="<?php echo stridebr_e($schedule['idcronograma']); ?>"<?php echo $scheduleFilter === $schedule['idcronograma'] ? ' selected' : ''; ?>><?php echo stridebr_e($schedule['nome']); ?></option><?php endforeach; ?></select></label>
+                    <label><span><?php echo stridebr_e(stridebr_t('nav.schedule')); ?></span><select name="cronograma"><option value=""><?php echo stridebr_e(stridebr_t('agenda.all')); ?></option><?php foreach ($schedules as $schedule): ?><option value="<?php echo stridebr_e($schedule['idcronograma']); ?>"<?php echo $scheduleFilter === $schedule['idcronograma'] ? ' selected' : ''; ?>><?php echo stridebr_e($schedule['nome']); ?></option><?php endforeach; ?></select></label>
                 </form>
             </section>
 
             <div class="monthly-meta-row">
-                <div class="monthly-legend" aria-label="Legenda">
-                    <span><i class="is-recurring"></i>Rotina</span>
-                    <span><i class="is-completed"></i>Realizado</span>
-                    <span><i class="is-scheduled"></i>Data específica</span>
-                    <span><i class="is-trainer"></i>Treinador</span>
+                <div class="monthly-legend" aria-label="<?php echo stridebr_e(stridebr_t('agenda.legend')); ?>">
+                    <span><i class="is-recurring"></i><?php echo stridebr_e(stridebr_t('agenda.routine')); ?></span>
+                    <span><i class="is-completed"></i><?php echo stridebr_e(stridebr_t('agenda.completed')); ?></span>
+                    <span><i class="is-scheduled"></i><?php echo stridebr_e(stridebr_t('agenda.specific_date')); ?></span>
+                    <span><i class="is-trainer"></i><?php echo stridebr_e(stridebr_t('agenda.trainer')); ?></span>
                 </div>
-                <div class="monthly-summary-pills" aria-label="Resumo do mês">
-                    <span><strong><?php echo count($recurringOccurrences); ?></strong> da rotina</span>
-                    <?php if ($scheduled !== []): ?><span><strong><?php echo count($scheduled); ?></strong> específicos</span><?php endif; ?>
+                <div class="monthly-summary-pills" aria-label="<?php echo stridebr_e(stridebr_t('agenda.month_summary')); ?>">
+                    <span><strong><?php echo count($recurringOccurrences); ?></strong> <?php echo stridebr_e(stridebr_t('agenda.from_routine')); ?></span>
+                    <?php if ($scheduled !== []): ?><span><strong><?php echo count($scheduled); ?></strong> <?php echo stridebr_e(stridebr_t('agenda.specific_plural')); ?></span><?php endif; ?>
                 </div>
             </div>
 
             <?php if ($isSelf): ?>
                 <details class="monthly-add content-card">
-                    <summary><span>Adicionar treino em data específica</span><small>Use para algo fora da rotina semanal</small></summary>
+                    <summary><span><?php echo stridebr_e(stridebr_t('agenda.add_specific')); ?></span><small><?php echo stridebr_e(stridebr_t('agenda.add_specific_help')); ?></small></summary>
                     <form method="POST" class="monthly-add-form">
                         <?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="create_personal"><input type="hidden" name="month" value="<?php echo stridebr_e($monthKey); ?>">
-                        <label>Copiar de um treino semanal<select name="idtreino_origem"><option value="">Não copiar</option><?php foreach ($recurringWorkouts as $workout): ?><option value="<?php echo stridebr_e($workout['idtreino']); ?>"><?php echo stridebr_e($workout['cronograma_nome'] . ' · ' . $workout['titulo']); ?></option><?php endforeach; ?></select></label>
-                        <label>Título<input type="text" name="titulo" maxlength="120" placeholder="Se copiar um treino, pode deixar vazio"></label>
-                        <label>Data<input type="date" name="data_treino" value="<?php echo stridebr_e(max($today, $monthStart->format('Y-m-d'))); ?>" required></label>
-                        <label class="time24-field-label">Hora<div class="time24-control" data-time24><div class="time24-input-row"><input type="text" inputmode="numeric" maxlength="2" data-time24-hours><span class="time24-separator">:</span><input type="text" inputmode="numeric" maxlength="2" data-time24-minutes><button type="button" class="time24-toggle" data-time24-toggle aria-label="Escolher horário">⌄</button></div><div class="time24-menu" data-time24-menu hidden><div class="time24-menu-head"><span>Horário · 24 h</span><button type="button" data-time24-now>Agora</button></div><div class="time24-hours-grid" data-time24-hours-grid></div><div class="time24-minutes-grid" data-time24-minutes-grid></div></div><input type="hidden" name="hora_inicio" value="" data-time24-value></div></label>
-                        <label>Duração prevista (min)<input type="number" name="duracao_prevista_min" min="1" max="1440" inputmode="numeric"></label>
-                        <label class="monthly-add-wide">Descrição<textarea name="descricao" maxlength="5000" rows="2"></textarea></label>
-                        <button type="submit" class="primary-button">Adicionar à agenda</button>
+                        <label><?php echo stridebr_e(stridebr_t('agenda.copy_weekly')); ?><select name="idtreino_origem"><option value=""><?php echo stridebr_e(stridebr_t('agenda.do_not_copy')); ?></option><?php foreach ($recurringWorkouts as $workout): ?><option value="<?php echo stridebr_e($workout['idtreino']); ?>"><?php echo stridebr_e($workout['cronograma_nome'] . ' · ' . $workout['titulo']); ?></option><?php endforeach; ?></select></label>
+                        <label><?php echo stridebr_e(stridebr_t('common.title')); ?><input type="text" name="titulo" maxlength="120" placeholder="<?php echo stridebr_e(stridebr_t('agenda.copy_optional')); ?>"></label>
+                        <label><?php echo stridebr_e(stridebr_t('common.date')); ?><input type="date" name="data_treino" value="<?php echo stridebr_e(max($today, $monthStart->format('Y-m-d'))); ?>" required></label>
+                        <label class="time24-field-label"><?php echo stridebr_e(stridebr_t('common.time')); ?><div class="time24-control" data-time24><div class="time24-input-row"><input type="text" inputmode="numeric" maxlength="2" data-time24-hours><span class="time24-separator">:</span><input type="text" inputmode="numeric" maxlength="2" data-time24-minutes><button type="button" class="time24-toggle" data-time24-toggle aria-label="<?php echo stridebr_e(stridebr_t('agenda.choose_time')); ?>">⌄</button></div><div class="time24-menu" data-time24-menu hidden><div class="time24-menu-head"><span><?php echo stridebr_e(stridebr_t('schedule.time_24h')); ?></span><button type="button" data-time24-now><?php echo stridebr_e(stridebr_t('common.now')); ?></button></div><div class="time24-hours-grid" data-time24-hours-grid></div><div class="time24-minutes-grid" data-time24-minutes-grid></div></div><input type="hidden" name="hora_inicio" value="" data-time24-value></div></label>
+                        <label><?php echo stridebr_e(stridebr_t('agenda.expected_duration')); ?><input type="number" name="duracao_prevista_min" min="1" max="1440" inputmode="numeric"></label>
+                        <label class="monthly-add-wide"><?php echo stridebr_e(stridebr_t('common.description')); ?><textarea name="descricao" maxlength="5000" rows="2"></textarea></label>
+                        <button type="submit" class="primary-button"><?php echo stridebr_e(stridebr_t('agenda.add')); ?></button>
                     </form>
                 </details>
             <?php endif; ?>
 
-            <section class="monthly-calendar" aria-label="Calendário mensal">
+            <section class="monthly-calendar" aria-label="<?php echo stridebr_e(stridebr_t('agenda.calendar')); ?>">
                 <?php foreach ($dayNames as $dayName): ?><div class="monthly-weekday"><?php echo stridebr_e($dayName); ?></div><?php endforeach; ?>
                 <?php for ($blank = 0; $blank < $leading; $blank++): ?><div class="monthly-day is-outside" aria-hidden="true"></div><?php endfor; ?>
                 <?php for ($day = 1; $day <= $totalDays; $day++): ?>
@@ -318,16 +318,16 @@ $flashes = stridebr_take_flashes();
                     $dayScheduled = $scheduledByDate[$dateKey] ?? [];
                     ?>
                     <article class="monthly-day<?php echo $dateKey === $today ? ' is-today' : ''; ?>">
-                        <header><strong><?php echo $day; ?></strong><?php if ($dateKey === $today): ?><span>Hoje</span><?php endif; ?></header>
+                        <header><strong><?php echo $day; ?></strong><?php if ($dateKey === $today): ?><span><?php echo stridebr_e(stridebr_t('common.today')); ?></span><?php endif; ?></header>
                         <div class="monthly-events">
                             <?php foreach ($dayScheduled as $item): ?>
                                 <?php $scheduledDone = (string) ($item['status'] ?? '') === 'concluido'; ?>
                                 <div class="monthly-event is-scheduled<?php echo $item['origem'] === 'treinador' ? ' is-trainer' : ''; ?><?php echo $scheduledDone ? ' is-completed' : ''; ?>">
-                                    <div class="monthly-event-kicker"><span><?php echo $scheduledDone ? '✓ ' : ''; ?><?php echo $item['hora_inicio'] ? stridebr_e(substr((string) $item['hora_inicio'], 0, 5)) : 'Por data'; ?></span><em><?php echo $item['origem'] === 'treinador' ? 'Treinador' : 'Específico'; ?></em></div>
+                                    <div class="monthly-event-kicker"><span><?php echo $scheduledDone ? '✓ ' : ''; ?><?php echo $item['hora_inicio'] ? stridebr_e(substr((string) $item['hora_inicio'], 0, 5)) : stridebr_e(stridebr_t('schedule.by_date')); ?></span><em><?php echo stridebr_e($item['origem'] === 'treinador' ? stridebr_t('agenda.trainer') : stridebr_t('agenda.specific')); ?></em></div>
                                     <strong><?php echo stridebr_e($item['titulo']); ?></strong>
-                                    <?php if ($item['origem'] === 'treinador' && $item['criador_nome']): ?><small>por <?php echo stridebr_e($item['criador_nome']); ?></small><?php endif; ?>
-                                    <?php if ((int) $item['exercicios_total'] > 0): ?><small><?php echo (int) $item['exercicios_total']; ?> exercício(s)</small><?php endif; ?>
-                                    <?php if ($isSelf && $item['status'] === 'publicado'): ?><div class="monthly-event-actions"><button type="button" data-start-scheduled-workout="<?php echo stridebr_e($item['idagendamento']); ?>">Iniciar</button><form method="POST" data-confirm="Cancelar este treino agendado?"><?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="cancel_scheduled"><input type="hidden" name="idagendamento" value="<?php echo stridebr_e($item['idagendamento']); ?>"><input type="hidden" name="month" value="<?php echo stridebr_e($monthKey); ?>"><button type="submit" aria-label="Cancelar">×</button></form></div><?php endif; ?>
+                                    <?php if ($item['origem'] === 'treinador' && $item['criador_nome']): ?><small><?php echo stridebr_e(stridebr_t('agenda.by', ['name' => (string) $item['criador_nome']])); ?></small><?php endif; ?>
+                                    <?php if ((int) $item['exercicios_total'] > 0): ?><small><?php echo stridebr_e(stridebr_tn('agenda.exercise_count.one', 'agenda.exercise_count.other', (int) $item['exercicios_total'])); ?></small><?php endif; ?>
+                                    <?php if ($isSelf && $item['status'] === 'publicado'): ?><div class="monthly-event-actions"><button type="button" data-start-scheduled-workout="<?php echo stridebr_e($item['idagendamento']); ?>"><?php echo stridebr_e(stridebr_t('agenda.start')); ?></button><form method="POST" data-confirm="<?php echo stridebr_e(stridebr_t('agenda.cancel_confirm')); ?>"><?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="cancel_scheduled"><input type="hidden" name="idagendamento" value="<?php echo stridebr_e($item['idagendamento']); ?>"><input type="hidden" name="month" value="<?php echo stridebr_e($monthKey); ?>"><button type="submit" aria-label="<?php echo stridebr_e(stridebr_t('common.cancel')); ?>">×</button></form></div><?php endif; ?>
                                 </div>
                             <?php endforeach; ?>
                             <?php foreach ($dayRecurring as $workout): ?>
@@ -344,8 +344,8 @@ $flashes = stridebr_take_flashes();
                                     <div class="monthly-event-kicker"><span><?php echo $completed ? '✓ ' : ''; ?><?php echo stridebr_e(substr((string) $workout['hora_inicio'], 0, 5)); ?></span><em><?php echo stridebr_e($workout['cronograma_nome']); ?></em></div>
                                     <strong><?php if (!empty($workout['codigo'])): ?><b><?php echo stridebr_e((string) $workout['codigo']); ?></b><?php endif; ?><?php echo stridebr_e($workout['titulo']); ?></strong>
                                     <?php if (!empty($workout['foco'])): ?><small><?php echo stridebr_e((string) $workout['foco']); ?></small><?php endif; ?>
-                                    <?php if ($shifted && $plannedDate !== ''): ?><?php if ($isSelf && $activityId !== ''): ?><button type="button" class="monthly-plan-note" data-edit-schedule-history data-activity-id="<?php echo stridebr_e($activityId); ?>" data-planned-date="<?php echo stridebr_e($plannedDate); ?>" data-planned-time="<?php echo stridebr_e($plannedTime); ?>" data-realized-date="<?php echo stridebr_e($realizedDate); ?>" data-realized-time="<?php echo stridebr_e($realizedTime); ?>">Planejado <?php echo stridebr_e((new DateTimeImmutable($plannedDate))->format('d/m')); ?></button><?php else: ?><small class="monthly-plan-note">Planejado <?php echo stridebr_e((new DateTimeImmutable($plannedDate))->format('d/m')); ?></small><?php endif; ?><?php endif; ?>
-                                    <?php if ($isSelf): ?><div class="monthly-event-actions is-link-row"><?php if ($completed && $activityId !== ''): ?><a href="/user/atividades.php?highlight=<?php echo rawurlencode($activityId); ?>">Ver atividade</a><button type="button" class="monthly-inline-action" data-edit-schedule-history data-activity-id="<?php echo stridebr_e($activityId); ?>" data-planned-date="<?php echo stridebr_e($plannedDate); ?>" data-planned-time="<?php echo stridebr_e($plannedTime); ?>" data-realized-date="<?php echo stridebr_e($realizedDate); ?>" data-realized-time="<?php echo stridebr_e($realizedTime); ?>">Ajustar datas</button><?php else: ?><a href="/user/cronogramatreinos.php?id=<?php echo rawurlencode((string) $workout['idcronograma']); ?>&treino=<?php echo rawurlencode((string) $workout['idtreino']); ?>">Abrir treino</a><?php endif; ?></div><?php endif; ?>
+                                    <?php if ($shifted && $plannedDate !== ''): ?><?php if ($isSelf && $activityId !== ''): ?><button type="button" class="monthly-plan-note" data-edit-schedule-history data-activity-id="<?php echo stridebr_e($activityId); ?>" data-planned-date="<?php echo stridebr_e($plannedDate); ?>" data-planned-time="<?php echo stridebr_e($plannedTime); ?>" data-realized-date="<?php echo stridebr_e($realizedDate); ?>" data-realized-time="<?php echo stridebr_e($realizedTime); ?>"><?php echo stridebr_e(stridebr_t('home.planned')); ?> <?php echo stridebr_e((new DateTimeImmutable($plannedDate))->format('d/m')); ?></button><?php else: ?><small class="monthly-plan-note"><?php echo stridebr_e(stridebr_t('home.planned')); ?> <?php echo stridebr_e((new DateTimeImmutable($plannedDate))->format('d/m')); ?></small><?php endif; ?><?php endif; ?>
+                                    <?php if ($isSelf): ?><div class="monthly-event-actions is-link-row"><?php if ($completed && $activityId !== ''): ?><a href="/user/atividades.php?highlight=<?php echo rawurlencode($activityId); ?>"><?php echo stridebr_e(stridebr_t('agenda.view_activity')); ?></a><button type="button" class="monthly-inline-action" data-edit-schedule-history data-activity-id="<?php echo stridebr_e($activityId); ?>" data-planned-date="<?php echo stridebr_e($plannedDate); ?>" data-planned-time="<?php echo stridebr_e($plannedTime); ?>" data-realized-date="<?php echo stridebr_e($realizedDate); ?>" data-realized-time="<?php echo stridebr_e($realizedTime); ?>"><?php echo stridebr_e(stridebr_t('agenda.adjust_dates')); ?></button><?php else: ?><a href="/user/cronogramatreinos.php?id=<?php echo rawurlencode((string) $workout['idcronograma']); ?>&treino=<?php echo rawurlencode((string) $workout['idtreino']); ?>"><?php echo stridebr_e(stridebr_t('agenda.open_workout')); ?></a><?php endif; ?></div><?php endif; ?>
                                 </div>
                             <?php endforeach; ?>
                         </div>
@@ -357,18 +357,18 @@ $flashes = stridebr_take_flashes();
 
             <?php if ($isSelf): ?>
             <div class="planned-date-modal" data-planned-date-modal hidden>
-                <button type="button" class="planned-date-backdrop" data-close-planned-date aria-label="Fechar"></button>
+                <button type="button" class="planned-date-backdrop" data-close-planned-date aria-label="<?php echo stridebr_e(stridebr_t('common.close')); ?>"></button>
                 <section class="planned-date-dialog schedule-history-dialog" role="dialog" aria-modal="true" aria-labelledby="planned-date-title">
-                    <header><div><span class="eyebrow">Planejado × realizado</span><h2 id="planned-date-title">Corrigir datas e horários</h2><p>Edite as datas e horários deste registro.</p></div><button type="button" class="icon-button" data-close-planned-date aria-label="Fechar">×</button></header>
+                    <header><div><span class="eyebrow"><?php echo stridebr_e(stridebr_t('schedule.planned_actual')); ?></span><h2 id="planned-date-title"><?php echo stridebr_e(stridebr_t('schedule.fix_dates_times')); ?></h2><p><?php echo stridebr_e(stridebr_t('agenda.edit_dates_help')); ?></p></div><button type="button" class="icon-button" data-close-planned-date aria-label="<?php echo stridebr_e(stridebr_t('common.close')); ?>">×</button></header>
                     <form data-planned-date-form>
                         <?php echo stridebr_csrf_field(); ?>
                         <input type="hidden" name="action" value="set_occurrence_history">
                         <input type="hidden" name="idregistro" data-planned-activity-id>
                         <div class="schedule-history-grid">
-                            <fieldset><legend>Planejado</legend><label>Data<input type="date" name="data_planejada" data-planned-date-input required></label><label class="time24-field-label">Hora<div class="time24-control" data-time24><div class="time24-input-row"><input type="text" inputmode="numeric" maxlength="2" data-time24-hours><span class="time24-separator">:</span><input type="text" inputmode="numeric" maxlength="2" data-time24-minutes><button type="button" class="time24-toggle" data-time24-toggle aria-label="Escolher horário">⌄</button></div><div class="time24-menu" data-time24-menu hidden><div class="time24-menu-head"><span>Horário · 24 h</span><button type="button" data-time24-now>Agora</button></div><div class="time24-hours-grid" data-time24-hours-grid></div><div class="time24-minutes-grid" data-time24-minutes-grid></div></div><input type="hidden" name="hora_planejada" data-time24-value data-planned-time-input></div></label></fieldset>
-                            <fieldset><legend>Realizado</legend><label>Data<input type="date" name="data_realizada" data-realized-date-input required></label><label class="time24-field-label">Hora<div class="time24-control" data-time24><div class="time24-input-row"><input type="text" inputmode="numeric" maxlength="2" required data-time24-hours><span class="time24-separator">:</span><input type="text" inputmode="numeric" maxlength="2" required data-time24-minutes><button type="button" class="time24-toggle" data-time24-toggle aria-label="Escolher horário">⌄</button></div><div class="time24-menu" data-time24-menu hidden><div class="time24-menu-head"><span>Horário · 24 h</span><button type="button" data-time24-now>Agora</button></div><div class="time24-hours-grid" data-time24-hours-grid></div><div class="time24-minutes-grid" data-time24-minutes-grid></div></div><input type="hidden" name="hora_realizada" data-time24-value data-realized-time-input></div></label></fieldset>
+                            <fieldset><legend><?php echo stridebr_e(stridebr_t('home.planned')); ?></legend><label><?php echo stridebr_e(stridebr_t('common.date')); ?><input type="date" name="data_planejada" data-planned-date-input required></label><label class="time24-field-label"><?php echo stridebr_e(stridebr_t('common.time')); ?><div class="time24-control" data-time24><div class="time24-input-row"><input type="text" inputmode="numeric" maxlength="2" data-time24-hours><span class="time24-separator">:</span><input type="text" inputmode="numeric" maxlength="2" data-time24-minutes><button type="button" class="time24-toggle" data-time24-toggle aria-label="<?php echo stridebr_e(stridebr_t('agenda.choose_time')); ?>">⌄</button></div><div class="time24-menu" data-time24-menu hidden><div class="time24-menu-head"><span><?php echo stridebr_e(stridebr_t('schedule.time_24h')); ?></span><button type="button" data-time24-now><?php echo stridebr_e(stridebr_t('common.now')); ?></button></div><div class="time24-hours-grid" data-time24-hours-grid></div><div class="time24-minutes-grid" data-time24-minutes-grid></div></div><input type="hidden" name="hora_planejada" data-time24-value data-planned-time-input></div></label></fieldset>
+                            <fieldset><legend><?php echo stridebr_e(stridebr_t('agenda.completed')); ?></legend><label><?php echo stridebr_e(stridebr_t('common.date')); ?><input type="date" name="data_realizada" data-realized-date-input required></label><label class="time24-field-label"><?php echo stridebr_e(stridebr_t('common.time')); ?><div class="time24-control" data-time24><div class="time24-input-row"><input type="text" inputmode="numeric" maxlength="2" required data-time24-hours><span class="time24-separator">:</span><input type="text" inputmode="numeric" maxlength="2" required data-time24-minutes><button type="button" class="time24-toggle" data-time24-toggle aria-label="<?php echo stridebr_e(stridebr_t('agenda.choose_time')); ?>">⌄</button></div><div class="time24-menu" data-time24-menu hidden><div class="time24-menu-head"><span><?php echo stridebr_e(stridebr_t('schedule.time_24h')); ?></span><button type="button" data-time24-now><?php echo stridebr_e(stridebr_t('common.now')); ?></button></div><div class="time24-hours-grid" data-time24-hours-grid></div><div class="time24-minutes-grid" data-time24-minutes-grid></div></div><input type="hidden" name="hora_realizada" data-time24-value data-realized-time-input></div></label></fieldset>
                         </div>
-                        <footer><button type="button" class="secondary-button" data-close-planned-date>Cancelar</button><button type="submit" class="primary-button">Salvar correção</button></footer>
+                        <footer><button type="button" class="secondary-button" data-close-planned-date><?php echo stridebr_e(stridebr_t('common.cancel')); ?></button><button type="submit" class="primary-button"><?php echo stridebr_e(stridebr_t('schedule.save_correction')); ?></button></footer>
                     </form>
                 </section>
             </div>

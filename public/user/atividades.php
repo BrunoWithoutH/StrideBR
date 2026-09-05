@@ -31,10 +31,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
         stridebr_flash('danger', 'O prazo para desfazer terminou.');
     } elseif (atividadeRestaurarRegistro($pdo, (string) ($undo['idregistro'] ?? ''), $idUsuario)) {
         unset($_SESSION['activity_undo']);
-        stridebr_flash('success', 'Atividade restaurada.');
+        stridebr_flash('success', stridebr_t('activity.restored'));
     } else {
         unset($_SESSION['activity_undo']);
-        stridebr_flash('danger', 'Não foi possível restaurar a atividade.');
+        stridebr_flash('danger', stridebr_t('activity.restore_error'));
     }
     header('Location: /user/atividades.php');
     exit;
@@ -50,7 +50,7 @@ $repeatId = trim((string) ($_GET['repetir'] ?? ''));
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $repeatId !== '') {
     $repeatRecord = atividadeCarregarRegistro($pdo, $repeatId, $idUsuario);
     if ($repeatRecord === []) {
-        stridebr_flash('info', 'A atividade usada como base não está mais disponível.');
+        stridebr_flash('info', stridebr_t('activity.base_unavailable'));
         header('Location: /user/atividades.php');
         exit;
     }
@@ -85,7 +85,7 @@ if ($editorDetailsLoaded) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $repeatId !== '' && !isset($modelosDetalhados[(string) ($repeatRecord['idmodelo'] ?? '')])) {
-    stridebr_flash('info', 'A atividade usada como base não está mais disponível.');
+    stridebr_flash('info', stridebr_t('activity.base_unavailable'));
     header('Location: /user/atividades.php');
     exit;
 }
@@ -101,7 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($idTreinoSelecionado !== '') {
             $treinoSelecionado = cronogramaBuscarTreino($pdo, $idTreinoSelecionado, $idUsuario);
             if ($treinoSelecionado === []) {
-                throw new InvalidArgumentException('O treino selecionado não está disponível.');
+                throw new InvalidArgumentException(stridebr_t('activity.selected_workout_unavailable'));
             }
         }
         $tituloAtividade = trim((string) ($_POST['titulo'] ?? ''));
@@ -145,6 +145,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'unidades' => is_array($modelPayload['unidades'] ?? null) ? $modelPayload['unidades'] : [],
                 'usa_trechos' => !empty($modelPayload['usa_trechos']),
                 'rota_coordenadas' => $_POST['rota_coordenadas'] ?? '',
+                'rota_metricas' => is_array($_POST['rota_metricas'] ?? null) ? $_POST['rota_metricas'] : [],
                 'permitir_campos_vazios' => true,
                 'origem' => 'manual',
             ]);
@@ -174,11 +175,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo json_encode(['ok' => true, 'id' => (string) $savedActivityId], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             exit;
         }
-        stridebr_flash('success', 'Atividade física registrada.');
+        stridebr_flash('success', stridebr_t('activity.registered_success'));
         header('Location: /user/atividades.php?saved=' . rawurlencode((string) $savedActivityId));
         exit;
     } catch (Throwable $e) {
-        $errors[] = $e instanceof InvalidArgumentException ? $e->getMessage() : 'Não foi possível salvar a atividade.';
+        $errors[] = $e instanceof InvalidArgumentException ? $e->getMessage() : stridebr_t('activity.save_error');
         if (!$e instanceof InvalidArgumentException) {
             error_log($e->getMessage());
         }
@@ -255,6 +256,7 @@ $recentes = array_slice($recentes, 0, 5);
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/activity-exchange.css')); ?>">
     <title><?php echo stridebr_e(stridebr_t('activity.page_title')); ?> | StrideBR</title>
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>">
+    <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/activity-sharing.css')); ?>">
 </head>
 <body>
 <div class="container-fluid">
@@ -281,55 +283,42 @@ $recentes = array_slice($recentes, 0, 5);
         <?php endforeach; ?>
         <?php $activityUndo = is_array($_SESSION['activity_undo'] ?? null) && (int) ($_SESSION['activity_undo']['expires'] ?? 0) >= time() ? $_SESSION['activity_undo'] : null; ?>
         <?php if ($activityUndo !== null): ?>
-            <div class="ui-server-undo" role="status"><span>Atividade removida.</span><form method="POST"><?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="restore_activity"><input type="hidden" name="undo_token" value="<?php echo stridebr_e((string) ($activityUndo['token'] ?? '')); ?>"><button type="submit">Desfazer</button></form></div>
+            <div class="ui-server-undo" role="status"><span><?php echo stridebr_e(stridebr_t('activity.removed')); ?></span><form method="POST"><?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="restore_activity"><input type="hidden" name="undo_token" value="<?php echo stridebr_e((string) ($activityUndo['token'] ?? '')); ?>"><button type="submit"><?php echo stridebr_e(stridebr_t('common.undo')); ?></button></form></div>
         <?php endif; ?>
         <?php foreach ($errors as $error): ?>
             <div class="alert alert-danger activity-alert"><?php echo stridebr_e($error); ?></div>
         <?php endforeach; ?>
 
         <section id="nova-atividade" class="activity-editor-shell<?php echo ($errors || $repeatRecord || isset($_GET['new']) || isset($_GET['registrar'])) ? ' is-open' : ''; ?>" data-activity-form>
-            <button type="button" class="activity-editor-backdrop" data-close-activity-form aria-label="Fechar registro"></button>
+            <button type="button" class="activity-editor-backdrop" data-close-activity-form aria-label="<?php echo stridebr_e(stridebr_t('activity.close_registration')); ?>"></button>
             <form method="POST" class="activity-editor" id="activity-form" autocomplete="off" data-draft-key="activity-new">
                 <?php echo stridebr_csrf_field(); ?>
-                <?php if ($repeatRecord): ?><div class="activity-repeat-banner"><div><strong>Repetindo <?php echo stridebr_e((string) ($repeatRecord['titulo'] ?: $repeatRecord['modalidade_nome'])); ?></strong><span>Dados, equipamentos e rota foram reaproveitados. Data, hora, esforço e observações começam como novos.</span></div><a href="/user/atividades.php">Começar do zero</a></div><?php endif; ?>
+                <?php if ($repeatRecord): ?><div class="activity-repeat-banner"><div><strong><?php echo stridebr_e(stridebr_t('activity.repeating')); ?> <?php echo stridebr_e((string) ($repeatRecord['titulo'] ?: $repeatRecord['modalidade_nome'])); ?></strong><span><?php echo stridebr_e(stridebr_t('activity.repeat_help')); ?></span></div><a href="/user/atividades.php"><?php echo stridebr_e(stridebr_t('activity.start_fresh')); ?></a></div><?php endif; ?>
                 <div class="activity-editor-heading">
                     <div>
-                        <h2><?php echo $repeatRecord ? 'Repetir atividade física' : 'Registrar atividade física'; ?></h2>
+                        <h2><?php echo stridebr_e(stridebr_t($repeatRecord ? 'activity.repeat_activity' : 'activity.log')); ?></h2>
                     </div>
-                    <button type="button" class="activity-icon-button" data-close-activity-form aria-label="Fechar">×</button>
+                    <button type="button" class="activity-icon-button" data-close-activity-form aria-label="<?php echo stridebr_e(stridebr_t('common.close')); ?>">×</button>
                 </div>
 
-                <section class="activity-smart-title activity-smart-title-top" data-activity-title-card>
-                    <div class="activity-smart-title-copy">
-                        <span>Atividade</span>
-                        <strong data-activity-title-preview><?php echo stridebr_e($formTitle !== '' ? $formTitle : 'Título automático'); ?></strong>
-                        <div class="activity-summary" data-activity-summary hidden>
-                            <span data-summary-text></span>
-                        </div>
-                    </div>
-                    <button type="button" class="activity-inline-action" data-edit-activity-title aria-expanded="false">Editar</button>
-                    <div class="input-field activity-title-field" data-activity-title-editor hidden>
-                        <label for="titulo">Título</label>
-                        <input type="text" id="titulo" name="titulo" maxlength="255" value="<?php echo stridebr_e($formTitle); ?>" placeholder="Ex.: Corrida no parque">
-                    </div>
-                </section>
+                <?php $activityEditorTitle = $formTitle; require dirname(__DIR__, 2) . '/src/layout/activity_smart_title.php'; ?>
 
                 <div class="activity-context-grid">
                     <div class="input-field activity-sport-field">
-                        <label for="activity-sport-search">Esporte / atividade física</label>
+                        <label for="activity-sport-search"><?php echo stridebr_e(stridebr_t('activity.sport_activity')); ?></label>
                         <div class="sport-combobox" data-sport-combobox>
                             <button type="button" class="sport-combobox-trigger" data-sport-trigger aria-haspopup="listbox" aria-expanded="false">
-                                <span data-sport-current class="sport-current">Escolher esporte</span>
+                                <span data-sport-current class="sport-current"><?php echo stridebr_e(stridebr_t('activity.choose_sport')); ?></span>
                                 <span aria-hidden="true">⌄</span>
                             </button>
                             <div class="sport-combobox-popover" data-sport-popover hidden>
                                 <div class="sport-search-row">
-                                    <input type="search" id="activity-sport-search" placeholder="Buscar esporte..." data-sport-search spellcheck="false">
+                                    <input type="search" id="activity-sport-search" placeholder="<?php echo stridebr_e(stridebr_t('activity.search_sport_placeholder')); ?>" data-sport-search spellcheck="false">
                                 </div>
                                 <div class="sport-options" role="listbox" data-sport-options>
                                     <?php if ($favoritas): ?>
-                                        <div class="sport-favorites-quick" data-sport-quick aria-label="Esportes favoritos">
-                                            <div class="sport-group-title">Favoritos</div>
+                                        <div class="sport-favorites-quick" data-sport-quick aria-label="<?php echo stridebr_e(stridebr_t('activity.favorites_aria')); ?>">
+                                            <div class="sport-group-title"><?php echo stridebr_e(stridebr_t('activity.favorites')); ?></div>
                                             <div class="sport-favorites-chips">
                                                 <?php foreach ($favoritas as $modalidade): ?>
                                                     <button
@@ -338,19 +327,19 @@ $recentes = array_slice($recentes, 0, 5);
                                                         role="option"
                                                         data-sport-option
                                                         data-sport-id="<?php echo stridebr_e($modalidade['idmodalidade']); ?>"
-                                                        data-sport-name="<?php echo stridebr_e($modalidade['nome']); ?>"
+                                                        data-sport-name="<?php echo stridebr_e(stridebr_sport_name((string) $modalidade['slug'], (string) $modalidade['nome'])); ?>"
                                                         data-sport-slug="<?php echo stridebr_e($modalidade['slug']); ?>"
                                                         data-sport-icon-id="<?php echo stridebr_e(stridebr_sport_icon_id((string) $modalidade['slug'])); ?>"
                                                         data-sport-favorite="1"
                                                         data-sport-family="<?php echo stridebr_e(sportCatalogFamilyKey((string) ($modalidade['familia_hub'] ?? ''), (string) ($modalidade['categoria'] ?? ''), (string) ($modalidade['slug'] ?? ''))); ?>"
-                                                    ><span class="sport-option-icon"><?php echo stridebr_sport_icon_html((string) $modalidade['slug']); ?></span><span><?php echo stridebr_e($modalidade['nome']); ?></span></button>
+                                                    ><span class="sport-option-icon"><?php echo stridebr_sport_icon_html((string) $modalidade['slug']); ?></span><span><?php echo stridebr_e(stridebr_sport_name((string) $modalidade['slug'], (string) $modalidade['nome'])); ?></span></button>
                                                 <?php endforeach; ?>
                                             </div>
                                         </div>
                                     <?php endif; ?>
                                     <?php if ($recentes): ?>
-                                        <div class="sport-favorites-quick" data-sport-quick aria-label="Esportes usados recentemente">
-                                            <div class="sport-group-title">Recentes</div>
+                                        <div class="sport-favorites-quick" data-sport-quick aria-label="<?php echo stridebr_e(stridebr_t('activity.recents_aria')); ?>">
+                                            <div class="sport-group-title"><?php echo stridebr_e(stridebr_t('activity.recents')); ?></div>
                                             <div class="sport-favorites-chips">
                                                 <?php foreach ($recentes as $modalidade): ?>
                                                     <button
@@ -359,12 +348,12 @@ $recentes = array_slice($recentes, 0, 5);
                                                         role="option"
                                                         data-sport-option
                                                         data-sport-id="<?php echo stridebr_e($modalidade['idmodalidade']); ?>"
-                                                        data-sport-name="<?php echo stridebr_e($modalidade['nome']); ?>"
+                                                        data-sport-name="<?php echo stridebr_e(stridebr_sport_name((string) $modalidade['slug'], (string) $modalidade['nome'])); ?>"
                                                         data-sport-slug="<?php echo stridebr_e($modalidade['slug']); ?>"
                                                         data-sport-icon-id="<?php echo stridebr_e(stridebr_sport_icon_id((string) $modalidade['slug'])); ?>"
                                                         data-sport-favorite="0"
                                                         data-sport-family="<?php echo stridebr_e(sportCatalogFamilyKey((string) ($modalidade['familia_hub'] ?? ''), (string) ($modalidade['categoria'] ?? ''), (string) ($modalidade['slug'] ?? ''))); ?>"
-                                                    ><span class="sport-option-icon"><?php echo stridebr_sport_icon_html((string) $modalidade['slug']); ?></span><span><?php echo stridebr_e($modalidade['nome']); ?></span></button>
+                                                    ><span class="sport-option-icon"><?php echo stridebr_sport_icon_html((string) $modalidade['slug']); ?></span><span><?php echo stridebr_e(stridebr_sport_name((string) $modalidade['slug'], (string) $modalidade['nome'])); ?></span></button>
                                                 <?php endforeach; ?>
                                             </div>
                                         </div>
@@ -375,13 +364,13 @@ $recentes = array_slice($recentes, 0, 5);
                         </div>
                         <select id="modalidade" name="idmodalidade" required class="activity-native-select" tabindex="-1" aria-hidden="true">
                             <?php foreach ($catalogo as $modalidade): ?>
-                                <option value="<?php echo stridebr_e($modalidade['idmodalidade']); ?>" data-slug="<?php echo stridebr_e($modalidade['slug']); ?>" data-family="<?php echo stridebr_e(sportCatalogFamilyKey((string) ($modalidade['familia_hub'] ?? ''), (string) ($modalidade['categoria'] ?? ''), (string) ($modalidade['slug'] ?? ''))); ?>" data-permite-rota="<?php echo $modalidade['permite_rota'] ? '1' : '0'; ?>"<?php echo $modalidade['idmodalidade'] === $firstModalidade ? ' selected' : ''; ?>><?php echo stridebr_e($modalidade['nome']); ?></option>
+                                <option value="<?php echo stridebr_e($modalidade['idmodalidade']); ?>" data-slug="<?php echo stridebr_e($modalidade['slug']); ?>" data-family="<?php echo stridebr_e(sportCatalogFamilyKey((string) ($modalidade['familia_hub'] ?? ''), (string) ($modalidade['categoria'] ?? ''), (string) ($modalidade['slug'] ?? ''))); ?>" data-permite-rota="<?php echo $modalidade['permite_rota'] ? '1' : '0'; ?>"<?php echo $modalidade['idmodalidade'] === $firstModalidade ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_sport_name((string) $modalidade['slug'], (string) $modalidade['nome'])); ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
 
                     <div class="input-field activity-model-field" data-model-field>
-                        <label for="modelo">Formato</label>
+                        <label for="modelo"><?php echo stridebr_e(stridebr_t('activity.format')); ?></label>
                         <select id="modelo" name="idmodelo" required>
                             <?php foreach ($catalogo as $modalidade): ?>
                                 <?php foreach ($modalidade['modelos'] as $modelo): ?>
@@ -392,9 +381,9 @@ $recentes = array_slice($recentes, 0, 5);
                     </div>
 
                     <div class="input-field activity-workout-field" data-workout-field hidden>
-                        <label for="idtreino_cronograma">Treino / rotina <span class="field-hint">opcional</span></label>
+                        <label for="idtreino_cronograma"><?php echo stridebr_e(stridebr_t('activity.workout_routine')); ?> <span class="field-hint"><?php echo stridebr_e(stridebr_t('common.optional')); ?></span></label>
                         <select id="idtreino_cronograma" name="idtreino_cronograma" data-workout-select data-selected-workout="<?php echo stridebr_e($formWorkout); ?>">
-                            <option value="">Sem treino vinculado</option>
+                            <option value=""><?php echo stridebr_e(stridebr_t('activity.no_linked_workout')); ?></option>
                             <?php $ultimoCronograma = null; ?>
                             <?php foreach ($treinosUsuario as $treinoUsuario): ?>
                                 <?php if ($ultimoCronograma !== $treinoUsuario['cronograma_nome']): ?>
@@ -407,22 +396,22 @@ $recentes = array_slice($recentes, 0, 5);
                             <?php endforeach; ?>
                             <?php if ($ultimoCronograma !== null): ?></optgroup><?php endif; ?>
                         </select>
-                        <small>Útil para musculação e calistenia: vincula a atividade a um treino A/B/C ou por foco.</small>
+                        <small><?php echo stridebr_e(stridebr_t('activity.link_workout_help')); ?></small>
                     </div>
 
                     <div class="input-field activity-date-field">
-                        <label for="data">Data</label>
+                        <label for="data"><?php echo stridebr_e(stridebr_t('common.date')); ?></label>
                         <input type="date" id="data" name="data" value="<?php echo stridebr_e($formDate); ?>" required>
                     </div>
 
                     <div class="input-field activity-time-field">
-                        <label for="hora_h">Hora</label>
+                        <label for="hora_h"><?php echo stridebr_e(stridebr_t('common.time')); ?></label>
                         <div class="clock-segments" data-clock-field>
                             <input type="text" id="hora_h" inputmode="numeric" maxlength="2" value="<?php echo stridebr_e(substr($formHour, 0, 2)); ?>" data-clock-hours aria-label="Horas">
                             <span aria-hidden="true">:</span>
                             <input type="text" inputmode="numeric" maxlength="2" value="<?php echo stridebr_e(substr($formHour, 3, 2)); ?>" data-clock-minutes aria-label="Minutos">
-                            <button type="button" class="time-now-button" data-time-now>Agora</button>
-                            <button type="button" class="time-quick-toggle" data-time-quick-toggle aria-label="Abrir horários rápidos">⌄</button>
+                            <button type="button" class="time-now-button" data-time-now><?php echo stridebr_e(stridebr_t('common.now')); ?></button>
+                            <button type="button" class="time-quick-toggle" data-time-quick-toggle aria-label="<?php echo stridebr_e(stridebr_t('activity.quick_times')); ?>">⌄</button>
                             <div class="time-quick-menu" data-time-quick-menu hidden></div>
                             <input type="hidden" id="hora" name="hora" value="<?php echo stridebr_e($formHour); ?>" data-clock-value>
                         </div>
@@ -433,7 +422,7 @@ $recentes = array_slice($recentes, 0, 5);
                     <?php if ($editorDetailsLoaded): ?>
                         <?php require dirname(__DIR__, 2) . '/src/layout/activity_model_panels.php'; ?>
                     <?php else: ?>
-                        <div class="activity-editor-inline-loading" data-activity-editor-loading>Campos do treino serão carregados ao abrir.</div>
+                        <div class="activity-editor-inline-loading" data-activity-editor-loading><?php echo stridebr_e(stridebr_t('activity.fields_load_help')); ?></div>
                     <?php endif; ?>
                 </div>
                 <?php echo atividadeForcaRenderEditor($formStrengthExercises, $exerciciosBiblioteca); ?>
@@ -446,112 +435,45 @@ $recentes = array_slice($recentes, 0, 5);
                     }
                 }
                 $activityRouteValue = $formRoute;
+                $activityRouteMode = $_POST['route_editor_mode'] ?? 'free';
+                $activityRouteLaps = $_POST['route_editor_laps'] ?? 1;
+                $activityRouteBase = $_POST['route_editor_base'] ?? '';
                 $activityRouteCompact = true;
                 require dirname(__DIR__, 2) . '/src/layout/activity_route_editor.php';
                 ?>
 
-                <section class="activity-route-privacy-fields activity-contextual-detail" data-route-privacy-fields<?php echo $formRoute !== '' ? '' : ' hidden'; ?>>
-                    <div class="activity-detail-heading">
-                        <div>
-                            <strong>Privacidade da rota</strong>
-                            <span>A rota completa continua salva para você.</span>
-                        </div>
-                    </div>
-                    <div class="activity-compact-two-columns">
-                        <label class="input-field">
-                            <span>Ocultar no início</span>
-                            <input type="number" name="ocultar_inicio_m" min="0" max="10000" step="50" value="<?php echo $formHideRouteStart; ?>" inputmode="numeric">
-                            <small>metros · 0 para mostrar tudo</small>
-                        </label>
-                        <label class="input-field">
-                            <span>Ocultar no fim</span>
-                            <input type="number" name="ocultar_fim_m" min="0" max="10000" step="50" value="<?php echo $formHideRouteEnd; ?>" inputmode="numeric">
-                            <small>metros · 0 para mostrar tudo</small>
-                        </label>
-                    </div>
-                </section>
+                <?php
+                $activityRoutePrivacyHasRoute = $formRoute !== '';
+                $activityRoutePrivacyStart = $formHideRouteStart;
+                $activityRoutePrivacyEnd = $formHideRouteEnd;
+                require dirname(__DIR__, 2) . '/src/layout/activity_route_privacy.php';
+                ?>
 
-                <div class="activity-log-details">
-                    <section class="activity-effort-section" data-effort-selector>
-                        <div class="activity-detail-heading">
-                            <div><strong>Esforço percebido</strong><span>Opcional · de 1 a 10.</span></div>
-                            <button type="button" class="activity-inline-action" data-clear-effort<?php echo $formEffort === '' ? ' hidden' : ''; ?>>Não informar</button>
-                        </div>
-                        <input type="hidden" name="esforco_percebido" value="<?php echo stridebr_e($formEffort); ?>" data-effort-value>
-                        <div class="effort-range-row">
-                            <input type="range" min="1" max="10" step="1" value="<?php echo stridebr_e($formEffort !== '' ? $formEffort : '5'); ?>" data-effort-range aria-label="Esforço percebido de 1 a 10">
-                            <output data-effort-output><?php echo $formEffort !== '' ? stridebr_e($formEffort) : '—'; ?></output>
-                        </div>
-                        <div class="effort-scale"><span>Fácil</span><span>Moderado</span><span>Máximo</span></div>
-                    </section>
-
-                    <section class="activity-enrichment-section">
-                        <div class="activity-enrichment-heading">
-                            <div><strong>Detalhes</strong></div>
-                            <div class="activity-enrichment-actions">
-                                <button type="button" class="optional-field-chip" data-toggle-log-detail="equipment" aria-expanded="<?php echo $formEquipment ? 'true' : 'false'; ?>">+ Equipamento</button>
-                            </div>
-                        </div>
-
-                        <div class="activity-contextual-detail" data-log-detail="equipment"<?php echo $formEquipment ? '' : ' hidden'; ?>>
-                            <div class="activity-detail-heading">
-                                <div><strong>Equipamento</strong><span>Tênis, bicicleta ou outro item usado.</span></div>
-                                <div class="activity-detail-heading-actions"><a href="/user/equipamentos.php">Gerenciar</a><button type="button" class="activity-inline-action" data-close-log-detail="equipment">Fechar</button></div>
-                            </div>
-                            <div data-activity-equipment-host data-selected-equipment="<?php echo stridebr_e(implode(',', $formEquipment)); ?>">
-                                <?php if ($editorDetailsLoaded && $equipamentos): ?>
-                                    <div class="equipment-picker">
-                                        <?php foreach ($equipamentos as $equipamento): ?>
-                                            <label class="equipment-chip">
-                                                <input type="checkbox" name="equipamentos[]" value="<?php echo stridebr_e($equipamento['idequipamento']); ?>"<?php echo in_array((string) $equipamento['idequipamento'], $formEquipment, true) ? ' checked' : ''; ?>>
-                                                <span><?php echo stridebr_e($equipamento['nome']); ?></span>
-                                            </label>
-                                        <?php endforeach; ?>
-                                    </div>
-                                <?php elseif ($editorDetailsLoaded): ?>
-                                    <a href="/user/equipamentos.php" class="activity-empty-action">+ Adicionar primeiro equipamento</a>
-                                <?php else: ?>
-                                    <span class="activity-inline-muted">Carrega ao abrir o registro.</span>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    </section>
-
-                    <div class="input-field activity-observations-field">
-                        <label for="observacoes">Observações <span class="field-hint">opcional</span></label>
-                        <textarea id="observacoes" name="observacoes" rows="1" placeholder="Como foi a atividade?"><?php echo stridebr_e($formObservations); ?></textarea>
-                    </div>
-
-                    <details class="activity-more-options"<?php echo $formVisibility !== 'privado' ? ' open' : ''; ?>>
-                        <summary>Mais opções</summary>
-                        <div class="activity-more-options-content">
-                            <div class="input-field visibility-field">
-                                <label for="visibilidade">Quem pode ver</label>
-                                <select id="visibilidade" name="visibilidade">
-                                    <option value="privado"<?php echo $formVisibility === 'privado' ? ' selected' : ''; ?>>Só eu</option>
-                                    <option value="amigos"<?php echo $formVisibility === 'amigos' ? ' selected' : ''; ?>>Amigos</option>
-                                    <option value="publico"<?php echo $formVisibility === 'publico' ? ' selected' : ''; ?>>Público</option>
-                                </select>
-                            </div>
-                        </div>
-                    </details>
-                </div>
+                <?php
+                $activityEditorEffort = $formEffort;
+                $activityEditorEquipment = $equipamentos;
+                $activityEditorSelectedEquipment = $formEquipment;
+                $activityEditorEquipmentLoaded = $editorDetailsLoaded;
+                $activityEditorObservations = $formObservations;
+                $activityEditorVisibility = $formVisibility;
+                require dirname(__DIR__, 2) . '/src/layout/activity_log_details.php';
+                ?>
 
                 <div class="activity-form-actions">
-                    <button type="button" class="activity-secondary-button" data-close-activity-form>Cancelar</button>
-                    <button type="submit" class="activity-primary-action">Salvar atividade</button>
+                    <button type="button" class="activity-secondary-button" data-close-activity-form><?php echo stridebr_e(stridebr_t('common.cancel')); ?></button>
+                    <button type="submit" class="activity-primary-action"><?php echo stridebr_e(stridebr_t('activity.save')); ?></button>
                 </div>
             </form>
         </section>
 
-        <section class="activity-history-summary" data-history-summary aria-label="Resumo das atividades dos últimos 7 dias">
+        <div class="activity-history-workspace" data-activity-history-workspace>
+        <div class="activity-history-left">
+        <section class="activity-history-summary" data-history-summary aria-label="<?php echo stridebr_e(stridebr_t('activity.history_summary_aria')); ?>">
             <article><span><?php echo stridebr_e(stridebr_t('activity.summary.activities')); ?></span><strong data-summary-activities><?php echo $initialHistorySummary !== null ? (int) ($initialHistorySummary['atividades'] ?? 0) : '—'; ?></strong><small data-summary-period><?php echo stridebr_e((string) ($initialHistorySummary['periodo'] ?? stridebr_t('activity.summary.last_7_days'))); ?></small></article>
             <article><span><?php echo stridebr_e(stridebr_t('activity.summary.time')); ?></span><strong data-summary-time><?php echo stridebr_e((string) ($initialHistorySummary['tempo'] ?? '—')); ?></strong><small><?php echo stridebr_e(stridebr_t('activity.summary.logged')); ?></small></article>
             <article><span><?php echo stridebr_e(stridebr_t('activity.summary.distance')); ?></span><strong data-summary-distance><?php echo stridebr_e((string) ($initialHistorySummary['distancia'] ?? '—')); ?></strong><small><?php echo stridebr_e(stridebr_t('activity.summary.accumulated')); ?></small></article>
             <article><span><?php echo stridebr_e(stridebr_t('activity.summary.elevation')); ?></span><strong data-summary-elevation><?php echo stridebr_e((string) ($initialHistorySummary['elevacao'] ?? '—')); ?></strong><small><?php echo stridebr_e(stridebr_t('activity.summary.accumulated')); ?></small></article>
         </section>
-
-        <div class="activity-history-workspace" data-activity-history-workspace>
         <section class="activity-history" id="historico" data-activity-history data-initial-state="<?php echo stridebr_e($initialHistoryState); ?>" data-initial-cursor="<?php echo stridebr_e($initialHistoryCursor); ?>" data-initial-total="<?php echo $initialHistoryTotal; ?>">
             <div class="activity-history-toolbar">
                 <div>
@@ -566,13 +488,13 @@ $recentes = array_slice($recentes, 0, 5);
             </div>
             <form class="activity-bulk-bar" data-bulk-bar hidden>
                 <?php echo stridebr_csrf_field(); ?>
-                <div class="activity-bulk-count"><strong data-bulk-count>0 selecionadas</strong><button type="button" data-bulk-select-visible>Selecionar carregadas</button></div>
-                <div class="activity-bulk-sport-field"><span>Modalidade</span><?php echo sportPickerRenderSelect($catalogo, ['name' => 'idmodalidade', 'empty_label' => 'Não alterar', 'native_attributes' => ['data-bulk-sport' => true]]); ?></div>
-                <label>Duração <span class="activity-bulk-duration" data-bulk-duration-control><select name="duracao_modo" data-bulk-duration-mode><option value="keep">Não alterar</option><option value="set">Definir</option><option value="clear">Limpar</option></select><span data-bulk-duration-value hidden><input type="number" name="duracao_minutos" min="1" max="1440" inputmode="numeric" placeholder="120"><small>min</small></span></span></label>
-                <label>Visibilidade<select name="visibilidade"><option value="">Não alterar</option><option value="privado">Só eu</option><option value="amigos">Amigos</option><option value="publico">Público</option></select></label>
-                <div class="activity-bulk-actions"><button type="submit" class="activity-primary-action">Aplicar</button><button type="button" class="activity-secondary-button is-danger" data-bulk-delete>Apagar</button><button type="button" class="activity-secondary-button" data-bulk-cancel>Sair</button></div>
+                <div class="activity-bulk-count"><strong data-bulk-count><?php echo stridebr_e(stridebr_t('activity.bulk_selected.none')); ?></strong><button type="button" data-bulk-select-visible><?php echo stridebr_e(stridebr_t('activity.bulk_select_loaded')); ?></button></div>
+                <div class="activity-bulk-sport-field"><span><?php echo stridebr_e(stridebr_t('activity.modality')); ?></span><?php echo sportPickerRenderSelect($catalogo, ['name' => 'idmodalidade', 'empty_label' => stridebr_t('activity.keep_value'), 'native_attributes' => ['data-bulk-sport' => true]]); ?></div>
+                <label><?php echo stridebr_e(stridebr_t('common.duration')); ?> <span class="activity-bulk-duration" data-bulk-duration-control><select name="duracao_modo" data-bulk-duration-mode><option value="keep"><?php echo stridebr_e(stridebr_t('activity.keep_value')); ?></option><option value="set"><?php echo stridebr_e(stridebr_t('activity.set_value')); ?></option><option value="clear"><?php echo stridebr_e(stridebr_t('common.clear')); ?></option></select><span data-bulk-duration-value hidden><input type="number" name="duracao_minutos" min="1" max="1440" inputmode="numeric" placeholder="120"><small>min</small></span></span></label>
+                <label><?php echo stridebr_e(stridebr_t('activity.visibility')); ?><select name="visibilidade"><option value=""><?php echo stridebr_e(stridebr_t('activity.keep_value')); ?></option><option value="privado"><?php echo stridebr_e(stridebr_t('activity.only_me')); ?></option><option value="amigos"><?php echo stridebr_e(stridebr_t('common.friends')); ?></option><option value="publico"><?php echo stridebr_e(stridebr_t('common.public')); ?></option></select></label>
+                <div class="activity-bulk-actions"><button type="submit" class="activity-primary-action"><?php echo stridebr_e(stridebr_t('common.apply')); ?></button><button type="button" class="activity-secondary-button is-danger" data-bulk-delete><?php echo stridebr_e(stridebr_t('activity.bulk_delete')); ?></button><button type="button" class="activity-secondary-button" data-bulk-cancel><?php echo stridebr_e(stridebr_t('common.cancel')); ?></button></div>
             </form>
-            <div class="activity-history-skeleton" data-history-skeleton aria-label="Carregando histórico" hidden>
+            <div class="activity-history-skeleton" data-history-skeleton aria-label="<?php echo stridebr_e(stridebr_t('activity.loading_history_aria')); ?>" hidden>
                 <?php for ($i = 0; $i < 5; $i++): ?>
                     <div class="activity-history-skeleton-row"><span></span><i></i><div><b></b><em></em></div><small></small></div>
                 <?php endfor; ?>
@@ -583,20 +505,21 @@ $recentes = array_slice($recentes, 0, 5);
                 <?php endforeach; ?>
             </div>
             <div class="activity-empty-state" data-history-empty<?php echo $initialHistoryState === 'empty' ? '' : ' hidden'; ?>>
-                <strong>Nenhuma atividade encontrada.</strong>
-                <span data-history-empty-text>Registre sua primeira atividade para começar a montar seu histórico.</span>
-                <button type="button" class="activity-primary-action" data-toggle-activity-form>Registrar atividade física</button>
+                <strong><?php echo stridebr_e(stridebr_t('activity.none_found')); ?></strong>
+                <span data-history-empty-text><?php echo stridebr_e(stridebr_t('activity.first_help')); ?></span>
+                <button type="button" class="activity-primary-action" data-toggle-activity-form><?php echo stridebr_e(stridebr_t('activity.log')); ?></button>
             </div>
             <div class="activity-history-error" data-history-error<?php echo $initialHistoryState === 'error' ? '' : ' hidden'; ?>>
-                <strong>Não foi possível carregar o histórico.</strong>
-                <span>O restante da página continua disponível. Tente carregar o histórico novamente.</span>
-                <button type="button" class="activity-secondary-button" data-history-retry>Tentar novamente</button>
+                <strong><?php echo stridebr_e(stridebr_t('activity.load_history_error')); ?></strong>
+                <span><?php echo stridebr_e(stridebr_t('activity.load_history_error_help')); ?></span>
+                <button type="button" class="activity-secondary-button" data-history-retry><?php echo stridebr_e(stridebr_t('activity.try_again')); ?></button>
             </div>
             <div class="activity-history-more" data-history-more<?php echo $initialHistoryState === 'ready' && $initialHistoryCursor !== '' ? '' : ' hidden'; ?>>
-                <button type="button" class="activity-secondary-button" data-history-load-more>Carregar mais</button>
+                <button type="button" class="activity-secondary-button" data-history-load-more><?php echo stridebr_e(stridebr_t('activity.load_more')); ?></button>
                 <span data-history-count><?php echo $initialHistoryState === 'ready' ? $initialHistoryTotal . ' atividade' . ($initialHistoryTotal === 1 ? ' carregada.' : 's carregadas.') : ''; ?></span>
             </div>
         </section>
+        </div>
         <aside class="activity-detail-placeholder" data-detail-desktop-placeholder aria-hidden="true">
             <div>
                 <strong><?php echo stridebr_e(stridebr_t('activity.detail_title')); ?></strong>
@@ -604,213 +527,262 @@ $recentes = array_slice($recentes, 0, 5);
             </div>
         </aside>
         <div class="activity-detail-drawer" data-activity-detail-drawer hidden>
-            <button type="button" class="activity-detail-backdrop" data-close-activity-detail aria-label="Fechar detalhes"></button>
+            <button type="button" class="activity-detail-backdrop" data-close-activity-detail aria-label="<?php echo stridebr_e(stridebr_t('activity.close_details')); ?>"></button>
             <section class="activity-detail-panel" role="dialog" aria-modal="true" aria-labelledby="activity-detail-title" data-activity-detail-panel>
                 <header>
-                    <div><div class="activity-detail-kicker"><span class="activity-detail-kicker-main"><span data-detail-sport>Atividade</span><span class="activity-detail-visibility" data-detail-visibility></span></span><a class="activity-detail-compare" data-detail-compare data-activity-tool="compare" href="/user/comparar-atividades.php"><?php echo stridebr_e(stridebr_t('activity.compare')); ?></a></div><h2 id="activity-detail-title" data-detail-title>Carregando…</h2><p data-detail-date></p></div>
-                    <button type="button" data-close-activity-detail aria-label="Fechar">×</button>
+                    <div><div class="activity-detail-kicker"><span class="activity-detail-kicker-main"><span data-detail-sport><?php echo stridebr_e(stridebr_t('common.activity')); ?></span><span class="activity-detail-visibility" data-detail-visibility></span></span><a class="activity-detail-compare" data-detail-compare data-activity-tool="compare" href="/user/comparar-atividades.php"><?php echo stridebr_e(stridebr_t('activity.compare')); ?></a></div><h2 id="activity-detail-title" data-detail-title><?php echo stridebr_e(stridebr_t('common.loading')); ?></h2><p data-detail-date></p></div>
+                    <div class="activity-detail-header-actions"><button type="button" class="activity-secondary-button activity-detail-expand" data-expand-activity-detail><?php echo stridebr_e(stridebr_t('activity.detail.expand')); ?></button><button type="button" data-close-activity-detail aria-label="<?php echo stridebr_e(stridebr_t('common.close')); ?>">×</button></div>
                 </header>
-                <div class="activity-detail-loading" data-detail-loading><i aria-hidden="true"></i><span>Carregando detalhes…</span></div>
+                <div class="activity-detail-loading" data-detail-loading><i aria-hidden="true"></i><span><?php echo stridebr_e(stridebr_t('activity.loading_details')); ?></span></div>
                 <div data-detail-content hidden></div>
             </section>
         </div>
         </div>
-        <div class="activity-context-menu" data-activity-context-menu role="menu" aria-label="Ações da atividade" hidden>
-            <button type="button" role="menuitem" data-context-open>Abrir</button>
-            <a role="menuitem" data-context-edit href="#">Editar</a>
-            <button type="button" role="menuitem" class="is-danger" data-context-delete>Apagar</button>
+        <div class="activity-context-menu" data-activity-context-menu role="menu" aria-label="<?php echo stridebr_e(stridebr_t('activity.actions_aria')); ?>" hidden>
+            <button type="button" role="menuitem" data-context-open><?php echo stridebr_e(stridebr_t('common.open')); ?></button>
+            <a role="menuitem" data-context-edit href="#"><?php echo stridebr_e(stridebr_t('activity.edit')); ?></a>
+            <button type="button" role="menuitem" class="is-danger" data-context-delete><?php echo stridebr_e(stridebr_t('activity.bulk_delete')); ?></button>
         </div>
     </main>
 </div>
 <div class="activity-edit-modal" data-activity-edit-modal hidden>
-    <button type="button" class="activity-edit-modal-backdrop" data-close-activity-edit aria-label="Fechar edição"></button>
+    <button type="button" class="activity-edit-modal-backdrop" data-close-activity-edit aria-label="<?php echo stridebr_e(stridebr_t('activity.close_edit')); ?>"></button>
     <section class="activity-edit-modal-panel" role="dialog" aria-modal="true" aria-labelledby="activity-edit-modal-title">
         <header class="activity-edit-modal-header">
-            <div><span>Atividades</span><h2 id="activity-edit-modal-title">Editar atividade</h2></div>
-            <button type="button" data-close-activity-edit aria-label="Fechar">×</button>
+            <div><span><?php echo stridebr_e(stridebr_t('activity.summary.activities')); ?></span><h2 id="activity-edit-modal-title"><?php echo stridebr_e(stridebr_t('activity.edit_activity')); ?></h2></div>
+            <button type="button" data-close-activity-edit aria-label="<?php echo stridebr_e(stridebr_t('common.close')); ?>">×</button>
         </header>
         <div class="activity-edit-modal-body">
-            <div class="activity-edit-modal-loading" data-activity-edit-loading><span></span><strong>Carregando atividade…</strong></div>
-            <iframe title="Editar atividade" data-activity-edit-frame></iframe>
+            <div class="activity-edit-modal-loading" data-activity-edit-loading><span></span><strong><?php echo stridebr_e(stridebr_t('activity.loading_activity')); ?></strong></div>
+            <div class="activity-edit-modal-error"><strong><?php echo stridebr_e(stridebr_t('activity.edit_load_error')); ?></strong><div><button type="button" class="activity-secondary-button" data-activity-edit-retry><?php echo stridebr_e(stridebr_t('common.try_again')); ?></button><a class="activity-secondary-button" data-activity-edit-new-page href="#" target="_blank" rel="noopener"><?php echo stridebr_e(stridebr_t('activity.open_new_page')); ?></a></div></div>
+            <iframe title="<?php echo stridebr_e(stridebr_t('activity.edit_activity')); ?>" data-activity-edit-frame></iframe>
         </div>
     </section>
 </div>
 
 <div class="activity-tool-overlay" data-activity-tool-overlay hidden>
-    <button type="button" class="activity-tool-backdrop" data-close-activity-tool aria-label="Fechar"></button>
+    <button type="button" class="activity-tool-backdrop" data-close-activity-tool aria-label="<?php echo stridebr_e(stridebr_t('common.close')); ?>"></button>
     <section class="activity-tool-panel" role="dialog" aria-modal="true" aria-labelledby="activity-tool-title">
-        <header class="activity-tool-panel-header"><div><span>Atividades</span><h2 id="activity-tool-title" data-activity-tool-title>Ferramenta</h2></div><button type="button" data-close-activity-tool aria-label="Fechar">×</button></header>
-        <div class="activity-tool-panel-content" data-activity-tool-content><div class="activity-tool-loading">Carregando…</div></div>
+        <header class="activity-tool-panel-header"><div><span><?php echo stridebr_e(stridebr_t('activity.summary.activities')); ?></span><h2 id="activity-tool-title" data-activity-tool-title><?php echo stridebr_e(stridebr_t('activity.tool')); ?></h2></div><button type="button" data-close-activity-tool aria-label="<?php echo stridebr_e(stridebr_t('common.close')); ?>">×</button></header>
+        <div class="activity-tool-panel-content" data-activity-tool-content><div class="activity-tool-loading"><?php echo stridebr_e(stridebr_t('common.loading')); ?></div></div>
     </section>
 </div>
 
 <div class="activity-post-save-modal" data-post-save-share hidden>
-    <button type="button" class="activity-post-save-backdrop" data-post-save-close aria-label="Fechar"></button>
+    <button type="button" class="activity-post-save-backdrop" data-post-save-close aria-label="<?php echo stridebr_e(stridebr_t('common.close')); ?>"></button>
     <section class="activity-post-save-panel" role="dialog" aria-modal="true" aria-labelledby="post-save-share-title">
         <header>
-            <div><span>Atividade salva</span><h2 id="post-save-share-title">Compartilhar?</h2></div>
-            <button type="button" data-post-save-close aria-label="Fechar">×</button>
+            <div><span><?php echo stridebr_e(stridebr_t('activity.saved')); ?></span><h2 id="post-save-share-title"><?php echo stridebr_e(stridebr_t('activity.share_question')); ?></h2></div>
+            <button type="button" data-post-save-close aria-label="<?php echo stridebr_e(stridebr_t('common.close')); ?>">×</button>
         </header>
         <div class="activity-post-save-body">
             <div class="activity-post-save-preview">
-                <canvas width="1080" height="1920" data-post-save-canvas aria-label="Prévia padrão de compartilhamento"></canvas>
+                <canvas width="1080" height="1920" data-post-save-canvas aria-label="<?php echo stridebr_e(stridebr_t('activity.default_share_preview_aria')); ?>"></canvas>
             </div>
             <div class="activity-post-save-copy">
-                <strong data-post-save-title>Atividade</strong>
+                <strong data-post-save-title><?php echo stridebr_e(stridebr_t('common.activity')); ?></strong>
                 <span data-post-save-summary></span>
-                <p>Seu compartilhamento padrão já está pronto. Compartilhe agora ou abra o editor completo.</p>
+                <p><?php echo stridebr_e(stridebr_t('activity.share_ready_help')); ?></p>
                 <span class="activity-post-save-status" data-post-save-status role="status" aria-live="polite"></span>
             </div>
         </div>
         <footer>
-            <button type="button" class="activity-danger-button activity-post-save-delete" data-post-save-delete>Apagar atividade</button>
-            <button type="button" class="activity-primary-action" data-post-save-native>Compartilhar</button>
-            <button type="button" class="activity-secondary-button" data-post-save-edit>Editar compartilhamento</button>
-            <button type="button" class="activity-secondary-button" data-post-save-close>Concluir</button>
+            <button type="button" class="activity-danger-button activity-post-save-delete" data-post-save-delete><?php echo stridebr_e(stridebr_t('activity.delete_activity')); ?></button>
+            <button type="button" class="activity-primary-action" data-post-save-native><?php echo stridebr_e(stridebr_t('activity.share')); ?></button>
+            <button type="button" class="activity-secondary-button" data-post-save-edit><?php echo stridebr_e(stridebr_t('activity.edit_share')); ?></button>
+            <button type="button" class="activity-secondary-button" data-post-save-close><?php echo stridebr_e(stridebr_t('common.done')); ?></button>
         </footer>
     </section>
 </div>
 
 <div class="activity-share-modal" data-share-modal hidden>
-    <button type="button" class="activity-share-backdrop" data-close-share aria-label="Fechar compartilhamento"></button>
+    <button type="button" class="activity-share-backdrop" data-close-share aria-label="<?php echo stridebr_e(stridebr_t('activity.close_share')); ?>"></button>
 
     <div class="activity-share-workspace" role="dialog" aria-modal="true" aria-labelledby="share-title">
-        <aside class="activity-share-preview-window activity-share-preview-shell" data-share-preview-shell aria-label="Prévia do cartão">
+        <aside class="activity-share-preview-window activity-share-preview-shell" data-share-preview-shell aria-label="<?php echo stridebr_e(stridebr_t('activity.card_preview_aria')); ?>">
             <div class="activity-share-preview-heading">
-                <strong>Prévia</strong>
-                <small data-share-preview-format>Story · 1080 × 1920</small>
+                <strong><?php echo stridebr_e(stridebr_t('activity.card_preview')); ?></strong>
+                <small data-share-preview-format><?php echo stridebr_e(stridebr_t('activity.share.format_story')); ?> · 1080 × 1920</small>
             </div>
             <div class="activity-share-preview-layout">
                 <div class="activity-share-preview-stage">
-                    <canvas data-share-canvas width="1080" height="1920" aria-label="Prévia do compartilhamento"></canvas>
+                    <canvas data-share-canvas width="1080" height="1920" aria-label="<?php echo stridebr_e(stridebr_t('activity.share_preview_aria')); ?>"></canvas>
                 </div>
                 <fieldset class="activity-share-format-options activity-share-format-rail">
-                    <legend>Formato</legend>
-                    <label><input type="radio" name="share-format" value="story" data-share-format checked><span><i class="share-format-thumb is-story" aria-hidden="true"></i><b><strong>Story</strong><small>9:16</small></b></span></label>
-                    <label><input type="radio" name="share-format" value="portrait" data-share-format><span><i class="share-format-thumb is-portrait" aria-hidden="true"></i><b><strong>Retrato</strong><small>4:5</small></b></span></label>
-                    <label><input type="radio" name="share-format" value="square" data-share-format><span><i class="share-format-thumb is-square" aria-hidden="true"></i><b><strong>Quadrado</strong><small>1:1</small></b></span></label>
-                    <label><input type="radio" name="share-format" value="compact" data-share-format><span><i class="share-format-thumb is-compact" aria-hidden="true"></i><b><strong>Compacto</strong><small>vertical</small></b></span></label>
-                    <label><input type="radio" name="share-format" value="compactWide" data-share-format><span><i class="share-format-thumb is-compact-wide" aria-hidden="true"></i><b><strong>Compacto</strong><small>horizontal</small></b></span></label>
+                    <legend><?php echo stridebr_e(stridebr_t('activity.format')); ?></legend>
+                    <label><input type="radio" name="share-format" value="story" data-share-format checked><span><i class="share-format-thumb is-story" aria-hidden="true"></i><b><strong><?php echo stridebr_e(stridebr_t('activity.share.format_story')); ?></strong><small>9:16</small></b></span></label>
+                    <label><input type="radio" name="share-format" value="portrait" data-share-format><span><i class="share-format-thumb is-portrait" aria-hidden="true"></i><b><strong><?php echo stridebr_e(stridebr_t('activity.share.format_portrait')); ?></strong><small>4:5</small></b></span></label>
+                    <label><input type="radio" name="share-format" value="square" data-share-format><span><i class="share-format-thumb is-square" aria-hidden="true"></i><b><strong><?php echo stridebr_e(stridebr_t('activity.share.format_square')); ?></strong><small>1:1</small></b></span></label>
                 </fieldset>
             </div>
         </aside>
 
+        <div class="activity-share-route-picker" data-share-route-picker hidden>
+            <button type="button" class="activity-share-route-picker-backdrop" data-share-route-picker-close aria-label="<?php echo stridebr_e(stridebr_t('activity.share.route_selector_close')); ?>"></button>
+            <section class="activity-share-route-picker-panel" role="dialog" aria-modal="true" aria-labelledby="share-route-picker-title">
+                <header><div><span><?php echo stridebr_e(stridebr_t('activity.share.selected_route')); ?></span><h3 id="share-route-picker-title"><?php echo stridebr_e(stridebr_t('activity.share.route_select_title')); ?></h3><p><?php echo stridebr_e(stridebr_t('activity.share.route_select_help')); ?></p></div><button type="button" data-share-route-picker-close aria-label="<?php echo stridebr_e(stridebr_t('common.close')); ?>">×</button></header>
+                <div class="activity-share-route-picker-list" data-share-route-picker-list></div>
+            </section>
+        </div>
+
         <section class="activity-share-panel">
             <header>
-                <div><span>Compartilhar</span><h2 id="share-title">Compartilhar atividade</h2></div>
-                <button type="button" data-close-share aria-label="Fechar">×</button>
+                <div><span><?php echo stridebr_e(stridebr_t('activity.share')); ?></span><h2 id="share-title"><?php echo stridebr_e(stridebr_t('activity.share_title')); ?></h2></div>
+                <button type="button" data-close-share aria-label="<?php echo stridebr_e(stridebr_t('common.close')); ?>">×</button>
             </header>
 
             <div class="activity-share-body">
                 <div class="activity-share-controls">
+                    <section class="activity-share-scope-switch" data-share-master-switch hidden>
+                        <div class="activity-share-block-heading"><div><strong><?php echo stridebr_e(stridebr_t('activity.share.scope')); ?></strong></div></div>
+                        <div class="activity-share-scope-options" role="group" aria-label="<?php echo stridebr_e(stridebr_t('activity.share.scope')); ?>">
+                            <button type="button" data-share-scope="session" aria-pressed="true"><?php echo stridebr_e(stridebr_t('activity.share.scope_session')); ?></button>
+                            <button type="button" data-share-scope="single_segment" aria-pressed="false"><?php echo stridebr_e(stridebr_t('activity.share.scope_single_segment')); ?></button>
+                            <button type="button" data-share-scope="multiple_segments" aria-pressed="false"><?php echo stridebr_e(stridebr_t('activity.share.scope_multiple_segments')); ?></button>
+                        </div>
+                    </section>
+
+                    <section class="activity-share-choice-block activity-share-single-segment-picker" data-share-single-segment-picker hidden>
+                        <div class="activity-share-block-heading"><div><strong><?php echo stridebr_e(stridebr_t('activity.share.choose_segment')); ?></strong></div></div>
+                        <div class="activity-share-single-segment-list" data-share-single-segment-list></div>
+                    </section>
+
                     <section class="activity-share-choice-block activity-share-content-block" data-share-single-only>
                         <div class="activity-share-block-heading">
-                            <div><strong>Conteúdo</strong></div>
+                            <div><strong><?php echo stridebr_e(stridebr_t('activity.share_content')); ?></strong></div>
                         </div>
                         <div class="activity-share-choice-grid is-content" data-share-content-grid></div>
                     </section>
 
+                    <div class="activity-share-selected-route" data-share-selected-route hidden>
+                        <span><small><?php echo stridebr_e(stridebr_t('activity.share.selected_route')); ?></small><strong data-share-selected-route-name></strong></span>
+                        <button type="button" class="activity-inline-action" data-share-change-route><?php echo stridebr_e(stridebr_t('activity.share.change_route')); ?></button>
+                    </div>
+
                     <section class="activity-share-choice-block activity-share-background-block" data-share-background-block>
                         <div class="activity-share-block-heading">
-                            <div><strong>Fundo</strong></div>
+                            <div><strong><?php echo stridebr_e(stridebr_t('activity.share.background')); ?></strong></div>
                         </div>
                         <div class="activity-share-choice-grid is-background activity-share-style-grid" data-share-style-grid></div>
                     </section>
 
                     <section class="activity-share-choice-block activity-share-session-layout-block" data-share-session-only hidden>
                         <div class="activity-share-block-heading">
-                            <div><strong>Layout da sessão</strong><small>Esta área recebe os layouts de várias rotas.</small></div>
+                            <div><strong><?php echo stridebr_e(stridebr_t('activity.session_layout')); ?></strong><small><?php echo stridebr_e(stridebr_t('activity.session_layout_help')); ?></small></div>
                         </div>
                         <div class="activity-share-choice-grid is-session" data-share-session-layout-grid></div>
                     </section>
 
                     <section class="activity-share-content-options" data-share-content-options hidden aria-hidden="true">
                         <fieldset class="activity-share-mode-options">
-                            <label><input type="radio" name="share-content-mode" value="activity" data-share-content-mode checked><span>Atividade</span></label>
-                            <label><input type="radio" name="share-content-mode" value="segments" data-share-content-mode><span>Trechos</span></label>
+                            <label><input type="radio" name="share-content-mode" value="activity" data-share-content-mode checked><span><?php echo stridebr_e(stridebr_t('activity.summary.activities')); ?></span></label>
+                            <label><input type="radio" name="share-content-mode" value="segments" data-share-content-mode><span><?php echo stridebr_e(stridebr_t('activity.share.segments')); ?></span></label>
                         </fieldset>
                         <fieldset class="activity-share-segment-mode-options" data-share-segment-mode-options hidden>
-                            <legend>Trechos</legend>
-                            <label><input type="radio" name="share-segment-mode" value="together" data-share-segment-mode checked><span>Todos juntos</span></label>
-                            <label><input type="radio" name="share-segment-mode" value="separate" data-share-segment-mode><span>Separados</span></label>
+                            <legend><?php echo stridebr_e(stridebr_t('activity.share.segments')); ?></legend>
+                            <label><input type="radio" name="share-segment-mode" value="together" data-share-segment-mode checked><span><?php echo stridebr_e(stridebr_t('activity.all_together')); ?></span></label>
+                            <label><input type="radio" name="share-segment-mode" value="separate" data-share-segment-mode><span><?php echo stridebr_e(stridebr_t('activity.share.separate')); ?></span></label>
                         </fieldset>
                     </section>
 
-                    <section class="activity-share-quick-controls" aria-label="Ajustes rápidos">
+                    <section class="activity-share-quick-controls" aria-label="<?php echo stridebr_e(stridebr_t('activity.quick_adjustments')); ?>">
                         <input type="checkbox" data-share-show="route" checked hidden>
 
+                        <fieldset class="activity-share-composition-options" data-share-composition-options>
+                            <legend><?php echo stridebr_e(stridebr_t('activity.share.composition')); ?></legend>
+                            <label><input type="radio" name="share-composition" value="standard" data-share-composition checked><span><i class="share-composition-thumb is-standard" aria-hidden="true"><b></b><b></b><b></b></i><strong><?php echo stridebr_e(stridebr_t('activity.share.composition_standard')); ?></strong></span></label>
+                            <label><input type="radio" name="share-composition" value="compact" data-share-composition><span><i class="share-composition-thumb is-compact" aria-hidden="true"><b></b><b></b><b></b></i><strong><?php echo stridebr_e(stridebr_t('activity.share.composition_compact')); ?></strong></span></label>
+                        </fieldset>
+
                         <fieldset class="activity-share-color-options" data-share-color-options>
-                            <legend>Cor do fundo</legend>
-                            <label title="Azul profundo"><input type="radio" name="share-color" value="deep" data-share-background-color checked><span><i class="share-color-swatch is-deep"></i><b>Azul profundo</b></span></label>
-                            <label title="Azul escuro"><input type="radio" name="share-color" value="dark" data-share-background-color><span><i class="share-color-swatch is-dark"></i><b>Azul escuro</b></span></label>
-                            <label title="Claro"><input type="radio" name="share-color" value="light" data-share-background-color><span><i class="share-color-swatch is-light"></i><b>Claro</b></span></label>
-                            <label title="Preto"><input type="radio" name="share-color" value="black" data-share-background-color><span><i class="share-color-swatch is-black"></i><b>Preto</b></span></label>
+                            <legend><?php echo stridebr_e(stridebr_t('activity.share.background_color')); ?></legend>
+                            <label title="<?php echo stridebr_e(stridebr_t('activity.share.color_deep')); ?>"><input type="radio" name="share-color" value="deep" data-share-background-color checked><span><i class="share-color-swatch is-deep"></i><b><?php echo stridebr_e(stridebr_t('activity.share.color_deep')); ?></b></span></label>
+                            <label title="<?php echo stridebr_e(stridebr_t('activity.share.color_dark')); ?>"><input type="radio" name="share-color" value="dark" data-share-background-color><span><i class="share-color-swatch is-dark"></i><b><?php echo stridebr_e(stridebr_t('activity.share.color_dark')); ?></b></span></label>
+                            <label title="<?php echo stridebr_e(stridebr_t('settings.theme_light')); ?>"><input type="radio" name="share-color" value="light" data-share-background-color><span><i class="share-color-swatch is-light"></i><b><?php echo stridebr_e(stridebr_t('settings.theme_light')); ?></b></span></label>
+                            <label title="<?php echo stridebr_e(stridebr_t('activity.share.color_black')); ?>"><input type="radio" name="share-color" value="black" data-share-background-color><span><i class="share-color-swatch is-black"></i><b><?php echo stridebr_e(stridebr_t('activity.share.color_black')); ?></b></span></label>
+                        </fieldset>
+
+                        <fieldset class="activity-share-map-style-options" data-share-map-style-options hidden>
+                            <legend><?php echo stridebr_e(stridebr_t('activity.share.map_style')); ?></legend>
+                            <label><input type="radio" name="share-map-style" value="street" data-share-map-style checked><span><?php echo stridebr_e(stridebr_t('activity.share.map_streets')); ?></span></label>
+                            <label><input type="radio" name="share-map-style" value="satellite" data-share-map-style><span><?php echo stridebr_e(stridebr_t('activity.share.map_satellite')); ?></span></label>
                         </fieldset>
                     </section>
 
-                    <button type="button" class="activity-share-mobile-photo" data-share-mobile-photo hidden>Escolher foto</button>
-                    <button type="button" class="activity-share-mobile-customize" data-share-mobile-customize><span>Personalizar</span><span aria-hidden="true">›</span></button>
-                    <button type="button" class="activity-share-customize-backdrop" data-share-mobile-customize-close aria-label="Fechar personalização"></button>
+                    <button type="button" class="activity-share-mobile-photo" data-share-mobile-photo hidden><?php echo stridebr_e(stridebr_t('activity.share.choose_photo')); ?></button>
+                    <button type="button" class="activity-share-mobile-customize" data-share-mobile-customize><span><?php echo stridebr_e(stridebr_t('home.customize')); ?></span><span aria-hidden="true">›</span></button>
+                    <button type="button" class="activity-share-customize-backdrop" data-share-mobile-customize-close aria-label="<?php echo stridebr_e(stridebr_t('activity.close_customization')); ?>"></button>
 
-                    <aside class="activity-share-sidebar" data-share-customize-sheet aria-label="Personalizar cartão">
+                    <aside class="activity-share-sidebar" data-share-customize-sheet aria-label="<?php echo stridebr_e(stridebr_t('activity.customize_card')); ?>">
                         <div class="activity-share-mobile-sheet-head">
-                            <button type="button" data-share-mobile-customize-close aria-label="Fechar">‹</button>
-                            <strong>Personalizar cartão</strong>
+                            <button type="button" data-share-mobile-customize-close aria-label="<?php echo stridebr_e(stridebr_t('common.close')); ?>">‹</button>
+                            <strong><?php echo stridebr_e(stridebr_t('activity.customize_card')); ?></strong>
                             <span aria-hidden="true"></span>
                         </div>
 
                         <section class="activity-share-group activity-share-visual-options-group">
-                            <h3>Aparência</h3>
+                            <h3><?php echo stridebr_e(stridebr_t('settings.theme')); ?></h3>
                             <div class="activity-share-map-option" data-share-map-option hidden>
-                                <label><span><strong>Mostrar mapa</strong><small>Desenha as ruas sem nomes nem locais.</small></span><input type="checkbox" data-share-map-toggle></label>
+                                <label><span><strong><?php echo stridebr_e(stridebr_t('activity.share.show_map')); ?></strong><small><?php echo stridebr_e(stridebr_t('activity.share.show_map_help')); ?></small></span><input type="checkbox" data-share-map-toggle></label>
                             </div>
 
                             <div class="activity-share-route-scale">
-                                <div><strong>Tamanho da rota</strong></div>
+                                <div><strong><?php echo stridebr_e(stridebr_t('activity.share.route_size')); ?></strong></div>
                                 <label>
-                                    <input type="range" min="60" max="200" step="5" value="100" data-share-route-scale>
+                                    <input type="range" min="50" max="200" step="5" value="100" data-share-route-scale>
                                     <output data-share-route-scale-value>100%</output>
                                 </label>
                             </div>
                         </section>
 
                         <section class="activity-share-group activity-share-elements-group">
-                            <h3>Elementos do cartão</h3>
+                            <h3><?php echo stridebr_e(stridebr_t('activity.card_elements')); ?></h3>
                             <div class="activity-share-visibility">
-                                <label class="activity-share-heading-mode"><span>Texto no topo</span><select data-share-heading-mode><option value="title">Título da atividade</option><option value="sport">Modalidade</option><option value="none">Ocultar</option></select></label>
-                                <label><span>Data</span><input type="checkbox" data-share-show="date"></label>
-                                <label><span>Logo</span><input type="checkbox" data-share-show="logo" checked></label>
+                                <label class="activity-share-heading-mode"><span><?php echo stridebr_e(stridebr_t('activity.share.title')); ?></span><select data-share-heading-mode><option value="title"><?php echo stridebr_e(stridebr_t('activity.share.show')); ?></option><option value="none"><?php echo stridebr_e(stridebr_t('activity.share.hide')); ?></option></select></label>
+                                <label><span><?php echo stridebr_e(stridebr_t('common.date')); ?></span><input type="checkbox" data-share-show="date"></label>
+                                <label><span><?php echo stridebr_e(stridebr_t('activity.share.logo')); ?></span><input type="checkbox" data-share-show="logo" checked></label>
                             </div>
 
                             <details class="activity-share-details" open>
-                                <summary>Estatísticas <small>até 4</small></summary>
+                                <summary><?php echo stridebr_e(stridebr_t('activity.statistics')); ?> <small><?php echo stridebr_e(stridebr_t('activity.up_to_four')); ?></small></summary>
                                 <div class="activity-share-metrics" data-share-metric-options></div>
                             </details>
 
                             <details class="activity-share-details">
-                                <summary>Mais opções</summary>
-                                <label class="activity-share-caption">Legenda curta <input type="text" maxlength="60" placeholder="Opcional" data-share-caption></label>
+                                <summary><?php echo stridebr_e(stridebr_t('activity.more_options')); ?></summary>
+                                <label class="activity-share-caption"><?php echo stridebr_e(stridebr_t('activity.share.short_caption')); ?> <input type="text" maxlength="60" placeholder="Opcional" data-share-caption></label>
                             </details>
                         </section>
 
                         <section class="activity-share-group activity-share-segments-group" data-share-segments-group hidden>
-                            <h3>Trechos</h3>
-                            <div class="activity-share-segment-list" data-share-segment-list></div>
+                            <details class="activity-share-details">
+                                <summary><?php echo stridebr_e(stridebr_t('activity.share.choose_segments')); ?></summary>
+                                <div class="activity-share-segments-heading"><h3><?php echo stridebr_e(stridebr_t('activity.share.segments')); ?></h3><button type="button" class="activity-inline-action" data-share-select-all><?php echo stridebr_e(stridebr_t('activity.share.select_all')); ?></button></div>
+                                <div class="activity-share-segment-list" data-share-segment-list></div>
+                            </details>
                             <label class="activity-share-segment-preview-picker" data-share-segment-preview-picker hidden>
-                                <span>Prévia individual</span>
+                                <span><?php echo stridebr_e(stridebr_t('activity.individual_preview')); ?></span>
                                 <select data-share-segment-preview></select>
                             </label>
                         </section>
 
+                        <section class="activity-share-group activity-share-comparison-controls" data-share-comparison-controls hidden>
+                            <h3><?php echo stridebr_e(stridebr_t('activity.share.comparison')); ?></h3>
+                            <div class="activity-share-comparison-grid">
+                                <label><span><?php echo stridebr_e(stridebr_t('activity.share.compare_by')); ?></span><select data-share-comparison-metric></select></label>
+                                <label><span><?php echo stridebr_e(stridebr_t('activity.share.reference')); ?></span><select data-share-comparison-reference></select></label>
+                            </div>
+                        </section>
+
                         <section class="activity-share-group activity-share-photo-group" data-share-photo-field hidden>
-                            <h3>Foto</h3>
+                            <h3><?php echo stridebr_e(stridebr_t('activity.share.photo')); ?></h3>
                             <div class="activity-share-photo-actions">
-                                <div class="activity-share-photo-preview" data-share-photo-preview><span data-share-photo-empty>Sem foto</span></div>
+                                <div class="activity-share-photo-preview" data-share-photo-preview><span data-share-photo-empty><?php echo stridebr_e(stridebr_t('activity.share.no_photo_short')); ?></span></div>
                                 <div class="activity-share-photo-buttons">
-                                    <button type="button" class="activity-secondary-button" data-share-open-camera>Tirar foto</button>
-                                    <label class="activity-secondary-button">Escolher arquivo<input type="file" accept="image/*" data-share-photo></label>
+                                    <button type="button" class="activity-secondary-button" data-share-open-camera><?php echo stridebr_e(stridebr_t('activity.share.take_photo')); ?></button>
+                                    <label class="activity-secondary-button"><?php echo stridebr_e(stridebr_t('activity.share.choose_file')); ?><input type="file" accept="image/*" data-share-photo></label>
                                     <input type="file" accept="image/*" capture="environment" data-share-camera hidden>
-                                    <small data-share-photo-name>Escolha ou capture uma foto para este estilo.</small>
+                                    <small data-share-photo-name><?php echo stridebr_e(stridebr_t('activity.share.photo_help')); ?></small>
                                 </div>
                             </div>
                         </section>
@@ -823,24 +795,60 @@ $recentes = array_slice($recentes, 0, 5);
             <p data-share-status></p>
             <footer>
                 <details class="activity-share-more-menu">
-                    <summary aria-label="Mais opções" title="Mais opções">•••</summary>
+                    <summary aria-label="<?php echo stridebr_e(stridebr_t('activity.more_options')); ?>" title="<?php echo stridebr_e(stridebr_t('activity.more_options')); ?>">•••</summary>
                     <div>
-                        <button type="button" data-export-route-png hidden>Exportar rota como PNG</button>
-                        <button type="button" data-reset-share>Redefinir cartão</button>
+                        <button type="button" data-export-route-png hidden><?php echo stridebr_e(stridebr_t('activity.share.export_route_png')); ?></button>
+                        <button type="button" data-reset-share><?php echo stridebr_e(stridebr_t('activity.reset_card')); ?></button>
                     </div>
                 </details>
-                <button type="button" class="activity-secondary-button" data-copy-share>Copiar card</button>
-                <button type="button" class="activity-secondary-button" data-download-share>Baixar</button>
-                <button type="button" class="activity-primary-action" data-native-share>Compartilhar</button>
+                <button type="button" class="activity-secondary-button" data-copy-share><?php echo stridebr_e(stridebr_t('activity.copy_card')); ?></button>
+                <button type="button" class="activity-secondary-button" data-download-share><?php echo stridebr_e(stridebr_t('activity.download')); ?></button>
+                <button type="button" class="activity-primary-action" data-native-share><?php echo stridebr_e(stridebr_t('activity.share')); ?></button>
             </footer>
+
+            <div class="activity-share-route-export-sheet" data-route-export-sheet hidden>
+                <button type="button" class="activity-share-route-export-backdrop" data-route-export-close aria-label="<?php echo stridebr_e(stridebr_t('common.close')); ?>"></button>
+                <section class="activity-share-route-export-dialog" role="dialog" aria-modal="true" aria-labelledby="share-route-export-title">
+                    <header>
+                        <div>
+                            <strong id="share-route-export-title"><?php echo stridebr_e(stridebr_t('activity.share.route_png_title')); ?></strong>
+                            <small><?php echo stridebr_e(stridebr_t('activity.share.route_png_help')); ?></small>
+                        </div>
+                        <button type="button" class="activity-icon-button" data-route-export-close aria-label="<?php echo stridebr_e(stridebr_t('common.close')); ?>">×</button>
+                    </header>
+                    <div class="activity-share-route-export-preview">
+                        <canvas width="640" height="640" data-route-export-preview aria-label="<?php echo stridebr_e(stridebr_t('activity.share.route_png_preview')); ?>"></canvas>
+                    </div>
+                    <div class="activity-share-route-export-controls">
+                        <fieldset class="activity-share-route-export-colors">
+                            <legend><?php echo stridebr_e(stridebr_t('activity.share.route_png_color')); ?></legend>
+                            <label><input type="radio" name="route-export-color" value="#4f72df" checked data-route-export-color><span class="is-blue" title="<?php echo stridebr_e(stridebr_t('activity.share.route_color_blue')); ?>"></span></label>
+                            <label><input type="radio" name="route-export-color" value="#ffffff" data-route-export-color><span class="is-white" title="<?php echo stridebr_e(stridebr_t('activity.share.route_color_white')); ?>"></span></label>
+                            <label><input type="radio" name="route-export-color" value="#111827" data-route-export-color><span class="is-black" title="<?php echo stridebr_e(stridebr_t('activity.share.color_black')); ?>"></span></label>
+                            <label><input type="radio" name="route-export-color" value="#e5484d" data-route-export-color><span class="is-red" title="<?php echo stridebr_e(stridebr_t('activity.share.route_color_red')); ?>"></span></label>
+                            <label><input type="radio" name="route-export-color" value="#2e9b65" data-route-export-color><span class="is-green" title="<?php echo stridebr_e(stridebr_t('activity.share.route_color_green')); ?>"></span></label>
+                            <label><input type="radio" name="route-export-color" value="#e5b94c" data-route-export-color><span class="is-yellow" title="<?php echo stridebr_e(stridebr_t('activity.share.route_color_yellow')); ?>"></span></label>
+                            <label><input type="radio" name="route-export-color" value="#8b5cf6" data-route-export-color><span class="is-purple" title="<?php echo stridebr_e(stridebr_t('activity.share.route_color_purple')); ?>"></span></label>
+                        </fieldset>
+                        <label class="activity-share-route-export-width">
+                            <span><strong><?php echo stridebr_e(stridebr_t('activity.share.route_png_thickness')); ?></strong><output data-route-export-width-value>100%</output></span>
+                            <input type="range" min="55" max="180" step="5" value="100" data-route-export-width>
+                        </label>
+                    </div>
+                    <footer>
+                        <button type="button" class="activity-secondary-button" data-route-export-close><?php echo stridebr_e(stridebr_t('common.cancel')); ?></button>
+                        <button type="button" class="activity-primary-action" data-route-export-confirm><?php echo stridebr_e(stridebr_t('activity.share.export_route_png_action')); ?></button>
+                    </footer>
+                </section>
+            </div>
 
             <div class="activity-share-camera-sheet" data-share-camera-sheet hidden>
                 <div class="activity-share-camera-backdrop" data-share-close-camera></div>
                 <div class="activity-share-camera-dialog" role="dialog" aria-modal="true" aria-label="Capturar foto">
-                    <header><strong>Tirar foto</strong><button type="button" data-share-close-camera aria-label="Fechar">×</button></header>
+                    <header><strong><?php echo stridebr_e(stridebr_t('activity.take_photo')); ?></strong><button type="button" data-share-close-camera aria-label="<?php echo stridebr_e(stridebr_t('common.close')); ?>">×</button></header>
                     <video autoplay playsinline muted data-share-camera-video></video>
-                    <p data-share-camera-status>Abra a câmera para usar a foto no cartão.</p>
-                    <footer><button type="button" class="activity-secondary-button" data-share-close-camera>Cancelar</button><button type="button" class="activity-primary-action" data-share-capture-camera>Usar foto</button></footer>
+                    <p data-share-camera-status><?php echo stridebr_e(stridebr_t('activity.camera_help')); ?></p>
+                    <footer><button type="button" class="activity-secondary-button" data-share-close-camera><?php echo stridebr_e(stridebr_t('common.cancel')); ?></button><button type="button" class="activity-primary-action" data-share-capture-camera><?php echo stridebr_e(stridebr_t('activity.share.use_photo')); ?></button></footer>
                 </div>
             </div>
         </section>
@@ -848,6 +856,8 @@ $recentes = array_slice($recentes, 0, 5);
 </div>
 <?php require dirname(__DIR__, 2) . '/src/layout/footer.php'; ?>
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/activity-exchange.js')); ?>"></script>
+<script src="<?php echo stridebr_e(stridebr_asset('/assets/js/activity-route-utils.js')); ?>"></script>
+<?php echo stridebr_maps_runtime_script(); ?>
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/atividades.js')); ?>"></script>
 </body>
 </html>

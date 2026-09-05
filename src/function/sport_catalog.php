@@ -5,20 +5,20 @@ declare(strict_types=1);
 function sportCatalogFamilies(): array
 {
     return [
-        'strength' => ['label' => 'Força', 'description' => 'Musculação, calistenia e treinos de força.', 'popular' => ['musculacao','calistenia','treino-funcional','crossfit','powerlifting','levantamento-olimpico']],
-        'cardio' => ['label' => 'Cardio', 'description' => 'Corrida, caminhada, ciclismo, natação e atividades contínuas.', 'popular' => ['corrida','caminhada','ciclismo','natacao','corrida-em-esteira','ciclismo-indoor','trilha','mountain-bike']],
-        'athletics' => ['label' => 'Atletismo', 'description' => 'Pista, saltos, lançamentos, arremessos e provas combinadas.', 'popular' => ['atletismo-100m','atletismo-200m','atletismo-400m','atletismo-800m','atletismo-1500m','salto-em-distancia','salto-em-altura','arremesso-de-peso','lancamento-de-dardo']],
-        'racket' => ['label' => 'Raquetes', 'description' => 'Tênis, padel, badminton, squash e esportes semelhantes.', 'popular' => ['tenis','padel','beach-tennis','badminton','tenis-de-mesa','squash','pickleball']],
-        'team' => ['label' => 'Esportes em equipe', 'description' => 'Futebol, vôlei, basquete, handebol e outros esportes coletivos.', 'popular' => ['futebol','futsal','volei','basquete','handebol','volei-de-praia','futebol-society']],
-        'combat' => ['label' => 'Lutas', 'description' => 'Artes marciais, boxe, grappling e esportes de combate.', 'popular' => ['jiu-jitsu','boxe','muay-thai','judo','karate','taekwondo','mma','capoeira']],
-        'movement' => ['label' => 'Ginástica & movimento', 'description' => 'Ginástica, yoga, pilates, mobilidade e habilidades corporais.', 'popular' => ['yoga','pilates','mobilidade','alongamento','ginastica-artistica','parkour','ginastica-ritmica']],
-        'outdoor' => ['label' => 'Outdoor & aventura', 'description' => 'Escalada, montanha, prancha e atividades de aventura.', 'popular' => ['hiking','trekking','escalada','boulder','surfe','stand-up-paddle','skate','orientacao']],
-        'precision' => ['label' => 'Precisão', 'description' => 'Golfe, tiro com arco, boliche, sinuca e modalidades de precisão.', 'popular' => ['golfe','tiro-com-arco','boliche','sinuca','dardos','bocha']],
-        'winter' => ['label' => 'Inverno', 'description' => 'Esqui, snowboard, patinação e esportes de neve ou gelo.', 'popular' => ['esqui-alpino','snowboard','esqui-cross-country','patinacao-no-gelo','hoquei-no-gelo','curling']],
-        'dance' => ['label' => 'Dança', 'description' => 'Dança social, artística e fitness.', 'popular' => ['zumba','forro','samba','danca-de-salao','hip-hop','ballet','salsa']],
-        'equestrian' => ['label' => 'Equestres', 'description' => 'Equitação, hipismo, enduro e outros esportes equestres.', 'popular' => ['equitacao','hipismo-salto','adestramento-equestre','enduro-equestre','polo']],
-        'motorsport' => ['label' => 'Motores', 'description' => 'Automobilismo, kart e motociclismo esportivo.', 'popular' => ['kart','automobilismo-de-pista','rally','motocross','enduro-de-moto']],
-        'other' => ['label' => 'Outros', 'description' => 'Atividades que não se encaixam nas demais áreas.', 'popular' => ['outra-atividade']],
+        'strength' => ['label' => stridebr_t('progress.family.strength.label'), 'description' => stridebr_t('progress.family.strength.description'), 'popular' => ['musculacao','calistenia','treino-funcional','crossfit','powerlifting','levantamento-olimpico']],
+        'cardio' => ['label' => stridebr_t('progress.family.cardio.label'), 'description' => stridebr_t('progress.family.cardio.description'), 'popular' => ['corrida','caminhada','ciclismo','natacao','corrida-em-esteira','ciclismo-indoor','trilha','mountain-bike']],
+        'athletics' => ['label' => stridebr_t('progress.family.athletics.label'), 'description' => stridebr_t('progress.family.athletics.description'), 'popular' => ['atletismo-100m','atletismo-200m','atletismo-400m','atletismo-800m','atletismo-1500m','salto-em-distancia','salto-em-altura','arremesso-de-peso','lancamento-de-dardo']],
+        'racket' => ['label' => stridebr_t('progress.family.racket.label'), 'description' => stridebr_t('progress.family.racket.description'), 'popular' => ['tenis','padel','beach-tennis','badminton','tenis-de-mesa','squash','pickleball']],
+        'team' => ['label' => stridebr_t('progress.family.team.label'), 'description' => stridebr_t('progress.family.team.description'), 'popular' => ['futebol','futsal','volei','basquete','handebol','volei-de-praia','futebol-society']],
+        'combat' => ['label' => stridebr_t('progress.family.combat.label'), 'description' => stridebr_t('progress.family.combat.description'), 'popular' => ['jiu-jitsu','boxe','muay-thai','judo','karate','taekwondo','mma','capoeira']],
+        'movement' => ['label' => stridebr_t('progress.family.movement.label'), 'description' => stridebr_t('progress.family.movement.description'), 'popular' => ['yoga','pilates','mobilidade','alongamento','ginastica-artistica','parkour','ginastica-ritmica']],
+        'outdoor' => ['label' => stridebr_t('progress.family.outdoor.label'), 'description' => stridebr_t('progress.family.outdoor.description'), 'popular' => ['hiking','trekking','escalada','boulder','surfe','stand-up-paddle','skate','orientacao']],
+        'precision' => ['label' => stridebr_t('progress.family.precision.label'), 'description' => stridebr_t('progress.family.precision.description'), 'popular' => ['golfe','tiro-com-arco','boliche','sinuca','dardos','bocha']],
+        'winter' => ['label' => stridebr_t('progress.family.winter.label'), 'description' => stridebr_t('progress.family.winter.description'), 'popular' => ['esqui-alpino','snowboard','esqui-cross-country','patinacao-no-gelo','hoquei-no-gelo','curling']],
+        'dance' => ['label' => stridebr_t('progress.family.dance.label'), 'description' => stridebr_t('progress.family.dance.description'), 'popular' => ['zumba','forro','samba','danca-de-salao','hip-hop','ballet','salsa']],
+        'equestrian' => ['label' => stridebr_t('progress.family.equestrian.label'), 'description' => stridebr_t('progress.family.equestrian.description'), 'popular' => ['equitacao','hipismo-salto','adestramento-equestre','enduro-equestre','polo']],
+        'motorsport' => ['label' => stridebr_t('progress.family.motorsport.label'), 'description' => stridebr_t('progress.family.motorsport.description'), 'popular' => ['kart','automobilismo-de-pista','rally','motocross','enduro-de-moto']],
+        'other' => ['label' => stridebr_t('progress.family.other.label'), 'description' => stridebr_t('progress.family.other.description'), 'popular' => ['outra-atividade']],
     ];
 }
 

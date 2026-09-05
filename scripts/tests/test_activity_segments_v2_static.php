@@ -15,6 +15,7 @@ try {
     $model = $read('src/function/atividade_modelo.php');
     $presenter = $read('src/function/atividade_presenter.php');
     $panels = $read('src/layout/activity_model_panels.php');
+    $sharedPanel = $read('src/layout/activity_model_panel_shared.php');
     $helpers = $read('src/layout/activity_unit_helpers.php');
     $edit = $read('public/user/editatividade.php');
     $activitiesPage = $read('public/user/atividades.php');
@@ -34,15 +35,15 @@ try {
     $assert(str_contains($model, '$unitColumns = [\'idunidade_atividade\', \'idregistro\', \'ordem\'') && str_contains($model, '$unitColumns[] = \'idmodalidade\'') && str_contains($model, '$unitColumns[] = \'distancia_metros\'') && str_contains($model, '$unitColumns[] = \'duracao_segundos\'') && str_contains($model, '$unitColumns[] = \'elevacao_m\''), 'Trecho não persiste modalidade e métricas canônicas de forma compatível');
 
     $assert(str_contains($helpers, 'data-segment-distance') && str_contains($helpers, 'data-segment-duration') && str_contains($helpers, 'data-segment-elevation'), 'Editor não possui campos canônicos por trecho');
-    $assert(str_contains($panels, 'data-enable-segments') && str_contains($panels, 'data-close-segments') && str_contains($panels, 'data-primary-segment-core'), 'Criação não possui fluxo de ativar e fechar trechos');
-    $assert(str_contains($edit, 'data-enable-segments') && str_contains($edit, 'data-close-segments') && str_contains($edit, 'atividadeRenderizarMetricasCanonicasTrecho'), 'Edição não acompanha o fluxo de trechos');
+    $assert(str_contains($panels, 'activity_model_panel_shared.php') && str_contains($sharedPanel, 'data-enable-segments') && str_contains($sharedPanel, 'data-close-segments') && str_contains($sharedPanel, 'data-primary-segment-core'), 'Criação não possui fluxo de ativar e fechar trechos');
+    $assert(str_contains($edit, 'activity_model_panel_shared.php') && str_contains($sharedPanel, 'data-enable-segments') && str_contains($sharedPanel, 'data-close-segments') && str_contains($sharedPanel, 'atividadeRenderizarMetricasCanonicasTrecho'), 'Edição não acompanha o fluxo de trechos');
 
     $assert(str_contains($js, 'function setSegmentMode(panel, active') && str_contains($js, 'transferGeneralRouteToPrimary(panel)') && str_contains($js, 'transferPrimaryRouteToGeneral(panel)'), 'Frontend não converte atividade simples e sessão nos dois sentidos');
-    $assert(str_contains($js, "const segmentInput = context?.querySelector('[data-segment-distance]')") && str_contains($js, "segmentInput.dataset.routeAutoFilled = '1'"), 'Rota individual não preenche a distância canônica editável');
+    $assert(str_contains($js, "input = activeUnitContext.querySelector('[data-segment-distance]')") && str_contains($js, "input.dataset.routeAutoFilled = '1'"), 'Rota individual não preenche a distância canônica editável');
     $assert(str_contains($js, "distanceInput.dataset.routeAutoFilled = '0'"), 'Distância preenchida pela rota não respeita edição manual');
-    $assert(str_contains($js, "label.textContent = 'Resumo da sessão'") && str_contains($js, "summaryWrap.hidden = parts.length === 0"), 'Resumo somente leitura da sessão não acompanha os trechos');
+    $assert(str_contains($js, "label.textContent = tr('activity.session_summary')") && str_contains($js, "summaryWrap.hidden = parts.length === 0"), 'Resumo somente leitura da sessão não acompanha os trechos');
     $assert(str_contains($js, "remove.closest('[data-unit-index]')?.remove()") && !str_contains($js, "remove.closest('[data-unit-index]')?.remove(); setSegmentMode"), 'Remover o segundo trecho fecha o modo de sessão automaticamente');
-    $assert(str_contains($js, "shareMasterSwitch.dataset.shareScope = segmented ? 'summary' : 'activity'") && str_contains($js, "input.checked = input.value === (segmented ? 'segments' : 'activity')"), 'Compartilhamento não abre sessão inteira por padrão quando há trechos');
+    $assert(str_contains($js, "const scope = segmented ? SHARE_SCOPES.session : SHARE_SCOPES.activity") && str_contains($js, "shareMasterSwitch.dataset.shareScope = scope"), 'Compartilhamento não abre sessão inteira por padrão quando há trechos');
 
     $assert(str_contains($presenter, 'function atividadeTotaisCanonicosUnidades') && str_contains($presenter, "'distancia_m' => ") && str_contains($presenter, '$distanceCount > 0 ? $distanceM : null'), 'Presenter não agrega métricas canônicas parciais');
     $assert(str_contains($presenter, 'metricas_trechos AS') && str_contains($presenter, 'rp.usa_trechos AND COALESCE(st.distancia_m, 0) > 0'), 'Resumo semanal não considera métricas dos trechos');
@@ -52,7 +53,7 @@ try {
     $assert(str_contains($css, '.activity-segments-entry') && str_contains($css, '.activity-model-panel.is-segmented'), 'Trechos não possuem estado visual próprio');
 
     $assert(str_contains($activitiesPage, "'permitir_campos_vazios' => true"), 'Registro manual deve aceitar atividade parcial sem exigir todos os campos.');
-    $assert(str_contains($panels, "null, false") && substr_count($panels, ", false)") >= 4, 'Campos do registro manual continuam exigindo required no navegador.');
+    $assert(str_contains($panels, "'enforce_required' => false") && str_contains($sharedPanel, '$enforceRequired'), 'Campos do registro manual continuam exigindo required no navegador.');
     $assert(str_contains($css, '.activity-primary-unit-header[hidden]') && str_contains($css, '.activity-segments-workspace[hidden]'), 'Trecho 1 e workspace continuam visíveis quando o modo de trechos está fechado.');
     $assert(str_contains($js, "const openEditor = () =>") && str_contains($js, "loadEditorDetails(modelSelect?.value || '')"), 'Campos do registro não são pré-carregados antes da abertura do modal.');
     $assert(str_contains($model, '$allowPartialFields = !empty($payload[\'permitir_campos_vazios\'])') && str_contains($model, 'Mesmo sem o modo de trechos, mantenha as métricas canônicas da unidade'), 'Backend deve aceitar campos parciais e sincronizar métricas simples.');

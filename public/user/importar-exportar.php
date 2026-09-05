@@ -14,13 +14,13 @@ foreach ($catalogo as $modalidade) {
     if (empty($modalidade['modelos'])) continue;
     $modalidades[] = [
         'slug' => (string) $modalidade['slug'],
-        'name' => (string) $modalidade['nome'],
+        'name' => stridebr_sport_name((string) $modalidade['slug'], (string) $modalidade['nome']),
         'category' => (string) ($modalidade['categoria'] ?? ''),
     ];
 }
 $exchangeSchemaReady = (int) $pdo->query("SELECT CASE WHEN to_regclass('stridebr.atividade_importacoes') IS NULL THEN 0 ELSE 1 END")->fetchColumn() === 1;
 if ($exchangeSchemaReady) {
-    $recordsStmt = $pdo->prepare("SELECT ra.idregistro, ra.titulo, ra.data_inicio, m.nome AS modalidade_nome,
+    $recordsStmt = $pdo->prepare("SELECT ra.idregistro, ra.titulo, ra.data_inicio, m.nome AS modalidade_nome, m.slug AS modalidade_slug,
                                          EXISTS (SELECT 1 FROM stridebr.rotas_atividade rota WHERE rota.idregistro = ra.idregistro) AS rota_disponivel,
                                          ai.formato, ai.original_disponivel, ai.rota_importada_disponivel
                                   FROM stridebr.registros_atividade ra
@@ -41,7 +41,7 @@ if ($exchangeSchemaReady) {
                                   LIMIT 40");
     $recordsStmt->execute([':usuario' => $idUsuario, ':usuario_importacao' => $idUsuario]);
 } else {
-    $recordsStmt = $pdo->prepare("SELECT ra.idregistro, ra.titulo, ra.data_inicio, m.nome AS modalidade_nome,
+    $recordsStmt = $pdo->prepare("SELECT ra.idregistro, ra.titulo, ra.data_inicio, m.nome AS modalidade_nome, m.slug AS modalidade_slug,
                                          EXISTS (SELECT 1 FROM stridebr.rotas_atividade rota WHERE rota.idregistro = ra.idregistro) AS rota_disponivel,
                                          NULL::varchar AS formato, FALSE AS original_disponivel, FALSE AS rota_importada_disponivel
                                   FROM stridebr.registros_atividade ra
@@ -61,9 +61,10 @@ $registros = $recordsStmt->fetchAll();
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <link rel="icon" type="image/png" href="<?php echo stridebr_e(stridebr_asset('/assets/img/favicon/favicon.png')); ?>">
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/style.css')); ?>">
-    <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>">
+
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/activity-exchange.css')); ?>">
-    <title>Importar e exportar | StrideBR</title>
+    <title><?php echo stridebr_e(stridebr_t('exchange.page_title')); ?></title>
+    <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>">
 </head>
 <body>
 <div class="container-fluid">
@@ -71,32 +72,32 @@ $registros = $recordsStmt->fetchAll();
     <main class="main-content exchange-page" data-exchange-page data-csrf-token="<?php echo stridebr_e(stridebr_csrf_token()); ?>">
         <header class="exchange-heading">
             <div>
-                <a href="/user/atividades.php" class="exchange-back"><span aria-hidden="true">←</span><span>Atividades</span></a>
-                <h1>Importar e exportar</h1>
+                <a href="/user/atividades.php" class="exchange-back"><span aria-hidden="true">←</span><span><?php echo stridebr_e(stridebr_t('activity.summary.activities')); ?></span></a>
+                <h1><?php echo stridebr_e(stridebr_t('activity.import_export')); ?></h1>
             </div>
         </header>
 
         <section class="exchange-card exchange-import-card" id="importar">
             <div class="exchange-card-heading">
-                <div><h2>Importar atividades</h2></div>
+                <div><h2><?php echo stridebr_e(stridebr_t('exchange.import_activities')); ?></h2></div>
                 <div class="exchange-format-badges"><span>FIT</span><span>TCX</span><span>GPX</span></div>
             </div>
 
             <?php if (!$exchangeSchemaReady): ?>
-                <div class="exchange-system-warning">Importação temporariamente indisponível. A estrutura do banco precisa ser atualizada antes de usar FIT, TCX ou GPX.</div>
+                <div class="exchange-system-warning"><?php echo stridebr_e(stridebr_t('exchange.schema_unavailable')); ?></div>
             <?php endif; ?>
             <label class="exchange-dropzone<?php echo !$exchangeSchemaReady ? ' is-disabled' : ''; ?>" data-import-dropzone>
                 <input type="file" accept=".fit,.tcx,.gpx,application/gpx+xml,application/vnd.garmin.tcx+xml" multiple data-import-files<?php echo !$exchangeSchemaReady ? ' disabled' : ''; ?>>
                 <span class="exchange-drop-icon" aria-hidden="true">↑</span>
-                <strong>Escolher arquivos</strong>
-                <small>Até 10 por vez · 25 MB cada</small>
+                <strong><?php echo stridebr_e(stridebr_t('exchange.choose_files')); ?></strong>
+                <small><?php echo stridebr_e(stridebr_t('exchange.file_limits')); ?></small>
             </label>
             <div class="exchange-bulk-toolbar" data-import-bulk hidden>
-                <div><strong data-import-selected-count>0 selecionadas</strong><span>Importe ou feche várias prévias de uma vez.</span></div>
+                <div><strong data-import-selected-count><?php echo stridebr_e(stridebr_t('exchange.none_selected')); ?></strong><span><?php echo stridebr_e(stridebr_t('exchange.bulk_help')); ?></span></div>
                 <div class="exchange-bulk-actions">
-                    <button type="button" data-import-select-all>Selecionar todas</button>
-                    <button type="button" data-import-close-selected>Fechar selecionadas</button>
-                    <button type="button" class="is-primary" data-import-selected>Importar selecionadas</button>
+                    <button type="button" data-import-select-all><?php echo stridebr_e(stridebr_t('exchange.select_all')); ?></button>
+                    <button type="button" data-import-close-selected><?php echo stridebr_e(stridebr_t('exchange.close_selected')); ?></button>
+                    <button type="button" class="is-primary" data-import-selected><?php echo stridebr_e(stridebr_t('exchange.import_selected')); ?></button>
                 </div>
             </div>
             <div class="exchange-import-list" data-import-list></div>
@@ -104,10 +105,10 @@ $registros = $recordsStmt->fetchAll();
 
         <section class="exchange-card" id="exportar">
             <div class="exchange-card-heading">
-                <div><h2>Exportar atividades</h2></div>
+                <div><h2><?php echo stridebr_e(stridebr_t('exchange.export_activities')); ?></h2></div>
             </div>
             <?php if ($registros === []): ?>
-                <div class="exchange-empty"><strong>Nenhuma atividade para exportar.</strong><p>Registre uma atividade ou importe um arquivo esportivo para ela aparecer aqui.</p><div class="exchange-empty-actions"><a class="primary-button" href="/user/atividades.php?new=1">Registrar atividade</a><a class="secondary-button" href="#importar">Importar arquivo</a></div></div>
+                <div class="exchange-empty"><strong><?php echo stridebr_e(stridebr_t('exchange.no_export_activity')); ?></strong><p><?php echo stridebr_e(stridebr_t('exchange.no_export_activity_help')); ?></p><div class="exchange-empty-actions"><a class="primary-button" href="/user/atividades.php?new=1"><?php echo stridebr_e(stridebr_t('progress.log_activity')); ?></a><a class="secondary-button" href="#importar"><?php echo stridebr_e(stridebr_t('schedule.import_file')); ?></a></div></div>
             <?php else: ?>
                 <div class="exchange-export-list">
                     <?php foreach ($registros as $registro):
@@ -117,15 +118,15 @@ $registros = $recordsStmt->fetchAll();
                     ?>
                     <article class="exchange-export-row">
                         <div class="exchange-export-main">
-                            <strong><?php echo stridebr_e((string) ($registro['titulo'] ?: $registro['modalidade_nome'])); ?></strong>
-                            <span><?php echo stridebr_e((string) $registro['modalidade_nome']); ?> · <?php echo $date->format('d/m/Y · H:i'); ?></span>
+                            <strong data-user-content><?php echo stridebr_e((string) ($registro['titulo'] ?: stridebr_sport_name((string) ($registro['modalidade_slug'] ?? ''), (string) $registro['modalidade_nome']))); ?></strong>
+                            <span><?php echo stridebr_e(stridebr_sport_name((string) ($registro['modalidade_slug'] ?? ''), (string) $registro['modalidade_nome'])); ?> · <?php echo stridebr_e(stridebr_format_datetime_short($date)); ?></span>
                         </div>
                         <div class="exchange-export-actions">
                             <?php if ($hasRoute): ?><a href="/user/exportar-atividade.php?id=<?php echo rawurlencode($id); ?>&format=gpx">GPX</a><?php endif; ?>
                             <a href="/user/exportar-atividade.php?id=<?php echo rawurlencode($id); ?>&format=tcx">TCX</a>
                             <a href="/user/exportar-atividade.php?id=<?php echo rawurlencode($id); ?>&format=json">JSON</a>
                             <?php if (stridebr_db_bool($registro['original_disponivel'] ?? false)): ?>
-                                <a class="is-source" href="/user/exportar-atividade.php?id=<?php echo rawurlencode($id); ?>&format=original">Original <?php echo strtoupper(stridebr_e((string) ($registro['formato'] ?? ''))); ?></a>
+                                <a class="is-source" href="/user/exportar-atividade.php?id=<?php echo rawurlencode($id); ?>&format=original"><?php echo stridebr_e(stridebr_t('exchange.original')); ?> <?php echo strtoupper(stridebr_e((string) ($registro['formato'] ?? ''))); ?></a>
                             <?php endif; ?>
                         </div>
                     </article>

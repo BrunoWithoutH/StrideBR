@@ -23,7 +23,7 @@ function stridebr_integrations_registry(): array
         'garmin' => [
             'label' => 'Garmin Connect',
             'short' => 'Garmin',
-            'description' => 'Sincronize atividades e, quando habilitado pela Garmin, envie treinos e percursos para dispositivos compatíveis.',
+            'description' => (function_exists('stridebr_t') ? stridebr_t('integrations.provider.garmin.description') : 'Sincronize atividades e, quando habilitado pela Garmin, envie treinos e percursos para dispositivos compatíveis.'),
             'kind' => 'cloud',
             'oauth' => true,
             'implementation_ready' => false,
@@ -39,7 +39,7 @@ function stridebr_integrations_registry(): array
         'strava' => [
             'label' => 'Strava',
             'short' => 'Strava',
-            'description' => 'Importe suas atividades do Strava e mantenha a origem registrada no histórico.',
+            'description' => (function_exists('stridebr_t') ? stridebr_t('integrations.provider.strava.description') : 'Importe suas atividades do Strava e mantenha a origem registrada no histórico.'),
             'kind' => 'cloud',
             'oauth' => true,
             'client_id' => trim((string) (getenv('STRAVA_CLIENT_ID') ?: '')),
@@ -54,7 +54,7 @@ function stridebr_integrations_registry(): array
         'polar' => [
             'label' => 'Polar Flow',
             'short' => 'Polar',
-            'description' => 'Receba exercícios do Polar Flow, incluindo dados do dispositivo e rota quando disponíveis.',
+            'description' => (function_exists('stridebr_t') ? stridebr_t('integrations.provider.polar.description') : 'Receba exercícios do Polar Flow, incluindo dados do dispositivo e rota quando disponíveis.'),
             'kind' => 'cloud',
             'oauth' => true,
             'client_id' => trim((string) (getenv('POLAR_CLIENT_ID') ?: '')),
@@ -69,7 +69,7 @@ function stridebr_integrations_registry(): array
         'suunto' => [
             'label' => 'Suunto',
             'short' => 'Suunto',
-            'description' => 'Importe automaticamente os treinos da Suunto App pela Suunto Cloud API.',
+            'description' => (function_exists('stridebr_t') ? stridebr_t('integrations.provider.suunto.description') : 'Importe automaticamente os treinos da Suunto App pela Suunto Cloud API.'),
             'kind' => 'cloud',
             'oauth' => true,
             'client_id' => trim((string) (getenv('SUUNTO_CLIENT_ID') ?: '')),
@@ -86,7 +86,7 @@ function stridebr_integrations_registry(): array
         'fitbit' => [
             'label' => 'Fitbit',
             'short' => 'Fitbit',
-            'description' => 'Importe exercícios do Fitbit automaticamente, com rota e detalhes quando o registro disponibilizar TCX.',
+            'description' => (function_exists('stridebr_t') ? stridebr_t('integrations.provider.fitbit.description') : 'Importe exercícios do Fitbit automaticamente, com rota e detalhes quando o registro disponibilizar TCX.'),
             'kind' => 'cloud',
             'oauth' => true,
             'client_id' => trim((string) (getenv('FITBIT_CLIENT_ID') ?: '')),
@@ -101,7 +101,7 @@ function stridebr_integrations_registry(): array
         'health_connect' => [
             'label' => 'Health Connect',
             'short' => 'Health Connect',
-            'description' => 'Ponte do Android para exercícios gravados por Samsung Health e outros aplicativos compatíveis. Requer o app Android do StrideBR.',
+            'description' => (function_exists('stridebr_t') ? stridebr_t('integrations.provider.health_connect.description') : 'Ponte do Android para exercícios gravados por Samsung Health e outros aplicativos compatíveis. Requer o app Android do StrideBR.'),
             'kind' => 'mobile',
             'oauth' => false,
             'capabilities' => ['activities_in', 'health_in'],
@@ -110,7 +110,7 @@ function stridebr_integrations_registry(): array
         'samsung_health' => [
             'label' => 'Samsung Health',
             'short' => 'Samsung Health',
-            'description' => 'No Android, os exercícios do Galaxy Watch podem chegar ao StrideBR pelo Health Connect.',
+            'description' => (function_exists('stridebr_t') ? stridebr_t('integrations.provider.samsung_health.description') : 'No Android, os exercícios do Galaxy Watch podem chegar ao StrideBR pelo Health Connect.'),
             'kind' => 'bridge',
             'oauth' => false,
             'capabilities' => ['activities_in'],
@@ -119,7 +119,7 @@ function stridebr_integrations_registry(): array
         'apple_health' => [
             'label' => 'Apple Health',
             'short' => 'Apple Health',
-            'description' => 'Sincronização com Apple Watch e Saúde via HealthKit. Requer o app iOS do StrideBR.',
+            'description' => (function_exists('stridebr_t') ? stridebr_t('integrations.provider.apple_health.description') : 'Sincronização com Apple Watch e Saúde via HealthKit. Requer o app iOS do StrideBR.'),
             'kind' => 'mobile',
             'oauth' => false,
             'capabilities' => ['activities_in', 'health_in'],

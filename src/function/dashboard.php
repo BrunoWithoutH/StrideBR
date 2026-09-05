@@ -96,7 +96,7 @@ function dashboardNormalizarDataMeta(?string $value): ?string
     }
     $date = DateTimeImmutable::createFromFormat('!Y-m-d', $value, new DateTimeZone('America/Sao_Paulo'));
     if (!$date || $date->format('Y-m-d') !== $value) {
-        throw new InvalidArgumentException('Informe datas válidas para a meta.');
+        throw new InvalidArgumentException(stridebr_t('goals.error.invalid_dates'));
     }
     return $value;
 }
@@ -113,13 +113,13 @@ function dashboardValidarMeta(PDO $pdo, string $idUsuario, array $payload, ?stri
     $dataFim = dashboardNormalizarDataMeta($payload['data_fim'] ?? null);
 
     if (!in_array($metrica, dashboardMetricasMeta(), true)) {
-        throw new InvalidArgumentException('Escolha uma métrica válida.');
+        throw new InvalidArgumentException(stridebr_t('goals.error.invalid_metric'));
     }
     if (!in_array($periodo, dashboardPeriodosMeta(), true)) {
-        throw new InvalidArgumentException('Escolha um período válido.');
+        throw new InvalidArgumentException(stridebr_t('goals.error.invalid_period'));
     }
     if (!is_numeric($valorRaw) || (float) $valorRaw <= 0) {
-        throw new InvalidArgumentException('Informe um objetivo maior que zero.');
+        throw new InvalidArgumentException(stridebr_t('goals.error.target_positive'));
     }
 
     $valor = (float) $valorRaw;
@@ -132,29 +132,29 @@ function dashboardValidarMeta(PDO $pdo, string $idUsuario, array $payload, ?stri
         'carga_maxima' => 100000.0,
     ];
     if ($valor > $limites[$metrica]) {
-        throw new InvalidArgumentException('O valor da meta é maior do que o limite aceito.');
+        throw new InvalidArgumentException(stridebr_t('goals.error.target_too_large'));
     }
     if (in_array($metrica, ['atividades', 'dias_ativos'], true) && floor($valor) !== $valor) {
-        throw new InvalidArgumentException('Essa meta deve usar um número inteiro.');
+        throw new InvalidArgumentException(stridebr_t('goals.error.integer_required'));
     }
     if ($nome !== null && stridebr_length($nome) > 80) {
-        throw new InvalidArgumentException('O nome da meta é muito longo.');
+        throw new InvalidArgumentException(stridebr_t('goals.error.name_too_long'));
     }
 
     if ($periodo === 'personalizado') {
         if ($dataInicio === null || $dataFim === null) {
-            throw new InvalidArgumentException('Escolha quando a meta começa e até quando ela deve ser atingida.');
+            throw new InvalidArgumentException(stridebr_t('goals.error.custom_dates'));
         }
         if ($dataFim < $dataInicio) {
-            throw new InvalidArgumentException('A data final não pode vir antes da data inicial.');
+            throw new InvalidArgumentException(stridebr_t('goals.error.end_before_start'));
         }
         $inicio = new DateTimeImmutable($dataInicio);
         $fim = new DateTimeImmutable($dataFim);
         if ($inicio->diff($fim)->days > 3660) {
-            throw new InvalidArgumentException('O prazo pode ter no máximo 10 anos.');
+            throw new InvalidArgumentException(stridebr_t('goals.error.max_ten_years'));
         }
         if ($metrica === 'dias_ativos' && $valor > ((int) $inicio->diff($fim)->days + 1)) {
-            throw new InvalidArgumentException('A quantidade de dias ativos é maior que o prazo escolhido.');
+            throw new InvalidArgumentException(stridebr_t('goals.error.active_days_period'));
         }
     } elseif ($periodo === 'continuo') {
         $dataInicio ??= (new DateTimeImmutable('today', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d');
@@ -169,7 +169,7 @@ function dashboardValidarMeta(PDO $pdo, string $idUsuario, array $payload, ?stri
                 default => 366,
             };
             if ($valor > $maxDias) {
-                throw new InvalidArgumentException('A quantidade de dias ativos é maior que o período escolhido.');
+                throw new InvalidArgumentException(stridebr_t('goals.error.active_days_period'));
             }
         }
     }
@@ -180,17 +180,17 @@ function dashboardValidarMeta(PDO $pdo, string $idUsuario, array $payload, ?stri
         );
         $check->execute([':modalidade' => $idModalidade, ':usuario' => $idUsuario]);
         if (!$check->fetchColumn()) {
-            throw new InvalidArgumentException('Modalidade inválida para esta meta.');
+            throw new InvalidArgumentException(stridebr_t('goals.error.invalid_sport'));
         }
     }
 
     if ($metrica === 'carga_maxima') {
         if ($idExercicio === null) {
-            throw new InvalidArgumentException('Escolha o exercício da meta de carga.');
+            throw new InvalidArgumentException(stridebr_t('goals.error.choose_exercise'));
         }
         $checkExercise = $pdo->prepare('SELECT 1 FROM exercicios WHERE idexercicio = :exercicio AND ativo = TRUE AND (idusuario IS NULL OR idusuario = :usuario)');
         $checkExercise->execute([':exercicio' => $idExercicio, ':usuario' => $idUsuario]);
-        if (!$checkExercise->fetchColumn()) throw new InvalidArgumentException('Exercício inválido para esta meta.');
+        if (!$checkExercise->fetchColumn()) throw new InvalidArgumentException(stridebr_t('goals.error.invalid_exercise'));
     } else {
         $idExercicio = null;
     }
@@ -199,7 +199,7 @@ function dashboardValidarMeta(PDO $pdo, string $idUsuario, array $payload, ?stri
         $check = $pdo->prepare('SELECT 1 FROM metas_usuario WHERE idmeta = :meta AND idusuario = :usuario LIMIT 1');
         $check->execute([':meta' => $idMeta, ':usuario' => $idUsuario]);
         if (!$check->fetchColumn()) {
-            throw new InvalidArgumentException('Meta não encontrada.');
+            throw new InvalidArgumentException(stridebr_t('goals.error.not_found'));
         }
     }
 
@@ -218,14 +218,14 @@ function dashboardValidarMeta(PDO $pdo, string $idUsuario, array $payload, ?stri
 function dashboardCriarMeta(PDO $pdo, string $idUsuario, array $payload): void
 {
     if (!dashboardMetasDisponiveis($pdo)) {
-        throw new RuntimeException('A migration de metas ainda não foi aplicada.');
+        throw new RuntimeException(stridebr_t('goals.error.migration_missing'));
     }
 
     $dados = dashboardValidarMeta($pdo, $idUsuario, $payload);
     $count = $pdo->prepare('SELECT COUNT(*) FROM metas_usuario WHERE idusuario = :usuario AND ativa = TRUE');
     $count->execute([':usuario' => $idUsuario]);
     if ((int) $count->fetchColumn() >= 12) {
-        throw new InvalidArgumentException('Você pode manter até 12 metas ativas ao mesmo tempo.');
+        throw new InvalidArgumentException(stridebr_t('goals.error.max_active'));
     }
 
     $stmt = $pdo->prepare(
@@ -249,7 +249,7 @@ function dashboardCriarMeta(PDO $pdo, string $idUsuario, array $payload): void
 function dashboardEditarMeta(PDO $pdo, string $idUsuario, string $idMeta, array $payload): void
 {
     if (!dashboardMetasDisponiveis($pdo)) {
-        throw new RuntimeException('A migration de metas ainda não foi aplicada.');
+        throw new RuntimeException(stridebr_t('goals.error.migration_missing'));
     }
     $dados = dashboardValidarMeta($pdo, $idUsuario, $payload, $idMeta);
     $stmt = $pdo->prepare(
@@ -564,12 +564,7 @@ function dashboardFormatarDuracao(float $segundos): string
 
 function dashboardFormatarNumero(float $valor, int $casas = 1): string
 {
-    $casas = max(0, $casas);
-    $formatado = number_format($valor, $casas, ',', '.');
-    if ($casas === 0) {
-        return $formatado;
-    }
-    return rtrim(rtrim($formatado, '0'), ',');
+    return stridebr_format_number($valor, max(0, $casas), true);
 }
 
 function dashboardMetaUnidade(string $metrica): string
@@ -578,33 +573,33 @@ function dashboardMetaUnidade(string $metrica): string
         'distancia' => 'km',
         'duracao' => 'min',
         'elevacao' => 'm',
-        'dias_ativos' => 'dias',
+        'dias_ativos' => stridebr_t('home.unit_days'),
         'carga_maxima' => 'kg',
-        default => 'atividades',
+        default => stridebr_t('home.unit_activities'),
     };
 }
 
 function dashboardMetaMetrica(string $metrica): string
 {
-    return match ($metrica) {
-        'distancia' => 'Distância',
-        'duracao' => 'Tempo',
-        'elevacao' => 'Elevação',
-        'dias_ativos' => 'Dias ativos',
-        'carga_maxima' => 'Carga máxima',
-        default => 'Atividades físicas',
-    };
+    return stridebr_t(match ($metrica) {
+        'distancia' => 'home.metric_distance',
+        'duracao' => 'home.metric_duration',
+        'elevacao' => 'home.metric_elevation',
+        'dias_ativos' => 'home.metric_active_days',
+        'carga_maxima' => 'home.metric_max_load',
+        default => 'home.metric_activities',
+    });
 }
 
 function dashboardMetaPeriodo(string $periodo): string
 {
-    return match ($periodo) {
-        'mensal' => 'mês',
-        'anual' => 'ano',
-        'personalizado' => 'até uma data',
-        'continuo' => 'sem prazo',
-        default => 'semana',
-    };
+    return stridebr_t(match ($periodo) {
+        'mensal' => 'home.period_month',
+        'anual' => 'home.period_year',
+        'personalizado' => 'home.period_until_date',
+        'continuo' => 'home.period_no_deadline',
+        default => 'home.period_week',
+    });
 }
 
 function dashboardMetaTitulo(array $meta): string
@@ -613,8 +608,9 @@ function dashboardMetaTitulo(array $meta): string
     if ($nome !== '') {
         return $nome;
     }
-    if (($meta['metrica'] ?? '') === 'carga_maxima' && !empty($meta['exercicio_nome'])) return (string) $meta['exercicio_nome'] . ' · carga máxima';
-    return (($meta['modalidade_nome'] ?? null) ?: 'Todos os esportes') . ' · ' . dashboardMetaMetrica((string) ($meta['metrica'] ?? 'atividades'));
+    if (($meta['metrica'] ?? '') === 'carga_maxima' && !empty($meta['exercicio_nome'])) return (string) $meta['exercicio_nome'] . ' · ' . stridebr_t('home.metric_max_load');
+    $sport = !empty($meta['modalidade_slug']) ? stridebr_sport_name((string) $meta['modalidade_slug'], (string) ($meta['modalidade_nome'] ?? '')) : stridebr_t('home.all_sports');
+    return $sport . ' · ' . dashboardMetaMetrica((string) ($meta['metrica'] ?? 'atividades'));
 }
 
 function dashboardMetaPrazoLabel(array $meta): string
@@ -622,16 +618,16 @@ function dashboardMetaPrazoLabel(array $meta): string
     if (($meta['periodo'] ?? '') === 'personalizado' && !empty($meta['data_inicio']) && !empty($meta['data_fim'])) {
         $inicio = new DateTimeImmutable((string) $meta['data_inicio']);
         $fim = new DateTimeImmutable((string) $meta['data_fim']);
-        return $inicio->format('d/m') . ' – ' . $fim->format('d/m/Y');
+        return stridebr_format_date_short($inicio) . ' – ' . stridebr_format_date_short($fim);
     }
     if (($meta['periodo'] ?? '') === 'continuo') {
         if (!empty($meta['concluida_em'])) {
-            return 'Concluída em ' . (new DateTimeImmutable((string) $meta['concluida_em']))->format('d/m/Y');
+            return stridebr_t('home.goal_completed_on', ['date' => stridebr_format_date_short(new DateTimeImmutable((string) $meta['concluida_em']))]);
         }
         if (!empty($meta['data_inicio'])) {
-            return 'Sem prazo · desde ' . (new DateTimeImmutable((string) $meta['data_inicio']))->format('d/m/Y');
+            return stridebr_t('home.no_deadline_since', ['date' => stridebr_format_date_short(new DateTimeImmutable((string) $meta['data_inicio']))]);
         }
-        return 'Sem prazo';
+        return stridebr_t('home.no_deadline_short');
     }
     return dashboardMetaPeriodo((string) ($meta['periodo'] ?? 'semanal'));
 }
@@ -670,7 +666,7 @@ function dashboardVisaoAtividades(PDO $pdo, string $idUsuario): array
         $row = $rows[$key] ?? [];
         $dias[] = [
             'data' => $key,
-            'rotulo' => ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'][(int) $date->format('w')],
+            'rotulo' => stridebr_weekday_short($date),
             'atividades' => (int) ($row['atividades'] ?? 0),
             'duracao_s' => (float) ($row['duracao_s'] ?? 0),
             'hoje' => $key === $today->format('Y-m-d'),
@@ -743,7 +739,7 @@ function dashboardAtividadesSemana(PDO $pdo, string $idUsuario): array
         $row = $rows[$key] ?? [];
         $dias[] = [
             'data' => $key,
-            'rotulo' => ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'][(int) $date->format('w')],
+            'rotulo' => stridebr_weekday_short($date),
             'atividades' => (int) ($row['atividades'] ?? 0),
             'duracao_s' => (float) ($row['duracao_s'] ?? 0),
             'hoje' => $key === $today->format('Y-m-d'),

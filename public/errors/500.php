@@ -11,6 +11,8 @@ http_response_code(500);
 <meta name="theme-color" content="#171a1e">
 <title>500 · Erro interno | StrideBR</title>
 <link rel="icon" type="image/png" href="/assets/img/favicon/favicon.png">
+<link rel="stylesheet" href="/assets/css/style.css">
+<link rel="stylesheet" href="/assets/css/ui-refresh.css">
 <link rel="stylesheet" href="/assets/css/errors.css">
 </head>
 <body>
