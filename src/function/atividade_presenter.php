@@ -5,7 +5,7 @@ declare(strict_types=1);
 function atividadeCardFormatarValor(array $campo, mixed $valor): string
 {
     if ($valor === null || $valor === '') return '';
-    if (($campo['tipo_campo'] ?? '') === 'booleano') return stridebr_db_bool($valor) ? 'Sim' : 'Não';
+    if (($campo['tipo_campo'] ?? '') === 'booleano') return stridebr_db_bool($valor) ? stridebr_t('common.yes') : stridebr_t('common.no');
     if (($campo['tipo_campo'] ?? '') === 'selecao') {
         foreach ($campo['opcoes'] ?? [] as $opcao) {
             if ((string) $opcao['idopcao'] === (string) $valor) return (string) $opcao['rotulo'];
@@ -13,7 +13,7 @@ function atividadeCardFormatarValor(array $campo, mixed $valor): string
     }
     if (($campo['tipo_campo'] ?? '') === 'intervalo') return atividadeFormatarIntervalo($valor);
     $texto = (string) $valor;
-    if (($campo['tipo_campo'] ?? '') === 'decimal' && is_numeric($texto)) $texto = rtrim(rtrim(number_format((float) $texto, 3, ',', '.'), '0'), ',');
+    if (($campo['tipo_campo'] ?? '') === 'decimal' && is_numeric($texto)) $texto = stridebr_format_number((float) $texto, 3, true);
     $unidade = trim((string) ($campo['unidade_simbolo'] ?? ''));
     return $unidade !== '' ? $texto . ' ' . $unidade : $texto;
 }
@@ -32,7 +32,7 @@ function atividadeTotaisCanonicosUnidades(array $detalhes): array
         if (in_array($slug, ['distancia', 'duracao', 'elevacao', 'desnivel'], true) && !isset($canonicalFields[$slug])) $canonicalFields[$slug] = $campo;
     }
     $distanceM = 0.0;
-    $durationS = 0;
+    $durationS = 0.0;
     $elevationM = 0.0;
     $distanceCount = 0;
     $durationCount = 0;
@@ -47,7 +47,7 @@ function atividadeTotaisCanonicosUnidades(array $detalhes): array
             $distanceFound = true;
         }
         if (is_numeric($unit['duracao_segundos'] ?? null)) {
-            $durationS += max(0, (int) $unit['duracao_segundos']);
+            $durationS += max(0.0, (float) $unit['duracao_segundos']);
             $durationCount++;
         }
         if (is_numeric($unit['elevacao_m'] ?? null)) {
@@ -64,9 +64,9 @@ function atividadeTotaisCanonicosUnidades(array $detalhes): array
                 $distanceM += $unitSymbol === 'm' ? $numeric : $numeric * 1000;
                 $distanceFound = true;
             } elseif ($slug === 'duracao' && !is_numeric($unit['duracao_segundos'] ?? null)) {
-                $texto = atividadeFormatarIntervalo($valor);
-                if (preg_match('/^(\d+):([0-5]\d):([0-5]\d)$/', $texto, $partes)) {
-                    $durationS += ((int) $partes[1] * 3600) + ((int) $partes[2] * 60) + (int) $partes[3];
+                $seconds = atividadeIntervaloParaSegundos(atividadeFormatarIntervalo($valor));
+                if ($seconds !== null) {
+                    $durationS += $seconds;
                     $durationCount++;
                 }
             } elseif (in_array($slug, ['elevacao', 'desnivel'], true) && !$elevationFound && is_numeric($valor)) {
@@ -117,8 +117,7 @@ function atividadeCardTotaisUnidades(array $detalhes): array
             $unitSymbol = stridebr_lower(trim((string) ($campo['unidade_simbolo'] ?? 'km')));
             $totals[$idCampo] = $unitSymbol === 'm' ? $canonical['distancia_m'] : $canonical['distancia_m'] / 1000;
         } elseif ($slug === 'duracao' && $canonical['duracao_s'] !== null) {
-            $seconds = max(0, (int) $canonical['duracao_s']);
-            $totals[$idCampo] = sprintf('%02d:%02d:%02d', intdiv($seconds, 3600), intdiv($seconds % 3600, 60), $seconds % 60);
+            $totals[$idCampo] = atividadeSegundosParaIntervalo(max(0.0, (float) $canonical['duracao_s']));
         } elseif (in_array($slug, ['elevacao', 'desnivel'], true) && $canonical['elevacao_m'] !== null) {
             $unitSymbol = stridebr_lower(trim((string) ($campo['unidade_simbolo'] ?? 'm')));
             $totals[$idCampo] = $unitSymbol === 'km' ? $canonical['elevacao_m'] / 1000 : $canonical['elevacao_m'];
@@ -158,10 +157,7 @@ function atividadeCardMetricaDerivada(array $detalhes): ?array
                 $distancia = (float) $valor;
                 $distanciaUnidade = trim((string) ($campo['unidade_simbolo'] ?? 'km')) ?: 'km';
             }
-            if ($slug === 'duracao') {
-                $texto = atividadeFormatarIntervalo($valor);
-                if (preg_match('/^(\d+):([0-5]\d):([0-5]\d)$/', $texto, $partes)) $duracaoSegundos = ((int) $partes[1] * 3600) + ((int) $partes[2] * 60) + (int) $partes[3];
-            }
+            if ($slug === 'duracao') $duracaoSegundos = atividadeIntervaloParaSegundos(atividadeFormatarIntervalo($valor));
         }
         if (!$distancia || !$duracaoSegundos) return null;
         $metros = $distanciaUnidade === 'm' ? $distancia : $distancia * 1000;
@@ -173,10 +169,10 @@ function atividadeCardMetricaDerivada(array $detalhes): ?array
         return intdiv($total, 60) . ':' . str_pad((string) ($total % 60), 2, '0', STR_PAD_LEFT);
     };
     return match ($tipo) {
-        'pace_km' => ['rotulo' => 'Ritmo', 'valor' => $formatarPace($duracaoSegundos / $km) . '/km', 'prioridade' => 2],
-        'velocidade_kmh' => ['rotulo' => 'Velocidade', 'valor' => number_format($km / ($duracaoSegundos / 3600), 1, ',', '.') . ' km/h', 'prioridade' => 2],
-        'pace_100m' => ['rotulo' => 'Ritmo', 'valor' => $formatarPace($duracaoSegundos / ($metros / 100)) . '/100 m', 'prioridade' => 2],
-        'split_500m' => ['rotulo' => 'Split', 'valor' => $formatarPace($duracaoSegundos / ($metros / 500)) . '/500 m', 'prioridade' => 2],
+        'pace_km' => ['rotulo' => stridebr_t('activity.pace'), 'valor' => $formatarPace($duracaoSegundos / $km) . '/km', 'prioridade' => 2],
+        'velocidade_kmh' => ['rotulo' => stridebr_t('activity.speed'), 'valor' => stridebr_format_number($km / ($duracaoSegundos / 3600), 1) . ' km/h', 'prioridade' => 2],
+        'pace_100m' => ['rotulo' => stridebr_t('activity.pace'), 'valor' => $formatarPace($duracaoSegundos / ($metros / 100)) . '/100 m', 'prioridade' => 2],
+        'split_500m' => ['rotulo' => stridebr_t('activity.split'), 'valor' => $formatarPace($duracaoSegundos / ($metros / 500)) . '/500 m', 'prioridade' => 2],
         default => null,
     };
 }
@@ -202,8 +198,8 @@ function atividadeCardMetricas(array $detalhes, int $limite = 4): array
             if ($codigo === '') $codigo = trim((string) ($partes[1] ?? ''));
             if ($foco === '') $foco = trim((string) ($partes[2] ?? ''));
         }
-        if (!$hasCodeValue && $codigo !== '') $candidatos[] = ['rotulo' => 'Código', 'valor' => $codigo, 'prioridade' => -20, 'ordem' => 0];
-        if (!$hasFocusValue && $foco !== '') $candidatos[] = ['rotulo' => 'Foco', 'valor' => $foco, 'prioridade' => -19, 'ordem' => 0];
+        if (!$hasCodeValue && $codigo !== '') $candidatos[] = ['rotulo' => stridebr_t('activity.code'), 'valor' => $codigo, 'prioridade' => -20, 'ordem' => 0];
+        if (!$hasFocusValue && $foco !== '') $candidatos[] = ['rotulo' => stridebr_t('activity.focus'), 'valor' => $foco, 'prioridade' => -19, 'ordem' => 0];
     }
     $adicionar = static function (string $idCampo, mixed $valor) use (&$candidatos, $camposPorId, $strength): void {
         $campo = $camposPorId[$idCampo] ?? null;
@@ -217,7 +213,7 @@ function atividadeCardMetricas(array $detalhes, int $limite = 4): array
         elseif ($strength && (str_contains($chave, 'foco_muscular') || str_contains($chave, 'foco muscular'))) $prioridade = -17;
         $grupos = [0 => ['distancia', 'distância'], 1 => ['duracao', 'duração', 'tempo'], 2 => ['ritmo', 'pace', 'velocidade'], 3 => ['elevacao', 'elevação', 'desnivel', 'desnível'], 4 => ['series', 'séries', 'sets'], 5 => ['repeticoes', 'repetições', 'reps'], 6 => ['carga', 'peso']];
         if ($prioridade >= 0) foreach ($grupos as $rank => $termos) foreach ($termos as $termo) if (str_contains($chave, $termo)) { $prioridade = $rank; break 2; }
-        $candidatos[] = ['rotulo' => (string) $campo['rotulo'], 'valor' => $texto, 'prioridade' => $prioridade, 'ordem' => (int) ($campo['ordem'] ?? 999)];
+        $candidatos[] = ['rotulo' => stridebr_activity_field_label((string) ($campo['slug'] ?? ''), (string) ($campo['rotulo'] ?? '')), 'valor' => $texto, 'prioridade' => $prioridade, 'ordem' => (int) ($campo['ordem'] ?? 999)];
     };
     foreach ($detalhes['record_values'] ?? [] as $idCampo => $valor) $adicionar((string) $idCampo, $valor);
     $totaisUnidades = atividadeCardTotaisUnidades($detalhes);
@@ -241,7 +237,7 @@ function atividadeCardMetricas(array $detalhes, int $limite = 4): array
             $endedAt = new DateTimeImmutable((string) $detalhes['data_fim']);
             $seconds = max(0, $endedAt->getTimestamp() - $startedAt->getTimestamp());
             if ($seconds > 0) {
-                $candidatos[] = ['rotulo' => 'Duração', 'valor' => sprintf('%02d:%02d:%02d', intdiv($seconds, 3600), intdiv($seconds % 3600, 60), $seconds % 60), 'prioridade' => 1, 'ordem' => 0];
+                $candidatos[] = ['rotulo' => stridebr_t('activity.duration'), 'valor' => stridebr_format_sport_duration((float) $seconds, true), 'prioridade' => 1, 'ordem' => 0];
             }
         } catch (Throwable) {}
     }
@@ -250,9 +246,9 @@ function atividadeCardMetricas(array $detalhes, int $limite = 4): array
     $externalCalories = is_numeric($detalhes['calorias_externas'] ?? null) ? (float) $detalhes['calorias_externas'] : null;
     $estimatedCalories = is_numeric($detalhes['calorias_ativas_estimadas'] ?? null) ? (float) $detalhes['calorias_ativas_estimadas'] : null;
     if ($externalCalories !== null && $externalCalories > 0) {
-        $candidatos[] = ['rotulo' => 'Calorias', 'valor' => number_format($externalCalories, 0, ',', '.') . ' kcal', 'prioridade' => 20, 'ordem' => 0];
+        $candidatos[] = ['rotulo' => stridebr_t('activity.calories'), 'valor' => stridebr_format_number($externalCalories, 0) . ' kcal', 'prioridade' => 20, 'ordem' => 0];
     } elseif ($estimatedCalories !== null && $estimatedCalories > 0) {
-        $candidatos[] = ['rotulo' => 'Calorias', 'valor' => '~' . number_format($estimatedCalories, 0, ',', '.') . ' kcal', 'prioridade' => 20, 'ordem' => 0];
+        $candidatos[] = ['rotulo' => stridebr_t('activity.calories'), 'valor' => '~' . stridebr_format_number($estimatedCalories, 0) . ' kcal', 'prioridade' => 20, 'ordem' => 0];
     }
     usort($candidatos, static fn(array $a, array $b): int => [$a['prioridade'], $a['ordem']] <=> [$b['prioridade'], $b['ordem']]);
     $unicos = [];
@@ -280,8 +276,7 @@ function atividadeCampoOrdemVisual(array $campo): int
 
 function atividadeMesAbreviado(DateTimeInterface $data): string
 {
-    $meses = [1 => 'JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
-    return $meses[(int) $data->format('n')] ?? '';
+    return strtoupper(stridebr_month_short($data));
 }
 
 function atividadeHistoricoMetricaKind(string $label): string
@@ -469,7 +464,7 @@ function atividadeListarRegistrosPagina(PDO $pdo, string $idUsuario, int $limite
             'id' => (string) $row['idregistro'], 'titulo' => (string) ($row['titulo'] ?: $row['modalidade_nome']),
             'modalidade' => (string) $row['modalidade_nome'], 'modalidade_slug' => (string) $row['modalidade_slug'],
             'icone_html' => function_exists('stridebr_sport_icon_html') ? stridebr_sport_icon_html((string) $row['modalidade_slug']) : '',
-            'data_iso' => $date->format(DATE_ATOM), 'data' => $date->format('d/m/Y'), 'dia' => $date->format('d'), 'mes' => atividadeMesAbreviado($date), 'hora' => $date->format('H:i'),
+            'data_iso' => $date->format(DATE_ATOM), 'data' => stridebr_format_date($date), 'dia' => $date->format('d'), 'mes' => atividadeMesAbreviado($date), 'hora' => $date->format('H:i'),
             'metricas' => atividadeCardMetricas($detail), 'esforco' => $row['esforco_percebido'] !== null ? (int) $row['esforco_percebido'] : null,
         ];
     }
@@ -588,7 +583,7 @@ function atividadeDetalheApi(PDO $pdo, string $idRegistro, string $idUsuario): a
             if (!$campo) continue;
             $formatted = atividadeCardFormatarValor($campo, $valor);
             if ($formatted === '') continue;
-            $out[] = ['rotulo' => (string) $campo['rotulo'], 'valor' => $formatted];
+            $out[] = ['rotulo' => stridebr_activity_field_label((string) ($campo['slug'] ?? ''), (string) ($campo['rotulo'] ?? '')), 'valor' => $formatted];
         }
         return $out;
     };
@@ -629,8 +624,7 @@ function atividadeDetalheApi(PDO $pdo, string $idRegistro, string $idUsuario): a
                 $meters = is_numeric($unit['distancia_metros'] ?? null) ? (float) $unit['distancia_metros'] : (($unitRoute['distancia_m'] ?? 0) > 0 ? (float) $unitRoute['distancia_m'] : null);
                 if ($meters !== null) $unitValuesForShare[$idCampo] = (($campo['unidade_simbolo'] ?? 'm') === 'km') ? $meters / 1000 : $meters;
             } elseif ($slug === 'duracao' && is_numeric($unit['duracao_segundos'] ?? null)) {
-                $seconds = max(0, (int) $unit['duracao_segundos']);
-                $unitValuesForShare[$idCampo] = sprintf('%02d:%02d:%02d', intdiv($seconds, 3600), intdiv($seconds % 3600, 60), $seconds % 60);
+                $unitValuesForShare[$idCampo] = atividadeSegundosParaIntervalo(max(0.0, (float) $unit['duracao_segundos']));
             } elseif (in_array($slug, ['elevacao', 'desnivel'], true)) {
                 $meters = is_numeric($unit['elevacao_m'] ?? null) ? (float) $unit['elevacao_m'] : (is_numeric($unitRoute['ganho_m'] ?? null) ? (float) $unitRoute['ganho_m'] : null);
                 if ($meters !== null) $unitValuesForShare[$idCampo] = (($campo['unidade_simbolo'] ?? 'm') === 'km') ? $meters / 1000 : $meters;
@@ -650,7 +644,7 @@ function atividadeDetalheApi(PDO $pdo, string $idRegistro, string $idUsuario): a
             'modalidade_icone' => function_exists('stridebr_sport_icon_id') ? stridebr_sport_icon_id($unitSlug) : 'track_and_field',
             'metrica_derivada' => (string) ($unit['modalidade_metrica_derivada'] ?? $registro['metrica_derivada'] ?? 'nenhuma'),
             'distancia_metros' => is_numeric($unit['distancia_metros'] ?? null) ? (float) $unit['distancia_metros'] : (is_numeric($unitRoute['distancia_m'] ?? null) ? (float) $unitRoute['distancia_m'] : null),
-            'duracao_segundos' => is_numeric($unit['duracao_segundos'] ?? null) ? (int) $unit['duracao_segundos'] : null,
+            'duracao_segundos' => is_numeric($unit['duracao_segundos'] ?? null) ? round((float) $unit['duracao_segundos'], 3) : null,
             'elevacao_m' => is_numeric($unit['elevacao_m'] ?? null) ? (float) $unit['elevacao_m'] : (is_numeric($unitRoute['ganho_m'] ?? null) ? (float) $unitRoute['ganho_m'] : null),
             'valores' => $formatValues($unitValuesForShare),
             'metricas_compartilhamento' => $unitMetrics,
@@ -686,7 +680,7 @@ function atividadeDetalheApi(PDO $pdo, string $idRegistro, string $idUsuario): a
             $gpsWeb = [
                 'distancia_medida_m' => $gpsRow['distancia_medida_m'] !== null ? (float) $gpsRow['distancia_medida_m'] : null,
                 'distancia_final_m' => $gpsRow['distancia_final_m'] !== null ? (float) $gpsRow['distancia_final_m'] : null,
-                'duracao_s' => (int) ($gpsRow['duracao_s'] ?? 0),
+                'duracao_s' => round((float) ($gpsRow['duracao_s'] ?? 0), 3),
                 'pontos_recebidos' => (int) ($gpsRow['pontos_recebidos'] ?? 0),
                 'pontos_aceitos' => (int) ($gpsRow['pontos_aceitos'] ?? 0),
                 'pontos_rejeitados' => (int) ($gpsRow['pontos_rejeitados'] ?? 0),
@@ -756,7 +750,7 @@ function atividadeDetalheApi(PDO $pdo, string $idRegistro, string $idUsuario): a
     $date = new DateTimeImmutable((string) $registro['data_inicio']);
     $registro['modalidade_slug'] = $registro['modalidade_slug'] ?? '';
     $shareMetrics = atividadeCardMetricas($registro, 12);
-    if (!empty($registro['esforco_percebido'])) $shareMetrics[] = ['rotulo' => 'Esforço', 'valor' => (int) $registro['esforco_percebido'] . '/10'];
+    if (!empty($registro['esforco_percebido'])) $shareMetrics[] = ['rotulo' => stridebr_t('activity.perceived_effort'), 'valor' => (int) $registro['esforco_percebido'] . '/10'];
     $externalCalories = is_numeric($registro['calorias_externas'] ?? null) ? (float) $registro['calorias_externas'] : null;
     $estimatedCalories = is_numeric($registro['calorias_ativas_estimadas'] ?? null) ? (float) $registro['calorias_ativas_estimadas'] : null;
     $energy = null;
@@ -771,10 +765,10 @@ function atividadeDetalheApi(PDO $pdo, string $idRegistro, string $idUsuario): a
             'health_connect' => 'Health Connect',
             'samsung_health' => 'Samsung Health',
             'apple_health' => 'Apple Health',
-            'fit' => 'arquivo FIT',
-            'gpx' => 'arquivo GPX',
-            'tcx' => 'arquivo TCX',
-            default => $rawEnergySource !== '' ? $rawEnergySource : 'origem da atividade',
+            'fit' => stridebr_t('activity.energy_source.fit'),
+            'gpx' => stridebr_t('activity.energy_source.gpx'),
+            'tcx' => stridebr_t('activity.energy_source.tcx'),
+            default => $rawEnergySource !== '' ? $rawEnergySource : stridebr_t('activity.energy_source.default'),
         };
         $energy = [
             'kcal' => round($externalCalories, 1),
@@ -795,8 +789,8 @@ function atividadeDetalheApi(PDO $pdo, string $idRegistro, string $idUsuario): a
         ];
     }
     return [
-        'id' => $idRegistro, 'titulo' => (string) ($registro['titulo'] ?: $registro['modalidade_nome']), 'modalidade' => (string) $registro['modalidade_nome'], 'modalidade_slug' => (string) $registro['modalidade_slug'], 'modalidade_icone' => function_exists('stridebr_sport_icon_id') ? stridebr_sport_icon_id((string) $registro['modalidade_slug']) : 'track_and_field', 'origem' => (string) ($registro['origem'] ?? ''),
-        'data' => $date->format('d/m/Y'), 'hora' => $date->format('H:i'), 'visibilidade' => (string) $registro['visibilidade'], 'esforco' => $registro['esforco_percebido'] !== null ? (int) $registro['esforco_percebido'] : null,
+        'id' => $idRegistro, 'titulo' => stridebr_present_activity_title((string) ($registro['titulo'] ?: $registro['modalidade_nome']), (string) $registro['modalidade_slug']), 'modalidade' => stridebr_sport_name((string) $registro['modalidade_slug'], (string) $registro['modalidade_nome']), 'modalidade_slug' => (string) $registro['modalidade_slug'], 'modalidade_icone' => function_exists('stridebr_sport_icon_id') ? stridebr_sport_icon_id((string) $registro['modalidade_slug']) : 'track_and_field', 'origem' => (string) ($registro['origem'] ?? ''),
+        'data' => stridebr_format_date($date), 'hora' => $date->format('H:i'), 'visibilidade' => (string) $registro['visibilidade'], 'esforco' => $registro['esforco_percebido'] !== null ? (int) $registro['esforco_percebido'] : null,
         'observacoes' => (string) ($registro['observacoes'] ?? ''), 'usa_trechos' => !empty($registro['usa_trechos']), 'metricas' => atividadeCardMetricas($registro), 'metricas_compartilhamento' => $shareMetrics, 'energia' => $energy,
         'dados' => $formatValues($registro['record_values'] ?? []), 'unidades' => $units, 'equipamentos' => array_map(static fn(array $e): array => ['id' => (string) $e['idequipamento'], 'nome' => (string) $e['nome']], $registro['equipamentos'] ?? []),
         'treino' => (!empty($registro['treino_codigo']) || !empty($registro['treino_foco']) || !empty($registro['treino_titulo'])) ? [

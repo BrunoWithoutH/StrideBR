@@ -3,6 +3,11 @@
     if (!root) return
 
     const $ = selector => root.querySelector(selector)
+    const t = (key, values = {}, fallback = null) => window.StrideBRI18n?.t?.(key, values, fallback) ?? fallback ?? key
+    const tn = (oneKey, otherKey, count, values = {}) => window.StrideBRI18n?.tn?.(oneKey, otherKey, count, values) ?? t(Number(count) === 1 ? oneKey : otherKey, {...values, count})
+    const formatNumber = (value, decimals = 0, trimZeros = false) => window.StrideBRI18n?.number?.(value, decimals, trimZeros) ?? Number(value || 0).toFixed(decimals)
+    const localizedSport = (slug, fallback = '') => window.StrideBRI18n?.sport?.(slug, fallback) ?? fallback
+    const localeDecimal = () => window.StrideBRI18n?.locale === 'en' ? '.' : ','
     const setup = $('[data-gps-setup]')
     const live = $('[data-gps-live]')
     const review = $('[data-gps-review]')
@@ -11,6 +16,8 @@
     const pauseButton = $('[data-gps-pause]')
     const lapButton = $('[data-gps-lap]')
     const finishButton = $('[data-gps-finish]')
+    const discardCurrentButton = $('[data-gps-discard-current]')
+    const discardReviewButton = $('[data-gps-discard-review]')
     const timeEl = $('[data-gps-time]')
     const distanceEl = $('[data-gps-distance]')
     const paceEl = $('[data-gps-pace]')
@@ -36,7 +43,11 @@
     const goalUnit = $('[data-gps-goal-unit]')
     const autoStopWrap = $('[data-gps-autostop-wrap]')
     const autoStopInput = $('[data-gps-autostop]')
-    const wakeLockInput = $('[data-gps-wakelock]')
+    const wakeLockFallback = $('[data-gps-wakelock-fallback]')
+    const liveControls = $('[data-gps-live-controls]')
+    const lockButton = $('[data-gps-lock]')
+    const lockState = $('[data-gps-controls-lock-state]')
+    const unlockButton = $('[data-gps-unlock]')
     const saveForm = $('[data-gps-save-form]')
     const saveState = $('[data-gps-save-state]')
     const reviewTitle = $('[data-gps-review-title]')
@@ -64,7 +75,11 @@
     let watchId = null
     let tickId = null
     let persistTimer = 0
+    let persistChain = Promise.resolve()
     let wakeLock = null
+    let controlsLocked = false
+    let unlockHoldStartedAt = 0
+    let unlockHoldFrame = 0
     let leafletPromise = null
     let liveMap = null
     let liveLine = null
@@ -171,13 +186,23 @@
         })
     }
 
+    const queuePersist = value => {
+        const snapshot = JSON.parse(JSON.stringify(value))
+        persistChain = persistChain.then(() => idbPut(snapshot)).catch(() => {})
+        return persistChain
+    }
+
     const schedulePersist = immediate => {
         window.clearTimeout(persistTimer)
+        persistTimer = 0
         if (immediate) {
-            idbPut(state)
+            queuePersist(state)
             return
         }
-        persistTimer = window.setTimeout(() => idbPut(state), 2500)
+        persistTimer = window.setTimeout(() => {
+            persistTimer = 0
+            queuePersist(state)
+        }, 2500)
     }
 
     const selectedOption = () => sport?.selectedOptions?.[0] || null
@@ -197,7 +222,7 @@
             maxSpeed = 7
             maxAccuracy = 60
         }
-        return {slug, metric, maxSpeed, maxAccuracy, name: option?.textContent?.trim() || 'Atividade'}
+        return {slug, metric, maxSpeed, maxAccuracy, name: localizedSport(slug, option?.textContent?.trim() || t('gps.sport_fallback'))}
     }
 
     const haversine = (a, b) => {
@@ -219,12 +244,26 @@
         return [hours, minutes, secs].map(part => String(part).padStart(2, '0')).join(':')
     }
 
+    const formatPreciseDuration = seconds => {
+        const totalMilliseconds = Math.max(0, Math.round(Number(seconds || 0) * 1000))
+        const hours = Math.floor(totalMilliseconds / 3600000)
+        const minutes = Math.floor((totalMilliseconds % 3600000) / 60000)
+        const secs = Math.floor((totalMilliseconds % 60000) / 1000)
+        const milliseconds = totalMilliseconds % 1000
+        const fraction = milliseconds ? `${localeDecimal()}${String(milliseconds).padStart(3, '0')}` : ''
+        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}${fraction}`
+    }
+
     const parseDuration = raw => {
-        const parts = String(raw || '').trim().split(':').map(Number)
-        if (parts.some(value => !Number.isFinite(value) || value < 0)) return null
-        if (parts.length === 2 && parts[1] < 60) return parts[0] * 60 + parts[1]
-        if (parts.length === 3 && parts[1] < 60 && parts[2] < 60) return parts[0] * 3600 + parts[1] * 60 + parts[2]
-        return null
+        const value = String(raw || '').trim().replace(',', '.')
+        const match = value.match(/^(?:(\d+):)?(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?$/)
+        if (!match) return null
+        const hours = Number(match[1] || 0)
+        const minutes = Number(match[2])
+        const seconds = Number(match[3])
+        if (minutes >= 60 || seconds >= 60) return null
+        const milliseconds = match[4] ? Number(match[4].padEnd(3, '0')) : 0
+        return Math.round((hours * 3600 + minutes * 60 + seconds + milliseconds / 1000) * 1000) / 1000
     }
 
     const activeElapsedMs = (now = Date.now()) => {
@@ -235,11 +274,11 @@
     }
 
     const accuracyQuality = accuracy => {
-        if (!Number.isFinite(accuracy)) return {key: 'waiting', label: 'GPS aguardando'}
-        if (accuracy <= 12) return {key: 'good', label: 'GPS muito bom'}
-        if (accuracy <= 25) return {key: 'good', label: 'GPS bom'}
-        if (accuracy <= 45) return {key: 'fair', label: 'GPS regular'}
-        return {key: 'poor', label: 'GPS impreciso'}
+        if (!Number.isFinite(accuracy)) return {key: 'waiting', label: t('gps.accuracy_waiting')}
+        if (accuracy <= 12) return {key: 'good', label: t('gps.accuracy_very_good')}
+        if (accuracy <= 25) return {key: 'good', label: t('gps.accuracy_good')}
+        if (accuracy <= 45) return {key: 'fair', label: t('gps.accuracy_fair')}
+        return {key: 'poor', label: t('gps.accuracy_poor')}
     }
 
     const updateGoalControls = () => {
@@ -301,7 +340,7 @@
         try {
             await ensureLeaflet()
             liveMap = window.L.map(mapElement, {zoomControl: true, attributionControl: true}).setView([-14.2, -51.9], 4)
-            window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'}).addTo(liveMap)
+            window.StrideBRBasemaps?.attach(liveMap, {initial: 'street', remember: false})
             liveLine = window.L.polyline([], {weight: 5, opacity: .9}).addTo(liveMap)
             if (mapFallback) mapFallback.hidden = true
             redrawLiveMap(true)
@@ -329,7 +368,7 @@
             await ensureLeaflet()
             if (!reviewMapInstance) {
                 reviewMapInstance = window.L.map(reviewMap, {zoomControl: true, attributionControl: false, scrollWheelZoom: false})
-                window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19}).addTo(reviewMapInstance)
+                window.StrideBRBasemaps?.attach(reviewMapInstance, {initial: 'street', remember: false})
                 reviewLine = window.L.polyline([], {weight: 5, opacity: .9}).addTo(reviewMapInstance)
             }
             const latlngs = state.points.map(point => [point.lat, point.lon])
@@ -337,12 +376,16 @@
             reviewMapInstance.fitBounds(reviewLine.getBounds(), {padding: [20, 20], maxZoom: 16})
             window.setTimeout(() => reviewMapInstance?.invalidateSize(), 60)
         } catch (_) {
-            reviewMap.textContent = 'A rota foi gravada, mas o mapa não pôde ser carregado.'
+            reviewMap.textContent = t('gps.map_load_failed')
         }
     }
 
+    const updateWakeLockAvailability = () => {
+        if (wakeLockFallback) wakeLockFallback.hidden = 'wakeLock' in navigator
+    }
+
     const requestWakeLock = async () => {
-        if (!wakeLockInput?.checked || !('wakeLock' in navigator) || document.visibilityState !== 'visible') return
+        if (state.status !== 'recording' || !('wakeLock' in navigator) || document.visibilityState !== 'visible') return
         try {
             if (wakeLock && !wakeLock.released) return
             wakeLock = await navigator.wakeLock.request('screen')
@@ -355,6 +398,52 @@
     const releaseWakeLock = async () => {
         try { await wakeLock?.release?.() } catch (_) {}
         wakeLock = null
+    }
+
+    const setUnlockProgress = value => {
+        const progress = Math.max(0, Math.min(1, Number(value) || 0))
+        unlockButton?.style.setProperty('--gps-unlock-progress', `${Math.round(progress * 100)}%`)
+    }
+
+    const cancelUnlockHold = () => {
+        unlockHoldStartedAt = 0
+        if (unlockHoldFrame) window.cancelAnimationFrame(unlockHoldFrame)
+        unlockHoldFrame = 0
+        setUnlockProgress(0)
+    }
+
+    const setControlsLocked = locked => {
+        controlsLocked = Boolean(locked)
+        live?.classList.toggle('is-controls-locked', controlsLocked)
+        document.body.classList.toggle('gps-controls-locked', controlsLocked)
+        if (liveControls) liveControls.hidden = controlsLocked
+        if (lockState) lockState.hidden = !controlsLocked
+        lockButton?.setAttribute('aria-pressed', controlsLocked ? 'true' : 'false')
+        if (!controlsLocked) cancelUnlockHold()
+    }
+
+    const finishUnlockHold = () => {
+        cancelUnlockHold()
+        setControlsLocked(false)
+        lockButton?.focus?.({preventScroll: true})
+    }
+
+    const runUnlockHold = now => {
+        if (!controlsLocked || !unlockHoldStartedAt) return
+        const progress = (now - unlockHoldStartedAt) / 1200
+        setUnlockProgress(progress)
+        if (progress >= 1) {
+            finishUnlockHold()
+            return
+        }
+        unlockHoldFrame = window.requestAnimationFrame(runUnlockHold)
+    }
+
+    const startUnlockHold = () => {
+        if (!controlsLocked || unlockHoldStartedAt) return
+        unlockHoldStartedAt = performance.now()
+        setUnlockProgress(0)
+        unlockHoldFrame = window.requestAnimationFrame(runUnlockHold)
     }
 
     const addAccuracy = accuracy => {
@@ -482,15 +571,15 @@
     const locationError = error => {
         const permissionDenied = error?.code === 1
         const message = permissionDenied
-            ? 'Localização negada. Permita o acesso ao GPS para gravar a rota.'
+            ? t('gps.location_denied')
             : error?.code === 2
-                ? 'O aparelho não conseguiu determinar sua localização agora.'
-                : 'O GPS demorou para responder. O StrideBR continuará tentando enquanto a gravação estiver aberta.'
+                ? t('gps.location_unavailable')
+                : t('gps.location_timeout')
         if (qualityEl) {
             qualityEl.dataset.quality = 'lost'
-            qualityEl.textContent = 'GPS sem sinal'
+            qualityEl.textContent = t('gps.no_signal')
         }
-        if (root.querySelector('[data-gps-live-warning]')) root.querySelector('[data-gps-live-warning]').textContent = message + ' Você poderá revisar os dados antes de salvar.'
+        if (root.querySelector('[data-gps-live-warning]')) root.querySelector('[data-gps-live-warning]').textContent = `${message} ${t('gps.review_later')}`
         if (permissionDenied && ['recording', 'paused', 'starting'].includes(state.status)) {
             clearWatch()
             window.clearInterval(tickId)
@@ -498,20 +587,20 @@
             state = freshState()
             idbDelete().catch(() => {})
             startButton.disabled = false
-            startButton.textContent = '▶ Tentar novamente'
+            startButton.textContent = `▶ ${t('gps.try_again')}`
             setView('setup')
             return
         }
         if (state.status === 'idle' || state.status === 'starting') {
             startButton.disabled = false
-            startButton.textContent = '▶ Tentar novamente'
+            startButton.textContent = `▶ ${t('gps.try_again')}`
             state.status = 'idle'
             setView('setup')
         }
     }
 
     const startWatch = () => {
-        if (!navigator.geolocation) throw new Error('Este navegador não oferece a API de geolocalização.')
+        if (!navigator.geolocation) throw new Error(t('gps.geolocation_api_unavailable'))
         if (watchId !== null) navigator.geolocation.clearWatch(watchId)
         watchId = navigator.geolocation.watchPosition(acceptPosition, locationError, {
             enableHighAccuracy: true,
@@ -526,6 +615,7 @@
     }
 
     const setView = view => {
+        if (view !== 'live') setControlsLocked(false)
         if (setup) setup.hidden = view !== 'setup'
         if (live) live.hidden = view !== 'live'
         if (review) review.hidden = view !== 'review'
@@ -558,7 +648,7 @@
         if (!recent) return '—'
         if (state.metric === 'velocidade_kmh' || /cicl|bike|bmx|gravel/.test(state.sportSlug)) {
             const kmh = recent.distance / recent.seconds * 3.6
-            return `${kmh.toFixed(1).replace('.', ',')} km/h`
+            return `${formatNumber(kmh, 1)} km/h`
         }
         const secKm = recent.seconds / (recent.distance / 1000)
         if (!Number.isFinite(secKm) || secKm > 3600) return '— /km'
@@ -574,7 +664,7 @@
         }
         goalCard.hidden = false
         if (state.goalType === 'distance') {
-            goalProgressEl.textContent = `${(state.distanceM / 1000).toFixed(2).replace('.', ',')} / ${(state.goalValue / 1000).toFixed(2).replace('.', ',')} km`
+            goalProgressEl.textContent = `${formatNumber(state.distanceM / 1000, 2)} / ${formatNumber(state.goalValue / 1000, 2)} km`
         } else {
             goalProgressEl.textContent = `${formatDuration(activeElapsedMs() / 1000)} / ${formatDuration(state.goalValue)}`
         }
@@ -583,9 +673,9 @@
     const updateLiveUi = () => {
         const elapsedSeconds = activeElapsedMs() / 1000
         if (timeEl) timeEl.textContent = formatDuration(elapsedSeconds)
-        if (distanceEl) distanceEl.textContent = `${(state.distanceM / 1000).toFixed(2).replace('.', ',')} km`
+        if (distanceEl) distanceEl.textContent = `${formatNumber(state.distanceM / 1000, 2)} km`
         if (paceEl) paceEl.textContent = formatPaceOrSpeed()
-        if (paceLabel) paceLabel.textContent = state.metric === 'velocidade_kmh' || /cicl|bike|bmx|gravel/.test(state.sportSlug) ? 'Velocidade' : 'Ritmo'
+        if (paceLabel) paceLabel.textContent = state.metric === 'velocidade_kmh' || /cicl|bike|bmx|gravel/.test(state.sportSlug) ? t('gps.speed') : t('gps.pace')
         if (elevationEl) elevationEl.textContent = state.lastSmoothAltitude === null ? '— m' : `+${Math.round(state.elevationGainM)} m`
         const quality = accuracyQuality(state.currentAccuracy)
         if (qualityEl) {
@@ -594,13 +684,13 @@
         }
         if (accuracyEl) accuracyEl.textContent = Number.isFinite(state.currentAccuracy) ? `${Math.round(state.currentAccuracy)} m` : '— m'
         if (accuracyLargeEl) accuracyLargeEl.textContent = Number.isFinite(state.currentAccuracy) ? `± ${Math.round(state.currentAccuracy)} m` : '—'
-        if (liveSportEl) liveSportEl.textContent = state.sportName || 'Atividade'
-        if (pauseButton) pauseButton.textContent = state.status === 'paused' ? 'Continuar' : 'Pausar'
+        if (liveSportEl) liveSportEl.textContent = localizedSport(state.sportSlug, state.sportName || t('gps.sport_fallback'))
+        if (pauseButton) pauseButton.textContent = state.status === 'paused' ? t('gps.continue') : t('gps.pause')
         const currentLap = state.segments.length + 1
         if (currentLapEl) currentLapEl.textContent = String(currentLap)
         const lapDistance = Math.max(0, state.distanceM - state.segmentStartDistanceM)
         const lapDuration = Math.max(0, activeElapsedMs() - state.segmentStartActiveMs) / 1000
-        if (currentLapMetrics) currentLapMetrics.textContent = `${(lapDistance / 1000).toFixed(2).replace('.', ',')} km · ${formatDuration(lapDuration).replace(/^00:/, '')}`
+        if (currentLapMetrics) currentLapMetrics.textContent = `${formatNumber(lapDistance / 1000, 2)} km · ${formatDuration(lapDuration).replace(/^00:/, '')}`
         updateGoalUi()
     }
 
@@ -608,11 +698,11 @@
         if (!state.points.length) return
         const endIndex = state.points.length - 1
         const distance = Math.max(0, state.distanceM - state.segmentStartDistanceM)
-        const duration = Math.max(0, Math.round((activeElapsedMs() - state.segmentStartActiveMs) / 1000))
+        const duration = Math.max(0, Math.round(activeElapsedMs() - state.segmentStartActiveMs) / 1000)
         if (!force && distance < 5 && duration < 5) return
         if (force && state.segments.length > 0 && distance < 1 && duration < 2) return
         state.segments.push({
-            label: `Trecho ${state.segments.length + 1}`,
+            label: t('gps.segment_number', {number: state.segments.length + 1}),
             start_index: Math.min(state.segmentStartIndex, endIndex),
             end_index: endIndex,
             distance_m: distance,
@@ -661,7 +751,7 @@
             if (state.status === 'recording') checkGoal()
             if (state.status === 'recording' && state.lastGoodPointAtMs && Date.now() - state.lastGoodPointAtMs > 20000 && qualityEl) {
                 qualityEl.dataset.quality = 'lost'
-                qualityEl.textContent = 'GPS sem atualização'
+                qualityEl.textContent = t('gps.no_update')
             }
         }, 500)
     }
@@ -671,17 +761,17 @@
         const goal = readGoal()
         if (!goal) {
             goalNumber?.focus()
-            goalNumber?.setCustomValidity('Informe uma meta válida.')
+            goalNumber?.setCustomValidity(t('gps.invalid_goal'))
             goalNumber?.reportValidity()
             goalNumber?.setCustomValidity('')
             return
         }
         if (!window.isSecureContext) {
-            window.alert('O GPS Web exige uma conexão HTTPS segura. Abra o StrideBR por HTTPS ou use o registro manual.')
+            window.alert(t('gps.https_required'))
             return
         }
         if (!navigator.geolocation) {
-            window.alert('Este navegador não oferece geolocalização. Use o registro manual de atividade.')
+            window.alert(t('gps.geolocation_unavailable'))
             return
         }
         const cfg = sportConfig()
@@ -698,7 +788,7 @@
         state.goalValue = goal.value
         state.autoStop = goal.autoStop
         startButton.disabled = true
-        startButton.textContent = 'Obtendo GPS…'
+        startButton.textContent = t('gps.getting_signal')
         try {
             if (navigator.storage?.persist) navigator.storage.persist().catch(() => {})
             if (navigator.permissions?.query) {
@@ -719,17 +809,18 @@
         } catch (_) {
             state.status = 'idle'
             startButton.disabled = false
-            startButton.textContent = '▶ Iniciar'
-            window.alert('O navegador está bloqueando o acesso à localização. Libere a permissão de localização para o StrideBR e tente novamente.')
+            startButton.textContent = `▶ ${t('gps.start')}`
+            window.alert(t('gps.permission_blocked'))
         }
     }
 
-    const togglePause = () => {
+    const togglePause = async () => {
         if (state.status === 'recording') {
             state.status = 'paused'
             state.pauseStartedMs = Date.now()
             schedulePersist(true)
             updateLiveUi()
+            await releaseWakeLock()
             return
         }
         if (state.status === 'paused') {
@@ -740,6 +831,7 @@
             if (watchId === null) startWatch()
             schedulePersist(true)
             updateLiveUi()
+            requestWakeLock()
         }
     }
 
@@ -750,7 +842,7 @@
             state.pauseStartedMs = 0
         }
         if (state.points.length < 2) {
-            window.alert('Ainda não há pontos GPS suficientes para formar uma rota. Aguarde um sinal melhor ou use o registro manual.')
+            window.alert(t('gps.not_enough_points'))
             return
         }
         finalizeCurrentSegment(true)
@@ -767,33 +859,33 @@
 
     const qualityText = () => {
         const avg = state.accuracyCount ? state.accuracySum / state.accuracyCount : null
-        if (!Number.isFinite(avg)) return 'Sem precisão suficiente'
-        if (avg <= 15 && state.visibilityGaps === 0) return 'Gravação boa para GPS Web'
-        if (avg <= 30 && state.visibilityGaps <= 1) return 'Gravação razoável para GPS Web'
-        return 'Revise os dados com atenção'
+        if (!Number.isFinite(avg)) return t('gps.quality_insufficient')
+        if (avg <= 15 && state.visibilityGaps === 0) return t('gps.quality_good_recording')
+        if (avg <= 30 && state.visibilityGaps <= 1) return t('gps.quality_fair_recording')
+        return t('gps.quality_review')
     }
 
     const fillReview = () => {
-        const durationS = Math.max(1, Math.round(activeElapsedMs(state.endedAtMs || Date.now()) / 1000))
-        reviewTitle.value = state.sportName
-        reviewDistance.value = (state.distanceM / 1000).toFixed(2)
-        reviewDuration.value = formatDuration(durationS)
+        const durationS = Math.max(0.001, Math.round(activeElapsedMs(state.endedAtMs || Date.now())) / 1000)
+        reviewTitle.value = localizedSport(state.sportSlug, state.sportName || t('gps.sport_fallback'))
+        reviewDistance.value = formatNumber(state.distanceM / 1000, 2)
+        reviewDuration.value = formatPreciseDuration(durationS)
         reviewElevation.value = state.lastSmoothAltitude === null ? '' : String(Math.max(0, Math.round(state.elevationGainM)))
         reviewQuality.textContent = qualityText()
         const avg = state.accuracyCount ? state.accuracySum / state.accuracyCount : null
         qualitySummary.innerHTML = [
-            ['Precisão média', Number.isFinite(avg) ? `± ${Math.round(avg)} m` : '—'],
-            ['Melhor precisão', Number.isFinite(state.accuracyBest) ? `± ${Math.round(state.accuracyBest)} m` : '—'],
-            ['Pontos aceitos', String(state.points.length)],
-            ['Pontos descartados', String(state.pointsRejected)],
-            ['Lacunas de tela/aba', String(state.visibilityGaps)],
-            ['Origem', 'GPS Web']
+            [t('gps.avg_accuracy'), Number.isFinite(avg) ? `± ${Math.round(avg)} m` : '—'],
+            [t('gps.best_accuracy'), Number.isFinite(state.accuracyBest) ? `± ${Math.round(state.accuracyBest)} m` : '—'],
+            [t('gps.points_accepted'), String(state.points.length)],
+            [t('gps.points_rejected'), String(state.pointsRejected)],
+            [t('gps.visibility_gaps'), String(state.visibilityGaps)],
+            [t('gps.source'), 'GPS Web']
         ].map(([label, value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join('')
         if (reviewWarning) {
             const warnings = []
-            if (state.visibilityGaps > 0) warnings.push('A página ficou oculta/bloqueada durante a atividade; o navegador pode ter interrompido atualizações GPS nesse período.')
-            if (Number.isFinite(avg) && avg > 30) warnings.push('A precisão média recebida foi baixa. Confira principalmente a distância e a rota.')
-            if (state.pointsRejected > state.points.length) warnings.push('Muitos pontos foram descartados pelo filtro de ruído/saltos.')
+            if (state.visibilityGaps > 0) warnings.push(t('gps.warning_hidden'))
+            if (Number.isFinite(avg) && avg > 30) warnings.push(t('gps.warning_accuracy'))
+            if (state.pointsRejected > state.points.length) warnings.push(t('gps.warning_rejected'))
             reviewWarning.hidden = warnings.length === 0
             reviewWarning.textContent = warnings.join(' ')
         }
@@ -807,8 +899,8 @@
             const row = document.createElement('div')
             row.className = 'gps-segment-row'
             row.innerHTML = `<strong>${index + 1}</strong><div><b></b><span></span></div><small></small>`
-            row.querySelector('b').textContent = segment.label || `Trecho ${index + 1}`
-            row.querySelector('span').textContent = `${(Number(segment.distance_m || 0) / 1000).toFixed(2).replace('.', ',')} km · ${formatDuration(segment.duration_s || 0).replace(/^00:/, '')}`
+            row.querySelector('b').textContent = segment.label || t('gps.segment_number', {number: index + 1})
+            row.querySelector('span').textContent = `${formatNumber(Number(segment.distance_m || 0) / 1000, 2)} km · ${(window.StrideBRI18n?.duration?.(segment.duration_s || 0, true) || formatPreciseDuration(segment.duration_s || 0)).replace(/^0:/, '')}`
             const pace = segment.distance_m > 0 ? segment.duration_s / (segment.distance_m / 1000) : null
             row.querySelector('small').textContent = Number.isFinite(pace) ? `${Math.floor(pace / 60)}:${String(Math.round(pace % 60)).padStart(2, '0')}/km` : '—'
             segmentsHost.appendChild(row)
@@ -851,7 +943,7 @@
         const durationS = parseDuration(reviewDuration.value)
         const elevation = reviewElevation.value === '' ? null : Number(String(reviewElevation.value).replace(',', '.'))
         if (!Number.isFinite(distanceKm) || distanceKm < 0 || durationS === null || durationS <= 0 || (elevation !== null && (!Number.isFinite(elevation) || elevation < 0))) {
-            saveState.textContent = 'Revise distância, tempo e elevação antes de salvar.'
+            saveState.textContent = t('gps.review_invalid_metrics')
             saveState.className = 'gps-save-state is-error'
             return
         }
@@ -886,14 +978,14 @@
             goal_type: state.goalType === 'none' ? null : state.goalType,
             goal_value: state.goalValue || null,
             ended_by_goal: state.endedByGoal,
-            user_adjusted: Math.abs(adjustedDistanceM - state.distanceM) > 0.5 || durationS !== Math.round(activeElapsedMs(state.endedAtMs) / 1000) || (elevation !== null && Math.abs(elevation - state.elevationGainM) > 0.5)
+            user_adjusted: Math.abs(adjustedDistanceM - state.distanceM) > 0.5 || Math.abs(durationS - Math.round(activeElapsedMs(state.endedAtMs)) / 1000) > 0.0005 || (elevation !== null && Math.abs(elevation - state.elevationGainM) > 0.5)
         }
         const body = new URLSearchParams()
         body.set('csrf_token', root.dataset.csrfToken || '')
         body.set('recording', JSON.stringify(payload))
         const submit = saveForm.querySelector('button[type="submit"]')
         submit.disabled = true
-        saveState.textContent = navigator.onLine ? 'Salvando…' : 'Sem internet. A gravação continua salva neste navegador; tente novamente quando a conexão voltar.'
+        saveState.textContent = navigator.onLine ? t('gps.saving') : t('gps.offline_saved')
         saveState.className = navigator.onLine ? 'gps-save-state' : 'gps-save-state is-error'
         if (!navigator.onLine) {
             pendingAutoSave = true
@@ -905,14 +997,14 @@
             const fetcher = window.StrideBRNet?.fetch || fetch
             const response = await fetcher(root.dataset.saveEndpoint || '/api/gps-salvar.php', {method: 'POST', headers: {'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'}, body}, 20000)
             const result = await response.json().catch(() => ({}))
-            if (!response.ok || !result.ok) throw new Error(result.error || 'Não foi possível salvar a atividade.')
+            if (!response.ok || !result.ok) throw new Error(result.error || t('gps.save_failed'))
             pendingAutoSave = false
-            saveState.textContent = result.reused ? 'Atividade já estava salva; abrindo o registro existente.' : 'Atividade salva.'
+            saveState.textContent = result.reused ? t('gps.already_saved') : t('gps.saved')
             saveState.className = 'gps-save-state is-success'
             await idbDelete()
             window.location.href = `/user/atividades.php?saved=${encodeURIComponent(result.idregistro)}`
         } catch (error) {
-            saveState.textContent = `${error?.message || 'Falha ao salvar.'} A gravação continua guardada neste navegador.`
+            saveState.textContent = t('gps.save_error_kept', {message: error?.message || t('gps.save_error')})
             saveState.className = 'gps-save-state is-error'
             submit.disabled = false
             schedulePersist(true)
@@ -945,27 +1037,51 @@
             }
         }
         startTick()
-        requestWakeLock()
+        if (state.status === 'recording') requestWakeLock()
         setView('live')
         updateLiveUi()
         initLiveMap()
         schedulePersist(true)
     }
 
-    const discardSaved = async () => {
-        if (!window.confirm('Descartar a gravação GPS salva neste navegador?')) return
+    const resetLocalRecording = async () => {
         clearWatch()
         window.clearInterval(tickId)
+        tickId = null
+        window.clearTimeout(persistTimer)
+        persistTimer = 0
+        pendingAutoSave = false
         await releaseWakeLock()
+        await persistChain
         await idbDelete()
         state = freshState()
-        restoreBox.hidden = true
+        if (restoreBox) restoreBox.hidden = true
+        if (startButton) {
+            startButton.disabled = false
+            startButton.textContent = t('gps.start')
+        }
         setView('setup')
+    }
+
+    const discardCurrent = async () => {
+        if (!state.startedAtMs && !['recording', 'paused', 'review', 'starting'].includes(state.status)) return
+        const message = state.status === 'review'
+            ? t('gps.discard_review_confirm')
+            : t('gps.discard_current_confirm')
+        if (!window.confirm(message)) return
+        await resetLocalRecording()
+        window.StrideBRUI?.notify(t('gps.discarded'), 'info', 2600)
+    }
+
+    const discardSaved = async () => {
+        if (!window.confirm(t('gps.discard_saved_confirm'))) return
+        await resetLocalRecording()
+        window.StrideBRUI?.notify(t('gps.discarded'), 'info', 2600)
     }
 
     const updateNetwork = () => {
         if (!networkEl) return
-        networkEl.textContent = navigator.onLine ? 'Online' : 'Offline · salvo localmente'
+        networkEl.textContent = navigator.onLine ? t('gps.online') : t('gps.offline_local')
         networkEl.dataset.online = navigator.onLine ? '1' : '0'
     }
 
@@ -978,8 +1094,41 @@
     }))
     startButton?.addEventListener('click', startRecording)
     pauseButton?.addEventListener('click', togglePause)
+    lockButton?.addEventListener('click', () => {
+        if (['recording', 'paused'].includes(state.status)) setControlsLocked(true)
+    })
+    unlockButton?.addEventListener('pointerdown', event => {
+        if (!controlsLocked) return
+        event.preventDefault()
+        unlockButton.setPointerCapture?.(event.pointerId)
+        startUnlockHold()
+    })
+    unlockButton?.addEventListener('pointerup', cancelUnlockHold)
+    unlockButton?.addEventListener('pointercancel', cancelUnlockHold)
+    unlockButton?.addEventListener('lostpointercapture', cancelUnlockHold)
+    unlockButton?.addEventListener('keydown', event => {
+        if (!['Enter', ' '].includes(event.key) || event.repeat) return
+        event.preventDefault()
+        startUnlockHold()
+    })
+    unlockButton?.addEventListener('keyup', event => {
+        if (!['Enter', ' '].includes(event.key)) return
+        event.preventDefault()
+        cancelUnlockHold()
+    })
+    unlockButton?.addEventListener('click', event => {
+        event.preventDefault()
+        if (controlsLocked && event.detail === 0) finishUnlockHold()
+    })
+    ;['click', 'pointerdown', 'touchstart', 'touchmove', 'wheel', 'keydown'].forEach(type => live?.addEventListener(type, event => {
+        if (!controlsLocked || event.target.closest?.('[data-gps-unlock]')) return
+        event.preventDefault()
+        event.stopImmediatePropagation()
+    }, {capture: true, passive: false}))
     lapButton?.addEventListener('click', () => finalizeCurrentSegment(false))
     finishButton?.addEventListener('click', () => finishRecording(false))
+    discardCurrentButton?.addEventListener('click', discardCurrent)
+    discardReviewButton?.addEventListener('click', discardCurrent)
     saveForm?.addEventListener('submit', saveRecording)
     backLive?.addEventListener('click', () => {
         state.status = 'paused'
@@ -990,7 +1139,6 @@
         setView('live')
         startWatch()
         startTick()
-        requestWakeLock()
         updateLiveUi()
         schedulePersist(true)
     })
@@ -1031,6 +1179,7 @@
         event.returnValue = ''
     })
 
+    updateWakeLockAvailability()
     updateGoalControls()
     updateNetwork()
     idbGet().then(saved => {
@@ -1039,7 +1188,7 @@
             const elapsed = saved.status === 'review'
                 ? Math.max(0, ((saved.endedAtMs || Date.now()) - saved.startedAtMs - (saved.pausedTotalMs || 0)) / 1000)
                 : Math.max(0, (Date.now() - saved.startedAtMs - (saved.pausedTotalMs || 0)) / 1000)
-            restoreSummary.textContent = `${saved.sportName || 'Atividade'} · ${formatDuration(elapsed)} · ${((saved.distanceM || 0) / 1000).toFixed(2).replace('.', ',')} km`
+            restoreSummary.textContent = `${localizedSport(saved.sportSlug, saved.sportName || t('gps.sport_fallback'))} · ${formatDuration(elapsed)} · ${formatNumber((saved.distanceM || 0) / 1000, 2)} km`
         } else if (root.dataset.autostart === '1') {
             window.setTimeout(() => startRecording(), 120)
         }

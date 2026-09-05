@@ -21,7 +21,7 @@ $navActive = static function (array $prefixes) use ($currentPath): string {
     return '';
 };
 ?>
-<div class="network-status-banner" data-network-status role="status" aria-live="polite" hidden>Você está sem conexão. Evite enviar formulários até a internet voltar.</div>
+<div class="network-status-banner" data-network-status role="status" aria-live="polite" hidden><?php echo stridebr_e(stridebr_t('common.offline_forms_warning')); ?></div>
 
 <?php if (stridebr_ads_enabled() || stridebr_ads_placeholders_enabled()): ?>
 <?php require __DIR__ . '/ads.php'; ?>
@@ -33,12 +33,12 @@ $navActive = static function (array $prefixes) use ($currentPath): string {
                 <img src="<?php echo stridebr_e(stridebr_asset('/assets/img/logos/stridebr-logo-white.svg')); ?>" alt="StrideBR" class="footer-logo" width="82" height="32" loading="lazy" decoding="async">
                 <p><?php echo stridebr_e(stridebr_t('footer.tagline')); ?></p>
             </div>
-            <div class="footer-column"><h4>StrideBR</h4><a href="/pages/about/about.php"><?php echo stridebr_e(stridebr_t('footer.about')); ?></a><a href="/pages/about/team.php"><?php echo stridebr_e(stridebr_t('footer.team')); ?></a><a href="/pages/about/contact.php"><?php echo stridebr_e(stridebr_t('footer.contact')); ?></a></div>
-            <div class="footer-column"><h4><?php echo stridebr_e(stridebr_t('footer.help')); ?></h4><a href="/pages/help/faq.php">FAQ</a><a href="/pages/help/support.php"><?php echo stridebr_e(stridebr_t('footer.support')); ?></a><?php if ($feedbackEnabled): ?><a href="/feedback.php">Feedback</a><?php endif; ?></div>
+            <div class="footer-column"><h4><?php echo stridebr_e(stridebr_t('library.stridebr')); ?></h4><a href="/pages/about/about.php"><?php echo stridebr_e(stridebr_t('footer.about')); ?></a><a href="/pages/about/team.php"><?php echo stridebr_e(stridebr_t('footer.team')); ?></a><a href="/pages/about/contact.php"><?php echo stridebr_e(stridebr_t('footer.contact')); ?></a></div>
+            <div class="footer-column"><h4><?php echo stridebr_e(stridebr_t('footer.help')); ?></h4><a href="/pages/help/faq.php"><?php echo stridebr_e(stridebr_t('footer.faq')); ?></a><a href="/pages/help/support.php"><?php echo stridebr_e(stridebr_t('footer.support')); ?></a><?php if ($feedbackEnabled): ?><a href="/feedback.php"><?php echo stridebr_e(stridebr_t('common.feedback')); ?></a><?php endif; ?></div>
             <div class="footer-column"><h4><?php echo stridebr_e(stridebr_t('footer.legal')); ?></h4><a href="/pages/legal/terms.php"><?php echo stridebr_e(stridebr_t('footer.terms')); ?></a><a href="/pages/legal/privacy.php"><?php echo stridebr_e(stridebr_t('footer.privacy')); ?></a><a href="/pages/legal/cookies.php"><?php echo stridebr_e(stridebr_t('footer.cookies')); ?></a></div>
-            <div class="footer-column"><h4><?php echo stridebr_e(stridebr_t('footer.project')); ?></h4><a href="/pages/extras/roadmap.php">Roadmap</a><a href="/pages/extras/changelog.php"><?php echo stridebr_e(stridebr_t('footer.updates')); ?></a><a href="/pages/extras/credits.php"><?php echo stridebr_e(stridebr_t('footer.credits')); ?></a><?php if (stridebr_donation_enabled()): ?><a href="/pages/about/support-project.php">Apoie o StrideBR</a><?php endif; ?></div>
+            <div class="footer-column"><h4><?php echo stridebr_e(stridebr_t('footer.project')); ?></h4><a href="/pages/extras/roadmap.php"><?php echo stridebr_e(stridebr_t('footer.roadmap')); ?></a><a href="/pages/extras/changelog.php"><?php echo stridebr_e(stridebr_t('footer.updates')); ?></a><a href="/pages/extras/credits.php"><?php echo stridebr_e(stridebr_t('footer.credits')); ?></a><?php if (stridebr_donation_enabled()): ?><a href="/pages/about/support-project.php"><?php echo stridebr_e(stridebr_t('footer.support_project')); ?></a><?php endif; ?></div>
         </div>
-        <div class="footer-bottom"><div><a href="https://github.com/BrunoWithoutH/StrideBR" target="_blank" rel="noopener noreferrer">GitHub</a><span class="footer-build" data-stridebr-version="<?php echo stridebr_e(stridebr_version()); ?>" data-stridebr-build="<?php echo stridebr_e(stridebr_build()); ?>">StrideBR <?php echo stridebr_e(stridebr_version()); ?> · build <?php echo stridebr_e(stridebr_build()); ?></span></div><p>© <?php echo date('Y'); ?> StrideBR.</p></div>
+        <div class="footer-bottom"><div><a href="https://github.com/BrunoWithoutH/StrideBR" target="_blank" rel="noopener noreferrer">GitHub</a><span class="footer-build" data-stridebr-version="<?php echo stridebr_e(stridebr_version()); ?>" data-stridebr-build="<?php echo stridebr_e(stridebr_build()); ?>"><?php echo stridebr_e(stridebr_t('library.stridebr')); ?> <?php echo stridebr_e(stridebr_version()); ?> · build <?php echo stridebr_e(stridebr_build()); ?></span></div><p>© <?php echo date('Y'); ?> StrideBR.</p></div>
     </div>
 </footer>
 
@@ -80,46 +80,47 @@ $navActive = static function (array $prefixes) use ($currentPath): string {
         </svg>
         <span><?php echo stridebr_e(stridebr_t('nav.progress')); ?></span>
     </a>
-    <button class="mobile-nav-item mobile-more-button<?php echo $navActive(['/user/amigos.php', '/user/ferramentastreino.php', '/user/settings.php', '/user/account.php', '/user/treinador.php', '/calendario.php', '/evento.php', '/admin/index.php']); ?>" type="button" data-mobile-more-toggle aria-expanded="false" aria-label="Mais opções">
+    <button class="mobile-nav-item mobile-more-button<?php echo $navActive(['/user/amigos.php', '/user/ferramentastreino.php', '/user/settings.php', '/user/account.php', '/user/treinador.php', '/calendario.php', '/evento.php', '/admin/index.php']); ?>" type="button" data-mobile-more-toggle aria-expanded="false" aria-label="<?php echo stridebr_e(stridebr_t('nav.more_options')); ?>">
         <svg class="mobile-nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <path d="M4 12h.01"></path>
             <path d="M12 12h.01"></path>
             <path d="M20 12h.01"></path>
         </svg>
-        <span>Mais</span>
+        <span><?php echo stridebr_e(stridebr_t('nav.more')); ?></span>
     </button>
 </nav>
 <div class="mobile-more-sheet" data-mobile-more-sheet hidden>
-    <button class="mobile-more-backdrop" type="button" data-mobile-more-close aria-label="Fechar"></button>
-    <div class="mobile-more-panel" role="dialog" aria-modal="true" aria-label="Mais opções">
+    <button class="mobile-more-backdrop" type="button" data-mobile-more-close aria-label="<?php echo stridebr_e(stridebr_t('common.close')); ?>"></button>
+    <div class="mobile-more-panel" role="dialog" aria-modal="true" aria-label="<?php echo stridebr_e(stridebr_t('nav.more_options')); ?>">
         <div class="mobile-more-handle"></div>
         <div class="mobile-more-header">
-            <strong>Mais</strong>
-            <button class="mobile-more-close-button" type="button" data-mobile-more-close aria-label="Fechar menu">×</button>
+            <strong><?php echo stridebr_e(stridebr_t('nav.more')); ?></strong>
+            <button class="mobile-more-close-button" type="button" data-mobile-more-close aria-label="<?php echo stridebr_e(stridebr_t('nav.close_menu')); ?>">×</button>
         </div>
-        <a href="/user/gravar-atividade.php">Gravar com GPS</a>
-        <a href="/user/amigos.php">Amigos</a>
-        <a href="/user/agenda-mensal.php">Agenda mensal</a>
-        <a href="/user/biblioteca.php?tab=treinos">Biblioteca</a>
-        <a href="/user/biblioteca.php?tab=exercicios">Exercícios</a>
-        <a href="/user/comparar-atividades.php">Comparar atividades</a>
-        <a href="/user/importar-exportar.php">Importar e exportar</a>
-        <a href="/user/treinador.php">Treinador e atletas</a>
-        <button type="button" data-quick-tools-open>Ferramentas rápidas</button>
-        <a href="/user/ferramentastreino.php">Ferramentas de treino</a>
-        <a href="/calendario.php">Eventos</a>
-        <a href="/user/edit-profile.php">Editar perfil</a>
-        <a href="/user/settings.php">Configurações</a>
-        <a href="/user/account.php">Conta e segurança</a>
-        <a href="/pages/extras/changelog.php">Novidades</a>
+        <a href="/user/gravar-atividade.php"><?php echo stridebr_e(stridebr_t('nav.record_gps')); ?></a>
+        <a href="/user/amigos.php"><?php echo stridebr_e(stridebr_t('nav.friends')); ?></a>
+        <a href="/user/agenda-mensal.php"><?php echo stridebr_e(stridebr_t('schedule.monthly_agenda')); ?></a>
+        <a href="/user/biblioteca.php?tab=treinos"><?php echo stridebr_e(stridebr_t('nav.library')); ?></a>
+        <a href="/user/biblioteca.php?tab=exercicios"><?php echo stridebr_e(stridebr_t('nav.library_exercises')); ?></a>
+        <a href="/user/comparar-atividades.php"><?php echo stridebr_e(stridebr_t('nav.compare_activities')); ?></a>
+        <a href="/user/importar-exportar.php"><?php echo stridebr_e(stridebr_t('nav.import_export')); ?></a>
+        <a href="/user/treinador.php"><?php echo stridebr_e(stridebr_t('nav.trainer')); ?></a>
+        <button type="button" data-quick-tools-open><?php echo stridebr_e(stridebr_t('nav.quick_tools')); ?></button>
+        <a href="/user/ferramentastreino.php"><?php echo stridebr_e(stridebr_t('nav.training_tools')); ?></a>
+        <a href="/calendario.php"><?php echo stridebr_e(stridebr_t('nav.events')); ?></a>
+        <a href="/user/edit-profile.php"><?php echo stridebr_e(stridebr_t('nav.edit_profile')); ?></a>
+        <a href="/user/settings.php"><?php echo stridebr_e(stridebr_t('nav.settings')); ?></a>
+        <a href="/user/account.php"><?php echo stridebr_e(stridebr_t('nav.security')); ?></a>
+        <a href="/pages/extras/changelog.php"><?php echo stridebr_e(stridebr_t('nav.news')); ?></a>
 
         <?php if (stridebr_has_role('moderator')): ?><a href="/admin/index.php"><?php echo stridebr_e(stridebr_has_role('admin') ? stridebr_t('nav.administration', [], 'Administração') : stridebr_t('nav.moderation', [], 'Moderação')); ?></a><?php endif; ?>
-        <button class="mobile-more-dismiss" type="button" data-mobile-more-close>Fechar menu</button>
+        <button class="mobile-more-dismiss" type="button" data-mobile-more-close><?php echo stridebr_e(stridebr_t('nav.close_menu')); ?></button>
     </div>
 </div>
 
 <?php require __DIR__ . '/quick_tools.php'; ?>
 <?php endif; ?>
+<?php echo stridebr_i18n_runtime_script(false); ?>
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/scripts.js')); ?>"></script>
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/page-loading.js')); ?>"></script>
 <?php if ($footerLoggedIn): ?>
@@ -128,4 +129,3 @@ $navActive = static function (array $prefixes) use ($currentPath): string {
 <?php endif; ?>
 
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/ui-preferences.js')); ?>" defer></script>
-<script src="<?php echo stridebr_e(stridebr_asset('/assets/js/i18n-runtime.js')); ?>" defer></script>

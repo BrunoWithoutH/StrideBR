@@ -26,8 +26,9 @@ $flashes = stridebr_take_flashes();
     <link rel="icon" type="image/png" href="<?php echo stridebr_e(stridebr_asset('/assets/img/favicon/favicon.png')); ?>">
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/style.css')); ?>">
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/loginsignup.css')); ?>">
-    <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>">
+
     <title><?php echo stridebr_e(stridebr_t('auth.login')); ?> | StrideBR</title>
+    <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>">
 </head>
 <body class="onboarding-body signup-onboarding-body auth-unified-body">
     <div class="onboarding-shell signup-onboarding-shell auth-unified-shell">
@@ -67,6 +68,6 @@ $flashes = stridebr_take_flashes();
     </div>
     <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/loginform.js')); ?>"></script>
     <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/ui-preferences.js')); ?>"></script>
-    <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/i18n-runtime.js')); ?>"></script>
+    <?php echo stridebr_i18n_runtime_script(false); ?>
 </body>
 </html>

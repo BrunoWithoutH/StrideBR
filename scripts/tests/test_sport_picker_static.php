@@ -20,8 +20,8 @@ $activityJs = $read('public/assets/js/atividades.js');
 $uiCss = $read('public/assets/css/ui-refresh.css');
 
 $checks = [
-    'catálogo define famílias e esportes comuns' => str_contains($catalog, "'cardio' => ['label' => 'Cardio'") && str_contains($catalog, "'popular' => ['corrida','caminhada','ciclismo','natacao'") && str_contains($catalog, "'athletics' => ['label' => 'Atletismo'"),
-    'seletor abre categorias antes dos esportes' => str_contains($picker, 'data-generic-sport-family-open') && str_contains($picker, 'Mais comuns') && str_contains($picker, 'Mais esportes'),
+    'catálogo define famílias e esportes comuns' => str_contains($catalog, "'cardio' => ['label' => stridebr_t('progress.family.cardio.label')") && str_contains($catalog, "'popular' => ['corrida','caminhada','ciclismo','natacao'") && str_contains($catalog, "'athletics' => ['label' => stridebr_t('progress.family.athletics.label')"),
+    'seletor abre categorias antes dos esportes' => str_contains($picker, 'data-generic-sport-family-open') && str_contains($picker, "stridebr_t('sport_picker.common')") && str_contains($picker, "stridebr_t('sport_picker.more')"),
     'busca alcança esportes fora da lista comum' => str_contains($scripts, "browser?.classList.add('is-searching')") && str_contains($scripts, "panel.querySelectorAll('[data-generic-sport-more-list]').forEach(list => list.hidden = false)"),
     'cadastro usa categorias comuns e mais' => str_contains($signup, 'data-signup-sport-family-open') && str_contains($signup, 'data-signup-sport-more'),
     'configurações usa categorias comuns e mais' => str_contains($settings, 'data-settings-sport-family-open') && str_contains($settings, 'data-settings-sport-more'),
@@ -33,8 +33,9 @@ $checks = [
     'eventos usam seletor categorizado' => str_contains($calendar, 'sportPickerRenderSelect($modalidades'),
     'trechos também usam categorias e mais esportes' => str_contains($unitHelpers, 'sportPickerRenderSelect($catalogo') && str_contains($unitHelpers, "'data-unit-sport-select' => true"),
     'seletores inseridos dinamicamente são inicializados' => str_contains($scripts, 'window.StrideBRSportPickerInit') && str_contains($activityJs, 'window.StrideBRSportPickerInit?.(unit || container)'),
+    'categorias do seletor usam delegação robusta' => str_contains($scripts, "picker.addEventListener('click', event =>") && str_contains($scripts, "target.closest('[data-generic-sport-family-open]')") && str_contains($scripts, 'getPanels().forEach'),
     'popover global escapa de contêineres com overflow' => str_contains($scripts, 'const placePopover = () =>') && str_contains($scripts, "popover.style.position = 'fixed'") && str_contains($scripts, "window.addEventListener('scroll', placePopover, true)"),
-    'popover global fica acima dos painéis do produto' => str_contains($uiCss, 'z-index:10050'),
+    'popover global fica acima dos painéis do produto' => preg_match('/z-index:\s*var\(--z-popover\)/', $uiCss) === 1,
 ];
 
 $failed = [];

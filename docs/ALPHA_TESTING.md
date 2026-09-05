@@ -41,4 +41,4 @@ Sem Docker, rode os checks que não dependem de PostgreSQL:
 ./scripts/test_static.sh
 ```
 
-A checklist completa de smoke test, mobile, produção e backup fica em [`ALPHA_RELEASE_CHECKLIST.md`](ALPHA_RELEASE_CHECKLIST.md).
+A checklist completa de smoke test, mobile, produção e backup fica em [`ALPHA_RELEASE_CHECKLIST.md`](archive/ALPHA_RELEASE_CHECKLIST.md).

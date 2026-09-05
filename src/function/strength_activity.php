@@ -170,7 +170,7 @@ function atividadeForcaBuscarSeries(PDO $pdo, string $idUsuario, string $idRegis
             'tipo' => (string) $row['tipo'],
             'carga_kg' => $row['carga_kg'] !== null ? (float) $row['carga_kg'] : null,
             'repeticoes' => $row['repeticoes'] !== null ? (int) $row['repeticoes'] : null,
-            'duracao_segundos' => $row['duracao_segundos'] !== null ? (int) $row['duracao_segundos'] : null,
+            'duracao_segundos' => $row['duracao_segundos'] !== null ? (float) $row['duracao_segundos'] : null,
             'distancia_metros' => $row['distancia_metros'] !== null ? (float) $row['distancia_metros'] : null,
             'rir' => $row['rir'] !== null ? (float) $row['rir'] : null,
             'rpe' => $row['rpe'] !== null ? (float) $row['rpe'] : null,

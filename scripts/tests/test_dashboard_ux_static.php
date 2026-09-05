@@ -11,12 +11,12 @@ $onboarding = file_get_contents($root . '/public/user/onboarding.php');
 $preferencesApi = file_get_contents($root . '/public/api/dashboard-preferences.php');
 
 $checks = [
-    'home contextual' => str_contains($home, 'data-dashboard-today') && str_contains($home, 'Hoje é dia de descanso'),
+    'home contextual' => str_contains($home, 'data-dashboard-today') && str_contains($home, "stridebr_t('home.rest_day')"),
     'home customization' => str_contains($home, 'data-dashboard-customize-dialog') && str_contains($home, 'data-dashboard-module="progress"'),
     'dashboard preferences api' => str_contains($preferencesApi, 'dashboardSalvarPreferenciasHome') && str_contains($preferencesApi, 'stridebr_verify_csrf'),
     'dashboard start workout' => str_contains($dashboardJs, 'data-dashboard-start-workout') && str_contains($dashboardJs, 'data_ocorrencia_planejada'),
     'dashboard module persistence' => str_contains($dashboardJs, '/api/dashboard-preferences.php') && str_contains($dashboardJs, 'applyPreferences'),
-    'onboarding optional sports' => str_contains($onboarding, 'O que você pratica?') && !str_contains($onboarding, 'name="sports[]" required'),
+    'onboarding optional sports' => str_contains($onboarding, "stridebr_t('onboarding.sports_question')") && !str_contains($onboarding, 'name="sports[]" required'),
     'onboarding experience' => str_contains($onboarding, 'name="experience"') && str_contains($onboarding, 'name="weekly_frequency"'),
     'onboarding tracking' => str_contains($onboarding, 'name="tracking[]"') && str_contains($onboarding, 'Mostrar primeiro em Progresso') === false,
     'desktop motion' => str_contains($uiCss, '--ui-motion-fast') && str_contains($uiCss, 'prefers-reduced-motion'),

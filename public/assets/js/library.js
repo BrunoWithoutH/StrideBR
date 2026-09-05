@@ -1,4 +1,5 @@
 (() => {
+    const t = (key, values = {}, fallback = key) => window.StrideBRI18n?.t?.(key, values, fallback) ?? fallback
     const parseJson = selector => {
         const node = document.querySelector(selector);
         if (!node) return {};
@@ -86,9 +87,9 @@
         set('descricao', item?.descricao || '');
 
         const title = workoutModal.querySelector('[data-library-modal-title]');
-        if (title) title.textContent = item ? 'Editar treino' : 'Novo treino';
+        if (title) title.textContent = item ? t('library.edit_workout', {}, 'Edit workout') : t('library.new_workout', {}, 'New workout');
         const subtitle = workoutModal.querySelector('[data-library-modal-subtitle]');
-        if (subtitle) subtitle.textContent = item ? 'Altere os dados gerais sem mexer nos dias e horários do cronograma.' : 'Crie um treino reutilizável para montar seus cronogramas.';
+        if (subtitle) subtitle.textContent = item ? t('library.edit_workout_help', {}, 'Change general details without changing schedule times.') : t('library.new_workout_help', {}, 'Create a reusable workout for schedules.');
 
         const propagate = workoutModal.querySelector('[data-workout-propagate]');
         const propagateCheck = workoutForm.elements.namedItem('propagar_vinculados');
@@ -169,9 +170,9 @@
         });
 
         const title = exerciseModal.querySelector('[data-library-modal-title]');
-        if (title) title.textContent = item ? 'Editar exercício' : 'Novo exercício';
+        if (title) title.textContent = item ? t('library.edit_exercise', {}, 'Edit exercise') : t('library.new_exercise', {}, 'New exercise');
         const submit = exerciseModal.querySelector('[data-exercise-submit]');
-        if (submit) submit.textContent = item ? 'Salvar alterações' : 'Salvar exercício';
+        if (submit) submit.textContent = item ? t('library.save_changes', {}, 'Save changes') : t('library.save_exercise', {}, 'Save exercise');
         setLibraryTab('exercicios', {push: false});
         exerciseModal.hidden = false;
         lockBody(true);

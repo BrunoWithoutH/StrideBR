@@ -21,7 +21,7 @@
 .auth-layout header h2,
 .container-fluid > header h2 {
     margin: 0;
-    color: #475467;
+    color: var(--ui-text-secondary);
     font-size: 1rem;
     font-weight: 600;
 }
@@ -35,16 +35,16 @@
     width: 100%;
     margin: 0 auto;
     padding: 28px;
-    border: 1px solid #d0d5dd;
-    border-radius: var(--radius-sm);
-    background: #fff;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--radius-card);
+    background: var(--ui-panel);
     box-shadow: none;
 }
 
 .container-fluid .form .title {
     display: block;
     margin-bottom: 8px;
-    color: #1f2937;
+    color: var(--ui-text-strong);
     font-size: 1.65rem;
     font-weight: 750;
 }
@@ -59,11 +59,11 @@
     width: 100%;
     min-height: 48px;
     padding: 11px 12px;
-    border: 1px solid #d0d5dd;
-    border-radius: var(--radius-sm);
+    border: 1px solid var(--ui-border);
+    border-radius: var(--radius-control);
     outline: 0;
-    background: #fff;
-    color: #1f2937;
+    background: var(--ui-panel);
+    color: var(--ui-text-strong);
     font: inherit;
     font-size: 1rem;
     transition: border-color .15s ease, box-shadow .15s ease;
@@ -74,7 +74,7 @@
 }
 
 .form .input-field input:focus {
-    border-color: #7380a3;
+    border-color: var(--ui-muted);
     box-shadow: 0 0 0 3px rgba(115, 128, 163, .15);
 }
 
@@ -86,9 +86,9 @@
     min-height: 34px;
     padding: 6px 8px;
     border: 0;
-    border-radius: var(--radius-md);
-    background: #f2f4f7;
-    color: #475467;
+    border-radius: var(--radius-control);
+    background: var(--ui-surface-hover);
+    color: var(--ui-text-secondary);
     font: inherit;
     font-size: .78rem;
     font-weight: 700;
@@ -111,16 +111,16 @@
 
 .checkbox-content input {
     margin-top: 2px;
-    accent-color: #7380a3;
+    accent-color: var(--ui-muted);
 }
 
 .form .text {
-    color: #475467;
+    color: var(--ui-text-secondary);
     font-size: .86rem;
 }
 
 .form a {
-    color: #40507c;
+    color: var(--ui-accent);
     text-decoration: none;
 }
 
@@ -134,7 +134,7 @@
 
 .form .button input {
     border: 0 !important;
-    background: #40507c !important;
+    background: var(--ui-accent) !important;
     color: #fff !important;
     font-weight: 750 !important;
     cursor: pointer;
@@ -161,7 +161,7 @@
 
     .container-fluid .form {
         padding: 20px 16px;
-        border-radius: var(--radius-sm);
+        border-radius: var(--radius-card);
     }
 
     .container-fluid .form .title {

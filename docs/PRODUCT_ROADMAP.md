@@ -82,6 +82,6 @@ planejar → executar → registrar → acompanhar → compartilhar
 
 ## GPS Web e gravação de atividades
 
-Planejamento detalhado em `docs/GPS_WEB_RECORDING_PLAN.md`.
+Planejamento detalhado em `docs/GPS_WEB_V1.md`.
 
 Prioridades: início rápido, gravação local-first sem depender de internet, recuperação após reload, filtro de qualidade do GPS, tela focada em distância/pace/tempo/elevação, metas opcionais com encerramento automático seguro, trechos/tiros com rota própria e integração direta com o Compartilhamento v2. A gravação confiável em segundo plano continua sendo responsabilidade do app mobile.

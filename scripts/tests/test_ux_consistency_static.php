@@ -28,6 +28,7 @@ $activities = $read('public/user/atividades.php');
 $activityJs = $read('public/assets/js/atividades.js');
 $notifications = $read('public/user/notificacoes.php');
 $account = $read('public/user/account.php');
+$settingsWorkspace = $read('src/layout/settings_workspace.php');
 $footer = $read('src/layout/footer.php');
 $landing = $read('public/index.php');
 $calendar = $read('public/calendario.php');
@@ -45,11 +46,11 @@ foreach ($removedPhrases as $phrase) {
     $assert(!str_contains($home . $settings . $activities . $activityJs . $notifications . $landing, $phrase), "copy de justificativa voltou: {$phrase}");
 }
 
-$assert(str_contains($account, '<h1>Conta e segurança</h1>'), 'Conta e segurança precisa ter H1 coerente com o title/destino.');
+$assert(str_contains($account, "stridebr_settings_workspace_heading(stridebr_t('account.page_title')") && str_contains($settingsWorkspace, '<h1>'), 'Conta e segurança precisa ter H1 coerente pelo workspace compartilhado.');
 $assert(!str_contains($calendar, 'migration de eventos'), 'estado público de Eventos não deve expor migration.');
 $assert(!str_contains($goals, 'Aplique as migrations'), 'estado público de Metas não deve expor migration.');
 $assert(str_contains($footer, "stridebr_t('nav.activities')"), 'label mobile de Atividades deve caber sem depender de fonte minúscula.');
-$assert(str_contains($footer, '>Importar e exportar<'), 'navegação deve usar “Importar e exportar”.');
+$assert(str_contains($footer, "stridebr_t('nav.import_export')"), 'navegação deve usar a chave semântica de Importar e exportar.');
 $assert(str_contains($activities, "stridebr_t('activity.import_export')") || str_contains($activities, '>Importar e exportar<'), 'toolbar de atividades deve usar “Importar e exportar”.');
 $assert(str_contains($landing, 'Cronogramas, atividades, progresso, rotas e privacidade no mesmo lugar.'), 'landing deve listar capacidades concretas.');
 $assert(!is_file($root . '/docs/design/UX_WRITING_GUIDE.md'), 'guia interno do assistente não deve ficar no projeto.');

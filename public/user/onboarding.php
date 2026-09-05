@@ -15,20 +15,20 @@ $allowedGoals = ['organizar', 'condicionamento', 'prova', 'evolucao', 'rotina', 
 $allowedExperience = ['', 'comecando', 'pratico', 'regular'];
 $allowedTracking = ['frequencia', 'duracao', 'distancia', 'elevacao', 'metas', 'carga'];
 $goalLabels = [
-    'organizar' => 'Organizar meus treinos',
-    'evolucao' => 'Acompanhar minha evolução',
-    'condicionamento' => 'Melhorar condicionamento',
-    'prova' => 'Preparar para uma prova',
-    'rotina' => 'Manter uma rotina',
-    'lazer' => 'Registrar por lazer',
+    'organizar' => stridebr_t('onboarding.goal.organize'),
+    'evolucao' => stridebr_t('onboarding.goal.progress'),
+    'condicionamento' => stridebr_t('onboarding.goal.fitness'),
+    'prova' => stridebr_t('onboarding.goal.race'),
+    'rotina' => stridebr_t('onboarding.goal.routine'),
+    'lazer' => stridebr_t('onboarding.goal.leisure'),
 ];
 $trackingChoices = [
-    'frequencia' => ['Consistência', 'Frequência semanal e regularidade'],
-    'duracao' => ['Tempo em atividade', 'Volume por duração'],
-    'distancia' => ['Distância e ritmo', 'Corrida, caminhada e ciclismo'],
-    'elevacao' => ['Altimetria', 'Ganho de elevação e percursos'],
-    'metas' => ['Metas', 'Progresso dos objetivos definidos'],
-    'carga' => ['Força', 'Carga, séries e volume na musculação'],
+    'frequencia' => [stridebr_t('onboarding.tracking.consistency'), stridebr_t('onboarding.tracking.consistency_help')],
+    'duracao' => [stridebr_t('onboarding.tracking.time'), stridebr_t('onboarding.tracking.time_help')],
+    'distancia' => [stridebr_t('onboarding.tracking.distance'), stridebr_t('onboarding.tracking.distance_help')],
+    'elevacao' => [stridebr_t('onboarding.tracking.elevation'), stridebr_t('onboarding.tracking.elevation_help')],
+    'metas' => [stridebr_t('onboarding.tracking.goals'), stridebr_t('onboarding.tracking.goals_help')],
+    'carga' => [stridebr_t('onboarding.tracking.strength'), stridebr_t('onboarding.tracking.strength_help')],
 ];
 
 $userStmt = $pdo->prepare('SELECT nomeusuario, nome_exibicao, username, visibilidadeperfil, preferenciasusuario FROM usuarios WHERE idusuario = :id LIMIT 1');
@@ -93,19 +93,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $selectedSports = array_values(array_intersect($modalidadeIds, is_array($_POST['sports'] ?? null) ? $_POST['sports'] : []));
 
     if (!in_array($values['experience'], $allowedExperience, true)) {
-        $errors[] = 'Nível de experiência inválido.';
+        $errors[] = stridebr_t('onboarding.invalid_experience');
     }
     if (!in_array($values['visibility'], ['privado', 'amigos', 'publico'], true)) {
-        $errors[] = 'Privacidade inválida.';
+        $errors[] = stridebr_t('onboarding.invalid_privacy');
     }
     if (!in_array($values['activity_visibility'], ['privado', 'amigos', 'publico'], true)) {
-        $errors[] = 'Privacidade padrão das atividades inválida.';
+        $errors[] = stridebr_t('onboarding.invalid_activity_default_privacy');
     }
     if (!in_array($values['units'], ['metric', 'imperial'], true)) {
-        $errors[] = 'Sistema de unidades inválido.';
+        $errors[] = stridebr_t('onboarding.invalid_units');
     }
     if (!in_array($values['week_start'], ['sunday', 'monday'], true)) {
-        $errors[] = 'Início da semana inválido.';
+        $errors[] = stridebr_t('onboarding.invalid_week_start');
     }
 
 
@@ -159,7 +159,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <link rel="icon" type="image/png" href="<?php echo stridebr_e(stridebr_asset('/assets/img/favicon/favicon.png')); ?>">
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/style.css')); ?>">
-    <title>Configure seu perfil | StrideBR</title>
+    <title><?php echo stridebr_e(stridebr_t('onboarding.page_title')); ?> | StrideBR</title>
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>">
 </head>
 <body class="onboarding-body">
@@ -168,10 +168,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <main class="onboarding-card" data-onboarding data-initial-step="<?php echo $onboardingInitialStep; ?>">
         <div class="onboarding-topline">
             <div>
-                <span class="eyebrow">Primeiros passos</span>
-                <h1>Configure seu StrideBR</h1>
+                <span class="eyebrow"><?php echo stridebr_e(stridebr_t('onboarding.first_steps')); ?></span>
+                <h1><?php echo stridebr_e(stridebr_t('onboarding.configure')); ?></h1>
             </div>
-            <span class="onboarding-progress-label" data-step-label>1 de 6</span>
+            <span class="onboarding-progress-label" data-step-label><?php echo stridebr_e(stridebr_t('onboarding.step_count', ['step' => 1, 'total' => 6])); ?></span>
         </div>
         <div class="onboarding-progress"><span data-progress-bar></span></div>
 
@@ -182,16 +182,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <input type="hidden" name="action" value="finish">
 
             <section class="onboarding-step is-active" data-step="0">
-                <div class="onboarding-step-heading"><span>Opcional</span><h2>O que você pratica?</h2></div>
+                <div class="onboarding-step-heading"><span><?php echo stridebr_e(stridebr_t('onboarding.optional')); ?></span><h2><?php echo stridebr_e(stridebr_t('onboarding.sports_question')); ?></h2></div>
                 <div class="onboarding-choice-grid">
                     <?php foreach ($modalidades as $modalidade): ?>
-                        <label class="choice-card"><input type="checkbox" name="sports[]" value="<?php echo stridebr_e($modalidade['idmodalidade']); ?>"<?php echo in_array($modalidade['idmodalidade'], $selectedSports, true) ? ' checked' : ''; ?>><span><?php echo stridebr_e($modalidade['nome']); ?></span></label>
+                        <label class="choice-card"><input type="checkbox" name="sports[]" value="<?php echo stridebr_e($modalidade['idmodalidade']); ?>"<?php echo in_array($modalidade['idmodalidade'], $selectedSports, true) ? ' checked' : ''; ?>><span><?php echo stridebr_e(stridebr_sport_name((string) $modalidade['idmodalidade'], (string) $modalidade['nome'])); ?></span></label>
                     <?php endforeach; ?>
                 </div>
             </section>
 
             <section class="onboarding-step" data-step="1" hidden>
-                <div class="onboarding-step-heading"><span>Opcional</span><h2>O que você quer do StrideBR?</h2></div>
+                <div class="onboarding-step-heading"><span><?php echo stridebr_e(stridebr_t('onboarding.optional')); ?></span><h2><?php echo stridebr_e(stridebr_t('onboarding.goals_question')); ?></h2></div>
                 <div class="onboarding-choice-grid compact">
                     <?php foreach ($goalLabels as $value => $label): ?>
                         <label class="choice-card"><input type="checkbox" name="goals[]" value="<?php echo stridebr_e($value); ?>"<?php echo in_array($value, $values['goals'], true) ? ' checked' : ''; ?>><span><?php echo stridebr_e($label); ?></span></label>
@@ -200,25 +200,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </section>
 
             <section class="onboarding-step" data-step="2" hidden>
-                <div class="onboarding-step-heading"><span>Opcional</span><h2>Como você treina hoje?</h2></div>
+                <div class="onboarding-step-heading"><span><?php echo stridebr_e(stridebr_t('onboarding.optional')); ?></span><h2><?php echo stridebr_e(stridebr_t('onboarding.experience_question')); ?></h2></div>
                 <div class="onboarding-grid">
-                    <label>Experiência
+                    <label><?php echo stridebr_e(stridebr_t('onboarding.experience')); ?>
                         <select name="experience">
-                            <option value=""<?php echo $values['experience'] === '' ? ' selected' : ''; ?>>Prefiro não informar</option>
-                            <option value="comecando"<?php echo $values['experience'] === 'comecando' ? ' selected' : ''; ?>>Estou começando</option>
-                            <option value="pratico"<?php echo $values['experience'] === 'pratico' ? ' selected' : ''; ?>>Já pratico</option>
-                            <option value="regular"<?php echo $values['experience'] === 'regular' ? ' selected' : ''; ?>>Treino regularmente</option>
+                            <option value=""<?php echo $values['experience'] === '' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('onboarding.prefer_not_say')); ?></option>
+                            <option value="comecando"<?php echo $values['experience'] === 'comecando' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('onboarding.experience_starting')); ?></option>
+                            <option value="pratico"<?php echo $values['experience'] === 'pratico' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('onboarding.experience_practice')); ?></option>
+                            <option value="regular"<?php echo $values['experience'] === 'regular' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('onboarding.experience_regular')); ?></option>
                         </select>
                     </label>
-                    <label>Frequência aproximada por semana
+                    <label><?php echo stridebr_e(stridebr_t('onboarding.weekly_frequency')); ?>
                         <select name="weekly_frequency">
-                            <option value="0">Prefiro não definir</option>
-                            <?php for ($i = 1; $i <= 7; $i++): ?><option value="<?php echo $i; ?>"<?php echo $values['weekly_frequency'] === $i ? ' selected' : ''; ?>><?php echo $i; ?> dia<?php echo $i === 1 ? '' : 's'; ?></option><?php endfor; ?>
+                            <option value="0"><?php echo stridebr_e(stridebr_t('onboarding.prefer_not_define')); ?></option>
+                            <?php for ($i = 1; $i <= 7; $i++): ?><option value="<?php echo $i; ?>"<?php echo $values['weekly_frequency'] === $i ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_tn('onboarding.days.one', 'onboarding.days.other', $i)); ?></option><?php endfor; ?>
                         </select>
                     </label>
                 </div>
                 <div class="onboarding-subsection">
-                    <strong>O que você gosta de acompanhar?</strong>
+                    <strong><?php echo stridebr_e(stridebr_t('onboarding.track_question')); ?></strong>
                     <div class="onboarding-choice-grid compact">
                         <?php foreach ($trackingChoices as $value => [$label, $description]): ?>
                             <label class="choice-card choice-card-detail"><input type="checkbox" name="tracking[]" value="<?php echo stridebr_e($value); ?>" data-summary-label="<?php echo stridebr_e($label); ?>"<?php echo in_array($value, $values['tracking'], true) ? ' checked' : ''; ?>><span><strong><?php echo stridebr_e($label); ?></strong><small><?php echo stridebr_e($description); ?></small></span></label>
@@ -228,26 +228,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </section>
 
             <section class="onboarding-step" data-step="3" hidden>
-                <div class="onboarding-step-heading"><span>Padrões</span><h2>Preferências básicas</h2></div>
+                <div class="onboarding-step-heading"><span><?php echo stridebr_e(stridebr_t('onboarding.defaults')); ?></span><h2><?php echo stridebr_e(stridebr_t('onboarding.basic_preferences')); ?></h2></div>
                 <div class="onboarding-grid">
-                    <label>Unidades
-                        <select name="units"><option value="metric"<?php echo $values['units'] === 'metric' ? ' selected' : ''; ?>>Métricas (km, kg, cm)</option><option value="imperial"<?php echo $values['units'] === 'imperial' ? ' selected' : ''; ?>>Imperiais</option></select>
+                    <label><?php echo stridebr_e(stridebr_t('onboarding.units')); ?>
+                        <select name="units"><option value="metric"<?php echo $values['units'] === 'metric' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('onboarding.metric_units')); ?></option><option value="imperial"<?php echo $values['units'] === 'imperial' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('onboarding.imperial_units')); ?></option></select>
                     </label>
-                    <label>A semana começa
-                        <select name="week_start"><option value="sunday"<?php echo $values['week_start'] === 'sunday' ? ' selected' : ''; ?>>Domingo</option><option value="monday"<?php echo $values['week_start'] === 'monday' ? ' selected' : ''; ?>>Segunda-feira</option></select>
+                    <label><?php echo stridebr_e(stridebr_t('onboarding.week_starts')); ?>
+                        <select name="week_start"><option value="sunday"<?php echo $values['week_start'] === 'sunday' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('onboarding.week_sunday')); ?></option><option value="monday"<?php echo $values['week_start'] === 'monday' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('onboarding.week_monday')); ?></option></select>
                     </label>
-                    <label>Privacidade inicial do perfil
-                        <select name="visibilidadeperfil"><option value="privado"<?php echo $values['visibility'] === 'privado' ? ' selected' : ''; ?>>Privado</option><option value="amigos"<?php echo $values['visibility'] === 'amigos' ? ' selected' : ''; ?>>Amigos</option><option value="publico"<?php echo $values['visibility'] === 'publico' ? ' selected' : ''; ?>>Público</option></select>
+                    <label><?php echo stridebr_e(stridebr_t('onboarding.profile_initial_privacy')); ?>
+                        <select name="visibilidadeperfil"><option value="privado"<?php echo $values['visibility'] === 'privado' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('common.private')); ?></option><option value="amigos"<?php echo $values['visibility'] === 'amigos' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('common.friends')); ?></option><option value="publico"<?php echo $values['visibility'] === 'publico' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('common.public')); ?></option></select>
                     </label>
-                    <label>Privacidade de novas atividades
-                        <select name="activity_visibility"><option value="privado"<?php echo $values['activity_visibility'] === 'privado' ? ' selected' : ''; ?>>Só eu</option><option value="amigos"<?php echo $values['activity_visibility'] === 'amigos' ? ' selected' : ''; ?>>Amigos</option><option value="publico"<?php echo $values['activity_visibility'] === 'publico' ? ' selected' : ''; ?>>Público</option></select>
+                    <label><?php echo stridebr_e(stridebr_t('onboarding.activity_initial_privacy')); ?>
+                        <select name="activity_visibility"><option value="privado"<?php echo $values['activity_visibility'] === 'privado' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('onboarding.only_me')); ?></option><option value="amigos"<?php echo $values['activity_visibility'] === 'amigos' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('common.friends')); ?></option><option value="publico"<?php echo $values['activity_visibility'] === 'publico' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('common.public')); ?></option></select>
                     </label>
                 </div>
             </section>
 
             <section class="onboarding-step" data-step="4" hidden>
-                <div class="onboarding-step-heading"><span>Opcional</span><h2>Conecte onde você já treina</h2></div>
-                <p class="onboarding-connections-intro">O StrideBR pode receber atividades de outros serviços. Você pode fazer isso agora ou conectar depois em Editar perfil.</p>
+                <div class="onboarding-step-heading"><span><?php echo stridebr_e(stridebr_t('onboarding.optional')); ?></span><h2><?php echo stridebr_e(stridebr_t('onboarding.connect_title')); ?></h2></div>
+                <p class="onboarding-connections-intro"><?php echo stridebr_e(stridebr_t('onboarding.connect_intro')); ?></p>
                 <div class="onboarding-connections-grid">
                     <?php foreach (['garmin', 'strava', 'polar', 'health_connect', 'apple_health'] as $providerId): ?>
                         <?php
@@ -261,41 +261,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <article class="onboarding-connection-card<?php echo $connected ? ' is-connected' : ''; ?>">
                             <div><strong><?php echo stridebr_e($provider['label']); ?></strong><small><?php echo stridebr_e($provider['description']); ?></small></div>
                             <?php if ($connected): ?>
-                                <span class="integration-status is-connected">Conectado</span>
+                                <span class="integration-status is-connected"><?php echo stridebr_e(stridebr_t('onboarding.connected')); ?></span>
                             <?php elseif ($kind === 'cloud' && $configured): ?>
-                                <a class="secondary-action" href="/auth/integration.php?provider=<?php echo rawurlencode($providerId); ?>&amp;return=<?php echo rawurlencode($returnTo); ?>">Conectar</a>
+                                <a class="secondary-action" href="/auth/integration.php?provider=<?php echo rawurlencode($providerId); ?>&amp;return=<?php echo rawurlencode($returnTo); ?>"><?php echo stridebr_e(stridebr_t('onboarding.connect')); ?></a>
                             <?php elseif ($providerId === 'health_connect'): ?>
                                 <span class="onboarding-connection-note">App Android</span>
                             <?php elseif ($providerId === 'apple_health'): ?>
                                 <span class="onboarding-connection-note">App iOS</span>
                             <?php else: ?>
-                                <span class="onboarding-connection-note">Suporte preparado</span>
+                                <span class="onboarding-connection-note"><?php echo stridebr_e(stridebr_t('onboarding.support_ready')); ?></span>
                             <?php endif; ?>
                         </article>
                     <?php endforeach; ?>
                 </div>
-                <p class="onboarding-connection-footnote">Arquivos FIT, GPX e TCX também podem ser importados sem conectar uma conta.</p>
+                <p class="onboarding-connection-footnote"><?php echo stridebr_e(stridebr_t('onboarding.import_files_note')); ?></p>
             </section>
 
             <section class="onboarding-step" data-step="5" hidden>
-                <div class="onboarding-step-heading"><span>Pronto</span><h2>Resumo</h2></div>
+                <div class="onboarding-step-heading"><span><?php echo stridebr_e(stridebr_t('onboarding.ready')); ?></span><h2><?php echo stridebr_e(stridebr_t('onboarding.summary')); ?></h2></div>
                 <div class="onboarding-result" data-onboarding-summary aria-live="polite"></div>
             </section>
 
             <div class="onboarding-actions">
-                <button type="button" class="secondary-action" data-prev-step hidden>Voltar</button>
+                <button type="button" class="secondary-action" data-prev-step hidden><?php echo stridebr_e(stridebr_t('onboarding.back')); ?></button>
                 <span></span>
-                <button type="button" class="primary-action" data-next-step>Continuar</button>
-                <button type="submit" class="primary-action" data-finish-step hidden>Concluir</button>
+                <button type="button" class="primary-action" data-next-step><?php echo stridebr_e(stridebr_t('onboarding.continue')); ?></button>
+                <button type="submit" class="primary-action" data-finish-step hidden><?php echo stridebr_e(stridebr_t('onboarding.finish')); ?></button>
             </div>
         </form>
         <form method="POST" class="onboarding-skip">
             <?php echo stridebr_csrf_field(); ?>
             <input type="hidden" name="action" value="skip">
-            <button type="submit">Pular por enquanto</button>
+            <button type="submit"><?php echo stridebr_e(stridebr_t('onboarding.skip_now')); ?></button>
         </form>
     </main>
 </div>
+<?php echo stridebr_i18n_runtime_script(true); ?>
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/onboarding.js')); ?>" defer></script>
 </body>
 </html>

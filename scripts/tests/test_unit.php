@@ -50,7 +50,7 @@ try {
         'record_values' => [],
         'unidades' => [['values' => ['dur' => '00:45:00']]],
     ], 4);
-    $assert(($strengthMetrics[0]['rotulo'] ?? '') === 'Código' && ($strengthMetrics[1]['rotulo'] ?? '') === 'Foco', 'Histórico de musculação não priorizou código e foco');
+    $assert(($strengthMetrics[0]['rotulo'] ?? '') === stridebr_t('activity.code') && ($strengthMetrics[1]['rotulo'] ?? '') === stridebr_t('activity.focus'), 'Histórico de musculação não priorizou código e foco');
 
     $segmentFields = [
         ['idcampo' => 'dist', 'slug' => 'distancia', 'rotulo' => 'Distância', 'tipo_campo' => 'decimal', 'escopo' => 'unidade', 'unidade_simbolo' => 'km', 'ordem' => 1],
@@ -73,13 +73,13 @@ try {
     $segmentMetrics = atividadeCardMetricas($segmentDetails, 4);
     $segmentMetricMap = [];
     foreach ($segmentMetrics as $metric) $segmentMetricMap[(string) $metric['rotulo']] = (string) $metric['valor'];
-    $assert(($segmentMetricMap['Distância'] ?? '') === '1,5 km', 'Distância agregada dos trechos não foi exibida');
-    $assert(($segmentMetricMap['Duração'] ?? '') === '00:07:30', 'Duração agregada dos trechos não foi exibida');
-    $assert(($segmentMetricMap['Ritmo'] ?? '') === '5:00/km', 'Ritmo agregado dos trechos não foi calculado pelos totais');
+    $assert(($segmentMetricMap[stridebr_t('activity.distance')] ?? '') === stridebr_format_number(1.5, 1, true) . ' km', 'Distância agregada dos trechos não foi exibida');
+    $assert(($segmentMetricMap[stridebr_t('activity.duration')] ?? '') === '00:07:30', 'Duração agregada dos trechos não foi exibida');
+    $assert(($segmentMetricMap[stridebr_t('activity.pace')] ?? '') === '5:00/km', 'Ritmo agregado dos trechos não foi calculado pelos totais');
     $mixedSegments = $segmentDetails;
     $mixedSegments['unidades'][1]['modalidade_metrica_derivada'] = 'velocidade_kmh';
     $mixedMetrics = atividadeCardMetricas($mixedSegments, 6);
-    $assert(!in_array('Ritmo', array_column($mixedMetrics, 'rotulo'), true) && !in_array('Velocidade', array_column($mixedMetrics, 'rotulo'), true), 'Sessão com modalidades incompatíveis ganhou métrica derivada geral enganosa');
+    $assert(!in_array(stridebr_t('activity.pace'), array_column($mixedMetrics, 'rotulo'), true) && !in_array(stridebr_t('activity.speed'), array_column($mixedMetrics, 'rotulo'), true), 'Sessão com modalidades incompatíveis ganhou métrica derivada geral enganosa');
 
     $assert(cronogramaDuracaoMinutos(['hora_inicio' => '08:00:00', 'hora_fim' => '09:30:00', 'termina_dia_seguinte' => false]) === 90, 'Duração normal do treino incorreta');
     $assert(cronogramaDuracaoMinutos(['hora_inicio' => '23:30:00', 'hora_fim' => '00:30:00', 'termina_dia_seguinte' => true]) === 60, 'Duração atravessando meia-noite incorreta');

@@ -362,16 +362,16 @@ function sportHubCardioDiscipline(string $slug): string
 function sportHubCardioDisciplines(): array
 {
     return [
-        'all' => ['label' => 'Geral', 'metric' => 'distance'],
-        'run' => ['label' => 'Corrida', 'metric' => 'pace_km'],
-        'walk' => ['label' => 'Caminhada', 'metric' => 'pace_km'],
-        'cycle' => ['label' => 'Ciclismo', 'metric' => 'speed'],
-        'swim' => ['label' => 'Natação', 'metric' => 'pace_100m'],
-        'row' => ['label' => 'Remo & paddle', 'metric' => 'speed'],
-        'multi' => ['label' => 'Multiesporte', 'metric' => 'distance'],
-        'machine' => ['label' => 'Cardio indoor', 'metric' => 'time'],
-        'skating' => ['label' => 'Patinação', 'metric' => 'speed'],
-        'other' => ['label' => 'Outros', 'metric' => 'time'],
+        'all' => ['label' => stridebr_t('progress.cardio.all'), 'metric' => 'distance'],
+        'run' => ['label' => stridebr_t('progress.cardio.run'), 'metric' => 'pace_km'],
+        'walk' => ['label' => stridebr_t('progress.cardio.walk'), 'metric' => 'pace_km'],
+        'cycle' => ['label' => stridebr_t('progress.cardio.cycle'), 'metric' => 'speed'],
+        'swim' => ['label' => stridebr_t('progress.cardio.swim'), 'metric' => 'pace_100m'],
+        'row' => ['label' => stridebr_t('progress.cardio.row'), 'metric' => 'speed'],
+        'multi' => ['label' => stridebr_t('progress.cardio.multi'), 'metric' => 'distance'],
+        'machine' => ['label' => stridebr_t('progress.cardio.machine'), 'metric' => 'time'],
+        'skating' => ['label' => stridebr_t('progress.cardio.skating'), 'metric' => 'speed'],
+        'other' => ['label' => stridebr_t('progress.cardio.other'), 'metric' => 'time'],
     ];
 }
 
@@ -482,8 +482,8 @@ function sportHubCardioDashboard(array $activities, ?array $periodWindow = null)
                 $recent[$target][] = [
                     'idregistro' => (string) ($row['idregistro'] ?? ''),
                     'date' => (string) $row['data_inicio'],
-                    'title' => (string) ($row['titulo'] ?? $row['modalidade_nome'] ?? 'Atividade'),
-                    'sport' => (string) ($row['modalidade_nome'] ?? 'Atividade'),
+                    'title' => stridebr_present_activity_title((string) ($row['titulo'] ?? $row['modalidade_nome'] ?? stridebr_t('activity.activity')), (string) ($row['modalidade_slug'] ?? ''), (string) ($row['modalidade_nome'] ?? '')),
+                    'sport' => stridebr_sport_name((string) ($row['modalidade_slug'] ?? ''), (string) ($row['modalidade_nome'] ?? stridebr_t('activity.activity'))),
                     'distance_m' => $distance,
                     'duration_s' => $duration,
                     'pace_s' => $pace,
@@ -804,7 +804,7 @@ function sportHubSessionDashboard(array $activities, string $bucket, ?array $per
             }
             unset($data);
         }
-        $sport = trim((string) ($row['modalidade_nome'] ?? 'Atividade'));
+        $sport = stridebr_sport_name((string) ($row['modalidade_slug'] ?? ''), trim((string) ($row['modalidade_nome'] ?? stridebr_t('activity.activity'))));
         $sports[$sport] = ($sports[$sport] ?? 0) + 1;
         if ($type !== '') $sessionTypes[$type] = ($sessionTypes[$type] ?? 0) + 1;
         if ($format !== '') $formats[$format] = ($formats[$format] ?? 0) + 1;
@@ -812,7 +812,7 @@ function sportHubSessionDashboard(array $activities, string $bucket, ?array $per
             $recent[] = [
                 'idregistro' => (string) ($row['idregistro'] ?? ''),
                 'date' => (string) ($row['data_inicio'] ?? ''),
-                'title' => (string) ($row['titulo'] ?? $sport),
+                'title' => stridebr_present_activity_title((string) ($row['titulo'] ?? $sport), (string) ($row['modalidade_slug'] ?? ''), (string) ($row['modalidade_nome'] ?? '')),
                 'sport' => $sport,
                 'duration_s' => $duration,
                 'type' => $type,
@@ -844,27 +844,20 @@ function sportHubSessionDashboard(array $activities, string $bucket, ?array $per
 
 function sportHubSessionTypeLabel(string $value): string
 {
-    return match ($value) {
-        'treino' => 'Treino',
-        'partida' => 'Partida',
-        'aula' => 'Aula',
-        'jogo' => 'Jogo',
-        'amistoso' => 'Amistoso',
-        'tecnica' => 'Técnica',
-        'saco-manopla' => 'Saco / manopla',
-        'sparring' => 'Sparring',
-        'luta' => 'Luta',
-        'competicao' => 'Competição',
-        default => $value !== '' ? ucfirst(str_replace('-', ' ', $value)) : 'Sessão',
+    $key = match ($value) {
+        'treino', 'partida', 'aula', 'jogo', 'amistoso', 'tecnica', 'saco-manopla', 'sparring', 'luta', 'competicao' => $value,
+        default => '',
     };
+    if ($key !== '') return stridebr_t('progress.session_type.' . str_replace('-', '_', $key));
+    return $value !== '' ? ucfirst(str_replace('-', ' ', $value)) : stridebr_t('progress.session');
 }
 
 function sportHubResultLabel(string $value): string
 {
     return match ($value) {
-        'vitoria' => 'Vitória',
-        'empate' => 'Empate',
-        'derrota' => 'Derrota',
+        'vitoria' => stridebr_t('progress.result.win'),
+        'empate' => stridebr_t('progress.result.draw'),
+        'derrota' => stridebr_t('progress.result.loss'),
         default => '',
     };
 }
@@ -874,7 +867,7 @@ function sportHubSportBreakdown(array $activities, string $bucket): array
     $counts = [];
     foreach ($activities as $row) {
         if (($row['hub_bucket'] ?? '') !== $bucket) continue;
-        $name = (string) ($row['modalidade_nome'] ?? 'Atividade');
+        $name = stridebr_sport_name((string) ($row['modalidade_slug'] ?? ''), (string) ($row['modalidade_nome'] ?? stridebr_t('activity.activity')));
         $counts[$name] ??= ['activities' => 0, 'duration_s' => 0.0, 'distance_m' => 0.0, 'calories_kcal' => 0.0];
         $counts[$name]['activities']++;
         $counts[$name]['duration_s'] += (float) ($row['duration_s'] ?? 0);

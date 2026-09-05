@@ -27,7 +27,7 @@
             }
             const next = row.nextElementSibling;
             row.remove();
-            window.StrideBRUI?.undo?.('Exercício removido da prescrição.', async () => {
+            window.StrideBRUI?.undo?.(t('trainer.exercise_removed_undo', {}, 'Exercise removed from prescription.'), async () => {
                 if (next?.isConnected) exerciseList.insertBefore(row, next);
                 else exerciseList.appendChild(row);
             });

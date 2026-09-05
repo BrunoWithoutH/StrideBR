@@ -19,7 +19,7 @@ require_once __DIR__ . '/atividade_modelo.php';
 
 $idRegistro = trim((string) ($_POST['id'] ?? ''));
 $wantsJson = str_contains(strtolower((string) ($_SERVER['HTTP_ACCEPT'] ?? '')), 'application/json');
-$embedded = (string) ($_POST['embed'] ?? '') === '1';
+$embedded = (string) ($_GET['embed'] ?? $_POST['embed'] ?? '') === '1';
 $removed = $idRegistro !== '' && atividadeExcluirRegistro($pdo, $idRegistro, $idUsuario);
 
 if ($wantsJson) {
@@ -36,8 +36,8 @@ if ($wantsJson) {
 if ($embedded) {
     if ($removed) {
         header('Content-Type: text/html; charset=utf-8');
-        $message = json_encode(['type' => 'stridebr:activity-edit-deleted', 'id' => $idRegistro], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
-        echo '<!doctype html><html><body><script>window.parent.postMessage(' . $message . ', window.location.origin);</script></body></html>';
+        $bridge = stridebr_asset('/assets/js/activity-edit-bridge.js');
+        echo '<!doctype html><html><body><div data-activity-edit-result data-type="stridebr:activity-edit-deleted" data-id="' . stridebr_e($idRegistro) . '"></div><script src="' . stridebr_e($bridge) . '"></script></body></html>';
         exit;
     }
     header('Location: /user/editatividade.php?id=' . rawurlencode($idRegistro) . '&embed=1&delete_error=1');

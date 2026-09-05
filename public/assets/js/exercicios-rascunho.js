@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const t = (key, values = {}, fallback = key) => window.StrideBRI18n?.t?.(key, values, fallback) ?? fallback
     const page = document.querySelector('[data-draft-exercise-page]');
     if (!page) return;
     const storageKey = 'stridebr.schedule.quickDraft';
@@ -30,9 +31,9 @@ document.addEventListener('DOMContentLoaded', () => {
         draft.updatedAt = Date.now();
         sessionStorage.setItem(storageKey, JSON.stringify(draft));
         if (stateLabel) {
-            stateLabel.textContent = 'Alterações guardadas neste navegador';
+            stateLabel.textContent = t('draft.saved_browser', {}, 'Changes saved in this browser');
             clearTimeout(persist.labelTimer);
-            persist.labelTimer = setTimeout(() => { stateLabel.textContent = 'Rascunho salvo'; }, 900);
+            persist.labelTimer = setTimeout(() => { stateLabel.textContent = t('draft.saved', {}, 'Draft saved'); }, 900);
         }
     };
 
@@ -50,7 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const renumber = () => {
         [...list.querySelectorAll('[data-draft-exercise-row]')].forEach((row, index) => {
             const number = row.querySelector('[data-draft-number]');
-            if (number) number.textContent = `Exercício ${index + 1}`;
+            if (number) number.textContent = t('draft.exercise_number', {number: index + 1}, `Exercise ${index + 1}`);
         });
     };
 
@@ -73,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
             row.remove();
             renumber();
             collect();
-            window.StrideBRUI?.undo?.('Exercício removido do rascunho.', async () => {
+            window.StrideBRUI?.undo?.(t('draft.exercise_removed', {}, 'Exercise removed from draft.'), async () => {
                 if (next?.isConnected) list.insertBefore(row, next);
                 else list.appendChild(row);
                 renumber();

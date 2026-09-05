@@ -19,8 +19,13 @@ $auth = $read('src/includes/auth.php');
 $googleStart = $read('public/auth/google.php');
 $googleCallback = $read('public/auth/google-callback.php');
 $themeJs = $read('public/assets/js/ui-preferences.js');
+$themeBootJs = $read('public/assets/js/ui-boot.js');
+$htaccess = $read('public/.htaccess');
+$diagnostics = $read('public/admin/diagnostics.php');
 $runtime = $read('public/assets/js/i18n-runtime.js');
 $css = $read('public/assets/css/ui-refresh.css');
+$activitiesCss = $read('public/assets/css/atividades.css');
+$styleCss = $read('public/assets/css/style.css');
 $migration = $read('src/database/migrations/20260903_v1_rc.sql');
 $env = $read('.env.example');
 
@@ -33,12 +38,14 @@ $checks = [
     'cabeçalho não expõe tema e idioma' => !str_contains($header, 'data-locale-select') && !str_contains($header, 'data-theme-select') && !str_contains($header, 'data-theme-toggle'),
     'autenticação não expõe tema e idioma' => !str_contains($login, 'auth-page-tools') && !str_contains($signup, 'auth-page-tools') && !str_contains($login, 'data-locale-select') && !str_contains($signup, 'data-locale-select'),
     'notificações usam dropdown no header' => str_contains($header, 'header-notification-menu') && str_contains($header, 'header-notification-popover') && str_contains($header, 'notificacaoListar'),
-    'runtime de preferência carregado globalmente' => str_contains($footer, '/assets/js/ui-preferences.js') && str_contains($footer, '/assets/js/i18n-runtime.js'),
+    'runtime de preferência carregado globalmente' => str_contains($footer, '/assets/js/ui-preferences.js') && str_contains($footer, 'stridebr_i18n_runtime_script(false)'),
     'boot de aparência roda antes do CSS nas atividades' => strpos($activities, 'stridebr_ui_boot_script()') < strpos($activities, '/assets/css/style.css'),
-    'modo escuro nativo possui tokens e superfícies' => str_contains($css, ':root[data-theme="dark"]') && str_contains($css, '--ui-bg: #1c2023') && str_contains($css, '--ui-panel: #15191b') && str_contains($css, '.activity-history-summary'),
+    'boot de aparência é externo e compatível com CSP' => str_contains($i18n, "stridebr_asset('/assets/js/ui-boot.js')") && str_contains($i18n, 'data-theme-mode=') && !str_contains($i18n, '<script data-stridebr-ui-boot>(function()') && str_contains($themeBootJs, 'document.currentScript') && str_contains($themeBootJs, 'root.dataset.theme = theme') && str_contains($htaccess, "script-src 'self' https://unpkg.com"),
+    'diagnóstico separa migrations atuais de consolidadas' => str_contains($diagnostics, '$consolidatedHistory') && str_contains($diagnostics, '$orphanHistory') && str_contains($diagnostics, '/<?php echo count($migrationFiles); ?> atuais') && str_contains($diagnostics, 'migrations históricas consolidadas'),
+    'modo escuro nativo possui tokens e superfícies' => str_contains($styleCss, ':root[data-theme="dark"]') && str_contains($styleCss, '--color-background: #1A1F24') && str_contains($styleCss, '--color-panel: #14191D') && str_contains($activitiesCss, '.activity-history-summary') && str_contains($activitiesCss, 'background:var(--ui-panel)'),
     'aparência oferece apenas claro e escuro com claro padrão' => !str_contains($themeJs, "'system'") && str_contains($themeJs, "['light', 'dark']") && str_contains($i18n, "return 'light';"),
     'página de atividades usa tradução estrutural' => str_contains($activities, "stridebr_t('activity.page_title')") && str_contains($activities, "stridebr_t('activity.history')") && str_contains($activities, "stridebr_t('activity.detail_title')"),
-    'inglês traduz conteúdo dinâmico' => (str_contains($runtime, "'Compartilhar atividade':'Share activity'") || str_contains($runtime, '"Compartilhar atividade":"Share activity"')) && str_contains($runtime, 'MutationObserver'),
+    'conteúdo dinâmico usa API por chave' => str_contains($runtime, 'window.StrideBRI18n = api') && str_contains($runtime, 'dataset.i18n') && str_contains($runtime, 'MutationObserver') && !str_contains($runtime, "'Compartilhar atividade':'Share activity'"),
     'login reutiliza shell visual do cadastro' => str_contains($login, 'signup-onboarding-body') && str_contains($login, 'signup-onboarding-shell') && str_contains($login, 'auth-unified-card'),
     'google fica condicionado ao feature flag e configuração' => str_contains($login, '$googleAuthEnabled') && str_contains($login, 'stridebr_auth_google_enabled()') && str_contains($login, '/auth/google.php') && str_contains($auth, 'GOOGLE_OAUTH_ENABLED') && str_contains($auth, 'stridebr_auth_google_feature_enabled()'),
     'oauth usa state e authorization code no servidor' => str_contains($auth, "'state' => \$state") && str_contains($auth, 'https://accounts.google.com/o/oauth2/v2/auth') && str_contains($auth, 'https://oauth2.googleapis.com/token') && str_contains($googleCallback, 'hash_equals') && str_contains($googleCallback, "\$_GET['code']"),

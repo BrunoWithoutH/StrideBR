@@ -1,3 +1,4 @@
+const agendaT = (key, values = {}, fallback = key) => window.StrideBRI18n?.t?.(key, values, fallback) ?? fallback
 (() => {
     const cache = new Map();
     let request = null;
@@ -24,10 +25,10 @@
     const parsePage = html => {
         const doc = new DOMParser().parseFromString(html, 'text/html');
         const shell = doc.querySelector('[data-monthly-dynamic]');
-        if (!shell) throw new Error('Resposta da agenda inválida.');
+        if (!shell) throw new Error(agendaT('agenda.invalid_response', {}, 'Invalid agenda response.'));
         return {
             shell,
-            title: doc.querySelector('[data-monthly-page-title]')?.textContent || 'Agenda mensal',
+            title: doc.querySelector('[data-monthly-page-title]')?.textContent || agendaT('agenda.page_title'),
             documentTitle: doc.title || document.title,
             contextLink: doc.querySelector('.planning-subnav-context')?.outerHTML || '',
         };
@@ -52,7 +53,7 @@
         const key = normalizeUrl(url);
         if (cache.has(key)) return cache.get(key);
         const response = await fetch(key, {headers: {'Accept': 'text/html'}, credentials: 'same-origin'});
-        if (!response.ok) throw new Error('Não foi possível carregar este mês.');
+        if (!response.ok) throw new Error(agendaT('agenda.load_month_error', {}, 'Could not load this month.'));
         const html = await response.text();
         const parsed = parsePage(html);
         cache.set(key, parsed);
@@ -84,7 +85,7 @@
                     credentials: 'same-origin',
                     signal: request.signal,
                 });
-                if (!response.ok) throw new Error('Não foi possível carregar este mês.');
+                if (!response.ok) throw new Error(agendaT('agenda.load_month_error', {}, 'Could not load this month.'));
                 parsed = parsePage(await response.text());
                 cache.set(key, parsed);
             }
@@ -95,7 +96,7 @@
             prefetchNeighbors();
         } catch (error) {
             if (error?.name === 'AbortError') return;
-            window.StrideBRUI?.notify?.(error?.message || 'Não foi possível carregar este mês.', 'error');
+            window.StrideBRUI?.notify?.(error?.message || agendaT('agenda.load_month_error', {}, 'Could not load this month.'), 'error');
         } finally {
             if (token === navToken) setBusy(false);
         }
@@ -174,15 +175,15 @@
                 body,
             }, 15000);
             const data = await response.json().catch(() => null);
-            if (!response.ok || !data?.ok) throw new Error(data?.error || 'Não foi possível corrigir as datas e horários.');
+            if (!response.ok || !data?.ok) throw new Error(data?.error || agendaT('agenda.fix_dates_error', {}, 'Could not fix dates and times.'));
             const modal = document.querySelector('[data-planned-date-modal]');
             if (modal) modal.hidden = true;
             document.documentElement.style.overflow = '';
             cache.delete(normalizeUrl(window.location.href));
             await navigate(window.location.href, {historyMode: 'replace'});
-            window.StrideBRUI?.notify?.('Planejamento e realização corrigidos.', 'success');
+            window.StrideBRUI?.notify?.(agendaT('agenda.fix_dates_success', {}, 'Planning and completion dates corrected.'), 'success');
         } catch (error) {
-            window.StrideBRUI?.notify?.(error?.message || 'Não foi possível corrigir as datas e horários.', 'error');
+            window.StrideBRUI?.notify?.(error?.message || agendaT('agenda.fix_dates_error', {}, 'Could not fix dates and times.'), 'error');
         } finally {
             if (submit) submit.disabled = false;
         }

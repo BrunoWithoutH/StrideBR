@@ -112,13 +112,12 @@ function gpsWebValidatePoints(array $points): array
     return $coordinates;
 }
 
-function gpsWebSecondsToInterval(int $seconds): string
+function gpsWebSecondsToInterval(float|int $seconds): string
 {
-    $seconds = max(0, min(604800, $seconds));
-    return sprintf('%02d:%02d:%02d', intdiv($seconds, 3600), intdiv($seconds % 3600, 60), $seconds % 60);
+    return atividadeSegundosParaIntervalo(max(0.0, min(604800.0, (float) $seconds)));
 }
 
-function gpsWebValueForField(array $field, float $distanceM, int $durationS, ?float $elevationM): mixed
+function gpsWebValueForField(array $field, float $distanceM, float $durationS, ?float $elevationM): mixed
 {
     $slug = stridebr_lower((string) ($field['slug'] ?? ''));
     if ($slug === 'distancia') {
@@ -133,7 +132,7 @@ function gpsWebValueForField(array $field, float $distanceM, int $durationS, ?fl
     return null;
 }
 
-function gpsWebBuildFieldValues(array $fields, string $scope, float $distanceM, int $durationS, ?float $elevationM): array
+function gpsWebBuildFieldValues(array $fields, string $scope, float $distanceM, float $durationS, ?float $elevationM): array
 {
     $values = [];
     foreach ($fields as $field) {
@@ -144,12 +143,12 @@ function gpsWebBuildFieldValues(array $fields, string $scope, float $distanceM, 
     return $values;
 }
 
-function gpsWebValidateSegments(array $rawSegments, array $allCoordinates, float $displayDistanceM, int $displayDurationS, ?float $displayElevationM): array
+function gpsWebValidateSegments(array $rawSegments, array $allCoordinates, float $displayDistanceM, float $displayDurationS, ?float $displayElevationM): array
 {
     if (count($rawSegments) > GPS_WEB_MAX_SEGMENTS) throw new InvalidArgumentException('A gravação possui trechos demais.');
     $segments = [];
     $measuredTotal = 0.0;
-    $durationTotal = 0;
+    $durationTotal = 0.0;
     foreach ($rawSegments as $index => $segment) {
         if (!is_array($segment)) continue;
         $startIndex = max(0, (int) ($segment['start_index'] ?? 0));
@@ -157,7 +156,7 @@ function gpsWebValidateSegments(array $rawSegments, array $allCoordinates, float
         if ($endIndex < $startIndex) [$startIndex, $endIndex] = [$endIndex, $startIndex];
         $coordinates = array_slice($allCoordinates, $startIndex, $endIndex - $startIndex + 1);
         $measuredDistance = is_numeric($segment['distance_m'] ?? null) ? max(0.0, (float) $segment['distance_m']) : (count($coordinates) >= 2 ? atividadeDistanciaRota($coordinates) : 0.0);
-        $duration = max(0, (int) ($segment['duration_s'] ?? 0));
+        $duration = max(0.0, (float) ($segment['duration_s'] ?? 0));
         $elevation = is_numeric($segment['elevation_gain_m'] ?? null) ? max(0.0, (float) $segment['elevation_gain_m']) : null;
         $measuredTotal += $measuredDistance;
         $durationTotal += $duration;
@@ -175,7 +174,7 @@ function gpsWebValidateSegments(array $rawSegments, array $allCoordinates, float
             'coordinates' => $allCoordinates,
             'measured_distance_m' => max(0.0, $displayDistanceM),
             'distance_m' => max(0.0, $displayDistanceM),
-            'duration_s' => max(0, $displayDurationS),
+            'duration_s' => max(0.0, $displayDurationS),
             'elevation_gain_m' => $displayElevationM,
         ]];
     }
@@ -187,7 +186,7 @@ function gpsWebValidateSegments(array $rawSegments, array $allCoordinates, float
 
     foreach ($segments as &$segment) {
         $segment['distance_m'] = max(0.0, $segment['measured_distance_m'] * $distanceScale);
-        $segment['duration_s'] = max(0, (int) round($segment['duration_s'] * $durationScale));
+        $segment['duration_s'] = max(0.0, round((float) $segment['duration_s'] * $durationScale, 3));
         if ($displayElevationM === null) {
             $segment['elevation_gain_m'] = null;
         } elseif ($segment['elevation_gain_m'] !== null) {
@@ -211,14 +210,14 @@ function gpsWebBuildActivityPayload(PDO $pdo, string $idUsuario, array $recordin
     $geojson = ['type' => 'LineString', 'coordinates' => $coordinates];
     $measuredDistanceM = max(0.0, (float) ($recording['measured_distance_m'] ?? atividadeDistanciaRota($coordinates)));
     $displayDistanceM = is_numeric($recording['distance_m'] ?? null) ? max(0.0, (float) $recording['distance_m']) : $measuredDistanceM;
-    $displayDurationS = max(1, (int) ($recording['duration_s'] ?? 0));
+    $displayDurationS = max(0.001, round((float) ($recording['duration_s'] ?? 0), 3));
     if ($displayDurationS > 604800) throw new InvalidArgumentException('A duração da atividade é inválida.');
     $displayElevationM = is_numeric($recording['elevation_gain_m'] ?? null) ? max(0.0, (float) $recording['elevation_gain_m']) : null;
 
     $startedAtMs = (int) ($recording['started_at_ms'] ?? 0);
     if ($startedAtMs <= 0) throw new InvalidArgumentException('O horário inicial da gravação é inválido.');
     $started = (new DateTimeImmutable('@' . intdiv($startedAtMs, 1000)))->setTimezone(new DateTimeZone('America/Sao_Paulo'));
-    $endedAtMs = max($startedAtMs, (int) ($recording['ended_at_ms'] ?? ($startedAtMs + $displayDurationS * 1000)));
+    $endedAtMs = max($startedAtMs, (int) ($recording['ended_at_ms'] ?? ($startedAtMs + (int) round($displayDurationS * 1000))));
     $ended = (new DateTimeImmutable('@' . intdiv($endedAtMs, 1000)))->setTimezone(new DateTimeZone('America/Sao_Paulo'));
 
     $segments = gpsWebValidateSegments(
@@ -242,7 +241,7 @@ function gpsWebBuildActivityPayload(PDO $pdo, string $idUsuario, array $recordin
     foreach ($segments as $index => $segment) {
         $unit = [
             'rotulo' => (string) ($segment['label'] ?? ('Trecho ' . ($index + 1))),
-            'values' => gpsWebBuildFieldValues($fields, 'unidade', (float) ($segment['distance_m'] ?? 0), (int) ($segment['duration_s'] ?? 0), isset($segment['elevation_gain_m']) ? (float) $segment['elevation_gain_m'] : null),
+            'values' => gpsWebBuildFieldValues($fields, 'unidade', (float) ($segment['distance_m'] ?? 0), (float) ($segment['duration_s'] ?? 0), isset($segment['elevation_gain_m']) ? (float) $segment['elevation_gain_m'] : null),
         ];
         $segmentCoords = is_array($segment['coordinates'] ?? null) ? $segment['coordinates'] : [];
         if (count($segmentCoords) >= 2) {

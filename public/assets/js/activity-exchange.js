@@ -2,6 +2,8 @@ const stridebrInitActivityExchange = () => {
     const page = document.querySelector('[data-exchange-page]')
     if (!page || page.dataset.exchangeBound === '1') return
     page.dataset.exchangeBound = '1'
+    const t = (key, values = {}, fallback = key) => window.StrideBRI18n?.t?.(key, values, fallback) ?? fallback
+    const tn = (oneKey, otherKey, count, values = {}) => window.StrideBRI18n?.tn?.(oneKey, otherKey, count, values) ?? t(Number(count) === 1 ? oneKey : otherKey, {...values, count})
     const input = page.querySelector('[data-import-files]')
     const dropzone = page.querySelector('[data-import-dropzone]')
     const list = page.querySelector('[data-import-list]')
@@ -21,18 +23,14 @@ const stridebrInitActivityExchange = () => {
     const hasNumber = value => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value))
     const formatDuration = seconds => {
         if (!hasNumber(seconds)) return '—'
-        const total = Math.max(0, Math.round(Number(seconds)))
-        const h = Math.floor(total / 3600)
-        const m = Math.floor((total % 3600) / 60)
-        const s = total % 60
-        return h ? `${h}h ${String(m).padStart(2, '0')}min` : `${m}min ${String(s).padStart(2, '0')}s`
+        return window.StrideBRI18n?.duration?.(Number(seconds), true) || String(seconds)
     }
-    const formatDistance = meters => hasNumber(meters) ? `${(Number(meters) / 1000).toLocaleString('pt-BR', {maximumFractionDigits: 2})} km` : '—'
+    const formatDistance = meters => hasNumber(meters) ? `${window.StrideBRI18n?.number?.(Number(meters) / 1000, 2, true) ?? (Number(meters) / 1000).toFixed(2)} km` : '—'
     const formatDate = iso => {
-        if (!iso) return 'Data não encontrada'
+        if (!iso) return t('exchange.date_not_found', {}, 'Date not found')
         const date = new Date(iso)
-        if (Number.isNaN(date.getTime())) return 'Data não encontrada'
-        return new Intl.DateTimeFormat('pt-BR', {dateStyle: 'medium', timeStyle: 'short'}).format(date)
+        if (Number.isNaN(date.getTime())) return t('exchange.date_not_found', {}, 'Date not found')
+        return window.StrideBRI18n?.date?.(date, {dateStyle: 'medium', timeStyle: 'short'}) || date.toLocaleString()
     }
     const inputDate = iso => {
         const date = new Date(iso || '')
@@ -56,7 +54,7 @@ const stridebrInitActivityExchange = () => {
     const requestJson = async (url, body) => {
         const response = await (window.StrideBRNet?.fetch || fetch)(url, {method: 'POST', body, credentials: 'same-origin', headers: {'Accept': 'application/json'}}, 20000)
         const result = await response.json().catch(() => null)
-        if (!response.ok || !result?.ok) throw new Error(result?.error || 'Não foi possível concluir esta ação.')
+        if (!response.ok || !result?.ok) throw new Error(result?.error || t('common.action_failed', {}, 'Could not complete the action.'))
         return result
     }
     const historyCachePrefix = 'stridebr.activity.history.v3:'
@@ -86,7 +84,7 @@ const stridebrInitActivityExchange = () => {
                 items: items.map(result => ({id: String(result.idregistro), url: String(result.url || '')}))
             }
         }))
-        window.StrideBRUI?.notify(`${items.length} ${items.length === 1 ? 'atividade importada' : 'atividades importadas'}.`, 'success', 3200)
+        window.StrideBRUI?.notify(tn('exchange.imported_notice.one', 'exchange.imported_notice.other', items.length), 'success', 3200)
     }
     const ensureRouteTargets = async () => {
         if (Array.isArray(routeTargets)) return routeTargets
@@ -94,7 +92,7 @@ const stridebrInitActivityExchange = () => {
         routeTargetsPromise = (window.StrideBRNet?.fetch || fetch)('/api/atividade-rota-alvos.php', {credentials: 'same-origin', headers: {'Accept': 'application/json'}}, 10000)
             .then(async response => {
                 const result = await response.json().catch(() => null)
-                if (!response.ok || !result?.ok) throw new Error(result?.error || 'Não foi possível carregar as atividades disponíveis.')
+                if (!response.ok || !result?.ok) throw new Error(result?.error || t('exchange.load_activities_error', {}, 'Could not load available activities.'))
                 routeTargets = Array.isArray(result.items) ? result.items : []
                 return routeTargets
             })
@@ -148,7 +146,7 @@ const stridebrInitActivityExchange = () => {
         select.replaceChildren()
         const placeholder = document.createElement('option')
         placeholder.value = ''
-        placeholder.textContent = items.length ? 'Escolha uma atividade sem rota' : 'Nenhuma atividade sem rota disponível'
+        placeholder.textContent = items.length ? t('exchange.choose_activity_no_route', {}, 'Choose an activity without a route') : t('exchange.no_activity_no_route', {}, 'No activity without a route available')
         placeholder.selected = true
         select.append(placeholder)
         items.forEach(item => {
@@ -162,7 +160,7 @@ const stridebrInitActivityExchange = () => {
         const select = document.createElement('select')
         const placeholder = document.createElement('option')
         placeholder.value = ''
-        placeholder.textContent = 'Carregando atividades…'
+        placeholder.textContent = t('exchange.loading_activities', {}, 'Loading activities…')
         placeholder.selected = true
         select.append(placeholder)
         select.disabled = true
@@ -174,7 +172,7 @@ const stridebrInitActivityExchange = () => {
         page.querySelectorAll('.exchange-route-attach select').forEach(select => {
             select.querySelector(`option[value="${CSS.escape(id)}"]`)?.remove()
             const placeholder = select.querySelector('option[value=""]')
-            if (placeholder && select.options.length === 1) placeholder.textContent = 'Nenhuma atividade sem rota disponível'
+            if (placeholder && select.options.length === 1) placeholder.textContent = t('exchange.no_activity_no_route', {}, 'No activity without a route available')
             const button = select.closest('.exchange-route-attach')?.querySelector('.exchange-import-button')
             if (button && select.options.length === 1) button.disabled = true
         })
@@ -196,7 +194,7 @@ const stridebrInitActivityExchange = () => {
     const closeButton = card => {
         const button = el('button', 'exchange-card-close', '×')
         button.type = 'button'
-        button.setAttribute('aria-label', 'Fechar')
+        button.setAttribute('aria-label', t('common.close', {}, 'Close'))
         button.addEventListener('click', () => closeCard(card))
         return button
     }
@@ -204,7 +202,7 @@ const stridebrInitActivityExchange = () => {
         card.classList.remove('is-loading')
         card.classList.add('is-error')
         card.dataset.status = 'error'
-        const title = fileName ? `Não foi possível ler ${fileName}` : 'Não foi possível ler o arquivo'
+        const title = fileName ? t('exchange.file_read_named', {file: fileName}, `Could not read ${fileName}`) : t('exchange.file_read_error', {}, 'Could not read the file')
         card.replaceChildren(closeButton(card), el('strong', '', title), el('span', '', message))
         updateBulkToolbar()
     }
@@ -221,13 +219,13 @@ const stridebrInitActivityExchange = () => {
             const selection = el('label', 'exchange-card-select')
             const checkbox = document.createElement('input')
             checkbox.type = 'checkbox'
-            checkbox.setAttribute('aria-label', `Selecionar ${preview.file_name}`)
+            checkbox.setAttribute('aria-label', t('exchange.select_file', {file: preview.file_name}, `Select ${preview.file_name}`))
             checkbox.addEventListener('change', updateBulkToolbar)
             selection.append(checkbox)
             fileLine.append(selection)
         }
         fileLine.append(el('span', 'exchange-format-pill', preview.format), el('strong', '', preview.file_name))
-                const typeLabel = preview.file_type === 'percurso' ? 'Percurso' : preview.file_type === 'treino' ? 'Treino' : (preview.modality?.name || 'Atividade')
+                const typeLabel = preview.file_type === 'percurso' ? t('exchange.type_route', {}, 'Course') : preview.file_type === 'treino' ? t('exchange.type_workout', {}, 'Workout') : (preview.modality?.name || t('exchange.type_activity', {}, 'Activity'))
         identity.append(fileLine, el('span', '', `${typeLabel} · ${formatDate(preview.start)}`))
         const side = el('div', 'exchange-preview-side')
         side.append(closeButton(card))
@@ -245,31 +243,31 @@ const stridebrInitActivityExchange = () => {
     const makeMetrics = preview => {
         const metrics = el('div', 'exchange-preview-metrics')
         metrics.append(
-            metricCard('Duração', formatDuration(preview.duration_s)),
-            metricCard('Distância', formatDistance(preview.distance_m)),
-            metricCard('Elevação', hasNumber(preview.elevation_gain_m) ? `${Math.round(Number(preview.elevation_gain_m))} m` : '—'),
-            metricCard('FC média', hasNumber(preview.avg_hr) && Number(preview.avg_hr) > 0 ? `${Math.round(Number(preview.avg_hr))} bpm` : '—')
+            metricCard(t('activity.summary.duration', {}, 'Duration'), formatDuration(preview.duration_s)),
+            metricCard(t('activity.summary.distance', {}, 'Distance'), formatDistance(preview.distance_m)),
+            metricCard(t('activity.summary.elevation', {}, 'Elevation'), hasNumber(preview.elevation_gain_m) ? `${Math.round(Number(preview.elevation_gain_m))} m` : '—'),
+            metricCard(t('exchange.average_hr', {}, 'Avg. HR'), hasNumber(preview.avg_hr) && Number(preview.avg_hr) > 0 ? `${Math.round(Number(preview.avg_hr))} bpm` : '—')
         )
         return metrics
     }
     const makeMeta = preview => {
         const meta = el('div', 'exchange-preview-meta')
-        const deviceText = preview.device?.name || [preview.device?.manufacturer, preview.device?.product_id ? `produto ${preview.device.product_id}` : ''].filter(Boolean).join(' · ')
+        const deviceText = preview.device?.name || [preview.device?.manufacturer, preview.device?.product_id ? t('exchange.device_product', {id: preview.device.product_id}, `product ${preview.device.product_id}`) : ''].filter(Boolean).join(' · ')
         if (deviceText) meta.append(el('span', '', deviceText))
-        if (preview.stream_points) meta.append(el('span', '', `${preview.stream_points.toLocaleString('pt-BR')} pontos gravados`))
-        if (!preview.original_saved) meta.append(el('span', '', 'O arquivo original é grande; os dados normalizados foram preservados'))
+        if (preview.stream_points) meta.append(el('span', '', tn('exchange.recorded_points.one', 'exchange.recorded_points.other', preview.stream_points)))
+        if (!preview.original_saved) meta.append(el('span', '', t('exchange.original_large', {}, 'The original file is large; normalized data was preserved')))
         return meta
     }
     const renderRouteAttach = (card, preview, top, metrics, meta) => {
         const warning = el('div', 'exchange-preview-warning')
-        warning.append(el('strong', '', 'Percurso/rota'), el('span', '', 'Esse arquivo não é uma atividade gravada. Você pode adicionar a rota a uma atividade que ainda não tenha trajeto.'))
+        warning.append(el('strong', '', t('exchange.route_heading', {}, 'Course/route')), el('span', '', t('exchange.route_file_help', {}, 'This file is not a recorded activity.')))
         const form = el('form', 'exchange-route-attach')
         const field = el('label')
-        field.append(el('span', '', 'Adicionar a uma atividade'))
+        field.append(el('span', '', t('exchange.add_to_activity', {}, 'Add to an activity')))
         const select = routeTargetSelect()
         select.name = 'idregistro'
         field.append(select)
-        const button = el('button', 'exchange-import-button', 'Adicionar rota')
+        const button = el('button', 'exchange-import-button', t('exchange.add_route', {}, 'Add route'))
         button.type = 'submit'
         button.disabled = true
         form.append(field, button)
@@ -283,13 +281,13 @@ const stridebrInitActivityExchange = () => {
             fillRouteTargetSelect(select, [])
             select.disabled = true
             button.disabled = true
-            form.prepend(el('div', 'exchange-inline-error', error?.message || 'Não foi possível carregar as atividades disponíveis.'))
+            form.prepend(el('div', 'exchange-inline-error', error?.message || t('exchange.load_activities_error', {}, 'Could not load available activities.')))
         })
         form.addEventListener('submit', async event => {
             event.preventDefault()
             if (!select.value) return
             button.disabled = true
-            button.textContent = 'Adicionando…'
+            button.textContent = t('exchange.adding', {}, 'Adding…')
             form.querySelector('.exchange-inline-error')?.remove()
             const body = new FormData()
             body.append('csrf_token', csrf)
@@ -301,15 +299,15 @@ const stridebrInitActivityExchange = () => {
                 card.dataset.status = 'imported'
                 removeRouteTarget(targetId)
                 const success = el('div', 'exchange-import-success')
-                success.append(el('strong', '', 'Rota adicionada à atividade'))
-                const link = el('a', '', 'Abrir atividade')
+                success.append(el('strong', '', t('exchange.route_added', {}, 'Route added to activity')))
+                const link = el('a', '', t('exchange.open_activity', {}, 'Open activity'))
                 link.href = result.url || '/user/atividades.php'
                 success.append(link)
                 form.replaceWith(success)
             } catch (error) {
                 button.disabled = false
-                button.textContent = 'Adicionar rota'
-                form.prepend(el('div', 'exchange-inline-error', error?.message || 'Não foi possível adicionar a rota.'))
+                button.textContent = t('exchange.add_route', {}, 'Add route')
+                form.prepend(el('div', 'exchange-inline-error', error?.message || t('exchange.route_add_error', {}, 'Could not add the route.')))
             }
         })
         card.replaceChildren(top, metrics, meta, warning, form)
@@ -320,7 +318,7 @@ const stridebrInitActivityExchange = () => {
         if (!form || !button || card.dataset.status !== 'pending') return false
         if (!form.reportValidity()) return false
         button.disabled = true
-        button.textContent = 'Importando…'
+        button.textContent = t('exchange.importing', {}, 'Importing…')
         form.querySelector('.exchange-inline-error')?.remove()
         const body = new FormData(form)
         body.append('csrf_token', csrf)
@@ -331,8 +329,8 @@ const stridebrInitActivityExchange = () => {
             card.dataset.importable = '0'
             card.querySelector('.exchange-card-select')?.remove()
             const success = el('div', 'exchange-import-success')
-            success.append(el('strong', '', 'Atividade importada'))
-            const link = el('a', '', 'Abrir atividade')
+            success.append(el('strong', '', t('exchange.activity_imported', {}, 'Activity imported')))
+            const link = el('a', '', t('exchange.open_activity', {}, 'Open activity'))
             link.href = result.url || '/user/atividades.php'
             success.append(link)
             form.replaceWith(success)
@@ -341,8 +339,8 @@ const stridebrInitActivityExchange = () => {
             return result
         } catch (error) {
             button.disabled = false
-            button.textContent = 'Importar'
-            const message = el('div', 'exchange-inline-error', error?.message || 'Não foi possível importar.')
+            button.textContent = t('exchange.import', {}, 'Import')
+            const message = el('div', 'exchange-inline-error', error?.message || t('exchange.import_error', {}, 'Could not import.'))
             form.prepend(message)
             updateBulkToolbar()
             return null
@@ -362,8 +360,8 @@ const stridebrInitActivityExchange = () => {
                 renderRouteAttach(card, preview, top, metrics, meta)
             } else {
                 const warning = el('div', 'exchange-preview-warning')
-                const label = preview.file_type === 'treino' ? 'treino estruturado' : 'arquivo não reconhecido como atividade'
-                warning.append(el('strong', '', 'Não é uma atividade gravada'), el('span', '', `O arquivo foi identificado como ${label}.`))
+                const label = preview.file_type === 'treino' ? t('exchange.structured_workout', {}, 'structured workout') : t('exchange.unrecognized_file', {}, 'file not recognized as an activity')
+                warning.append(el('strong', '', t('exchange.not_recorded_activity', {}, 'Not a recorded activity')), el('span', '', t('exchange.identified_as', {type: label}, `The file was identified as ${label}.`)))
                 card.replaceChildren(top, metrics, meta, warning)
             }
             updateBulkToolbar()
@@ -373,21 +371,21 @@ const stridebrInitActivityExchange = () => {
         card.dataset.importable = '1'
         const form = el('form', 'exchange-preview-form')
         const titleField = el('label', 'exchange-field-title')
-        titleField.append(el('span', '', 'Título'))
+        titleField.append(el('span', '', t('common.title', {}, 'Title')))
         const titleInput = document.createElement('input')
         titleInput.name = 'titulo'
         titleInput.maxLength = 255
-        titleInput.value = preview.title || preview.modality?.name || 'Atividade'
+        titleInput.value = preview.title || preview.modality?.name || t('exchange.type_activity', {}, 'Activity')
         titleField.append(titleInput)
 
         const modalityField = el('label', 'exchange-field-modality')
-        modalityField.append(el('span', '', 'Modalidade'))
+        modalityField.append(el('span', '', t('common.sport', {}, 'Sport')))
         const select = modalitySelect(preview)
         select.name = 'modalidade_slug'
         modalityField.append(select)
 
         const dateField = el('label', 'exchange-field-date')
-        dateField.append(el('span', '', 'Data'))
+        dateField.append(el('span', '', t('common.date', {}, 'Date')))
         const dateInput = document.createElement('input')
         dateInput.type = 'date'
         dateInput.name = 'data_inicio'
@@ -396,7 +394,7 @@ const stridebrInitActivityExchange = () => {
         dateField.append(dateInput)
 
         const timeField = el('label', 'exchange-field-time')
-        timeField.append(el('span', '', 'Horário'))
+        timeField.append(el('span', '', t('exchange.time', {}, 'Time')))
         const timeInput = document.createElement('input')
         timeInput.type = 'time'
         timeInput.name = 'hora_inicio'
@@ -405,10 +403,10 @@ const stridebrInitActivityExchange = () => {
         timeField.append(timeInput)
 
         const visibilityField = el('label', 'exchange-field-visibility')
-        visibilityField.append(el('span', '', 'Visibilidade'))
+        visibilityField.append(el('span', '', t('exchange.visibility', {}, 'Visibility')))
         const visibility = document.createElement('select')
         visibility.name = 'visibilidade'
-        ;[['privado', 'Privada'], ['amigos', 'Amigos'], ['publico', 'Pública']].forEach(([value, label]) => {
+        ;[['privado', t('exchange.private', {}, 'Private')], ['amigos', t('common.friends', {}, 'Friends')], ['publico', t('exchange.public', {}, 'Public')]].forEach(([value, label]) => {
             const option = document.createElement('option')
             option.value = value
             option.textContent = label
@@ -423,13 +421,13 @@ const stridebrInitActivityExchange = () => {
             checkbox.type = 'checkbox'
             checkbox.name = 'permitir_duplicata'
             checkbox.value = '1'
-            const duplicateTitle = preview.duplicate.activity?.titulo || 'atividade existente'
-            duplicate.append(checkbox, el('span', '', `Já existe uma atividade parecida: “${duplicateTitle}”. Marque para importar mesmo assim.`))
+            const duplicateTitle = preview.duplicate.activity?.titulo || t('exchange.existing_activity', {}, 'existing activity')
+            duplicate.append(checkbox, el('span', '', t('exchange.duplicate_warning', {title: duplicateTitle}, `A similar activity already exists: “${duplicateTitle}”.`)))
             form.append(duplicate)
         }
 
         const actions = el('div', 'exchange-preview-actions')
-        const button = el('button', 'exchange-import-button', 'Importar')
+        const button = el('button', 'exchange-import-button', t('exchange.import', {}, 'Import'))
         button.type = 'submit'
         actions.append(button)
         form.append(actions)
@@ -443,11 +441,11 @@ const stridebrInitActivityExchange = () => {
     }
     const uploadFile = async file => {
         const card = el('article', 'exchange-import-preview is-loading')
-        card.append(el('strong', '', file.name), el('span', '', 'Analisando arquivo…'))
+        card.append(el('strong', '', file.name), el('span', '', t('exchange.analyzing_file', {}, 'Analyzing file…')))
         list.prepend(card)
         const extension = file.name.split('.').pop()?.toLowerCase()
-        if (!['fit', 'tcx', 'gpx'].includes(extension || '')) return renderError(card, 'Use FIT, TCX ou GPX.', file.name)
-        if (file.size > 25 * 1024 * 1024) return renderError(card, 'O limite é 25 MB por arquivo.', file.name)
+        if (!['fit', 'tcx', 'gpx'].includes(extension || '')) return renderError(card, t('exchange.supported_formats', {}, 'Use FIT, TCX, or GPX.'), file.name)
+        if (file.size > 25 * 1024 * 1024) return renderError(card, t('exchange.file_limit', {}, 'The limit is 25 MB per file.'), file.name)
         const body = new FormData()
         body.append('csrf_token', csrf)
         body.append('arquivo', file, file.name)
@@ -455,7 +453,7 @@ const stridebrInitActivityExchange = () => {
             const result = await requestJson('/api/atividade-importacao-preview.php', body)
             renderPreview(card, result.preview)
         } catch (error) {
-            renderError(card, error?.message || 'Não foi possível analisar este arquivo.', file.name)
+            renderError(card, error?.message || t('exchange.analyze_error', {}, 'Could not analyze this file.'), file.name)
         }
     }
     const drainUploadQueue = () => {
@@ -477,8 +475,8 @@ const stridebrInitActivityExchange = () => {
         const cards = importableCards()
         const selected = cards.filter(card => card.querySelector('.exchange-card-select input')?.checked)
         if (bulk) bulk.hidden = cards.length === 0
-        if (bulkCount) bulkCount.textContent = `${selected.length} ${selected.length === 1 ? 'selecionada' : 'selecionadas'}`
-        if (selectAllButton) selectAllButton.textContent = cards.length > 0 && selected.length === cards.length ? 'Desmarcar todas' : 'Selecionar todas'
+        if (bulkCount) bulkCount.textContent = tn('exchange.selected.one', 'exchange.selected.other', selected.length)
+        if (selectAllButton) selectAllButton.textContent = cards.length > 0 && selected.length === cards.length ? t('exchange.deselect_all', {}, 'Deselect all') : t('exchange.select_all', {}, 'Select all')
         if (importSelectedButton) importSelectedButton.disabled = selected.length === 0
         if (closeSelectedButton) closeSelectedButton.disabled = selected.length === 0
     }
@@ -504,7 +502,7 @@ const stridebrInitActivityExchange = () => {
         const imported = []
         let finished = 0
         let cursor = 0
-        const updateProgress = () => { importSelectedButton.textContent = `Importando ${finished}/${cards.length}…` }
+        const updateProgress = () => { importSelectedButton.textContent = t('exchange.importing_progress', {done: finished, total: cards.length}, `Importing ${finished}/${cards.length}…`) }
         updateProgress()
         const worker = async () => {
             while (cursor < cards.length) {
@@ -518,8 +516,8 @@ const stridebrInitActivityExchange = () => {
         await Promise.all(Array.from({length: Math.min(2, cards.length)}, worker))
         if (imported.length) notifyActivityImports(imported)
         const failed = cards.length - imported.length
-        if (failed > 0) window.StrideBRUI?.notify(`${failed} ${failed === 1 ? 'arquivo precisa' : 'arquivos precisam'} de atenção. Os demais foram mantidos.`, 'warning', 5200)
-        importSelectedButton.textContent = 'Importar selecionadas'
+        if (failed > 0) window.StrideBRUI?.notify(tn('exchange.files_attention.one', 'exchange.files_attention.other', failed), 'warning', 5200)
+        importSelectedButton.textContent = t('exchange.import_selected', {}, 'Import selected')
         updateBulkToolbar()
     })
     const handleFiles = files => {

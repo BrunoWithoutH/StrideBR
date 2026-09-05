@@ -1,0 +1,1656 @@
+html.activity-share-open,
+html.activity-share-open body {
+    overflow: hidden;
+}
+
+.activity-share-modal[hidden],
+.activity-share-camera-sheet[hidden],
+.activity-share-route-export-sheet[hidden],
+.activity-share-mobile-photo[hidden],
+.activity-share-content-options[hidden],
+.activity-share-segments-group[hidden],
+.activity-share-segment-preview-picker[hidden],
+.activity-share-photo-group[hidden],
+.activity-share-color-options[hidden],
+.activity-share-map-style-options[hidden],
+.activity-share-map-option[hidden],
+.activity-share-route-scale[hidden],
+.activity-share-choice-block[hidden] {
+    display: none;
+}
+
+.activity-share-modal {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-modal);
+    display: grid;
+    place-items: center;
+    padding: var(--space-4);
+}
+
+.activity-share-backdrop {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    background: color-mix(in srgb, #000 62%, transparent);
+    backdrop-filter: blur(4px);
+    cursor: default;
+}
+
+.activity-share-workspace {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 420px);
+    width: min(1400px, calc(100vw - 32px));
+    height: min(900px, calc(100dvh - 32px));
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--radius-modal);
+    background: var(--ui-bg);
+    color: var(--ui-text);
+    box-shadow: var(--shadow-md);
+    corner-shape: var(--corner-shape);
+}
+
+.activity-share-preview-window {
+    --nested-outer-radius: var(--radius-modal);
+    --nested-inset: var(--space-2);
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    border-right: 1px solid var(--ui-border);
+    background: var(--ui-panel-soft);
+}
+
+.activity-share-preview-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+    min-width: 0;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--ui-border);
+    background: var(--ui-panel);
+}
+
+.activity-share-preview-heading strong {
+    color: var(--ui-text-strong);
+    font-size: var(--type-label-size);
+    line-height: var(--type-label-line);
+    font-weight: 700;
+}
+
+.activity-share-preview-heading small {
+    overflow: hidden;
+    color: var(--ui-muted);
+    font-size: var(--type-meta-size);
+    line-height: var(--type-meta-line);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.activity-share-preview-layout {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: var(--space-3);
+    min-width: 0;
+    min-height: 0;
+    padding: var(--space-3);
+    overflow: hidden;
+}
+
+.activity-share-preview-stage {
+    position: relative;
+    display: block;
+    min-width: 0;
+    min-height: 240px;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--nested-radius);
+    background: var(--ui-panel);
+    corner-shape: var(--corner-shape);
+}
+
+.activity-share-preview-stage canvas[data-share-canvas] {
+    position: absolute;
+    display: block;
+    width: auto;
+    height: auto;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-sm);
+}
+
+.activity-share-preview-shell.is-transparent .activity-share-preview-stage {
+    background-color: var(--ui-panel);
+    background-image:
+        linear-gradient(45deg, color-mix(in srgb, var(--ui-border) 55%, transparent) 25%, transparent 25%),
+        linear-gradient(-45deg, color-mix(in srgb, var(--ui-border) 55%, transparent) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, color-mix(in srgb, var(--ui-border) 55%, transparent) 75%),
+        linear-gradient(-45deg, transparent 75%, color-mix(in srgb, var(--ui-border) 55%, transparent) 75%);
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+    background-size: 16px 16px;
+}
+
+.activity-share-format-options {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.activity-share-format-options legend {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.activity-share-format-rail {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-2);
+}
+
+.activity-share-format-rail label {
+    min-width: 0;
+    cursor: pointer;
+}
+
+.activity-share-format-rail input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.activity-share-format-rail label > span {
+    display: flex;
+    min-width: 0;
+    min-height: 52px;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: var(--space-2);
+    border: 1px solid var(--ui-border);
+    border-radius: var(--radius-control);
+    background: var(--ui-panel);
+    color: var(--ui-text-secondary);
+    transition: border-color var(--motion-hover) var(--ease-state), background-color var(--motion-hover) var(--ease-state), color var(--motion-hover) var(--ease-state);
+    corner-shape: var(--corner-shape);
+}
+
+.activity-share-format-rail label:hover > span {
+    border-color: var(--ui-border-strong);
+    background: var(--ui-surface-hover);
+}
+
+.activity-share-format-rail input:checked + span {
+    border-color: color-mix(in srgb, var(--ui-accent) 72%, var(--ui-border));
+    background: var(--ui-accent-soft);
+    color: var(--ui-text-strong);
+    box-shadow: inset 0 -2px 0 var(--ui-accent);
+}
+
+.activity-share-format-rail input:focus-visible + span {
+    outline: var(--focus-width) solid var(--focus-color);
+    outline-offset: 2px;
+}
+
+.share-format-thumb {
+    display: block;
+    flex: 0 0 auto;
+    width: 14px;
+    height: 20px;
+    border: 1px solid currentColor;
+    border-radius: var(--radius-detail);
+    opacity: .82;
+}
+
+.share-format-thumb.is-portrait,
+.share-format-thumb.is-compact,
+.share-format-thumb.is-compact-wide {
+    width: 16px;
+    height: 20px;
+}
+
+.share-format-thumb.is-square {
+    width: 18px;
+    height: 18px;
+}
+
+.share-format-thumb.is-compact-wide {
+    position: relative;
+}
+
+.share-format-thumb.is-compact-wide::after {
+    content: "";
+    position: absolute;
+    inset: 4px;
+    border-top: 1px solid currentColor;
+    border-left: 1px solid currentColor;
+}
+
+.activity-share-format-rail b {
+    display: grid;
+    min-width: 0;
+    gap: 1px;
+    text-align: left;
+}
+
+.activity-share-format-rail strong,
+.activity-share-format-rail small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.activity-share-format-rail strong {
+    color: inherit;
+    font-size: var(--type-meta-size);
+    line-height: 14px;
+    font-weight: 700;
+}
+
+.activity-share-format-rail small {
+    color: var(--ui-muted);
+    font-size: 11px;
+    line-height: 13px;
+    font-weight: 500;
+}
+
+.activity-share-panel {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--ui-panel);
+    color: var(--ui-text);
+}
+
+.activity-share-panel > header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    min-height: 64px;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--ui-border);
+    background: var(--ui-panel);
+}
+
+.activity-share-panel > header > div {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.activity-share-panel > header span {
+    color: var(--ui-muted);
+    font-size: var(--type-meta-size);
+    line-height: var(--type-meta-line);
+    font-weight: 600;
+}
+
+.activity-share-panel > header h2 {
+    margin: 0;
+    color: var(--ui-text-strong);
+    font-family: var(--font-display);
+    font-size: var(--type-h2-size);
+    line-height: var(--type-h2-line);
+    font-weight: 600;
+}
+
+.activity-share-panel > header > button,
+.activity-share-mobile-sheet-head > button,
+.activity-share-camera-dialog header > button {
+    display: inline-flex;
+    width: var(--control-default);
+    height: var(--control-default);
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: var(--radius-detail);
+    background: transparent;
+    color: var(--ui-muted);
+    font: inherit;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.activity-share-panel > header > button:hover,
+.activity-share-mobile-sheet-head > button:hover,
+.activity-share-camera-dialog header > button:hover {
+    border-color: var(--ui-border);
+    background: var(--ui-surface-hover);
+    color: var(--ui-text-strong);
+}
+
+.activity-share-panel > header > button:focus-visible,
+.activity-share-mobile-sheet-head > button:focus-visible,
+.activity-share-camera-dialog header > button:focus-visible {
+    outline: var(--focus-width) solid var(--focus-color);
+    outline-offset: 2px;
+}
+
+.activity-share-body {
+    min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+}
+
+.activity-share-controls {
+    display: grid;
+    gap: var(--space-4);
+    min-width: 0;
+    padding: var(--space-4);
+}
+
+.activity-share-choice-block,
+.activity-share-group {
+    min-width: 0;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--radius-card);
+    background: var(--ui-panel-soft);
+    corner-shape: var(--corner-shape);
+}
+
+.activity-share-choice-block {
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--space-3);
+}
+
+.activity-share-block-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
+.activity-share-block-heading > div {
+    display: grid;
+    gap: 2px;
+}
+
+.activity-share-block-heading strong,
+.activity-share-group > h3 {
+    color: var(--ui-text-strong);
+    font-size: var(--type-label-size);
+    line-height: var(--type-label-line);
+    font-weight: 700;
+}
+
+.activity-share-block-heading small {
+    color: var(--ui-muted);
+    font-size: var(--type-meta-size);
+    line-height: var(--type-meta-line);
+}
+
+.activity-share-choice-grid {
+    display: grid;
+    gap: var(--space-2);
+    min-width: 0;
+}
+
+.activity-share-choice-grid.is-content {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.activity-share-choice-grid.is-background {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.activity-share-choice-grid.is-session {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.activity-share-content-card,
+.activity-share-style-card,
+.activity-share-session-layout-card {
+    position: relative;
+    display: grid;
+    min-width: 0;
+    align-content: start;
+    gap: var(--space-2);
+    padding: var(--space-2);
+    border: 1px solid var(--ui-border);
+    border-radius: var(--radius-control);
+    background: var(--ui-panel);
+    color: var(--ui-text-secondary);
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
+    transition: border-color var(--motion-hover) var(--ease-state), background-color var(--motion-hover) var(--ease-state);
+    corner-shape: var(--corner-shape);
+}
+
+.activity-share-content-card:hover,
+.activity-share-style-card:hover,
+.activity-share-session-layout-card:hover {
+    border-color: var(--ui-border-strong);
+    background: var(--ui-surface-hover);
+}
+
+.activity-share-content-card.is-active,
+.activity-share-style-card.is-active,
+.activity-share-session-layout-card.is-active {
+    border-color: color-mix(in srgb, var(--ui-accent) 76%, var(--ui-border));
+    background: var(--ui-accent-soft);
+    box-shadow: inset 3px 0 0 var(--ui-accent);
+}
+
+.activity-share-content-card:focus-visible,
+.activity-share-style-card:focus-visible,
+.activity-share-session-layout-card:focus-visible {
+    outline: var(--focus-width) solid var(--focus-color);
+    outline-offset: 2px;
+}
+
+.activity-share-content-card:disabled,
+.activity-share-style-card:disabled,
+.activity-share-session-layout-card:disabled,
+.activity-share-content-card.is-disabled,
+.activity-share-style-card.is-disabled,
+.activity-share-session-layout-card.is-disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}
+
+.activity-share-content-card canvas,
+.activity-share-style-card canvas {
+    display: block;
+    width: 100%;
+    height: 84px;
+    border: 1px solid color-mix(in srgb, var(--ui-border) 70%, transparent);
+    border-radius: var(--radius-detail);
+    background: var(--ui-panel-soft);
+    object-fit: contain;
+}
+
+.activity-share-choice-grid.is-background .activity-share-style-card canvas {
+    height: 64px;
+}
+
+.activity-share-content-card strong,
+.activity-share-style-card strong,
+.activity-share-session-layout-card strong {
+    color: var(--ui-text-strong);
+    font-size: var(--type-meta-size);
+    line-height: var(--type-meta-line);
+    font-weight: 700;
+}
+
+.activity-share-content-card small,
+.activity-share-style-card small,
+.activity-share-session-layout-card small {
+    color: var(--ui-muted);
+    font-size: 11px;
+    line-height: 14px;
+}
+
+.activity-share-style-card[data-share-preset-value="transparent"] canvas,
+.activity-share-content-card[data-share-content-value="none"] canvas {
+    background-color: var(--ui-panel);
+    background-image:
+        linear-gradient(45deg, color-mix(in srgb, var(--ui-border) 55%, transparent) 25%, transparent 25%),
+        linear-gradient(-45deg, color-mix(in srgb, var(--ui-border) 55%, transparent) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, color-mix(in srgb, var(--ui-border) 55%, transparent) 75%),
+        linear-gradient(-45deg, transparent 75%, color-mix(in srgb, var(--ui-border) 55%, transparent) 75%);
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+    background-size: 16px 16px;
+}
+
+.activity-share-session-layout-preview {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-1);
+    min-height: 64px;
+    padding: var(--space-2);
+    border: 1px solid var(--ui-border);
+    border-radius: var(--radius-detail);
+    background: var(--ui-panel-soft);
+}
+
+.activity-share-session-layout-preview i {
+    display: block;
+    border-radius: var(--radius-detail);
+    background: var(--ui-accent-soft);
+}
+
+.activity-share-quick-controls {
+    display: grid;
+    gap: var(--space-3);
+}
+
+.activity-share-color-options,
+.activity-share-map-style-options,
+.activity-share-mode-options,
+.activity-share-segment-mode-options {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.activity-share-color-options legend,
+.activity-share-map-style-options legend,
+.activity-share-segment-mode-options legend {
+    margin-bottom: var(--space-2);
+    color: var(--ui-text-strong);
+    font-size: var(--type-label-size);
+    line-height: var(--type-label-line);
+    font-weight: 700;
+}
+
+.activity-share-color-options,
+.activity-share-map-style-options {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--space-2);
+}
+
+.activity-share-map-style-options {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.activity-share-color-options legend,
+.activity-share-map-style-options legend {
+    grid-column: 1 / -1;
+}
+
+.activity-share-color-options label,
+.activity-share-map-style-options label,
+.activity-share-mode-options label,
+.activity-share-segment-mode-options label {
+    min-width: 0;
+    cursor: pointer;
+}
+
+.activity-share-color-options input,
+.activity-share-map-style-options input,
+.activity-share-mode-options input,
+.activity-share-segment-mode-options input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.activity-share-color-options label > span,
+.activity-share-map-style-options label > span,
+.activity-share-mode-options label > span,
+.activity-share-segment-mode-options label > span {
+    display: flex;
+    min-height: var(--control-default);
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: 0 var(--space-2);
+    border: 1px solid var(--ui-border);
+    border-radius: var(--radius-control);
+    background: var(--ui-panel);
+    color: var(--ui-text-secondary);
+    font-size: var(--type-meta-size);
+    line-height: var(--type-meta-line);
+    font-weight: 600;
+}
+
+.activity-share-color-options input:checked + span,
+.activity-share-map-style-options input:checked + span,
+.activity-share-mode-options input:checked + span,
+.activity-share-segment-mode-options input:checked + span {
+    border-color: color-mix(in srgb, var(--ui-accent) 72%, var(--ui-border));
+    background: var(--ui-accent-soft);
+    color: var(--ui-text-strong);
+    box-shadow: inset 0 -2px 0 var(--ui-accent);
+}
+
+.activity-share-color-options input:focus-visible + span,
+.activity-share-map-style-options input:focus-visible + span,
+.activity-share-mode-options input:focus-visible + span,
+.activity-share-segment-mode-options input:focus-visible + span {
+    outline: var(--focus-width) solid var(--focus-color);
+    outline-offset: 2px;
+}
+
+.share-color-swatch {
+    display: block;
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+    border: 1px solid color-mix(in srgb, currentColor 32%, transparent);
+    border-radius: var(--radius-detail);
+}
+
+.share-color-swatch.is-deep { background: #132243; }
+.share-color-swatch.is-dark { background: #0B1324; }
+.share-color-swatch.is-light { background: #F4F2EC; }
+.share-color-swatch.is-black { background: #07090D; }
+
+.activity-share-sidebar {
+    display: grid;
+    gap: var(--space-3);
+    min-width: 0;
+}
+
+.activity-share-group {
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--space-3);
+}
+
+.activity-share-group > h3 {
+    margin: 0;
+}
+
+.activity-share-route-scale,
+.activity-share-map-option,
+.activity-share-visibility,
+.activity-share-metrics,
+.activity-share-segment-list,
+.activity-share-photo-buttons {
+    display: grid;
+    gap: var(--space-2);
+    min-width: 0;
+}
+
+.activity-share-route-scale > div,
+.activity-share-route-scale label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+.activity-share-route-scale strong,
+.activity-share-map-option strong {
+    color: var(--ui-text-strong);
+    font-size: var(--type-meta-size);
+    line-height: var(--type-meta-line);
+}
+
+.activity-share-route-scale input[type="range"] {
+    width: 100%;
+    accent-color: var(--ui-accent);
+}
+
+.activity-share-route-scale output {
+    min-width: 44px;
+    color: var(--ui-muted);
+    font-size: var(--type-meta-size);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.activity-share-map-option > label,
+.activity-share-visibility > label,
+.activity-share-metrics > label,
+.activity-share-segment-list > label {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    min-height: var(--control-comfortable);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--ui-border);
+    border-radius: var(--radius-control);
+    background: var(--ui-panel);
+    color: var(--ui-text-secondary);
+}
+
+.activity-share-map-option > label > span,
+.activity-share-segment-list > label > span {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.activity-share-map-option small,
+.activity-share-segment-list small {
+    color: var(--ui-muted);
+    font-size: var(--type-meta-size);
+    line-height: var(--type-meta-line);
+}
+
+.activity-share-visibility select,
+.activity-share-segment-preview-picker select,
+.activity-share-caption input {
+    width: 100%;
+    min-height: var(--control-default);
+}
+
+.activity-share-heading-mode {
+    display: grid;
+    align-items: stretch;
+}
+
+.activity-share-details {
+    min-width: 0;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--radius-card);
+    background: var(--ui-panel);
+    overflow: clip;
+}
+
+.activity-share-details summary {
+    display: flex;
+    min-height: var(--control-comfortable);
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    color: var(--ui-text-strong);
+    font-size: var(--type-meta-size);
+    line-height: var(--type-meta-line);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.activity-share-details summary:hover {
+    background: var(--ui-surface-hover);
+}
+
+.activity-share-details summary small {
+    color: var(--ui-muted);
+    font-weight: 500;
+}
+
+.activity-share-details[open] > :not(summary) {
+    margin: 0 var(--space-3) var(--space-3);
+}
+
+.activity-share-caption {
+    display: grid;
+    gap: var(--space-2);
+    color: var(--ui-text-secondary);
+    font-size: var(--type-meta-size);
+    line-height: var(--type-meta-line);
+}
+
+.activity-share-segment-preview-picker {
+    display: grid;
+    gap: var(--space-2);
+    color: var(--ui-text-secondary);
+    font-size: var(--type-meta-size);
+}
+
+.activity-share-photo-actions {
+    display: grid;
+    grid-template-columns: 112px minmax(0, 1fr);
+    gap: var(--space-3);
+    min-width: 0;
+}
+
+.activity-share-photo-preview {
+    display: grid;
+    min-height: 112px;
+    place-items: center;
+    overflow: hidden;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--radius-card);
+    background: var(--ui-panel);
+    color: var(--ui-muted);
+    font-size: var(--type-meta-size);
+}
+
+.activity-share-photo-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.activity-share-photo-buttons small {
+    color: var(--ui-muted);
+    font-size: var(--type-meta-size);
+    line-height: var(--type-meta-line);
+}
+
+.activity-share-photo-buttons label.activity-secondary-button {
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.activity-share-photo-buttons label.activity-secondary-button input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.activity-share-mobile-photo,
+.activity-share-mobile-customize,
+.activity-share-customize-backdrop,
+.activity-share-mobile-sheet-head {
+    display: none;
+}
+
+.activity-share-panel > p[data-share-status] {
+    min-height: 0;
+    margin: 0;
+    padding: 0 var(--space-4);
+    color: var(--ui-muted);
+    font-size: var(--type-meta-size);
+    line-height: var(--type-meta-line);
+}
+
+.activity-share-panel > p[data-share-status]:not(:empty) {
+    padding-top: var(--space-2);
+    padding-bottom: var(--space-2);
+    border-top: 1px solid var(--ui-border-soft);
+}
+
+.activity-share-panel > footer {
+    position: relative;
+    z-index: var(--z-dropdown);
+    display: grid;
+    grid-template-columns: auto 1fr 1fr 1.2fr;
+    gap: var(--space-2);
+    align-items: center;
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--ui-border);
+    background: var(--ui-panel);
+}
+
+.activity-share-panel > footer > button,
+.activity-share-panel > footer > details {
+    min-width: 0;
+}
+
+.activity-share-more-menu {
+    position: relative;
+    z-index: var(--z-dropdown);
+}
+
+.activity-share-more-menu[open] {
+    z-index: var(--z-popover);
+}
+
+.activity-share-more-menu > summary {
+    display: inline-flex;
+    width: var(--control-default);
+    height: var(--control-default);
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--radius-control);
+    background: var(--ui-panel);
+    color: var(--ui-text-secondary);
+    list-style: none;
+    cursor: pointer;
+}
+
+.activity-share-more-menu > summary::-webkit-details-marker {
+    display: none;
+}
+
+.activity-share-more-menu > summary:hover {
+    background: var(--ui-surface-hover);
+}
+
+.activity-share-more-menu > summary:focus-visible {
+    outline: var(--focus-width) solid var(--focus-color);
+    outline-offset: 2px;
+}
+
+.activity-share-more-menu > div {
+    position: absolute;
+    left: 0;
+    right: auto;
+    bottom: calc(100% + var(--space-2));
+    z-index: var(--z-popover);
+    display: grid;
+    min-width: 190px;
+    max-width: min(280px, calc(100vw - (2 * var(--space-4))));
+    max-height: min(320px, calc(100dvh - 120px));
+    overflow-x: hidden;
+    overflow-y: auto;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--radius-menu);
+    background: var(--ui-panel);
+    box-shadow: var(--shadow-sm);
+    corner-shape: var(--corner-shape);
+}
+
+.activity-share-more-menu > div button {
+    min-height: var(--control-default);
+    padding: 0 var(--space-3);
+    border: 0;
+    background: transparent;
+    color: var(--ui-text-secondary);
+    text-align: left;
+    font: inherit;
+    font-size: var(--type-meta-size);
+    cursor: pointer;
+}
+
+.activity-share-more-menu > div button:hover {
+    background: var(--ui-surface-hover);
+    color: var(--ui-text-strong);
+}
+
+.activity-share-route-export-sheet {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-confirm);
+    display: grid;
+    place-items: center;
+    padding: var(--space-4);
+}
+
+.activity-share-route-export-backdrop {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    background: color-mix(in srgb, #000 64%, transparent);
+}
+
+.activity-share-route-export-dialog {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    gap: var(--space-4);
+    width: min(620px, 100%);
+    max-height: min(760px, calc(100dvh - 32px));
+    padding: var(--space-4);
+    overflow: auto;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--radius-modal);
+    background: var(--ui-panel);
+    color: var(--ui-text);
+    box-shadow: var(--shadow-md);
+    corner-shape: var(--corner-shape);
+}
+
+.activity-share-route-export-dialog > header,
+.activity-share-route-export-dialog > footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+.activity-share-route-export-dialog > header > div {
+    display: grid;
+    gap: var(--space-1);
+}
+
+.activity-share-route-export-dialog > header strong {
+    color: var(--ui-text-strong);
+    font-size: var(--type-h3-size);
+    line-height: var(--type-h3-line);
+}
+
+.activity-share-route-export-dialog > header small {
+    color: var(--ui-muted);
+    font-size: var(--type-meta-size);
+    line-height: var(--type-meta-line);
+}
+
+.activity-share-route-export-preview {
+    display: grid;
+    min-height: 220px;
+    place-items: center;
+    overflow: hidden;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--radius-card);
+    background-color: #0b1324;
+    background-image:
+        linear-gradient(45deg, rgba(255,255,255,.035) 25%, transparent 25%),
+        linear-gradient(-45deg, rgba(255,255,255,.035) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, rgba(255,255,255,.035) 75%),
+        linear-gradient(-45deg, transparent 75%, rgba(255,255,255,.035) 75%);
+    background-position: 0 0, 0 12px, 12px -12px, -12px 0;
+    background-size: 24px 24px;
+}
+
+.activity-share-route-export-preview.is-light {
+    background-color: #eef1f5;
+    background-image:
+        linear-gradient(45deg, rgba(19,31,48,.06) 25%, transparent 25%),
+        linear-gradient(-45deg, rgba(19,31,48,.06) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, rgba(19,31,48,.06) 75%),
+        linear-gradient(-45deg, transparent 75%, rgba(19,31,48,.06) 75%);
+}
+
+.activity-share-route-export-preview canvas {
+    display: block;
+    width: min(100%, 360px);
+    height: auto;
+}
+
+.activity-share-route-export-controls {
+    display: grid;
+    gap: var(--space-4);
+}
+
+.activity-share-route-export-colors {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.activity-share-route-export-colors legend {
+    width: 100%;
+    margin-bottom: var(--space-1);
+    color: var(--ui-text-strong);
+    font-size: var(--type-meta-size);
+    line-height: var(--type-meta-line);
+    font-weight: 700;
+}
+
+.activity-share-route-export-colors label {
+    cursor: pointer;
+}
+
+.activity-share-route-export-colors input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.activity-share-route-export-colors span {
+    display: block;
+    width: 34px;
+    height: 34px;
+    border: 2px solid var(--ui-border);
+    border-radius: var(--radius-control);
+    box-shadow: inset 0 0 0 2px var(--ui-panel);
+}
+
+.activity-share-route-export-colors input:checked + span {
+    border-color: var(--ui-accent);
+    outline: 2px solid color-mix(in srgb, var(--ui-accent) 28%, transparent);
+    outline-offset: 1px;
+}
+
+.activity-share-route-export-colors input:focus-visible + span {
+    outline: var(--focus-width) solid var(--focus-color);
+    outline-offset: 2px;
+}
+
+.activity-share-route-export-colors .is-blue { background: #4f72df; }
+.activity-share-route-export-colors .is-white { background: #fff; }
+.activity-share-route-export-colors .is-black { background: #111827; }
+.activity-share-route-export-colors .is-red { background: #e5484d; }
+.activity-share-route-export-colors .is-green { background: #2e9b65; }
+.activity-share-route-export-colors .is-yellow { background: #e5b94c; }
+.activity-share-route-export-colors .is-purple { background: #8b5cf6; }
+
+.activity-share-route-export-width {
+    display: grid;
+    gap: var(--space-2);
+}
+
+.activity-share-route-export-width > span {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    color: var(--ui-text-strong);
+    font-size: var(--type-meta-size);
+}
+
+.activity-share-route-export-width input {
+    width: 100%;
+    accent-color: var(--ui-accent);
+}
+
+.activity-share-route-export-width output {
+    color: var(--ui-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.activity-share-route-export-dialog > footer {
+    justify-content: flex-end;
+}
+
+@media (max-width: 640px) {
+    .activity-share-route-export-sheet {
+        align-items: end;
+        padding: var(--space-2);
+    }
+
+    .activity-share-route-export-dialog {
+        width: 100%;
+        max-height: calc(100dvh - var(--space-4));
+        border-radius: var(--radius-modal) var(--radius-modal) var(--radius-card) var(--radius-card);
+    }
+
+    .activity-share-route-export-preview {
+        min-height: 180px;
+    }
+}
+
+.activity-share-camera-sheet {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-confirm);
+    display: grid;
+    place-items: center;
+    padding: var(--space-4);
+}
+
+.activity-share-camera-backdrop {
+    position: absolute;
+    inset: 0;
+    background: color-mix(in srgb, #000 64%, transparent);
+}
+
+.activity-share-camera-dialog {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    gap: var(--space-3);
+    width: min(560px, 100%);
+    max-height: min(720px, calc(100dvh - 32px));
+    padding: var(--space-4);
+    overflow: auto;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--radius-modal);
+    background: var(--ui-panel);
+    color: var(--ui-text);
+    box-shadow: var(--shadow-md);
+    corner-shape: var(--corner-shape);
+}
+
+.activity-share-camera-dialog header,
+.activity-share-camera-dialog footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
+.activity-share-camera-dialog video {
+    display: block;
+    width: 100%;
+    max-height: 56dvh;
+    border-radius: var(--radius-card);
+    background: #000;
+    object-fit: contain;
+}
+
+.activity-share-camera-dialog p {
+    margin: 0;
+    color: var(--ui-muted);
+    font-size: var(--type-meta-size);
+}
+
+@media (max-width: 1100px) {
+    .activity-share-modal {
+        padding: var(--space-3);
+    }
+
+    .activity-share-workspace {
+        grid-template-columns: minmax(0, 1fr) minmax(340px, 380px);
+        width: min(1180px, calc(100vw - 24px));
+        height: calc(100dvh - 24px);
+    }
+
+    .activity-share-format-rail label > span {
+        gap: var(--space-1);
+        padding: var(--space-2) var(--space-1);
+    }
+
+    .activity-share-format-rail b {
+        text-align: center;
+    }
+
+    .share-format-thumb {
+        display: none;
+    }
+
+    .activity-share-choice-grid.is-background {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 720px) {
+    html.activity-share-open .site-header,
+    html.activity-share-open .mobile-bottom-nav,
+    html.activity-share-open .floating-utility-dock {
+        z-index: var(--z-base);
+    }
+
+    .activity-share-modal {
+        padding: 0;
+    }
+
+    .activity-share-workspace {
+        display: flex;
+        width: 100vw;
+        height: 100dvh;
+        flex-direction: column;
+        border: 0;
+        border-radius: 0;
+        background: var(--ui-bg);
+        box-shadow: none;
+    }
+
+    .activity-share-preview-window {
+        flex: 0 0 clamp(280px, 46dvh, 390px);
+        border-right: 0;
+        border-bottom: 1px solid var(--ui-border);
+    }
+
+    .activity-share-preview-heading {
+        min-height: 44px;
+        padding: var(--space-2) var(--space-3);
+    }
+
+    .activity-share-preview-layout {
+        gap: var(--space-2);
+        padding: var(--space-2) var(--space-3) var(--space-3);
+    }
+
+    .activity-share-preview-stage {
+        min-height: 0;
+    }
+
+    .activity-share-format-rail {
+        gap: var(--space-1);
+        overflow-x: auto;
+        overscroll-behavior-inline: contain;
+        scrollbar-width: none;
+        scroll-snap-type: x proximity;
+    }
+
+    .activity-share-format-rail::-webkit-scrollbar {
+        display: none;
+    }
+
+    .activity-share-format-rail label {
+        min-width: 84px;
+        scroll-snap-align: start;
+    }
+
+    .activity-share-format-rail label > span {
+        min-height: 44px;
+        padding: var(--space-1) var(--space-2);
+    }
+
+    .activity-share-format-rail b {
+        text-align: center;
+    }
+
+    .activity-share-format-rail strong {
+        font-size: 11px;
+    }
+
+    .activity-share-format-rail small {
+        font-size: 10px;
+    }
+
+    .activity-share-panel {
+        flex: 1 1 auto;
+        min-height: 0;
+        border: 0;
+    }
+
+    .activity-share-panel > header {
+        min-height: 52px;
+        padding: var(--space-2) var(--space-3);
+    }
+
+    .activity-share-panel > header > div > span {
+        display: none;
+    }
+
+    .activity-share-panel > header h2 {
+        font-size: var(--type-h3-size);
+        line-height: var(--type-h3-line);
+    }
+
+    .activity-share-body {
+        min-height: 0;
+    }
+
+    .activity-share-controls {
+        gap: var(--space-3);
+        padding: var(--space-3);
+    }
+
+    .activity-share-choice-grid.is-content {
+        grid-template-columns: repeat(3, minmax(96px, 1fr));
+        overflow-x: auto;
+        overscroll-behavior-inline: contain;
+    }
+
+    .activity-share-choice-grid.is-background {
+        grid-template-columns: repeat(4, minmax(88px, 1fr));
+        overflow-x: auto;
+        overscroll-behavior-inline: contain;
+    }
+
+    .activity-share-content-card canvas {
+        height: 72px;
+    }
+
+    .activity-share-choice-grid.is-background .activity-share-style-card canvas {
+        height: 56px;
+    }
+
+    .activity-share-color-options {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .activity-share-map-style-options {
+        grid-template-columns: 1fr;
+    }
+
+    .activity-share-mobile-customize {
+        display: flex;
+        min-height: var(--control-touch);
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-2);
+        padding: 0 var(--space-3);
+        border: 1px solid var(--ui-border);
+        border-radius: var(--radius-control);
+        background: var(--ui-panel);
+        color: var(--ui-text-strong);
+        font: inherit;
+        font-size: var(--type-label-size);
+        font-weight: 700;
+        cursor: pointer;
+    }
+
+    .activity-share-mobile-photo:not([hidden]) {
+        display: inline-flex;
+        min-height: var(--control-touch);
+        align-items: center;
+        justify-content: center;
+        padding: 0 var(--space-3);
+        border: 1px solid var(--ui-border);
+        border-radius: var(--radius-control);
+        background: var(--ui-panel);
+        color: var(--ui-text-strong);
+        font: inherit;
+        font-size: var(--type-label-size);
+        font-weight: 700;
+    }
+
+    .activity-share-sidebar {
+        position: fixed;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        z-index: calc(var(--z-modal) + 2);
+        display: grid;
+        max-height: min(82dvh, 720px);
+        gap: var(--space-3);
+        padding: 0 var(--space-3) calc(var(--space-4) + env(safe-area-inset-bottom));
+        overflow-y: auto;
+        border-top: 1px solid var(--ui-border);
+        border-radius: var(--radius-modal) var(--radius-modal) 0 0;
+        background: var(--ui-panel);
+        box-shadow: var(--shadow-md);
+        transform: translateY(105%);
+        visibility: hidden;
+        transition: transform var(--motion-modal) var(--ease-enter), visibility 0s linear var(--motion-modal);
+        corner-shape: var(--corner-shape);
+    }
+
+    .activity-share-modal.is-customizing .activity-share-sidebar {
+        transform: translateY(0);
+        visibility: visible;
+        transition-delay: 0s;
+    }
+
+    .activity-share-customize-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: calc(var(--z-modal) + 1);
+        border: 0;
+        background: color-mix(in srgb, #000 50%, transparent);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity var(--motion-modal) var(--ease-state);
+    }
+
+    .activity-share-modal.is-customizing .activity-share-customize-backdrop {
+        display: block;
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .activity-share-mobile-sheet-head {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        display: grid;
+        grid-template-columns: var(--control-touch) 1fr var(--control-touch);
+        align-items: center;
+        margin: 0 calc(var(--space-3) * -1);
+        padding: var(--space-2) var(--space-3);
+        border-bottom: 1px solid var(--ui-border);
+        background: var(--ui-panel);
+    }
+
+    .activity-share-mobile-sheet-head strong {
+        color: var(--ui-text-strong);
+        font-size: var(--type-label-size);
+        text-align: center;
+    }
+
+    .activity-share-panel > footer {
+        grid-template-columns: var(--control-touch) 1fr 1fr;
+        gap: var(--space-2);
+        padding: var(--space-2) var(--space-3) calc(var(--space-2) + env(safe-area-inset-bottom));
+    }
+
+    .activity-share-panel > footer [data-native-share] {
+        grid-column: 2 / -1;
+        grid-row: 1;
+        min-height: var(--control-touch);
+    }
+
+    .activity-share-panel > footer [data-copy-share] {
+        grid-column: 2;
+        grid-row: 2;
+        min-height: var(--control-touch);
+    }
+
+    .activity-share-panel > footer [data-download-share] {
+        grid-column: 3;
+        grid-row: 2;
+        min-height: var(--control-touch);
+    }
+
+    .activity-share-more-menu {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    .activity-share-more-menu > summary {
+        width: var(--control-touch);
+        height: var(--control-touch);
+    }
+
+    .activity-share-photo-actions {
+        grid-template-columns: 96px minmax(0, 1fr);
+    }
+}
+
+@media (max-height: 520px) and (min-width: 721px) {
+    .activity-share-modal {
+        padding: var(--space-2);
+    }
+
+    .activity-share-workspace {
+        grid-template-columns: minmax(0, 1fr) minmax(320px, 40%);
+        width: calc(100vw - 16px);
+        height: calc(100dvh - 16px);
+    }
+
+    .activity-share-preview-heading,
+    .activity-share-panel > header {
+        min-height: 44px;
+        padding-top: var(--space-2);
+        padding-bottom: var(--space-2);
+    }
+
+    .activity-share-preview-layout {
+        gap: var(--space-2);
+        padding: var(--space-2);
+    }
+
+    .activity-share-preview-stage {
+        min-height: 0;
+    }
+
+    .activity-share-format-rail label > span {
+        min-height: 40px;
+        padding: var(--space-1);
+    }
+
+    .activity-share-format-rail small,
+    .share-format-thumb {
+        display: none;
+    }
+
+    .activity-share-controls {
+        gap: var(--space-3);
+        padding: var(--space-3);
+    }
+
+    .activity-share-content-card canvas {
+        height: 72px;
+    }
+
+    .activity-share-choice-grid.is-background .activity-share-style-card canvas {
+        height: 56px;
+    }
+}
+
+@media (max-height: 520px) and (max-width: 720px) {
+    .activity-share-preview-window {
+        flex-basis: min(54dvh, 210px);
+    }
+
+    .activity-share-preview-heading {
+        display: none;
+    }
+
+    .activity-share-preview-layout {
+        padding-top: var(--space-2);
+    }
+
+    .activity-share-format-rail label > span {
+        min-height: 36px;
+    }
+
+    .activity-share-panel > header {
+        min-height: 44px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .activity-share-format-rail label > span,
+    .activity-share-content-card,
+    .activity-share-style-card,
+    .activity-share-session-layout-card,
+    .activity-share-sidebar,
+    .activity-share-customize-backdrop {
+        transition-duration: 0.01ms;
+    }
+}
+
+.activity-share-map-style-options label.is-disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}
+
+.activity-share-composition-options{display:flex;flex-wrap:wrap;gap:6px;padding:0;border:0}
+.activity-share-composition-options legend{width:100%;margin:0 0 5px;color:var(--ui-muted);font-size:.68rem;font-weight:700}
+.activity-share-composition-options label{position:relative}
+.activity-share-composition-options input{position:absolute;opacity:0;pointer-events:none}
+.activity-share-composition-options span{display:flex;min-height:34px;align-items:center;padding:0 11px;border:1px solid var(--ui-border);border-radius:var(--radius-control);background:var(--ui-panel);color:var(--ui-text-secondary);font-size:.72rem;font-weight:700;cursor:pointer}
+.activity-share-composition-options input:checked+span{border-color:var(--ui-accent);background:var(--ui-accent-soft);color:var(--ui-text-strong)}
+.activity-share-composition-options input:focus-visible+span{outline:var(--focus-width) solid var(--focus-color);outline-offset:2px}
+.activity-share-selected-route{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 10px;border:1px solid var(--ui-border);border-radius:var(--radius-control);background:var(--ui-panel-soft)}
+.activity-share-selected-route>span{display:grid;gap:2px;min-width:0}.activity-share-selected-route small{color:var(--ui-muted);font-size:.62rem}.activity-share-selected-route strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.78rem}
+.activity-share-route-picker{position:absolute;inset:0;z-index:var(--z-popover);display:grid;place-items:center;padding:18px}
+.activity-share-route-picker[hidden]{display:none}
+.activity-share-route-picker-backdrop{position:absolute;inset:0;border:0;background:rgba(10,16,26,.46)}
+.activity-share-route-picker-panel{position:relative;width:min(620px,100%);max-height:min(680px,calc(100dvh - 48px));overflow:auto;border:1px solid var(--ui-border);border-radius:var(--radius-overlay);background:var(--ui-panel);box-shadow:var(--shadow-modal)}
+.activity-share-route-picker-panel>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--ui-border)}
+.activity-share-route-picker-panel>header>div{display:grid;gap:3px}.activity-share-route-picker-panel header span{color:var(--ui-muted);font-size:.65rem;font-weight:700;text-transform:uppercase}.activity-share-route-picker-panel h3{margin:0;font-size:1.05rem}.activity-share-route-picker-panel p{margin:0;color:var(--ui-muted);font-size:.75rem}.activity-share-route-picker-panel header>button{width:34px;height:34px;border:0;background:transparent;color:var(--ui-muted);font-size:1.3rem;cursor:pointer}
+.activity-share-route-picker-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:12px}
+.activity-share-route-picker-option{display:grid;grid-template-columns:132px minmax(0,1fr);align-items:center;gap:10px;min-height:106px;padding:10px;border:1px solid var(--ui-border);border-radius:var(--radius-card);background:var(--ui-panel);color:var(--ui-text);text-align:left;cursor:pointer}
+.activity-share-route-picker-option:hover{background:var(--ui-surface-hover)}.activity-share-route-picker-option:focus-visible{outline:var(--focus-width) solid var(--focus-color);outline-offset:2px}
+.activity-share-route-picker-visual{display:grid;place-items:center;height:84px;border-radius:var(--radius-detail);background:var(--ui-panel-soft);color:var(--ui-route)}.activity-share-route-picker-visual svg{width:100%;height:100%}
+.activity-share-route-picker-copy{display:grid;gap:4px;min-width:0}.activity-share-route-picker-copy strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.82rem}.activity-share-route-picker-copy small{color:var(--ui-muted);font-size:.68rem;line-height:1.35}
+@media(max-width:640px){.activity-share-route-picker{padding:8px}.activity-share-route-picker-panel{max-height:calc(100dvh - 16px)}.activity-share-route-picker-list{grid-template-columns:1fr}.activity-share-route-picker-option{grid-template-columns:116px minmax(0,1fr)}}
+
+.activity-share-scope-switch{display:grid;gap:8px;min-width:0}
+.activity-share-scope-options{display:flex;flex-wrap:wrap;gap:6px}
+.activity-share-scope-options button{min-height:34px;padding:0 12px;border:1px solid var(--ui-border);border-radius:var(--radius-control);background:var(--ui-panel);color:var(--ui-text-secondary);font:700 .72rem/1 Inter,system-ui,sans-serif;cursor:pointer}
+.activity-share-scope-options button:hover{border-color:var(--ui-border-strong);background:var(--ui-surface-hover)}
+.activity-share-scope-options button.is-active,.activity-share-scope-options button[aria-pressed="true"]{border-color:color-mix(in srgb,var(--ui-accent) 76%,var(--ui-border));background:var(--ui-accent-soft);color:var(--ui-text-strong)}
+.activity-share-scope-options button:focus-visible{outline:var(--focus-width) solid var(--focus-color);outline-offset:2px}
+.activity-share-single-segment-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.activity-share-single-segment-option{display:grid;grid-template-columns:92px minmax(0,1fr);align-items:center;gap:9px;min-width:0;min-height:86px;padding:8px;border:1px solid var(--ui-border);border-radius:var(--radius-control);background:var(--ui-panel);color:var(--ui-text);text-align:left;font:inherit;cursor:pointer}
+.activity-share-single-segment-option:hover{background:var(--ui-surface-hover);border-color:var(--ui-border-strong)}
+.activity-share-single-segment-option.is-active{border-color:color-mix(in srgb,var(--ui-accent) 76%,var(--ui-border));background:var(--ui-accent-soft);box-shadow:inset 3px 0 0 var(--ui-accent)}
+.activity-share-single-segment-option:focus-visible{outline:var(--focus-width) solid var(--focus-color);outline-offset:2px}
+.activity-share-single-segment-option .activity-share-route-picker-visual{height:64px}
+.activity-share-session-layout-family{display:grid;gap:7px;min-width:0}
+.activity-share-session-layout-family+.activity-share-session-layout-family{margin-top:12px;padding-top:12px;border-top:1px solid var(--ui-border)}
+.activity-share-session-layout-family-title{color:var(--ui-muted);font-size:.65rem;line-height:1;font-weight:750;letter-spacing:.06em;text-transform:uppercase}
+.activity-share-session-layout-family-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;min-width:0}
+.activity-share-session-layout-card{gap:7px}
+.activity-share-session-layout-preview{position:relative;display:block;min-height:92px;overflow:hidden;padding:8px;background:var(--ui-panel-soft)}
+.activity-share-session-layout-preview i{position:absolute;background:color-mix(in srgb,var(--ui-accent) 34%,var(--ui-panel));border:1px solid color-mix(in srgb,var(--ui-accent) 45%,var(--ui-border));border-radius:var(--radius-detail)}
+.activity-share-session-layout-preview.is-overview i:nth-child(1){left:12%;right:12%;top:15%;height:34%}
+.activity-share-session-layout-preview.is-overview i:nth-child(n+2){top:62%;width:16%;height:20%}
+.activity-share-session-layout-preview.is-overview i:nth-child(2){left:12%}.activity-share-session-layout-preview.is-overview i:nth-child(3){left:32%}.activity-share-session-layout-preview.is-overview i:nth-child(4){left:52%}.activity-share-session-layout-preview.is-overview i:nth-child(5){left:72%}
+.activity-share-session-layout-preview.is-by-segment i{left:10%;right:10%;height:12%}
+.activity-share-session-layout-preview.is-by-segment i:nth-child(1){top:10%}.activity-share-session-layout-preview.is-by-segment i:nth-child(2){top:28%}.activity-share-session-layout-preview.is-by-segment i:nth-child(3){top:46%}.activity-share-session-layout-preview.is-by-segment i:nth-child(4){top:64%}.activity-share-session-layout-preview.is-by-segment i:nth-child(5){top:82%}
+.activity-share-session-layout-preview.is-comparison i{left:10%;right:10%;height:13%}
+.activity-share-session-layout-preview.is-comparison i:nth-child(1){top:10%}.activity-share-session-layout-preview.is-comparison i:nth-child(2){top:29%}.activity-share-session-layout-preview.is-comparison i:nth-child(3){top:48%}.activity-share-session-layout-preview.is-comparison i:nth-child(4){top:67%}.activity-share-session-layout-preview.is-comparison i:nth-child(5){display:none}
+.activity-share-session-layout-preview.is-highlight-route i:nth-child(1),.activity-share-session-layout-preview.is-highlight i:nth-child(1){left:16%;right:16%;top:13%;height:42%}
+.activity-share-session-layout-preview.is-highlight-route i:nth-child(n+2),.activity-share-session-layout-preview.is-highlight i:nth-child(n+2){bottom:12%;width:18%;height:16%}
+.activity-share-session-layout-preview.is-highlight-route i:nth-child(2),.activity-share-session-layout-preview.is-highlight i:nth-child(2){left:18%}.activity-share-session-layout-preview.is-highlight-route i:nth-child(3),.activity-share-session-layout-preview.is-highlight i:nth-child(3){left:41%}.activity-share-session-layout-preview.is-highlight-route i:nth-child(4),.activity-share-session-layout-preview.is-highlight i:nth-child(4){left:64%}.activity-share-session-layout-preview.is-highlight-route i:nth-child(5),.activity-share-session-layout-preview.is-highlight i:nth-child(5){display:none}
+.activity-share-session-layout-preview.is-sequence-route i,.activity-share-session-layout-preview.is-sequence i{left:26%;right:10%;height:11%}
+.activity-share-session-layout-preview.is-sequence-route i:nth-child(1),.activity-share-session-layout-preview.is-sequence i:nth-child(1){top:9%}.activity-share-session-layout-preview.is-sequence-route i:nth-child(2),.activity-share-session-layout-preview.is-sequence i:nth-child(2){top:27%}.activity-share-session-layout-preview.is-sequence-route i:nth-child(3),.activity-share-session-layout-preview.is-sequence i:nth-child(3){top:45%}.activity-share-session-layout-preview.is-sequence-route i:nth-child(4),.activity-share-session-layout-preview.is-sequence i:nth-child(4){top:63%}.activity-share-session-layout-preview.is-sequence-route i:nth-child(5),.activity-share-session-layout-preview.is-sequence i:nth-child(5){top:81%}
+.activity-share-session-layout-preview.is-summary i:nth-child(1){left:25%;right:25%;top:16%;height:28%}.activity-share-session-layout-preview.is-summary i:nth-child(2){left:12%;width:34%;bottom:17%;height:20%}.activity-share-session-layout-preview.is-summary i:nth-child(3){right:12%;width:34%;bottom:17%;height:20%}.activity-share-session-layout-preview.is-summary i:nth-child(n+4){display:none}
+.activity-share-session-layout-preview.is-list i{left:10%;right:10%;height:11%}.activity-share-session-layout-preview.is-list i:nth-child(1){top:10%}.activity-share-session-layout-preview.is-list i:nth-child(2){top:27%}.activity-share-session-layout-preview.is-list i:nth-child(3){top:44%}.activity-share-session-layout-preview.is-list i:nth-child(4){top:61%}.activity-share-session-layout-preview.is-list i:nth-child(5){top:78%}
+.activity-share-session-layout-preview.is-minimal i:nth-child(1){left:24%;right:24%;top:18%;height:18%}.activity-share-session-layout-preview.is-minimal i:nth-child(2){left:24%;right:24%;top:43%;height:18%}.activity-share-session-layout-preview.is-minimal i:nth-child(3){left:34%;right:34%;top:68%;height:12%}.activity-share-session-layout-preview.is-minimal i:nth-child(n+4){display:none}
+.activity-share-session-layout-preview.is-compact i{left:12%;right:12%;height:12%}.activity-share-session-layout-preview.is-compact i:nth-child(1){top:11%}.activity-share-session-layout-preview.is-compact i:nth-child(2){top:29%}.activity-share-session-layout-preview.is-compact i:nth-child(3){top:47%}.activity-share-session-layout-preview.is-compact i:nth-child(4){top:65%}.activity-share-session-layout-preview.is-compact i:nth-child(5){display:none}
+.activity-share-composition-options span{gap:8px}
+.activity-share-composition-options .share-composition-thumb{position:relative;display:block;flex:0 0 28px;width:28px;height:28px;min-height:0;padding:0;border:0;border-radius:var(--radius-detail);background:var(--ui-panel-soft);overflow:hidden}
+.share-composition-thumb b{position:absolute;display:block;background:color-mix(in srgb,var(--ui-accent) 50%,var(--ui-border));border-radius:var(--radius-detail)}
+.share-composition-thumb.is-standard b:nth-child(1){left:6px;right:6px;top:5px;height:7px}.share-composition-thumb.is-standard b:nth-child(2){left:5px;width:7px;bottom:5px;height:7px}.share-composition-thumb.is-standard b:nth-child(3){right:5px;width:7px;bottom:5px;height:7px}
+.share-composition-thumb.is-compact b:nth-child(1){left:7px;right:7px;top:5px;height:4px}.share-composition-thumb.is-compact b:nth-child(2){left:7px;right:7px;top:12px;height:4px}.share-composition-thumb.is-compact b:nth-child(3){left:7px;right:7px;top:19px;height:4px}
+.activity-share-segments-heading{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.activity-share-segment-list{display:grid;gap:6px}
+.activity-share-segment-list>label{display:grid;grid-template-columns:auto 72px minmax(0,1fr);align-items:center;gap:8px;min-width:0;padding:7px 8px;border:1px solid var(--ui-border);border-radius:var(--radius-control);background:var(--ui-panel)}
+.activity-share-segment-mini-route{display:grid;place-items:center;width:72px;height:46px;border-radius:var(--radius-detail);background:var(--ui-panel-soft);color:var(--ui-route)}
+.activity-share-segment-mini-route svg{width:100%;height:100%}
+.activity-share-segment-list>label>span:last-child{display:grid;gap:2px;min-width:0}.activity-share-segment-list>label strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.73rem}.activity-share-segment-list>label small{color:var(--ui-muted);font-size:.64rem}
+.activity-share-comparison-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.activity-share-comparison-grid label{display:grid;gap:5px;min-width:0}.activity-share-comparison-grid label>span{color:var(--ui-muted);font-size:.68rem;font-weight:700}.activity-share-comparison-grid select{min-width:0;width:100%}
+@media(max-width:900px){.activity-share-session-layout-family-grid{display:flex;overflow-x:auto;scroll-snap-type:x proximity;padding-bottom:2px}.activity-share-session-layout-card{flex:0 0 132px;scroll-snap-align:start}.activity-share-single-segment-list{grid-template-columns:1fr 1fr}}
+@media(max-width:640px){.activity-share-single-segment-list{display:flex;overflow-x:auto;scroll-snap-type:x proximity}.activity-share-single-segment-option{flex:0 0 min(260px,82vw);scroll-snap-align:start}.activity-share-comparison-grid{grid-template-columns:1fr}.activity-share-scope-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}.activity-share-scope-options button{padding:0 7px;font-size:.68rem}}

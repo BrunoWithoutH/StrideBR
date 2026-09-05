@@ -24,20 +24,20 @@ $allowedGoals = ['organizar', 'condicionamento', 'prova', 'evolucao', 'rotina', 
 $allowedExperience = ['', 'comecando', 'pratico', 'regular'];
 $allowedTracking = ['frequencia', 'duracao', 'distancia', 'elevacao', 'metas', 'carga'];
 $goalLabels = [
-    'organizar' => 'Organizar meus treinos',
-    'evolucao' => 'Acompanhar minha evolução',
-    'condicionamento' => 'Melhorar condicionamento',
-    'prova' => 'Preparar para uma prova',
-    'rotina' => 'Manter uma rotina',
-    'lazer' => 'Registrar por lazer',
+    'organizar' => stridebr_t('onboarding.goal.organize'),
+    'evolucao' => stridebr_t('onboarding.goal.progress'),
+    'condicionamento' => stridebr_t('onboarding.goal.fitness'),
+    'prova' => stridebr_t('onboarding.goal.race'),
+    'rotina' => stridebr_t('onboarding.goal.routine'),
+    'lazer' => stridebr_t('onboarding.goal.leisure'),
 ];
 $trackingChoices = [
-    'frequencia' => ['Consistência', 'Frequência semanal e regularidade'],
-    'duracao' => ['Tempo em atividade', 'Volume por duração'],
-    'distancia' => ['Distância e ritmo', 'Corrida, caminhada e ciclismo'],
-    'elevacao' => ['Altimetria', 'Ganho de elevação e percursos'],
-    'metas' => ['Metas', 'Progresso dos objetivos definidos'],
-    'carga' => ['Força', 'Carga, séries e volume na musculação'],
+    'frequencia' => [stridebr_t('onboarding.tracking.consistency'), stridebr_t('onboarding.tracking.consistency_help')],
+    'duracao' => [stridebr_t('onboarding.tracking.time'), stridebr_t('onboarding.tracking.time_help')],
+    'distancia' => [stridebr_t('onboarding.tracking.distance'), stridebr_t('onboarding.tracking.distance_help')],
+    'elevacao' => [stridebr_t('onboarding.tracking.elevation'), stridebr_t('onboarding.tracking.elevation_help')],
+    'metas' => [stridebr_t('onboarding.tracking.goals'), stridebr_t('onboarding.tracking.goals_help')],
+    'carga' => [stridebr_t('onboarding.tracking.strength'), stridebr_t('onboarding.tracking.strength_help')],
 ];
 
 $modalidadesStmt = $pdo->query("SELECT idmodalidade, nome, slug, COALESCE(NULLIF(categoria,''),'Outros') AS categoria, COALESCE(NULLIF(familia_hub,''),'other') AS familia_hub, COALESCE(ordem_catalogo,9999) AS ordem_catalogo FROM modalidades WHERE ativo = TRUE AND idusuario IS NULL ORDER BY COALESCE(ordem_catalogo,9999), nome");
@@ -64,12 +64,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     stridebr_verify_csrf();
     $signupIp = stridebr_client_ip() ?? '';
     if ($signupIp !== '' && stridebr_auth_limit_is_blocked($pdo, 'signup-ip', $signupIp)) {
-        $errors[] = 'Muitos cadastros foram tentados desta conexão. Aguarde um pouco e tente novamente.';
+        $errors[] = stridebr_t('onboarding.signup_rate_limit');
     } elseif ($signupIp !== '') {
         stridebr_auth_limit_record_attempt($pdo, 'signup-ip', $signupIp, 20, 3600, 3600);
     }
 
-    if (!$registrationEnabled) $errors[] = 'Novos cadastros estão temporariamente fechados.';
+    if (!$registrationEnabled) $errors[] = stridebr_t('onboarding.registration_closed_error');
 
     $values['nome'] = stridebr_person_name_normalize((string) ($_POST['NomeUsuario'] ?? ''));
     $values['email'] = stridebr_lower(trim((string) ($_POST['EmailUsuario'] ?? '')));
@@ -87,26 +87,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $confirm = (string) ($_POST['ConfirmarSenhaUsuario'] ?? '');
     $accepted = isset($_POST['TermosUsuario']);
 
-    if (!stridebr_person_name_is_valid($values['nome'], 80)) $errors[] = 'Informe um nome de até 80 caracteres usando letras latinas, números, espaços, ponto, apóstrofo ou hífen, sem símbolos decorativos.';
-    if (!filter_var($values['email'], FILTER_VALIDATE_EMAIL) || stridebr_length($values['email']) > 255) $errors[] = 'Informe um e-mail válido.';
-    if (!stridebr_password_is_valid_length($password, 8, 128)) $errors[] = 'A senha deve ter entre 8 e 128 caracteres.';
-    if ($password !== $confirm) $errors[] = 'As senhas não coincidem.';
-    if (!$accepted) $errors[] = 'Você precisa aceitar os Termos de Uso e a Política de Privacidade.';
-    if ($inviteOnly && $values['invite'] === '') $errors[] = 'Este cadastro exige um convite válido.';
-    if (!in_array($values['experience'], $allowedExperience, true)) $errors[] = 'Nível de experiência inválido.';
-    if (!in_array($values['units'], ['metric', 'imperial'], true)) $errors[] = 'Sistema de unidades inválido.';
-    if (!in_array($values['week_start'], ['sunday', 'monday'], true)) $errors[] = 'Início da semana inválido.';
-    if (!in_array($values['profile_visibility'], ['privado', 'amigos', 'publico'], true)) $errors[] = 'Privacidade do perfil inválida.';
-    if (!in_array($values['activity_visibility'], ['privado', 'amigos', 'publico'], true)) $errors[] = 'Privacidade das atividades inválida.';
+    if (!stridebr_person_name_is_valid($values['nome'], 80)) $errors[] = stridebr_t('onboarding.name_error');
+    if (!filter_var($values['email'], FILTER_VALIDATE_EMAIL) || stridebr_length($values['email']) > 255) $errors[] = stridebr_t('onboarding.email_error');
+    if (!stridebr_password_is_valid_length($password, 8, 128)) $errors[] = stridebr_t('onboarding.password_length_error');
+    if ($password !== $confirm) $errors[] = stridebr_t('onboarding.password_mismatch');
+    if (!$accepted) $errors[] = stridebr_t('onboarding.terms_required');
+    if ($inviteOnly && $values['invite'] === '') $errors[] = stridebr_t('onboarding.invite_required');
+    if (!in_array($values['experience'], $allowedExperience, true)) $errors[] = stridebr_t('onboarding.invalid_experience');
+    if (!in_array($values['units'], ['metric', 'imperial'], true)) $errors[] = stridebr_t('onboarding.invalid_units');
+    if (!in_array($values['week_start'], ['sunday', 'monday'], true)) $errors[] = stridebr_t('onboarding.invalid_week_start');
+    if (!in_array($values['profile_visibility'], ['privado', 'amigos', 'publico'], true)) $errors[] = stridebr_t('onboarding.invalid_profile_privacy');
+    if (!in_array($values['activity_visibility'], ['privado', 'amigos', 'publico'], true)) $errors[] = stridebr_t('onboarding.invalid_activity_privacy');
 
     if ($errors === []) {
         if (stridebr_auth_limit_is_blocked($pdo, 'signup-email', $values['email'])) {
-            $errors[] = 'Não foi possível concluir o cadastro agora. Aguarde um pouco e tente novamente.';
+            $errors[] = stridebr_t('onboarding.signup_later');
         } else {
             stridebr_auth_limit_record_attempt($pdo, 'signup-email', $values['email'], 8, 3600, 3600);
             $stmt = $pdo->prepare('SELECT 1 FROM usuarios WHERE lower(emailusuario) = lower(:email) LIMIT 1');
             $stmt->execute([':email' => $values['email']]);
-            if ($stmt->fetchColumn()) $errors[] = 'Este e-mail já está cadastrado. Tente entrar com essa conta.';
+            if ($stmt->fetchColumn()) $errors[] = stridebr_t('onboarding.email_exists');
         }
     }
 
@@ -116,7 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $inviteStmt->execute([':hash' => hash('sha256', $values['invite'])]);
         $inviteId = $inviteStmt->fetchColumn();
         if ($inviteId === false) {
-            $errors[] = 'Convite inválido, expirado ou já utilizado.';
+            $errors[] = stridebr_t('onboarding.invalid_invite');
             $inviteId = null;
         }
     }
@@ -141,7 +141,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($inviteOnly && is_string($inviteId)) {
                 $consume = $pdo->prepare("UPDATE convites_alpha SET usos = usos + 1, ativo = CASE WHEN usos + 1 >= usos_maximos THEN FALSE ELSE ativo END WHERE idconvite = :id AND ativo = TRUE AND usos < usos_maximos AND (expira_em IS NULL OR expira_em > NOW())");
                 $consume->execute([':id' => $inviteId]);
-                if ($consume->rowCount() !== 1) throw new RuntimeException('O convite não está mais disponível.');
+                if ($consume->rowCount() !== 1) throw new RuntimeException(stridebr_t('onboarding.invite_unavailable'));
             }
 
             $stmt = $pdo->prepare('INSERT INTO usuarios (idusuario, nomeusuario, nome_exibicao, emailusuario, senhausuario, ipregistro, termos_versao, privacidade_versao, termos_aceitos_em, visibilidadeperfil, preferenciasusuario, onboarding_concluido) VALUES (:id, :nome, :nome_exibicao, :email, :senha, :ip, :termos, :privacidade, NOW(), :visibilidade, CAST(:preferencias AS jsonb), TRUE)');
@@ -183,20 +183,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($emailVerificationRequired) {
                 stridebr_auth_set_pending_verification($id, $values['email'], '/home.php');
-                if (!$sent) stridebr_flash('warning', 'A conta foi criada, mas o primeiro código não pôde ser enviado. Tente reenviar na próxima etapa.');
+                if (!$sent) stridebr_flash('warning', stridebr_t('onboarding.code_send_warning'));
                 header('Location: /verify-email.php');
                 exit;
             }
 
             $newUser = stridebr_auth_load_user($pdo, $id);
-            if (!$newUser) throw new RuntimeException('Não foi possível iniciar a nova conta.');
+            if (!$newUser) throw new RuntimeException(stridebr_t('onboarding.account_start_error'));
             stridebr_auth_start_session($pdo, $newUser, $signupIp);
             $_SESSION['OnboardingConcluido'] = true;
             header('Location: /home.php');
             exit;
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
-            if ($e instanceof PDOException && $e->getCode() === '23505') $errors[] = 'Este e-mail já está cadastrado. Tente entrar com essa conta.';
+            if ($e instanceof PDOException && $e->getCode() === '23505') $errors[] = stridebr_t('onboarding.email_exists');
             elseif ($e instanceof RuntimeException) $errors[] = $e->getMessage();
             else throw $e;
         }
@@ -212,8 +212,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="icon" type="image/png" href="<?php echo stridebr_e(stridebr_asset('/assets/img/favicon/favicon.png')); ?>">
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/style.css')); ?>">
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/loginsignup.css')); ?>">
+
+    <title><?php echo stridebr_e(stridebr_t('auth.signup_title')); ?> | StrideBR</title>
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>">
-    <title>Começar | StrideBR</title>
 </head>
 <body class="onboarding-body signup-onboarding-body">
 <div class="onboarding-shell signup-onboarding-shell">
@@ -221,24 +222,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <main class="onboarding-card signup-onboarding-card" data-onboarding data-initial-step="<?php echo $errors !== [] ? '4' : '0'; ?>">
         <div class="onboarding-topline signup-onboarding-topline">
             <div class="signup-step-status">
-                <span class="onboarding-step-kind" data-step-kind>Etapa opcional</span>
-                <button type="button" class="onboarding-skip-inline" data-skip-to-account>Pular personalização</button>
+                <span class="onboarding-step-kind" data-step-kind><?php echo stridebr_e(stridebr_t('onboarding.optional_step')); ?></span>
+                <button type="button" class="onboarding-skip-inline" data-skip-to-account><?php echo stridebr_e(stridebr_t('auth.skip_personalization')); ?></button>
             </div>
-            <span class="onboarding-progress-label" data-step-label>1 de 5</span>
+            <span class="onboarding-progress-label" data-step-label><?php echo stridebr_e(stridebr_t('onboarding.step_count', ['step' => 1, 'total' => 5])); ?></span>
         </div>
         <div class="onboarding-progress"><span data-progress-bar></span></div>
 
         <?php foreach ($errors as $error): ?><div class="alert alert-danger signup-onboarding-alert"><?php echo stridebr_e($error); ?></div><?php endforeach; ?>
-        <?php if (!$registrationEnabled): ?><div class="alert alert-info signup-onboarding-alert">A criação de novas contas está fechada no momento.</div><?php endif; ?>
+        <?php if (!$registrationEnabled): ?><div class="alert alert-info signup-onboarding-alert"><?php echo stridebr_e(stridebr_t('onboarding.closed')); ?></div><?php endif; ?>
 
         <?php if ($registrationEnabled): ?>
         <form method="POST" class="onboarding-form signup-onboarding-form">
             <?php echo stridebr_csrf_field(); ?>
 
             <section class="onboarding-step signup-onboarding-step is-active" data-step="0">
-                <div class="onboarding-step-heading"><h1>O que você pratica?</h1></div>
+                <div class="onboarding-step-heading"><h1><?php echo stridebr_e(stridebr_t('onboarding.sports_question')); ?></h1></div>
                 <div class="signup-sport-picker" data-signup-sport-picker>
-                    <label class="signup-sport-search"><span>Buscar esporte</span><input type="search" placeholder="Ex.: corrida, musculação, tênis" data-signup-sport-search autocomplete="off"></label>
+                    <label class="signup-sport-search"><span><?php echo stridebr_e(stridebr_t('onboarding.search_sport')); ?></span><input type="search" placeholder="<?php echo stridebr_e(stridebr_t('onboarding.search_placeholder')); ?>" data-signup-sport-search autocomplete="off"></label>
                     <div class="signup-sport-families" data-signup-sport-families>
                         <?php foreach ($signupSportGroups as $group): ?>
                             <button type="button" class="signup-sport-family-card" data-signup-sport-family-open="<?php echo stridebr_e((string) $group['key']); ?>">
@@ -251,37 +252,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <?php foreach ($signupSportGroups as $group): ?>
                             <section class="signup-sport-group signup-sport-family-panel" data-signup-sport-group data-signup-sport-family-panel="<?php echo stridebr_e((string) $group['key']); ?>" hidden>
                                 <div class="signup-sport-family-head"><button type="button" data-signup-sport-family-back>← Categorias</button><div><strong><?php echo stridebr_e((string) $group['label']); ?></strong><small><?php echo stridebr_e((string) $group['description']); ?></small></div></div>
-                                <div class="signup-sport-group-title">Mais comuns</div>
+                                <div class="signup-sport-group-title"><?php echo stridebr_e(stridebr_t('onboarding.common')); ?></div>
                                 <div class="onboarding-choice-grid signup-sports-grid-main">
                                     <?php foreach ($group['popular'] as $modalidade): ?>
                                         <label class="choice-card choice-card-sport" data-signup-sport-card data-sport-name="<?php echo stridebr_e(stridebr_lower((string) $modalidade['nome'] . ' ' . (string) $group['label'])); ?>">
-                                            <input type="checkbox" name="sports[]" value="<?php echo stridebr_e((string) $modalidade['idmodalidade']); ?>" data-summary-label="<?php echo stridebr_e((string) $modalidade['nome']); ?>"<?php echo in_array((string) $modalidade['idmodalidade'], $values['sports'], true) ? ' checked' : ''; ?>>
+                                            <input type="checkbox" name="sports[]" value="<?php echo stridebr_e((string) $modalidade['idmodalidade']); ?>" data-summary-label="<?php echo stridebr_e(stridebr_sport_name((string) $modalidade['slug'], (string) $modalidade['nome'])); ?>"<?php echo in_array((string) $modalidade['idmodalidade'], $values['sports'], true) ? ' checked' : ''; ?>>
                                             <?php echo stridebr_sport_icon_html((string) $modalidade['slug'], 'signup-sport-icon'); ?>
-                                            <span><?php echo stridebr_e((string) $modalidade['nome']); ?></span>
+                                            <span><?php echo stridebr_e(stridebr_sport_name((string) $modalidade['slug'], (string) $modalidade['nome'])); ?></span>
                                         </label>
                                     <?php endforeach; ?>
                                 </div>
                                 <?php if ($group['more']): ?>
-                                    <button type="button" class="signup-sport-more" data-signup-sport-more aria-expanded="false">Mais esportes <span aria-hidden="true">⌄</span></button>
+                                    <button type="button" class="signup-sport-more" data-signup-sport-more aria-expanded="false"><?php echo stridebr_e(stridebr_t('onboarding.more_sports')); ?> <span aria-hidden="true">⌄</span></button>
                                     <div class="onboarding-choice-grid signup-sports-grid-main signup-sport-more-list" data-signup-sport-more-list hidden>
                                         <?php foreach ($group['more'] as $modalidade): ?>
                                             <label class="choice-card choice-card-sport" data-signup-sport-card data-sport-name="<?php echo stridebr_e(stridebr_lower((string) $modalidade['nome'] . ' ' . (string) $group['label'])); ?>">
-                                                <input type="checkbox" name="sports[]" value="<?php echo stridebr_e((string) $modalidade['idmodalidade']); ?>" data-summary-label="<?php echo stridebr_e((string) $modalidade['nome']); ?>"<?php echo in_array((string) $modalidade['idmodalidade'], $values['sports'], true) ? ' checked' : ''; ?>>
+                                                <input type="checkbox" name="sports[]" value="<?php echo stridebr_e((string) $modalidade['idmodalidade']); ?>" data-summary-label="<?php echo stridebr_e(stridebr_sport_name((string) $modalidade['slug'], (string) $modalidade['nome'])); ?>"<?php echo in_array((string) $modalidade['idmodalidade'], $values['sports'], true) ? ' checked' : ''; ?>>
                                                 <?php echo stridebr_sport_icon_html((string) $modalidade['slug'], 'signup-sport-icon'); ?>
-                                                <span><?php echo stridebr_e((string) $modalidade['nome']); ?></span>
+                                                <span><?php echo stridebr_e(stridebr_sport_name((string) $modalidade['slug'], (string) $modalidade['nome'])); ?></span>
                                             </label>
                                         <?php endforeach; ?>
                                     </div>
                                 <?php endif; ?>
                             </section>
                         <?php endforeach; ?>
-                        <div class="signup-sport-empty" data-signup-sport-empty hidden>Nenhum esporte encontrado.</div>
+                        <div class="signup-sport-empty" data-signup-sport-empty hidden><?php echo stridebr_e(stridebr_t('onboarding.no_sport')); ?></div>
                     </div>
                 </div>
             </section>
 
             <section class="onboarding-step signup-onboarding-step" data-step="1" hidden>
-                <div class="onboarding-step-heading"><h1>O que você quer do StrideBR?</h1></div>
+                <div class="onboarding-step-heading"><h1><?php echo stridebr_e(stridebr_t('onboarding.goals_question')); ?></h1></div>
                 <div class="onboarding-choice-grid compact signup-purpose-grid">
                     <?php foreach ($goalLabels as $value => $label): ?>
                         <label class="choice-card"><input type="checkbox" name="goals[]" value="<?php echo stridebr_e($value); ?>" data-summary-label="<?php echo stridebr_e($label); ?>"<?php echo in_array($value, $values['goals'], true) ? ' checked' : ''; ?>><span><?php echo stridebr_e($label); ?></span></label>
@@ -290,17 +291,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </section>
 
             <section class="onboarding-step signup-onboarding-step" data-step="2" hidden>
-                <div class="onboarding-step-heading"><h1>Como você treina hoje?</h1></div>
+                <div class="onboarding-step-heading"><h1><?php echo stridebr_e(stridebr_t('onboarding.experience_question')); ?></h1></div>
                 <div class="onboarding-grid signup-training-grid">
-                    <label>Experiência
-                        <select name="experience"><option value=""<?php echo $values['experience'] === '' ? ' selected' : ''; ?>>Prefiro não informar</option><option value="comecando"<?php echo $values['experience'] === 'comecando' ? ' selected' : ''; ?>>Estou começando</option><option value="pratico"<?php echo $values['experience'] === 'pratico' ? ' selected' : ''; ?>>Já pratico</option><option value="regular"<?php echo $values['experience'] === 'regular' ? ' selected' : ''; ?>>Treino regularmente</option></select>
+                    <label><?php echo stridebr_e(stridebr_t('settings.experience')); ?>
+                        <select name="experience"><option value=""<?php echo $values['experience'] === '' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('settings.prefer_not')); ?></option><option value="comecando"<?php echo $values['experience'] === 'comecando' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('settings.beginner')); ?></option><option value="pratico"<?php echo $values['experience'] === 'pratico' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('settings.active')); ?></option><option value="regular"<?php echo $values['experience'] === 'regular' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('settings.regular')); ?></option></select>
                     </label>
-                    <label>Frequência por semana
-                        <select name="weekly_frequency"><option value="0">Prefiro não definir</option><?php for ($i=1;$i<=7;$i++): ?><option value="<?php echo $i; ?>"<?php echo $values['weekly_frequency'] === $i ? ' selected' : ''; ?>><?php echo $i; ?> dia<?php echo $i===1?'':'s'; ?></option><?php endfor; ?></select>
+                    <label><?php echo stridebr_e(stridebr_t('settings.weekly_frequency')); ?>
+                        <select name="weekly_frequency"><option value="0"><?php echo stridebr_e(stridebr_t('settings.prefer_not_define')); ?></option><?php for ($i=1;$i<=7;$i++): ?><option value="<?php echo $i; ?>"<?php echo $values['weekly_frequency'] === $i ? ' selected' : ''; ?>><?php echo $i; ?> <?php echo stridebr_e(stridebr_t('settings.day')); ?><?php echo $i===1?'':'s'; ?></option><?php endfor; ?></select>
                     </label>
                 </div>
                 <div class="onboarding-subsection">
-                    <strong>O que você quer ver primeiro no progresso?</strong>
+                    <strong><?php echo stridebr_e(stridebr_t('onboarding.progress_question')); ?></strong>
                     <div class="onboarding-choice-grid compact signup-tracking-grid">
                         <?php foreach ($trackingChoices as $value => [$label, $description]): ?>
                             <label class="choice-card choice-card-detail"><input type="checkbox" name="tracking[]" value="<?php echo stridebr_e($value); ?>" data-summary-label="<?php echo stridebr_e($label); ?>"<?php echo in_array($value,$values['tracking'],true)?' checked':''; ?>><span><strong><?php echo stridebr_e($label); ?></strong><small><?php echo stridebr_e($description); ?></small></span></label>
@@ -310,46 +311,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </section>
 
             <section class="onboarding-step signup-onboarding-step" data-step="3" hidden>
-                <div class="onboarding-step-heading"><h1>Preferências básicas</h1></div>
+                <div class="onboarding-step-heading"><h1><?php echo stridebr_e(stridebr_t('onboarding.basic_preferences')); ?></h1></div>
                 <div class="onboarding-grid signup-defaults-grid">
-                    <label>Unidades<select name="units"><option value="metric"<?php echo $values['units']==='metric'?' selected':''; ?>>Métricas (km, kg, cm)</option><option value="imperial"<?php echo $values['units']==='imperial'?' selected':''; ?>>Imperiais</option></select></label>
-                    <label>Início da semana<select name="week_start"><option value="sunday"<?php echo $values['week_start']==='sunday'?' selected':''; ?>>Domingo</option><option value="monday"<?php echo $values['week_start']==='monday'?' selected':''; ?>>Segunda-feira</option></select></label>
-                    <label>Perfil<select name="visibilidadeperfil"><option value="privado"<?php echo $values['profile_visibility']==='privado'?' selected':''; ?>>Privado</option><option value="amigos"<?php echo $values['profile_visibility']==='amigos'?' selected':''; ?>>Amigos</option><option value="publico"<?php echo $values['profile_visibility']==='publico'?' selected':''; ?>>Público</option></select></label>
-                    <label>Novas atividades<select name="activity_visibility"><option value="privado"<?php echo $values['activity_visibility']==='privado'?' selected':''; ?>>Só eu</option><option value="amigos"<?php echo $values['activity_visibility']==='amigos'?' selected':''; ?>>Amigos</option><option value="publico"<?php echo $values['activity_visibility']==='publico'?' selected':''; ?>>Públicas</option></select></label>
+                    <label><?php echo stridebr_e(stridebr_t('settings.units')); ?><select name="units"><option value="metric"<?php echo $values['units']==='metric'?' selected':''; ?>><?php echo stridebr_e(stridebr_t('onboarding.metric_units')); ?></option><option value="imperial"<?php echo $values['units']==='imperial'?' selected':''; ?>><?php echo stridebr_e(stridebr_t('settings.imperial_units')); ?></option></select></label>
+                    <label><?php echo stridebr_e(stridebr_t('settings.week_start')); ?><select name="week_start"><option value="sunday"<?php echo $values['week_start']==='sunday'?' selected':''; ?>><?php echo stridebr_e(stridebr_t('onboarding.week_sunday')); ?></option><option value="monday"<?php echo $values['week_start']==='monday'?' selected':''; ?>><?php echo stridebr_e(stridebr_t('onboarding.week_monday')); ?></option></select></label>
+                    <label><?php echo stridebr_e(stridebr_t('common.profile')); ?><select name="visibilidadeperfil"><option value="privado"<?php echo $values['profile_visibility']==='privado'?' selected':''; ?>><?php echo stridebr_e(stridebr_t('common.private')); ?></option><option value="amigos"<?php echo $values['profile_visibility']==='amigos'?' selected':''; ?>><?php echo stridebr_e(stridebr_t('common.friends')); ?></option><option value="publico"<?php echo $values['profile_visibility']==='publico'?' selected':''; ?>><?php echo stridebr_e(stridebr_t('common.public')); ?></option></select></label>
+                    <label><?php echo stridebr_e(stridebr_t('onboarding.new_activities')); ?><select name="activity_visibility"><option value="privado"<?php echo $values['activity_visibility']==='privado'?' selected':''; ?>><?php echo stridebr_e(stridebr_t('activity.only_me')); ?></option><option value="amigos"<?php echo $values['activity_visibility']==='amigos'?' selected':''; ?>><?php echo stridebr_e(stridebr_t('common.friends')); ?></option><option value="publico"<?php echo $values['activity_visibility']==='publico'?' selected':''; ?>><?php echo stridebr_e(stridebr_t('onboarding.public_plural')); ?></option></select></label>
                 </div>
             </section>
 
             <section class="onboarding-step signup-onboarding-step signup-account-step" data-step="4" hidden>
-                <div class="onboarding-step-heading"><h1>Crie sua conta</h1></div>
+                <div class="onboarding-step-heading"><h1><?php echo stridebr_e(stridebr_t('auth.signup_title')); ?></h1></div>
                 <div class="signup-summary-block" data-summary-block hidden>
-                    <div class="signup-summary-title">Suas escolhas</div>
+                    <div class="signup-summary-title"><?php echo stridebr_e(stridebr_t('onboarding.your_choices')); ?></div>
                     <div class="onboarding-result" data-onboarding-summary aria-live="polite"></div>
                 </div>
                 <div class="signup-account-grid">
-                    <label class="gps-field">Nome<input type="text" name="NomeUsuario" value="<?php echo stridebr_e($values['nome']); ?>" autocomplete="name" maxlength="80" required></label>
-                    <label class="gps-field">E-mail<input type="email" name="EmailUsuario" value="<?php echo stridebr_e($values['email']); ?>" autocomplete="email" maxlength="255" required></label>
-                    <?php if ($inviteOnly): ?><label class="gps-field is-wide">Código de convite<input type="text" name="CodigoConvite" value="<?php echo stridebr_e($values['invite']); ?>" autocomplete="off" maxlength="80" required></label><?php endif; ?>
-                    <label class="gps-field">Senha<input type="password" name="SenhaUsuario" autocomplete="new-password" minlength="8" maxlength="128" required></label>
-                    <label class="gps-field">Confirmar senha<input type="password" name="ConfirmarSenhaUsuario" autocomplete="new-password" minlength="8" maxlength="128" required></label>
+                    <label class="gps-field"><?php echo stridebr_e(stridebr_t('common.name')); ?><input type="text" name="NomeUsuario" value="<?php echo stridebr_e($values['nome']); ?>" autocomplete="name" maxlength="80" required></label>
+                    <label class="gps-field"><?php echo stridebr_e(stridebr_t('auth.email')); ?><input type="email" name="EmailUsuario" value="<?php echo stridebr_e($values['email']); ?>" autocomplete="email" maxlength="255" required></label>
+                    <?php if ($inviteOnly): ?><label class="gps-field is-wide"><?php echo stridebr_e(stridebr_t('onboarding.invite_code')); ?><input type="text" name="CodigoConvite" value="<?php echo stridebr_e($values['invite']); ?>" autocomplete="off" maxlength="80" required></label><?php endif; ?>
+                    <label class="gps-field"><?php echo stridebr_e(stridebr_t('auth.password')); ?><input type="password" name="SenhaUsuario" autocomplete="new-password" minlength="8" maxlength="128" required></label>
+                    <label class="gps-field"><?php echo stridebr_e(stridebr_t('auth.confirm_password')); ?><input type="password" name="ConfirmarSenhaUsuario" autocomplete="new-password" minlength="8" maxlength="128" required></label>
                 </div>
-                <label class="signup-terms"><input type="checkbox" name="TermosUsuario" required><span>Li e aceito os <a href="/pages/legal/terms.php" target="_blank" rel="noopener">Termos de Uso</a> e a <a href="/pages/legal/privacy.php" target="_blank" rel="noopener">Política de Privacidade</a>.</span></label>
-                <div class="login-signup signup-login-link"><span class="text">Já tem uma conta? <a href="/login.php">Entrar</a></span></div>
+                <label class="signup-terms"><input type="checkbox" name="TermosUsuario" required><span><?php echo stridebr_e(stridebr_t('onboarding.accept_prefix')); ?> <a href="/pages/legal/terms.php" target="_blank" rel="noopener"><?php echo stridebr_e(stridebr_t('onboarding.terms')); ?></a> <?php echo stridebr_e(stridebr_t('onboarding.and_the')); ?> <a href="/pages/legal/privacy.php" target="_blank" rel="noopener"><?php echo stridebr_e(stridebr_t('onboarding.privacy')); ?></a>.</span></label>
+                <div class="login-signup signup-login-link"><span class="text"><?php echo stridebr_e(stridebr_t('auth.already_account')); ?> <a href="/login.php"><?php echo stridebr_e(stridebr_t('nav.sign_in')); ?></a></span></div>
             </section>
 
             <div class="onboarding-actions signup-onboarding-actions">
-                <button type="button" class="secondary-action" data-prev-step>Voltar</button>
+                <button type="button" class="secondary-action" data-prev-step><?php echo stridebr_e(stridebr_t('common.back')); ?></button>
                 <div class="signup-action-end">
-                    <button type="button" class="primary-action" data-next-step>Continuar</button>
-                    <button type="submit" class="primary-action" data-finish-step hidden>Criar conta</button>
+                    <button type="button" class="primary-action" data-next-step><?php echo stridebr_e(stridebr_t('common.continue')); ?></button>
+                    <button type="submit" class="primary-action" data-finish-step hidden><?php echo stridebr_e(stridebr_t('auth.create_account')); ?></button>
                 </div>
             </div>
         </form>
         <?php endif; ?>
     </main>
 </div>
+<?php echo stridebr_i18n_runtime_script(true); ?>
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/onboarding.js')); ?>" defer></script>
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/loginform.js')); ?>" defer></script>
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/ui-preferences.js')); ?>" defer></script>
-<script src="<?php echo stridebr_e(stridebr_asset('/assets/js/i18n-runtime.js')); ?>" defer></script>
 </body>
 </html>

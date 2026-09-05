@@ -1,3 +1,5 @@
+const stridebrCommonT = (key, values = {}, fallback = key) => window.StrideBRI18n?.t?.(key, values, fallback) ?? fallback
+
 (() => {
     const requestKey = () => {
         const bytes = new Uint8Array(16)
@@ -18,7 +20,7 @@
         const parentSignal = options.signal
         let timedOut = false
         const abortFromParent = () => controller.abort()
-        if (parentSignal?.aborted) throw new DOMException('Operação cancelada.', 'AbortError')
+        if (parentSignal?.aborted) throw new DOMException(stridebrCommonT('common.operation_cancelled', {}, 'Operation cancelled.'), 'AbortError')
         parentSignal?.addEventListener('abort', abortFromParent, {once: true})
         const timer = window.setTimeout(() => {
             timedOut = true
@@ -28,18 +30,18 @@
             return await fetch(resource, {...options, signal: controller.signal})
         } catch (error) {
             if (timedOut) {
-                const timeoutError = new Error('A resposta demorou demais. Tente novamente.')
+                const timeoutError = new Error(stridebrCommonT('common.response_timeout', {}, 'The response took too long. Try again.'))
                 timeoutError.name = 'TimeoutError'
                 throw timeoutError
             }
             if (error?.name === 'AbortError') throw error
             if (!navigator.onLine) {
-                const offlineError = new Error('Você está sem conexão. O que já foi preenchido continua nesta tela; tente salvar novamente quando a internet voltar.')
+                const offlineError = new Error(stridebrCommonT('common.offline_retry', {}, 'You are offline. Try again when the connection returns.'))
                 offlineError.name = 'OfflineError'
                 throw offlineError
             }
             if (error instanceof TypeError) {
-                const networkError = new Error('Não foi possível falar com o StrideBR. Confira a conexão e tente novamente.')
+                const networkError = new Error(stridebrCommonT('common.network_error', {}, 'Could not reach StrideBR.'))
                 networkError.name = 'NetworkError'
                 throw networkError
             }
@@ -105,7 +107,7 @@
         const close = document.createElement('button')
         close.type = 'button'
         close.className = 'ui-toast-close'
-        close.setAttribute('aria-label', 'Fechar aviso')
+        close.setAttribute('aria-label', stridebrCommonT('common.close_notice', {}, 'Close notification'))
         close.textContent = '×'
         actions.appendChild(close)
 
@@ -143,7 +145,7 @@
                 pauseTimer()
                 actionButton.disabled = true
                 const original = actionButton.textContent
-                actionButton.textContent = undo ? 'Desfazendo…' : 'Aguarde…'
+                actionButton.textContent = undo ? stridebrCommonT('common.undoing', {}, 'Undoing…') : stridebrCommonT('common.please_wait', {}, 'Please wait…')
                 try {
                     await onAction()
                     closeToast(toast)
@@ -151,7 +153,7 @@
                     actionButton.disabled = false
                     actionButton.textContent = original
                     startTimer()
-                    createToast({message: error?.message || 'Não foi possível concluir a ação.', type: 'error', timeout: 6000})
+                    createToast({message: error?.message || stridebrCommonT('common.action_failed', {}, 'Could not complete the action.'), type: 'error', timeout: 6000})
                 }
             })
         }
@@ -172,11 +174,16 @@
         const supportsDialog = typeof HTMLDialogElement !== 'undefined'
         const overlay = document.createElement(supportsDialog ? 'dialog' : 'div')
         overlay.className = 'ui-confirm-overlay'
-        overlay.innerHTML = `<button type="button" class="ui-confirm-backdrop" data-ui-confirm-cancel aria-label="Cancelar"></button><div class="ui-confirm-dialog" role="document"><h2></h2><p></p><div class="ui-confirm-actions"><button type="button" class="ui-confirm-cancel" data-ui-confirm-cancel>Cancelar</button><button type="button" class="ui-confirm-ok">Confirmar</button></div></div>`
-        overlay.querySelector('h2').textContent = options.title || 'Confirmar ação'
-        overlay.querySelector('p').textContent = String(message || 'Confirmar esta ação?')
+        overlay.innerHTML = `<button type="button" class="ui-confirm-backdrop" data-ui-confirm-cancel></button><div class="ui-confirm-dialog" role="document"><h2></h2><div class="ui-confirm-copy"></div><div class="ui-confirm-actions"><button type="button" class="ui-confirm-cancel" data-ui-confirm-cancel></button><button type="button" class="ui-confirm-ok"></button></div></div>`
+        overlay.querySelector('.ui-confirm-backdrop')?.setAttribute('aria-label', stridebrCommonT('common.cancel', {}, 'Cancel'))
+        overlay.querySelector('.ui-confirm-cancel').textContent = stridebrCommonT('common.cancel', {}, 'Cancel')
+        overlay.querySelector('.ui-confirm-ok').textContent = stridebrCommonT('common.confirm', {}, 'Confirm')
+        overlay.querySelector('h2').textContent = options.title || stridebrCommonT('common.confirm_action', {}, 'Confirm action')
+        const copy = overlay.querySelector('.ui-confirm-copy')
+        const blocks = Array.isArray(options.messageBlocks) && options.messageBlocks.length ? options.messageBlocks : [String(message || stridebrCommonT('common.confirm_prompt', {}, 'Confirm this action?'))]
+        blocks.forEach(block => { const paragraph = document.createElement('p'); paragraph.textContent = String(block || ''); copy.appendChild(paragraph) })
         const ok = overlay.querySelector('.ui-confirm-ok')
-        ok.textContent = options.confirmLabel || 'Confirmar'
+        ok.textContent = options.confirmLabel || stridebrCommonT('common.confirm', {}, 'Confirm')
         ok.classList.toggle('is-danger', Boolean(options.danger))
         let settled = false
         const finish = value => {
@@ -197,7 +204,7 @@
 
     const undo = (message, action, timeout = 8000) => {
         document.querySelectorAll('.ui-toast.is-undo').forEach(closeToast)
-        return createToast({message, type: 'info', timeout, actionLabel: 'Desfazer', onAction: action, undo: true})
+        return createToast({message, type: 'info', timeout, actionLabel: stridebrCommonT('common.undo', {}, 'Undo'), onAction: action, undo: true})
     }
 
     window.StrideBRUI = {notify, toast: notify, confirm: confirmAction, undo}
@@ -336,7 +343,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         event.preventDefault();
-        const message = form.dataset.confirm || 'Confirmar esta ação?';
+        const message = form.dataset.confirm || stridebrCommonT('common.confirm_prompt', {}, 'Confirm this action?');
         const confirmed = await window.StrideBRUI.confirm(message, {danger: /apagar|excluir|encerrar|remover/i.test(message)});
         if (!confirmed) return;
         form.dataset.confirmed = '1';
@@ -394,14 +401,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const reader = new FileReader();
         reader.onload = () => {
             if (typeof reader.result !== 'string') {
-                reject(new Error('prévia indisponível'));
+                reject(new Error(stridebrCommonT('common.preview_unavailable', {}, 'preview unavailable')));
                 return;
             }
             preview.onload = () => resolve();
-            preview.onerror = () => reject(new Error('formato sem prévia no navegador'));
+            preview.onerror = () => reject(new Error(stridebrCommonT('common.preview_format_unavailable', {}, 'preview unavailable in this browser')));
             preview.src = reader.result;
         };
-        reader.onerror = () => reject(new Error('não foi possível ler a imagem'));
+        reader.onerror = () => reject(new Error(stridebrCommonT('common.image_read_error', {}, 'could not read image')));
         reader.readAsDataURL(file);
     });
 
@@ -416,7 +423,7 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.width = targetSize;
         canvas.height = targetSize;
         const context = canvas.getContext('2d', { alpha: true });
-        if (!context) throw new Error('canvas indisponível');
+        if (!context) throw new Error(stridebrCommonT('common.canvas_unavailable', {}, 'canvas unavailable'));
         context.drawImage(bitmap, sourceX, sourceY, crop, crop, 0, 0, targetSize, targetSize);
         bitmap.close?.();
         const blob = await new Promise((resolve, reject) => {
@@ -434,25 +441,25 @@ document.addEventListener('DOMContentLoaded', () => {
     input.addEventListener('change', async () => {
         const original = input.files && input.files[0];
         if (!original) {
-            say('JPG, PNG ou WebP · até 4 MB.');
+            say(stridebrCommonT('common.image_requirements', {}, 'JPG, PNG or WebP · up to 4 MB.'));
             return;
         }
         if (!original.type.startsWith('image/')) {
-            say('Escolha uma imagem válida.');
+            say(stridebrCommonT('common.invalid_image', {}, 'Choose a valid image.'));
             return;
         }
-        say(`Selecionada: ${original.name}`);
+        say(stridebrCommonT('common.image_selected', {file: original.name}, `Selected: ${original.name}`));
         try {
             await previewFile(original);
         } catch (_) {
-            say('Imagem selecionada, mas este navegador não conseguiu gerar a prévia.');
+            say(stridebrCommonT('common.image_preview_error', {}, 'Could not generate image preview.'));
         }
         try {
             const optimized = await optimizeFile(original);
             if (!optimized) return;
             putInInput(optimized);
             await previewFile(optimized);
-            say(`Pronta para enviar · ${Math.max(1, Math.round(optimized.size / 1024))} KB`);
+            say(stridebrCommonT('common.image_ready', {size: Math.max(1, Math.round(optimized.size / 1024))}, `Ready to upload · ${Math.max(1, Math.round(optimized.size / 1024))} KB`));
         } catch (_) {
             // Mantém o arquivo original; o backend fará a validação final.
         }
@@ -460,6 +467,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
+    const localeTag = window.StrideBRI18n?.locale === 'en' ? 'en-US' : 'pt-BR'
     const catalog = document.querySelector('[data-settings-sports-catalog]');
     const search = document.querySelector('[data-settings-sport-search]');
     const count = document.querySelector('[data-sports-count]');
@@ -483,7 +491,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!(count instanceof HTMLElement)) return;
         const practiced = cards.filter(card => card.querySelector('[data-sport-practice]')?.checked).length;
         const favorites = cards.filter(card => card.querySelector('[data-sport-favorite]')?.checked).length;
-        count.textContent = `${practiced} praticados · ${favorites} favoritos`;
+        count.textContent = stridebrCommonT('sport_picker.settings_count', {practiced, favorites}, `${practiced} practiced · ${favorites} favorites`);
     };
 
     const resetFamilies = () => {
@@ -494,14 +502,14 @@ document.addEventListener('DOMContentLoaded', () => {
         catalog.querySelectorAll('[data-settings-sport-more]').forEach(button => button.setAttribute('aria-expanded', 'false'));
         cards.forEach(card => card.hidden = false);
         if (empty instanceof HTMLElement) empty.hidden = true;
-        if (hint instanceof HTMLElement) hint.textContent = 'Escolha uma categoria ou busque pelo nome do esporte.';
+        if (hint instanceof HTMLElement) hint.textContent = stridebrCommonT('sport_picker.settings_hint', {}, 'Choose a category or search by sport name.');
     };
 
     catalog.querySelectorAll('[data-settings-sport-family-open]').forEach(button => button.addEventListener('click', () => {
         const key = button.dataset.settingsSportFamilyOpen || '';
         if (familyGrid instanceof HTMLElement) familyGrid.hidden = true;
         panels.forEach(panel => panel.hidden = panel.dataset.settingsSportFamilyPanel !== key);
-        if (hint instanceof HTMLElement) hint.textContent = 'Os esportes mais comuns aparecem primeiro. Abra “Mais esportes” para ver o restante.';
+        if (hint instanceof HTMLElement) hint.textContent = stridebrCommonT('sport_picker.settings_more_hint', {}, 'The most common sports appear first. Open “More sports” to see the rest.');
     }));
 
     catalog.querySelectorAll('[data-settings-sport-family-back]').forEach(button => button.addEventListener('click', resetFamilies));
@@ -514,7 +522,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }));
 
     const filterCards = () => {
-        const query = search instanceof HTMLInputElement ? search.value.trim().toLocaleLowerCase('pt-BR') : '';
+        const query = search instanceof HTMLInputElement ? search.value.trim().toLocaleLowerCase(localeTag) : '';
         if (query === '') {
             resetFamilies();
             return;
@@ -536,7 +544,7 @@ document.addEventListener('DOMContentLoaded', () => {
             panel.hidden = panelVisible === 0;
         });
         if (empty instanceof HTMLElement) empty.hidden = visible !== 0;
-        if (hint instanceof HTMLElement) hint.textContent = visible ? 'Resultados em todas as categorias.' : 'Nenhum esporte encontrado.';
+        if (hint instanceof HTMLElement) hint.textContent = visible ? stridebrCommonT('sport_picker.search_results_all_categories', {}, 'Results across all categories.') : stridebrCommonT('sport_picker.no_results', {}, 'No sports found.');
     };
 
     cards.forEach(card => {
@@ -553,6 +561,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 document.addEventListener('DOMContentLoaded', () => {
+    const localDateTime = (value, options) => window.StrideBRI18n?.date?.(value, options) || new Intl.DateTimeFormat(window.StrideBRI18n?.locale === 'en' ? 'en-US' : 'pt-BR', options).format(value)
     const prefix = 'stridebr:draft:';
     const ignoredNames = new Set(['csrf_token', 'feedback_form_token']);
     const serialize = (form) => {
@@ -586,14 +595,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         form.querySelectorAll('[data-duration-field]').forEach((field) => {
             const hidden = field.querySelector('[data-duration-value]');
-            const match = String(hidden?.value || '').match(/^(\d+):([0-5]\d):([0-5]\d)$/);
+            const match = String(hidden?.value || '').match(/^(\d+):([0-5]\d):([0-5]\d)(?:\.(\d{1,3}))?$/);
             if (!match) return;
             const hours = field.querySelector('[data-duration-hours]');
             const minutes = field.querySelector('[data-duration-minutes]');
             const seconds = field.querySelector('[data-duration-seconds]');
+            const milliseconds = field.querySelector('[data-duration-milliseconds]');
             if (hours) hours.value = String(Number(match[1]));
             if (minutes) minutes.value = match[2];
             if (seconds) seconds.value = match[3];
+            if (milliseconds) milliseconds.value = match[4] ? match[4].padEnd(3, '0') : '';
         });
         const clock = form.querySelector('[data-clock-value]');
         const clockMatch = String(clock?.value || '').match(/^([0-2]\d):([0-5]\d)$/);
@@ -614,7 +625,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let recoveryNotice = null;
         const status = document.createElement('small');
         status.className = 'form-draft-status';
-        status.textContent = 'Rascunho salvo somente neste dispositivo.';
+        status.textContent = stridebrCommonT('draft.saved_device_only', {}, 'Draft saved only on this device.');
         status.hidden = true;
         if (!isActivityDraft) form.appendChild(status);
         const save = () => {
@@ -623,7 +634,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 localStorage.setItem(key, JSON.stringify({savedAt: Date.now(), values: serialize(form)}));
                 if (!isActivityDraft) {
                     status.hidden = false;
-                    status.textContent = `Rascunho salvo neste dispositivo · ${new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})}`;
+                    status.textContent = stridebrCommonT('draft.saved_device_at', {time: localDateTime(new Date(), {hour:'2-digit', minute:'2-digit'})}, 'Draft saved on this device · {time}');
                 }
             } catch (_) {
                 status.hidden = true;
@@ -656,12 +667,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const recovery = document.createElement('div');
         recoveryNotice = recovery;
-        recovery.className = isActivityDraft ? 'draft-recovery-toast' : 'draft-recovery';
-        recovery.setAttribute('role', 'status');
-        const when = new Date(Number(draft.savedAt)).toLocaleString('pt-BR', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'});
-        recovery.innerHTML = `<div><strong>Rascunho encontrado</strong><span>Salvo neste dispositivo em ${when}.</span></div><div><button type="button" data-draft-restore>${isActivityDraft ? 'Continuar' : 'Restaurar'}</button><button type="button" data-draft-discard>Descartar</button></div>`;
-        if (isActivityDraft) document.body.appendChild(recovery);
-        else form.prepend(recovery);
+        recovery.className = isActivityDraft ? 'draft-recovery draft-recovery-activity' : 'draft-recovery';
+        recovery.setAttribute('role', 'region');
+        recovery.setAttribute('aria-label', stridebrCommonT('common.draft_recovery', {}, 'Draft recovery'));
+        const when = localDateTime(new Date(Number(draft.savedAt)), {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
+        recovery.innerHTML = `<div><strong>${stridebrCommonT('draft.found', {}, 'Draft found')}</strong><span>${stridebrCommonT('draft.saved_at', {when}, 'Saved on this device at {when}.')}</span></div><div><button type="button" data-draft-restore>${isActivityDraft ? stridebrCommonT('common.continue', {}, 'Continue') : stridebrCommonT('draft.restore', {}, 'Restore')}</button><button type="button" data-draft-discard>${stridebrCommonT('draft.discard', {}, 'Discard')}</button></div>`;
+        if (isActivityDraft) {
+            const shell = form.closest('[data-activity-form]');
+            if (shell) shell.before(recovery);
+            else form.prepend(recovery);
+        } else form.prepend(recovery);
         recovery.querySelector('[data-draft-restore]')?.addEventListener('click', () => {
             if (isActivityDraft) document.querySelector('[data-toggle-activity-form]')?.click();
             apply(form, draft.values);
@@ -669,7 +684,7 @@ document.addEventListener('DOMContentLoaded', () => {
             recovery.remove();
             if (!isActivityDraft) {
                 status.hidden = false;
-                status.textContent = 'Rascunho restaurado. Continue de onde parou.';
+                status.textContent = stridebrCommonT('draft.restored_continue', {}, 'Draft restored. Continue where you left off.');
             }
         });
         recovery.querySelector('[data-draft-discard]')?.addEventListener('click', () => {
@@ -761,9 +776,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.execCommand('copy');
                     input.remove();
                 }
-                button.textContent = 'Link copiado';
+                button.textContent = stridebrCommonT('common.link_copied', {}, 'Link copied');
             } catch (_) {
-                button.textContent = 'Não foi possível copiar';
+                button.textContent = stridebrCommonT('common.copy_failed', {}, 'Could not copy');
             }
             window.setTimeout(() => { button.textContent = original; }, 1800);
         });
@@ -783,7 +798,7 @@ document.addEventListener('DOMContentLoaded', () => {
         input.addEventListener('change', () => {
             const file = input.files?.[0];
             if (!file) return;
-            if (status instanceof HTMLElement) status.textContent = `Selecionada: ${file.name}`;
+            if (status instanceof HTMLElement) status.textContent = stridebrCommonT('common.image_selected', {file: file.name}, `Selected: ${file.name}`);
             const url = URL.createObjectURL(file);
             preview.style.setProperty('--settings-banner-image', `url("${url}")`);
         });
@@ -815,31 +830,34 @@ window.StrideBRSportPickerInit = (root = document) => {
         const search = picker.querySelector('[data-generic-sport-search]');
         const browser = picker.querySelector('[data-generic-sport-browser]');
         const familyGrid = picker.querySelector('[data-generic-sport-family-grid]');
-        const panels = [...picker.querySelectorAll('[data-generic-sport-family-panel]')];
-        const options = [...picker.querySelectorAll('[data-generic-sport-option]')];
         const noResults = picker.querySelector('[data-generic-sport-no-results]');
         if (!(native instanceof HTMLSelectElement) || !(trigger instanceof HTMLButtonElement) || !(popover instanceof HTMLElement)) return;
+
+        const getPanels = () => [...picker.querySelectorAll('[data-generic-sport-family-panel]')];
+        const getOptions = () => [...picker.querySelectorAll('[data-generic-sport-option]')];
 
         const resetBrowser = () => {
             browser?.classList.remove('is-searching');
             if (familyGrid instanceof HTMLElement) familyGrid.hidden = false;
-            panels.forEach(panel => panel.hidden = true);
+            getPanels().forEach(panel => panel.hidden = true);
             picker.querySelectorAll('[data-generic-sport-more-list]').forEach(list => list.hidden = true);
             picker.querySelectorAll('[data-generic-sport-more]').forEach(button => button.setAttribute('aria-expanded', 'false'));
-            options.forEach(option => option.hidden = false);
+            getOptions().forEach(option => option.hidden = false);
             if (noResults instanceof HTMLElement) noResults.hidden = true;
+            popover.scrollTop = 0;
         };
 
         const syncTrigger = () => {
             const selectedId = native.value;
+            const options = getOptions();
             const matched = options.find(option => option.dataset.sportId === selectedId);
             options.forEach(option => option.setAttribute('aria-selected', option.dataset.sportId === selectedId ? 'true' : 'false'));
             if (matched) {
-                if (triggerLabel instanceof HTMLElement) triggerLabel.textContent = matched.dataset.sportName || native.selectedOptions[0]?.textContent?.trim() || 'Esporte';
+                if (triggerLabel instanceof HTMLElement) triggerLabel.textContent = matched.dataset.sportName || native.selectedOptions[0]?.textContent?.trim() || stridebrCommonT('common.sport', {}, 'Sport');
                 const icon = matched.querySelector('.sport-option-icon');
                 if (triggerIcon instanceof HTMLElement && icon instanceof HTMLElement) triggerIcon.innerHTML = icon.innerHTML;
             } else {
-                if (triggerLabel instanceof HTMLElement) triggerLabel.textContent = native.selectedOptions[0]?.textContent?.trim() || 'Escolha um esporte';
+                if (triggerLabel instanceof HTMLElement) triggerLabel.textContent = native.selectedOptions[0]?.textContent?.trim() || stridebrCommonT('sport_picker.choose', {}, 'Choose a sport');
                 if (triggerIcon instanceof HTMLElement) triggerIcon.innerHTML = '<span aria-hidden="true">◎</span>';
             }
         };
@@ -898,33 +916,57 @@ window.StrideBRSportPickerInit = (root = document) => {
         };
 
         trigger.addEventListener('click', () => popover.hidden ? open() : close());
-        picker.querySelectorAll('[data-generic-sport-family-open]').forEach(button => button.addEventListener('click', () => {
-            const key = button.dataset.genericSportFamilyOpen || '';
-            if (familyGrid instanceof HTMLElement) familyGrid.hidden = true;
-            panels.forEach(panel => panel.hidden = panel.dataset.genericSportFamilyPanel !== key);
-        }));
-        picker.querySelectorAll('[data-generic-sport-family-back]').forEach(button => button.addEventListener('click', resetBrowser));
-        picker.querySelectorAll('[data-generic-sport-more]').forEach(button => button.addEventListener('click', () => {
-            const list = button.nextElementSibling;
-            if (!(list instanceof HTMLElement)) return;
-            const expanding = list.hidden;
-            list.hidden = !expanding;
-            button.setAttribute('aria-expanded', expanding ? 'true' : 'false');
-        }));
-        options.forEach(option => option.addEventListener('click', () => {
-            native.value = option.dataset.sportId || '';
-            native.dispatchEvent(new Event('change', {bubbles: true}));
-            syncTrigger();
-            close();
-        }));
-        picker.querySelector('[data-generic-sport-empty]')?.addEventListener('click', () => {
-            native.value = '';
-            native.dispatchEvent(new Event('change', {bubbles: true}));
-            syncTrigger();
-            close();
+        picker.addEventListener('click', event => {
+            const target = event.target instanceof Element ? event.target : null;
+            if (!target) return;
+
+            const familyButton = target.closest('[data-generic-sport-family-open]');
+            if (familyButton && picker.contains(familyButton)) {
+                const key = familyButton.dataset.genericSportFamilyOpen || '';
+                if (familyGrid instanceof HTMLElement) familyGrid.hidden = true;
+                getPanels().forEach(panel => panel.hidden = panel.dataset.genericSportFamilyPanel !== key);
+                popover.scrollTop = 0;
+                placePopover();
+                return;
+            }
+
+            const backButton = target.closest('[data-generic-sport-family-back]');
+            if (backButton && picker.contains(backButton)) {
+                resetBrowser();
+                placePopover();
+                return;
+            }
+
+            const moreButton = target.closest('[data-generic-sport-more]');
+            if (moreButton && picker.contains(moreButton)) {
+                const list = moreButton.nextElementSibling;
+                if (!(list instanceof HTMLElement)) return;
+                const expanding = list.hidden;
+                list.hidden = !expanding;
+                moreButton.setAttribute('aria-expanded', expanding ? 'true' : 'false');
+                placePopover();
+                return;
+            }
+
+            const option = target.closest('[data-generic-sport-option]');
+            if (option && picker.contains(option)) {
+                native.value = option.dataset.sportId || '';
+                native.dispatchEvent(new Event('change', {bubbles: true}));
+                syncTrigger();
+                close();
+                return;
+            }
+
+            const emptyButton = target.closest('[data-generic-sport-empty]');
+            if (emptyButton && picker.contains(emptyButton)) {
+                native.value = '';
+                native.dispatchEvent(new Event('change', {bubbles: true}));
+                syncTrigger();
+                close();
+            }
         });
         search?.addEventListener('input', () => {
-            const query = String(search.value || '').trim().toLocaleLowerCase('pt-BR');
+            const query = String(search.value || '').trim().toLocaleLowerCase(window.StrideBRI18n?.locale === 'en' ? 'en-US' : 'pt-BR');
             if (query === '') {
                 resetBrowser();
                 return;
@@ -932,7 +974,7 @@ window.StrideBRSportPickerInit = (root = document) => {
             browser?.classList.add('is-searching');
             if (familyGrid instanceof HTMLElement) familyGrid.hidden = true;
             let visible = 0;
-            panels.forEach(panel => {
+            getPanels().forEach(panel => {
                 const panelOptions = [...panel.querySelectorAll('[data-generic-sport-option]')];
                 let panelVisible = 0;
                 panel.querySelectorAll('[data-generic-sport-more-list]').forEach(list => list.hidden = false);

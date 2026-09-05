@@ -8,6 +8,7 @@ $helper = $read('src/function/strength_activity.php');
 $layout = $read('src/layout/activity_strength_editor.php');
 $activities = $read('public/user/atividades.php');
 $edit = $read('public/user/editatividade.php');
+$logDetails = $read('src/layout/activity_log_details.php');
 $api = $read('public/api/atividade-editor-detalhes.php');
 $presenter = $read('src/function/atividade_presenter.php');
 $js = $read('public/assets/js/atividades.js');
@@ -26,10 +27,10 @@ $checks = [
     'pós-salvamento usa métricas de força' => str_contains($js, 'strength.total_exercicios') && str_contains($js, 'strength.total_series'),
     'seletor esportivo expõe família no valor nativo' => str_contains($picker, 'data-family=') && str_contains($picker, 'data-sport-family='),
     'salvar atividade manual abre compartilhamento rápido' => str_contains($activities, "?saved=' . rawurlencode((string) \$savedActivityId)") && str_contains($js, 'openPostSaveShare(initialSavedActivityId)'),
-    'edição usa slider de esforço' => str_contains($edit, 'data-effort-range') && !str_contains($edit, '<?php for ($i = 1; $i <= 10; $i++): ?>'),
+    'edição usa slider de esforço' => str_contains($logDetails, 'data-effort-range') && !str_contains($logDetails, '<?php for ($i = 1; $i <= 10; $i++): ?>'),
     'histórico do exercício alimenta referência no registro' => str_contains($helper, 'function atividadeForcaReferenciaExercicio') && str_contains($referenceApi, 'atividadeForcaReferenciaExercicio') && str_contains($js, '/api/exercicio-forca-referencia.php'),
-    'última sessão vira referência sem preencher silenciosamente' => str_contains($js, 'Última vez ·') && str_contains($js, 'placeholder') && str_contains($js, '_stridebrStrengthReference'),
-    'usuário pode reaplicar explicitamente as séries da última sessão' => str_contains($js, 'data-strength-use-last') && str_contains($js, 'useLatestStrengthSession') && str_contains($js, 'Última sessão aplicada'),
+    'última sessão vira referência sem preencher silenciosamente' => str_contains($js, "tr('activity.strength.last_time'") && str_contains($js, 'placeholder') && str_contains($js, '_stridebrStrengthReference'),
+    'usuário pode reaplicar explicitamente as séries da última sessão' => str_contains($js, 'data-strength-use-last') && str_contains($js, 'useLatestStrengthSession') && str_contains($js, "tr('activity.strength.last_applied')"),
 ];
 
 $failed = [];

@@ -26,7 +26,7 @@ $headerActive = static function (array $paths) use ($headerPath): string {
 ?>
 <header class="site-header">
     <div class="header-inner">
-        <a class="brand-link" href="<?php echo $headerLoggedIn ? '/home.php' : '/index.php'; ?>" aria-label="StrideBR">
+        <a class="brand-link" href="<?php echo $headerLoggedIn ? '/home.php' : '/index.php'; ?>" aria-label="<?php echo stridebr_e(stridebr_t('library.stridebr')); ?>">
             <img src="<?php echo stridebr_e(stridebr_asset('/assets/img/logos/stridebr-logo-white.svg')); ?>" alt="StrideBR" class="nav-logo" width="87" height="34" decoding="async">
         </a>
         <button class="nav-toggle" type="button" data-nav-toggle aria-expanded="false" aria-label="<?php echo stridebr_e(stridebr_t('nav.open_navigation')); ?>">☰</button>
@@ -59,10 +59,10 @@ $headerActive = static function (array $paths) use ($headerPath): string {
                                 <p class="header-notification-empty"><?php echo stridebr_e(stridebr_t('notifications.empty')); ?></p>
                             <?php else: ?>
                                 <?php foreach ($headerNotifications as $notification): ?>
-                                    <?php $notificationUrl = trim((string) ($notification['url'] ?? '')) ?: '/user/notificacoes.php'; ?>
+                                    <?php $notificationUrl = trim((string) ($notification['url'] ?? '')) ?: '/user/notificacoes.php'; $notificationCopy = function_exists('notificacaoApresentar') ? notificacaoApresentar($notification) : ['titulo' => (string) ($notification['titulo'] ?? ''), 'mensagem' => (string) ($notification['mensagem'] ?? '')]; ?>
                                     <a class="header-notification-item<?php echo empty($notification['lida_em']) ? ' is-unread' : ''; ?>" href="<?php echo stridebr_e($notificationUrl); ?>">
                                         <span class="header-notification-dot" aria-hidden="true"></span>
-                                        <span><strong data-user-content><?php echo stridebr_e((string) ($notification['titulo'] ?? '')); ?></strong><?php if (trim((string) ($notification['mensagem'] ?? '')) !== ''): ?><small data-user-content><?php echo stridebr_e((string) $notification['mensagem']); ?></small><?php endif; ?><time><?php echo stridebr_e(date('d/m · H:i', strtotime((string) ($notification['data_criacao'] ?? 'now')) ?: time())); ?></time></span>
+                                        <span><strong><?php echo stridebr_e((string) $notificationCopy['titulo']); ?></strong><?php if (trim((string) $notificationCopy['mensagem']) !== ''): ?><small><?php echo stridebr_e((string) $notificationCopy['mensagem']); ?></small><?php endif; ?><time><?php echo stridebr_e(stridebr_format_datetime_short((string) ($notification['data_criacao'] ?? 'now'))); ?></time></span>
                                     </a>
                                 <?php endforeach; ?>
                             <?php endif; ?>
@@ -71,7 +71,7 @@ $headerActive = static function (array $paths) use ($headerPath): string {
                     </div>
                 </details>
                 <details data-header-menu="toggle" class="global-create-menu">
-                    <summary aria-label="Criar" title="Criar">+</summary>
+                    <summary aria-label="<?php echo stridebr_e(stridebr_t('nav.create')); ?>" title="<?php echo stridebr_e(stridebr_t('nav.create')); ?>">+</summary>
                     <div class="global-create-content">
                         <span class="global-create-label"><?php echo stridebr_e(stridebr_t('nav.create')); ?></span>
                         <a href="/user/gravar-atividade.php"><strong><?php echo stridebr_e(stridebr_t('nav.record_gps')); ?></strong><span><?php echo stridebr_e(stridebr_t('nav.create_gps_desc')); ?></span></a>
@@ -81,7 +81,7 @@ $headerActive = static function (array $paths) use ($headerPath): string {
                     </div>
                 </details>
                 <details data-header-menu="toggle" class="user-menu">
-                    <summary aria-label="Abrir menu do perfil"><img class="userimage" src="<?php echo stridebr_e($headerPhoto); ?>" alt="Perfil" width="34" height="34" decoding="async" fetchpriority="high"></summary>
+                    <summary aria-label="<?php echo stridebr_e(stridebr_t('common.open_profile_menu')); ?>"><img class="userimage" src="<?php echo stridebr_e($headerPhoto); ?>" alt="<?php echo stridebr_e(stridebr_t('common.profile_image_alt')); ?>" width="34" height="34" decoding="async" fetchpriority="high"></summary>
                     <div class="user-menu-content">
                         <div class="user-menu-section"><span class="user-menu-label"><?php echo stridebr_e(stridebr_t('nav.account')); ?></span>
                         <?php if (!empty($_SESSION['Username'])): ?><a href="/u/<?php echo rawurlencode((string) $_SESSION['Username']); ?>"><?php echo stridebr_e(stridebr_t('nav.profile')); ?></a><?php endif; ?>
@@ -106,10 +106,10 @@ $headerActive = static function (array $paths) use ($headerPath): string {
         </div>
     </div>
 </header>
-<noscript><div class="noscript-banner" role="status">O StrideBR precisa de JavaScript para mapas, sessão de treino e alguns editores. Ative-o para usar todos os recursos.</div></noscript>
+<noscript><div class="noscript-banner" role="status"><?php echo stridebr_e(stridebr_t('common.javascript_required')); ?></div></noscript>
 <?php if (is_array($_SESSION['OwnerImpersonation'] ?? null)): ?>
 <div class="impersonation-banner" role="status">
-    <span>Modo de teste: você está usando a conta de <strong><?php echo stridebr_e((string) ($_SESSION['NomeExibicao'] ?? $_SESSION['NomeUsuario'] ?? 'usuário')); ?></strong>.</span>
-    <form method="POST" action="/admin/stop-impersonation.php"><?php echo stridebr_csrf_field(); ?><button type="submit">Voltar para minha conta</button></form>
+    <span><?php echo stridebr_e(stridebr_t('admin.impersonation_notice', ['name' => (string) ($_SESSION['NomeExibicao'] ?? $_SESSION['NomeUsuario'] ?? stridebr_t('common.user'))])); ?></span>
+    <form method="POST" action="/admin/stop-impersonation.php"><?php echo stridebr_csrf_field(); ?><button type="submit"><?php echo stridebr_e(stridebr_t('admin.back_to_account')); ?></button></form>
 </div>
 <?php endif; ?>

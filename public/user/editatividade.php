@@ -9,6 +9,7 @@ $idUsuario = stridebr_require_login();
 
 require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
 require_once dirname(__DIR__, 2) . '/src/function/atividade_modelo.php';
+require_once dirname(__DIR__, 2) . '/src/function/atividade_presenter.php';
 require_once dirname(__DIR__, 2) . '/src/function/strength_activity.php';
 require_once dirname(__DIR__, 2) . '/src/function/activity_energy.php';
 require_once dirname(__DIR__, 2) . '/src/function/cronograma.php';
@@ -28,7 +29,7 @@ if ($registro === []) {
 }
 
 $errors = [];
-if ($embedded && (string) ($_GET['delete_error'] ?? '') === '1') $errors[] = 'Não foi possível apagar esta atividade.';
+if ($embedded && (string) ($_GET['delete_error'] ?? '') === '1') $errors[] = stridebr_t('activity.edit_delete_error');
 $equipamentos = atividadeListarEquipamentos($pdo, $idUsuario, false);
 $catalogo = atividadeListarModalidadesCatalogoLeve($pdo, $idUsuario);
 $editFamily = sportCatalogFamilyKey((string) ($registro['modalidade_familia_hub'] ?? ''), '', (string) ($registro['modalidade_slug'] ?? ''));
@@ -54,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $modeloDestino = $idModalidade === (string) $registro['idmodalidade']
             ? atividadeBuscarModelo($pdo, (string) $registro['idmodelo'], $idUsuario, false)
             : atividadeBuscarModeloPadraoModalidade($pdo, $idModalidade, $idUsuario);
-        if ($modeloDestino === []) throw new InvalidArgumentException('Tipo de atividade inválido.');
+        if ($modeloDestino === []) throw new InvalidArgumentException(stridebr_t('activity.invalid_type'));
 
         $selectedSport = null;
         foreach ($catalogo as $sport) {
@@ -75,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $inicioRaw = trim((string) ($_POST['data'] ?? '')) . ' ' . trim((string) ($_POST['hora'] ?? ''));
         $fimRaw = str_replace('T', ' ', trim((string) ($_POST['data_fim'] ?? '')));
-        $durationSource = trim((string) ($_POST['duration_source'] ?? 'end'));
+        $durationSource = trim((string) ($_POST['duration_source'] ?? 'preserve'));
         $segmentsPosted = !empty($_POST['usa_trechos']);
         $postedDurationSeconds = $segmentsPosted ? null : atividadeDuracaoPayloadSegundos($recordValues, $unidades, $camposDestino);
         $currentDurationSeconds = $segmentsPosted ? null : atividadeDuracaoPayloadSegundos(
@@ -83,17 +84,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             is_array($registro['unidades'] ?? null) ? $registro['unidades'] : [],
             is_array($registro['campos'] ?? null) ? $registro['campos'] : []
         );
-        if (!$segmentsPosted && $postedDurationSeconds !== null && $currentDurationSeconds !== null && $postedDurationSeconds !== $currentDurationSeconds) {
+        if (!$segmentsPosted && $postedDurationSeconds !== null && $currentDurationSeconds !== null && abs($postedDurationSeconds - $currentDurationSeconds) >= 0.0005) {
             $durationSource = 'duration';
         }
+        if (!in_array($durationSource, ['preserve', 'duration', 'end'], true)) $durationSource = 'preserve';
         $inicioReal = DateTimeImmutable::createFromFormat('!Y-m-d H:i', $inicioRaw);
-        if (!$inicioReal || $inicioReal->format('Y-m-d H:i') !== $inicioRaw) throw new InvalidArgumentException('Data ou hora da atividade inválida.');
-        if (!$segmentsPosted && $durationSource === 'duration') {
-            $durationSeconds = $postedDurationSeconds;
-            if ($durationSeconds !== null) $fimRaw = $inicioReal->modify('+' . max(0, $durationSeconds) . ' seconds')->format('Y-m-d H:i');
+        if (!$inicioReal || $inicioReal->format('Y-m-d H:i') !== $inicioRaw) throw new InvalidArgumentException(stridebr_t('activity.invalid_datetime'));
+        if (!$segmentsPosted && $durationSource !== 'end' && $postedDurationSeconds !== null) {
+            $fimRaw = $inicioReal->modify('+' . (int) floor(max(0.0, $postedDurationSeconds)) . ' seconds')->format('Y-m-d H:i');
         } elseif (!$segmentsPosted && $fimRaw !== '') {
             $fimReal = DateTimeImmutable::createFromFormat('!Y-m-d H:i', $fimRaw);
-            if (!$fimReal || $fimReal < $inicioReal) throw new InvalidArgumentException('O término precisa ser depois do início.');
+            if (!$fimReal || $fimReal < $inicioReal) throw new InvalidArgumentException(stridebr_t('activity.end_after_start'));
             atividadeAplicarDuracaoCalculada($recordValues, $unidades, $camposDestino, $fimReal->getTimestamp() - $inicioReal->getTimestamp());
         }
 
@@ -117,6 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'unidades' => $unidades,
                 'usa_trechos' => !empty($_POST['usa_trechos']),
                 'rota_coordenadas' => $_POST['rota_coordenadas'] ?? '',
+                'rota_metricas' => is_array($_POST['rota_metricas'] ?? null) ? $_POST['rota_metricas'] : [],
             ], $idRegistro);
             atividadeForcaPersistirSeriesManuais($pdo, $idUsuario, $idRegistro, $selectedFamily === 'strength' ? $strengthPayload : []);
             if ($selectedFamily === 'strength' && stridebr_db_column_exists($pdo, 'registros_atividade', 'calorias_ativas_estimadas')) {
@@ -136,15 +138,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if ($embedded) {
             header('Content-Type: text/html; charset=utf-8');
-            $message = json_encode(['type' => 'stridebr:activity-edit-saved', 'id' => $idRegistro], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
-            echo '<!doctype html><html><body><script>window.parent.postMessage(' . $message . ', window.location.origin);</script></body></html>';
+            $bridge = stridebr_asset('/assets/js/activity-edit-bridge.js');
+            echo '<!doctype html><html><body><div data-activity-edit-result data-type="stridebr:activity-edit-saved" data-id="' . stridebr_e($idRegistro) . '"></div><script src="' . stridebr_e($bridge) . '"></script></body></html>';
             exit;
         }
-        stridebr_flash('success', 'Atividade física atualizada.');
+        stridebr_flash('success', stridebr_t('activity.updated'));
         header('Location: /user/atividades.php?highlight=' . rawurlencode($idRegistro));
         exit;
     } catch (Throwable $e) {
-        $errors[] = $e instanceof InvalidArgumentException ? $e->getMessage() : 'Não foi possível atualizar a atividade.';
+        $errors[] = $e instanceof InvalidArgumentException ? $e->getMessage() : stridebr_t('activity.update_error');
         if (!$e instanceof InvalidArgumentException) {
             error_log($e->getMessage());
         }
@@ -155,26 +157,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-function atividadeEditCampoOpcional(array $campo): bool
-{
-    return empty($campo['obrigatorio']) && !stridebr_db_bool($campo['exibicao_padrao'] ?? true);
-}
-
-function atividadeEditCampoOrdemVisual(array $campo): int
-{
-    return match (stridebr_lower((string) ($campo['slug'] ?? ''))) {
-        'distancia' => 10,
-        'duracao' => 20,
-        'ritmo', 'pace', 'velocidade' => 30,
-        'elevacao', 'desnivel' => 40,
-        default => 100 + (int) ($campo['ordem'] ?? 0),
-    };
-}
-
 $inicio = new DateTimeImmutable($registro['data_inicio']);
 $fim = !empty($registro['data_fim']) ? new DateTimeImmutable((string) $registro['data_fim']) : null;
 $unitFields = atividadeFiltrarCamposPorModalidade($camposAgrupados['unidade'], $editFamily, (string) ($registro['modalidade_slug'] ?? ''));
-usort($unitFields, static fn(array $a, array $b): int => atividadeEditCampoOrdemVisual($a) <=> atividadeEditCampoOrdemVisual($b));
+usort($unitFields, static fn(array $a, array $b): int => atividadeCampoOrdemVisual($a) <=> atividadeCampoOrdemVisual($b));
 $recordFieldsRaw = atividadeFiltrarCamposPorModalidade($camposAgrupados['registro'], $editFamily, (string) ($registro['modalidade_slug'] ?? ''));
 foreach ($recordFieldsRaw as $campo) {
     if (stridebr_lower((string) ($campo['slug'] ?? '')) !== 'observacoes') continue;
@@ -194,7 +180,7 @@ $primarySport = trim((string) ($primaryUnit['idmodalidade'] ?? '')) ?: (string) 
 $primaryDerivedType = atividadeMetricaDerivadaModalidadeCatalogo($catalogo, $primarySport, (string) ($registro['metrica_derivada'] ?? 'nenhuma'));
 $optionalFields = [];
 foreach (array_merge($unitFields, $recordFields) as $field) {
-    if (atividadeEditCampoOpcional($field)) {
+    if (atividadeCampoOpcional($field)) {
         $optionalFields[] = $field;
     }
 }
@@ -220,20 +206,20 @@ foreach ($unitFields as $field) {
     <link rel="icon" type="image/png" href="<?php echo stridebr_e(stridebr_asset('/assets/img/favicon/favicon.png')); ?>">
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/style.css')); ?>">
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/atividades.css')); ?>">
-    <title>Editar atividade física | StrideBR</title>
+    <title><?php echo stridebr_e(stridebr_t('activity.edit_page_title')); ?> | StrideBR</title>
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>">
 </head>
 <body class="<?php echo $embedded ? 'activity-edit-embedded' : ''; ?>">
 <div class="container-fluid">
-    <?php require dirname(__DIR__, 2) . '/src/layout/header.php'; ?>
+    <?php if (!$embedded) require dirname(__DIR__, 2) . '/src/layout/header.php'; ?>
     <main class="main-content activities-page">
         <header class="activities-toolbar">
             <div class="activities-toolbar-title activity-edit-toolbar-title">
-                <a class="activity-back-link" href="/user/atividades.php">← Atividades físicas</a>
-                <h1>Editar atividade física</h1>
+                <a class="activity-back-link" href="/user/atividades.php">← <?php echo stridebr_e(stridebr_t('activity.back_activities')); ?></a>
+                <h1><?php echo stridebr_e(stridebr_t('activity.edit_page_title')); ?></h1>
             </div>
             <div class="activities-toolbar-actions">
-                <a href="/user/equipamentos.php" class="activity-toolbar-link">Equipamentos</a>
+                <a href="/user/equipamentos.php" class="activity-toolbar-link"><?php echo stridebr_e(stridebr_t('activity.equipment')); ?></a>
             </div>
         </header>
 
@@ -241,187 +227,114 @@ foreach ($unitFields as $field) {
             <div class="alert alert-danger activity-alert"><?php echo stridebr_e($error); ?></div>
         <?php endforeach; ?>
 
-        <form method="POST" class="activity-editor activity-edit-form" id="activity-form" autocomplete="off">
+        <form method="POST"<?php if ($embedded): ?> action="/user/editatividade.php?id=<?php echo rawurlencode($idRegistro); ?>&embed=1"<?php endif; ?> class="activity-editor activity-edit-form" id="activity-form" autocomplete="off">
             <?php echo stridebr_csrf_field(); ?>
             <input type="hidden" name="id" value="<?php echo stridebr_e($idRegistro); ?>">
             <?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
-            <input type="hidden" name="duration_source" value="end" data-duration-source>
+            <input type="hidden" name="duration_source" value="preserve" data-duration-source>
 
+            <?php if (!$embedded): ?>
             <div class="activity-editor-heading">
                 <div>
-                    <h2><?php echo stridebr_e($registro['titulo'] ?: $registro['modalidade_nome']); ?></h2>
-                    <p class="activity-editor-kind"><span class="activity-editor-kind-icon"><?php echo stridebr_sport_icon_html((string) $registro['modalidade_slug']); ?></span><span><?php echo stridebr_e($registro['modalidade_nome']); ?></span><span aria-hidden="true">·</span><span><?php echo stridebr_e($registro['modelo_nome']); ?></span></p>
+                    <h2><?php echo stridebr_e(stridebr_t('activity.edit_page_title')); ?></h2>
+                    <p class="activity-editor-kind"><span class="activity-editor-kind-icon"><?php echo stridebr_sport_icon_html((string) $registro['modalidade_slug']); ?></span><span><?php echo stridebr_e(stridebr_sport_name((string) $registro['modalidade_slug'], (string) $registro['modalidade_nome'])); ?></span><span aria-hidden="true">·</span><span><?php echo stridebr_e($registro['modelo_nome']); ?></span></p>
                 </div>
             </div>
+            <?php endif; ?>
+
+            <?php $activityEditorTitle = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string) ($_POST['titulo'] ?? '') : (string) ($registro['titulo'] ?? ''); $activityEditorTitleEmbedded = $embedded; require dirname(__DIR__, 2) . '/src/layout/activity_smart_title.php'; ?>
 
             <div class="activity-context-grid activity-edit-context-grid">
                 <div class="input-field activity-sport-field activity-edit-sport-field">
-                    <label for="activity-edit-sport-search">Esporte / atividade física</label>
+                    <label for="activity-edit-sport-search"><?php echo stridebr_e(stridebr_t('activity.sport_activity')); ?></label>
                     <div class="sport-combobox" data-sport-combobox>
-                        <button type="button" class="sport-combobox-trigger" data-sport-trigger aria-haspopup="listbox" aria-expanded="false"><span data-sport-current class="sport-current">Escolher esporte</span><span aria-hidden="true">⌄</span></button>
+                        <button type="button" class="sport-combobox-trigger" data-sport-trigger aria-haspopup="listbox" aria-expanded="false"><span data-sport-current class="sport-current"><?php echo stridebr_e(stridebr_t('activity.choose_sport')); ?></span><span aria-hidden="true">⌄</span></button>
                         <div class="sport-combobox-popover" data-sport-popover hidden>
-                            <div class="sport-search-row"><input type="search" id="activity-edit-sport-search" placeholder="Buscar esporte..." data-sport-search spellcheck="false"></div>
+                            <div class="sport-search-row"><input type="search" id="activity-edit-sport-search" placeholder="<?php echo stridebr_e(stridebr_t('activity.search_sport_placeholder')); ?>" data-sport-search spellcheck="false"></div>
                             <div class="sport-options" role="listbox" data-sport-options>
                                 <?php if ($catalogoEditFavoritas): ?>
-                                    <div class="sport-favorites-quick" data-sport-quick aria-label="Esportes favoritos"><div class="sport-group-title">Favoritos</div><div class="sport-favorites-chips">
-                                        <?php foreach ($catalogoEditFavoritas as $modalidade): ?><button type="button" class="sport-option sport-favorite-quick" data-sport-option data-sport-id="<?php echo stridebr_e((string) $modalidade['idmodalidade']); ?>" data-sport-name="<?php echo stridebr_e((string) $modalidade['nome']); ?>" data-sport-slug="<?php echo stridebr_e((string) $modalidade['slug']); ?>" data-sport-family="<?php echo stridebr_e(sportCatalogFamilyKey((string) ($modalidade['familia_hub'] ?? ''), (string) ($modalidade['categoria'] ?? ''), (string) ($modalidade['slug'] ?? ''))); ?>"><span class="sport-option-icon"><?php echo stridebr_sport_icon_html((string) $modalidade['slug']); ?></span><span><?php echo stridebr_e((string) $modalidade['nome']); ?></span></button><?php endforeach; ?>
+                                    <div class="sport-favorites-quick" data-sport-quick aria-label="<?php echo stridebr_e(stridebr_t('activity.favorites_aria')); ?>"><div class="sport-group-title"><?php echo stridebr_e(stridebr_t('activity.favorites')); ?></div><div class="sport-favorites-chips">
+                                        <?php foreach ($catalogoEditFavoritas as $modalidade): ?><button type="button" class="sport-option sport-favorite-quick" data-sport-option data-sport-id="<?php echo stridebr_e((string) $modalidade['idmodalidade']); ?>" data-sport-name="<?php echo stridebr_e(stridebr_sport_name((string) ($modalidade['slug'] ?? ''), (string) ($modalidade['nome'] ?? ''))); ?>" data-sport-slug="<?php echo stridebr_e((string) $modalidade['slug']); ?>" data-sport-family="<?php echo stridebr_e(sportCatalogFamilyKey((string) ($modalidade['familia_hub'] ?? ''), (string) ($modalidade['categoria'] ?? ''), (string) ($modalidade['slug'] ?? ''))); ?>"><span class="sport-option-icon"><?php echo stridebr_sport_icon_html((string) $modalidade['slug']); ?></span><span><?php echo stridebr_e(stridebr_sport_name((string) ($modalidade['slug'] ?? ''), (string) ($modalidade['nome'] ?? ''))); ?></span></button><?php endforeach; ?>
                                     </div></div>
                                 <?php endif; ?>
                                 <?php if ($catalogoEditRecentes): ?>
-                                    <div class="sport-favorites-quick" data-sport-quick aria-label="Esportes usados recentemente"><div class="sport-group-title">Recentes</div><div class="sport-favorites-chips">
-                                        <?php foreach ($catalogoEditRecentes as $modalidade): ?><button type="button" class="sport-option sport-favorite-quick" data-sport-option data-sport-id="<?php echo stridebr_e((string) $modalidade['idmodalidade']); ?>" data-sport-name="<?php echo stridebr_e((string) $modalidade['nome']); ?>" data-sport-slug="<?php echo stridebr_e((string) $modalidade['slug']); ?>" data-sport-family="<?php echo stridebr_e(sportCatalogFamilyKey((string) ($modalidade['familia_hub'] ?? ''), (string) ($modalidade['categoria'] ?? ''), (string) ($modalidade['slug'] ?? ''))); ?>"><span class="sport-option-icon"><?php echo stridebr_sport_icon_html((string) $modalidade['slug']); ?></span><span><?php echo stridebr_e((string) $modalidade['nome']); ?></span></button><?php endforeach; ?>
+                                    <div class="sport-favorites-quick" data-sport-quick aria-label="<?php echo stridebr_e(stridebr_t('activity.recents_aria')); ?>"><div class="sport-group-title"><?php echo stridebr_e(stridebr_t('activity.recents')); ?></div><div class="sport-favorites-chips">
+                                        <?php foreach ($catalogoEditRecentes as $modalidade): ?><button type="button" class="sport-option sport-favorite-quick" data-sport-option data-sport-id="<?php echo stridebr_e((string) $modalidade['idmodalidade']); ?>" data-sport-name="<?php echo stridebr_e(stridebr_sport_name((string) ($modalidade['slug'] ?? ''), (string) ($modalidade['nome'] ?? ''))); ?>" data-sport-slug="<?php echo stridebr_e((string) $modalidade['slug']); ?>" data-sport-family="<?php echo stridebr_e(sportCatalogFamilyKey((string) ($modalidade['familia_hub'] ?? ''), (string) ($modalidade['categoria'] ?? ''), (string) ($modalidade['slug'] ?? ''))); ?>"><span class="sport-option-icon"><?php echo stridebr_sport_icon_html((string) $modalidade['slug']); ?></span><span><?php echo stridebr_e(stridebr_sport_name((string) ($modalidade['slug'] ?? ''), (string) ($modalidade['nome'] ?? ''))); ?></span></button><?php endforeach; ?>
                                     </div></div>
                                 <?php endif; ?>
                                 <?php echo sportPickerRenderFamilyBrowser($catalogo, (string) $registro['idmodalidade'], false); ?>
                             </div>
                         </div>
                         <select id="modalidade" name="idmodalidade" class="activity-native-select" tabindex="-1" aria-hidden="true">
-                            <?php foreach ($catalogo as $atividadeCatalogo): ?><option value="<?php echo stridebr_e((string) $atividadeCatalogo['idmodalidade']); ?>" data-slug="<?php echo stridebr_e((string) ($atividadeCatalogo['slug'] ?? '')); ?>" data-family="<?php echo stridebr_e(sportCatalogFamilyKey((string) ($atividadeCatalogo['familia_hub'] ?? ''), (string) ($atividadeCatalogo['categoria'] ?? ''), (string) ($atividadeCatalogo['slug'] ?? ''))); ?>" data-permite-rota="<?php echo !empty($atividadeCatalogo['permite_rota']) ? '1' : '0'; ?>"<?php echo (string) $registro['idmodalidade'] === (string) $atividadeCatalogo['idmodalidade'] ? ' selected' : ''; ?>><?php echo stridebr_e((string) $atividadeCatalogo['nome']); ?></option><?php endforeach; ?>
+                            <?php foreach ($catalogo as $atividadeCatalogo): ?><option value="<?php echo stridebr_e((string) $atividadeCatalogo['idmodalidade']); ?>" data-slug="<?php echo stridebr_e((string) ($atividadeCatalogo['slug'] ?? '')); ?>" data-family="<?php echo stridebr_e(sportCatalogFamilyKey((string) ($atividadeCatalogo['familia_hub'] ?? ''), (string) ($atividadeCatalogo['categoria'] ?? ''), (string) ($atividadeCatalogo['slug'] ?? ''))); ?>" data-permite-rota="<?php echo !empty($atividadeCatalogo['permite_rota']) ? '1' : '0'; ?>"<?php echo (string) $registro['idmodalidade'] === (string) $atividadeCatalogo['idmodalidade'] ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_sport_name((string) ($atividadeCatalogo['slug'] ?? ''), (string) ($atividadeCatalogo['nome'] ?? ''))); ?></option><?php endforeach; ?>
                         </select>
                     </div>
-                    <small class="activity-field-help">Ao trocar o tipo, dados compatíveis como duração e intensidade são preservados.</small>
+                    <small class="activity-field-help"><?php echo stridebr_e(stridebr_t('activity.type_change_help')); ?></small>
                 </div>
                 <div class="input-field activity-edit-date-field">
-                    <label for="data">Data</label>
+                    <label for="data"><?php echo stridebr_e(stridebr_t('common.date')); ?></label>
                     <input type="date" id="data" name="data" value="<?php echo $inicio->format('Y-m-d'); ?>" required>
                 </div>
                 <div class="input-field activity-edit-time-field">
-                    <label for="hora_h">Hora</label>
+                    <label for="hora_h"><?php echo stridebr_e(stridebr_t('common.time')); ?></label>
                     <div class="clock-segments" data-clock-field>
-                        <input type="text" id="hora_h" inputmode="numeric" maxlength="2" value="<?php echo $inicio->format('H'); ?>" data-clock-hours aria-label="Horas">
+                        <input type="text" id="hora_h" inputmode="numeric" maxlength="2" value="<?php echo $inicio->format('H'); ?>" data-clock-hours aria-label="<?php echo stridebr_e(stridebr_t('activity.hours')); ?>">
                         <span aria-hidden="true">:</span>
-                        <input type="text" inputmode="numeric" maxlength="2" value="<?php echo $inicio->format('i'); ?>" data-clock-minutes aria-label="Minutos">
-                        <button type="button" class="time-now-button" data-time-now>Agora</button>
-                        <button type="button" class="time-quick-toggle" data-time-quick-toggle aria-label="Abrir horários rápidos">⌄</button>
+                        <input type="text" inputmode="numeric" maxlength="2" value="<?php echo $inicio->format('i'); ?>" data-clock-minutes aria-label="<?php echo stridebr_e(stridebr_t('activity.minutes')); ?>">
+                        <button type="button" class="time-now-button" data-time-now><?php echo stridebr_e(stridebr_t('common.now')); ?></button>
+                        <button type="button" class="time-quick-toggle" data-time-quick-toggle aria-label="<?php echo stridebr_e(stridebr_t('activity.open_quick_times')); ?>">⌄</button>
                         <div class="time-quick-menu" data-time-quick-menu hidden></div>
                         <input type="hidden" id="hora" name="hora" value="<?php echo $inicio->format('H:i'); ?>" data-clock-value>
                     </div>
                 </div>
                 <div class="input-field activity-edit-end-field">
-                    <label>Término</label>
+                    <label><?php echo stridebr_e(stridebr_t('activity.end')); ?></label>
                     <div class="activity-end-control">
-                        <input type="date" value="<?php echo $fim ? stridebr_e($fim->format('Y-m-d')) : ''; ?>" data-end-date aria-label="Data de término">
-                        <div class="time24-control" data-time24><div class="time24-input-row"><input type="text" inputmode="numeric" maxlength="2" data-time24-hours aria-label="Hora de término"><span class="time24-separator">:</span><input type="text" inputmode="numeric" maxlength="2" data-time24-minutes aria-label="Minutos de término"><button type="button" class="time24-toggle" data-time24-toggle aria-label="Escolher horário">⌄</button></div><div class="time24-menu" data-time24-menu hidden><div class="time24-menu-head"><span>Horário · 24 h</span><button type="button" data-time24-now>Agora</button></div><div class="time24-hours-grid" data-time24-hours-grid></div><div class="time24-minutes-grid" data-time24-minutes-grid></div></div><input type="hidden" value="<?php echo $fim ? stridebr_e($fim->format('H:i')) : ''; ?>" data-time24-value data-end-time></div>
+                        <input type="date" value="<?php echo $fim ? stridebr_e($fim->format('Y-m-d')) : ''; ?>" data-end-date aria-label="<?php echo stridebr_e(stridebr_t('activity.end_date')); ?>">
+                        <div class="time24-control" data-time24><div class="time24-input-row"><input type="text" inputmode="numeric" maxlength="2" data-time24-hours aria-label="<?php echo stridebr_e(stridebr_t('activity.end_hour')); ?>"><span class="time24-separator">:</span><input type="text" inputmode="numeric" maxlength="2" data-time24-minutes aria-label="<?php echo stridebr_e(stridebr_t('activity.end_minutes')); ?>"><button type="button" class="time24-toggle" data-time24-toggle aria-label="<?php echo stridebr_e(stridebr_t('agenda.choose_time')); ?>">⌄</button></div><div class="time24-menu" data-time24-menu hidden><div class="time24-menu-head"><span><?php echo stridebr_e(stridebr_t('schedule.time_24h')); ?></span><button type="button" data-time24-now><?php echo stridebr_e(stridebr_t('common.now')); ?></button></div><div class="time24-hours-grid" data-time24-hours-grid></div><div class="time24-minutes-grid" data-time24-minutes-grid></div></div><input type="hidden" value="<?php echo $fim ? stridebr_e($fim->format('H:i')) : ''; ?>" data-time24-value data-end-time></div>
                         <input type="hidden" id="data_fim" name="data_fim" value="<?php echo $fim ? stridebr_e($fim->format('Y-m-d\TH:i')) : ''; ?>" data-end-datetime>
                     </div>
-                    <small class="activity-field-help">Edite o término ou a duração. O último campo alterado é o que vale.</small>
+                    <small class="activity-field-help"><?php echo stridebr_e(stridebr_t('activity.end_duration_help')); ?></small>
                 </div>
                 <div class="input-field activity-edit-status-field">
-                    <label for="status">Status</label>
+                    <label for="status"><?php echo stridebr_e(stridebr_t('common.status')); ?></label>
                     <select id="status" name="status">
-                        <?php foreach (['rascunho' => 'Rascunho', 'ativo' => 'Em andamento', 'concluido' => 'Concluído', 'cancelado' => 'Cancelado'] as $value => $label): ?>
+                        <?php foreach (['rascunho' => stridebr_t('activity.status_draft'), 'ativo' => stridebr_t('activity.status_active'), 'concluido' => stridebr_t('activity.status_completed'), 'cancelado' => stridebr_t('activity.status_cancelled')] as $value => $label): ?>
                             <option value="<?php echo $value; ?>"<?php echo $registro['status'] === $value ? ' selected' : ''; ?>><?php echo $label; ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
             </div>
 
-            <section
-                class="activity-model-panel<?php echo $segmentsActive ? ' is-segmented' : ''; ?>"
-                data-model-panel="edit"
-                data-derived-type="<?php echo stridebr_e($registro['metrica_derivada'] ?? 'nenhuma'); ?>"
-                data-distance-unit="<?php echo stridebr_e($distanceUnit); ?>"
-                data-main-modality="<?php echo stridebr_e((string) $registro['idmodalidade']); ?>"
-                data-unit-kind="<?php echo stridebr_e((string) ($registro['tipo_unidade_padrao'] ?? 'unidade')); ?>"
-                data-segments-suggested="<?php echo !empty($registro['permite_multiplas_unidades']) ? '1' : '0'; ?>"
-            >
-                <input type="hidden" name="usa_trechos" value="<?php echo $segmentsActive ? '1' : '0'; ?>" data-segment-mode-input>
-
-                <div class="activity-segments-entry<?php echo !empty($registro['permite_multiplas_unidades']) ? ' is-suggested' : ' is-subtle'; ?>" data-segments-entry>
-                    <div><strong><?php echo $attemptMode ? 'Tentativas' : 'Trechos'; ?></strong><span><?php echo $attemptMode ? 'Registre cada salto, arremesso ou lançamento.' : (!empty($registro['permite_multiplas_unidades']) ? 'Separe tiros, voltas, etapas ou partes da sessão.' : 'Opcional para registrar etapas diferentes da atividade.'); ?></span></div>
-                    <button type="button" class="activity-secondary-button" data-enable-segments><?php echo $attemptMode ? ($segmentsActive ? 'Tentativas ativas' : '+ Usar tentativas') : ($segmentsActive ? 'Trechos ativos' : '+ Usar trechos'); ?></button>
-                </div>
-
-                <div class="activity-primary-unit-card" data-primary-unit-card>
-                    <div class="activity-unit-header activity-primary-unit-header" data-primary-unit-header<?php echo $segmentsActive ? '' : ' hidden'; ?>>
-                        <div><strong data-primary-unit-title><?php echo stridebr_e($registro['rotulo_unidade']); ?> 1</strong><span><?php echo $attemptMode ? 'Primeira tentativa' : 'Primeira parte da sessão'; ?></span></div>
-                        <button type="button" class="activity-link-danger" data-close-segments><?php echo $attemptMode ? 'Fechar tentativas' : 'Fechar trechos'; ?></button>
-                    </div>
-                    <?php if (!$attemptMode): ?>
-                        <div class="activity-unit-context" data-primary-unit-context<?php echo $segmentsActive ? '' : ' hidden'; ?>>
-                            <?php echo atividadeRenderizarSeletorModalidadeUnidade('unidades[0][idmodalidade]', $catalogo, $primarySport, (string) $registro['idmodalidade']); ?>
-                            <div class="input-field"><label>Nome do trecho <span class="field-hint">opcional</span></label><input type="text" name="unidades[0][rotulo]" maxlength="120" value="<?php echo stridebr_e((string) ($primaryUnit['rotulo'] ?? '')); ?>" placeholder="Ex.: Aquecimento"></div>
-                        </div>
-                        <div data-primary-segment-core<?php echo $segmentsActive ? '' : ' hidden'; ?>>
-                            <?php echo atividadeRenderizarMetricasCanonicasTrecho('unidades[0]', $primaryUnit, $primaryDerivedType, $unitFields); ?>
-                        </div>
-                    <?php endif; ?>
-                    <div class="activity-metrics-strip" data-primary-unit data-model-unit-fields>
-                        <?php foreach ($unitFields as $campo): ?>
-                            <?php echo atividadeRenderizarCampo($campo, "unidades[0][values][{$campo['idcampo']}]", "edit_unit_0_{$campo['idcampo']}", $primaryUnit['values'][$campo['idcampo']] ?? null); ?>
-                        <?php endforeach; ?>
-
-                            <div class="input-field derived-metric-field" data-derived-field>
-                                <label data-derived-label>Ritmo</label>
-                                <div class="derived-input-wrap">
-                                    <input type="text" inputmode="decimal" data-derived-input placeholder="--:--">
-                                    <span data-derived-unit>/km</span>
-                                    <span class="auto-badge" data-derived-badge>AUTO</span>
-                                </div>
-                            </div>
-                    </div>
-                    <?php if (!$attemptMode): ?>
-                        <div data-primary-unit-route-wrap<?php echo $segmentsActive ? '' : ' hidden'; ?>>
-                            <?php echo atividadeRenderizarRotaUnidade('unidades[0]', $registro['rotulo_unidade'] . ' 1', $_POST['unidades'][0]['rota_coordenadas'] ?? ($primaryUnit['rota']['coordenadas'] ?? '')); ?>
-                        </div>
-                    <?php endif; ?>
-                </div>
-
-                <?php if ($recordFields): ?>
-                    <div class="activity-record-fields">
-                        <?php foreach ($recordFields as $campo): ?>
-                            <?php echo atividadeRenderizarCampo($campo, "record_values[{$campo['idcampo']}]", "edit_record_{$campo['idcampo']}", $registro['record_values'][$campo['idcampo']] ?? null); ?>
-                        <?php endforeach; ?>
-                    </div>
-                <?php endif; ?>
-
-                <?php if ($optionalFields): ?>
-                    <div class="optional-fields-bar" data-optional-fields-bar>
-                        <span>Adicionar dado</span>
-                        <?php foreach ($optionalFields as $campo): ?>
-                            <button type="button" class="optional-field-chip" data-show-optional-field="<?php echo stridebr_e($campo['slug']); ?>">+ <?php echo stridebr_e($campo['rotulo']); ?></button>
-                        <?php endforeach; ?>
-                    </div>
-                <?php endif; ?>
-
-                <div class="activity-segments-workspace" data-segments-workspace<?php echo $segmentsActive ? '' : ' hidden'; ?>>
-                    <div class="activity-extra-units" data-units data-model="edit">
-                        <?php foreach ($extraUnits as $offset => $unidade): $index = $offset + 1; $unitSport = trim((string) ($unidade['idmodalidade'] ?? '')) ?: (string) $registro['idmodalidade']; $unitDerivedType = atividadeMetricaDerivadaModalidadeCatalogo($catalogo, $unitSport, (string) ($registro['metrica_derivada'] ?? 'nenhuma')); ?>
-                            <div class="activity-unit" data-unit-index="<?php echo $index; ?>">
-                                <div class="activity-unit-header"><div><strong data-unit-title><?php echo stridebr_e($registro['rotulo_unidade']); ?> <?php echo $index + 1; ?></strong><span><?php echo $attemptMode ? 'Tentativa registrada' : 'Parte da sessão'; ?></span></div><button type="button" class="activity-link-danger" data-remove-unit>Remover</button></div>
-                                <?php if (!$attemptMode): ?>
-                                    <div class="activity-unit-context">
-                                        <?php echo atividadeRenderizarSeletorModalidadeUnidade("unidades[{$index}][idmodalidade]", $catalogo, $unitSport, (string) $registro['idmodalidade']); ?>
-                                        <div class="input-field"><label>Nome do trecho <span class="field-hint">opcional</span></label><input type="text" name="unidades[<?php echo $index; ?>][rotulo]" maxlength="120" value="<?php echo stridebr_e((string) ($unidade['rotulo'] ?? '')); ?>" placeholder="Ex.: Tiro forte"></div>
-                                    </div>
-                                    <?php echo atividadeRenderizarMetricasCanonicasTrecho("unidades[{$index}]", $unidade, $unitDerivedType, $unitFields); ?>
-                                <?php endif; ?>
-                                <div class="activity-unit-grid" data-model-unit-fields>
-                                    <?php foreach ($unitFields as $campo): ?><?php echo atividadeRenderizarCampo($campo, "unidades[{$index}][values][{$campo['idcampo']}]", "edit_unit_{$index}_{$campo['idcampo']}", $unidade['values'][$campo['idcampo']] ?? null); ?><?php endforeach; ?>
-                                </div>
-                                <?php if (!$attemptMode) echo atividadeRenderizarRotaUnidade("unidades[{$index}]", $registro['rotulo_unidade'] . ' ' . ($index + 1), $_POST['unidades'][$index]['rota_coordenadas'] ?? ($unidade['rota']['coordenadas'] ?? '')); ?>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-                    <template data-unit-template="edit">
-                        <div class="activity-unit" data-unit-index="__INDEX__">
-                            <div class="activity-unit-header"><div><strong data-unit-title><?php echo stridebr_e($registro['rotulo_unidade']); ?> __NUMBER__</strong><span><?php echo $attemptMode ? 'Tentativa registrada' : 'Parte da sessão'; ?></span></div><button type="button" class="activity-link-danger" data-remove-unit>Remover</button></div>
-                            <?php if (!$attemptMode): ?>
-                                <div class="activity-unit-context">
-                                    <?php echo atividadeRenderizarSeletorModalidadeUnidade('unidades[__INDEX__][idmodalidade]', $catalogo, (string) $registro['idmodalidade'], (string) $registro['idmodalidade']); ?>
-                                    <div class="input-field"><label>Nome do trecho <span class="field-hint">opcional</span></label><input type="text" name="unidades[__INDEX__][rotulo]" maxlength="120" placeholder="Ex.: <?php echo stridebr_e($registro['rotulo_unidade']); ?> __NUMBER__"></div>
-                                </div>
-                                <?php echo atividadeRenderizarMetricasCanonicasTrecho('unidades[__INDEX__]', [], (string) ($registro['metrica_derivada'] ?? 'nenhuma'), $unitFields); ?>
-                            <?php endif; ?>
-                            <div class="activity-unit-grid" data-model-unit-fields>
-                                <?php foreach ($unitFields as $campo): ?><?php echo atividadeRenderizarCampo($campo, "unidades[__INDEX__][values][{$campo['idcampo']}]", "edit_unit___INDEX___{$campo['idcampo']}"); ?><?php endforeach; ?>
-                            </div>
-                            <?php if (!$attemptMode) echo atividadeRenderizarRotaUnidade('unidades[__INDEX__]', $registro['rotulo_unidade'] . ' __NUMBER__', ''); ?>
-                        </div>
-                    </template>
-                    <button type="button" class="add-unit-button" data-add-unit="edit">+ Adicionar <?php echo stridebr_lower(stridebr_e($registro['rotulo_unidade'])); ?></button>
-                </div>
-            </section>
+            <?php
+            $editPanelUnits = is_array($_POST['unidades'] ?? null) ? $_POST['unidades'] : (array) ($registro['unidades'] ?? []);
+            $editPrimaryUnit = is_array($editPanelUnits[0] ?? null) ? $editPanelUnits[0] : $primaryUnit;
+            $editExtraUnits = array_slice($editPanelUnits, 1, null, true);
+            $editRecordValues = is_array($_POST['record_values'] ?? null) ? $_POST['record_values'] : (array) ($registro['record_values'] ?? []);
+            $editModelo = $registro + [
+                'idmodalidade' => (string) ($registro['idmodalidade'] ?? ''),
+                'metrica_derivada' => (string) ($registro['metrica_derivada'] ?? 'nenhuma'),
+                'rotulo_unidade' => (string) ($registro['rotulo_unidade'] ?? stridebr_t('activity.segment')),
+                'tipo_unidade_padrao' => (string) ($registro['tipo_unidade_padrao'] ?? 'unidade'),
+                'permite_multiplas_unidades' => !empty($registro['permite_multiplas_unidades']),
+            ];
+            $activityPanel = [
+                'modelo' => $editModelo,
+                'panel_id' => 'edit',
+                'name_prefix' => '',
+                'html_id_prefix' => 'edit_unit',
+                'data_units_model' => 'edit',
+                'hidden' => false,
+                'enforce_required' => true,
+                'unit_fields' => $unitFields,
+                'record_fields' => $recordFields,
+                'primary_unit' => $editPrimaryUnit,
+                'extra_units' => $editExtraUnits,
+                'record_values' => $editRecordValues,
+                'segments_active' => $segmentsActive,
+            ];
+            require dirname(__DIR__, 2) . '/src/layout/activity_model_panel_shared.php';
+            ?>
 
             <?php echo atividadeForcaRenderEditor($strengthExercises, $exerciciosBiblioteca); ?>
 
@@ -430,94 +343,49 @@ foreach ($unitFields as $field) {
             $activityRouteRaw = $registro['rota']['coordenadas'] ?? '';
             $activityRouteValue = is_array($activityRouteRaw) ? json_encode($activityRouteRaw, JSON_UNESCAPED_SLASHES) : (string) $activityRouteRaw;
             if ($_SERVER['REQUEST_METHOD'] === 'POST') $activityRouteValue = (string) ($_POST['rota_coordenadas'] ?? '');
+            $activityRouteMode = $_POST['route_editor_mode'] ?? 'free';
+            $activityRouteLaps = $_POST['route_editor_laps'] ?? 1;
+            $activityRouteBase = $_POST['route_editor_base'] ?? '';
+            $activityRouteCompact = true;
             require dirname(__DIR__, 2) . '/src/layout/activity_route_editor.php';
             ?>
 
-            <div class="activity-summary" data-activity-summary>
-                <span class="activity-summary-label" data-summary-label>Resumo</span>
-                <strong data-summary-text>Calculando dados da atividade...</strong>
-            </div>
+            <?php
+            $activityRoutePrivacyHasRoute = $activityRouteValue !== '';
+            $activityRoutePrivacyStart = $_SERVER['REQUEST_METHOD'] === 'POST' ? (int) ($_POST['ocultar_inicio_m'] ?? 0) : (int) ($registro['ocultar_inicio_m'] ?? 0);
+            $activityRoutePrivacyEnd = $_SERVER['REQUEST_METHOD'] === 'POST' ? (int) ($_POST['ocultar_fim_m'] ?? 0) : (int) ($registro['ocultar_fim_m'] ?? 0);
+            require dirname(__DIR__, 2) . '/src/layout/activity_route_privacy.php';
 
-            <div class="activity-editor-details-grid">
-                <div class="activity-main-details">
-                    <div class="input-field activity-title-field">
-                        <label for="titulo">Título</label>
-                        <input type="text" id="titulo" name="titulo" value="<?php echo stridebr_e($registro['titulo']); ?>" maxlength="255">
-                    </div>
-                    <div class="input-field">
-                        <label for="observacoes">Observações</label>
-                        <textarea id="observacoes" name="observacoes" rows="3" placeholder="Como foi a atividade?"><?php echo stridebr_e($registro['observacoes']); ?></textarea>
-                    </div>
-                </div>
-
-                <aside class="activity-secondary-details">
-                    <div class="activity-compact-section activity-effort-section" data-effort-selector>
-                        <div class="activity-section-label-row"><span class="activity-section-label">Esforço percebido</span><button type="button" class="activity-inline-action" data-clear-effort<?php echo empty($registro['esforco_percebido']) ? ' hidden' : ''; ?>>Não informar</button></div>
-                        <input type="hidden" name="esforco_percebido" value="<?php echo stridebr_e((string) ($registro['esforco_percebido'] ?? '')); ?>" data-effort-value>
-                        <div class="effort-range-row"><input type="range" min="1" max="10" step="1" value="<?php echo stridebr_e((string) (($registro['esforco_percebido'] ?? '') !== '' ? $registro['esforco_percebido'] : 5)); ?>" data-effort-range aria-label="Esforço percebido de 1 a 10"><output data-effort-output><?php echo ($registro['esforco_percebido'] ?? '') !== '' ? stridebr_e((string) $registro['esforco_percebido']) : '—'; ?></output></div>
-                        <div class="effort-scale"><span>Fácil</span><span>Moderado</span><span>Máximo</span></div>
-                    </div>
-
-                    <div class="activity-compact-section">
-                        <div class="activity-section-label-row">
-                            <span class="activity-section-label">Equipamentos</span>
-                            <a href="/user/equipamentos.php">Gerenciar</a>
-                        </div>
-                        <?php if ($equipamentos): ?>
-                            <div class="equipment-picker">
-                                <?php foreach ($equipamentos as $equipamento): ?>
-                                    <?php $isSelected = isset($selectedEquipment[$equipamento['idequipamento']]); ?>
-                                    <?php if (!$isSelected && !stridebr_db_bool($equipamento['ativo'])) continue; ?>
-                                    <label class="equipment-chip<?php echo !stridebr_db_bool($equipamento['ativo']) ? ' is-archived' : ''; ?>">
-                                        <input type="checkbox" name="equipamentos[]" value="<?php echo stridebr_e($equipamento['idequipamento']); ?>"<?php echo $isSelected ? ' checked' : ''; ?>>
-                                        <span><?php echo stridebr_e($equipamento['nome']); ?><?php echo !stridebr_db_bool($equipamento['ativo']) ? ' · arquivado' : ''; ?></span>
-                                    </label>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php else: ?>
-                            <a href="/user/equipamentos.php" class="activity-empty-action">+ Adicionar primeiro equipamento</a>
-                        <?php endif; ?>
-                    </div>
-
-                    <div class="activity-compact-section activity-compact-two-columns">
-                        <div class="input-field visibility-field">
-                            <label for="visibilidade">Quem pode ver</label>
-                            <select id="visibilidade" name="visibilidade">
-                                <?php foreach (['privado' => 'Só eu', 'amigos' => 'Amigos', 'publico' => 'Público'] as $value => $label): ?>
-                                    <option value="<?php echo $value; ?>"<?php echo $registro['visibilidade'] === $value ? ' selected' : ''; ?>><?php echo $label; ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <label class="input-field">
-                            <span>Ocultar início da rota</span>
-                            <input type="number" name="ocultar_inicio_m" min="0" max="10000" step="50" value="<?php echo (int) ($registro['ocultar_inicio_m'] ?? 0); ?>" inputmode="numeric">
-                            <small>metros · afeta apenas a visualização compartilhada</small>
-                        </label>
-                        <label class="input-field">
-                            <span>Ocultar fim da rota</span>
-                            <input type="number" name="ocultar_fim_m" min="0" max="10000" step="50" value="<?php echo (int) ($registro['ocultar_fim_m'] ?? 0); ?>" inputmode="numeric">
-                            <small>metros · 0 para mostrar tudo</small>
-                        </label>
-                    </div>
-                </aside>
-            </div>
+            $activityEditorEffort = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string) ($_POST['esforco_percebido'] ?? '') : (string) ($registro['esforco_percebido'] ?? '');
+            $activityEditorEquipment = $equipamentos;
+            $activityEditorSelectedEquipment = $_SERVER['REQUEST_METHOD'] === 'POST' && is_array($_POST['equipamentos'] ?? null) ? array_map('strval', $_POST['equipamentos']) : array_keys($selectedEquipment);
+            $activityEditorEquipmentLoaded = true;
+            $activityEditorObservations = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string) ($_POST['observacoes'] ?? '') : (string) ($registro['observacoes'] ?? '');
+            $activityEditorVisibility = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string) ($_POST['visibilidade'] ?? 'privado') : (string) ($registro['visibilidade'] ?? 'privado');
+            require dirname(__DIR__, 2) . '/src/layout/activity_log_details.php';
+            ?>
 
             <div class="activity-form-actions activity-edit-actions">
-                <button type="submit" class="activity-danger-button" formaction="/function/apagaratividade.php" formmethod="post" formnovalidate data-confirm-delete-submit>Apagar atividade</button>
+                <button type="submit" class="activity-danger-button" formaction="/function/apagaratividade.php<?php echo $embedded ? '?embed=1' : ''; ?>" formmethod="post" formnovalidate data-confirm-delete-submit><?php echo stridebr_e(stridebr_t('activity.delete_activity')); ?></button>
                 <span class="activity-form-actions-spacer"></span>
-                <a class="activity-secondary-button" href="/user/atividades.php">Cancelar</a>
-                <button type="submit" class="activity-primary-action">Salvar alterações</button>
+                <a class="activity-secondary-button" href="/user/atividades.php"><?php echo stridebr_e(stridebr_t('common.cancel')); ?></a>
+                <button type="submit" class="activity-primary-action"><?php echo stridebr_e(stridebr_t('settings.save_changes')); ?></button>
             </div>
         </form>
     </main>
 </div>
+<?php if (!$embedded): ?>
 <?php require dirname(__DIR__, 2) . '/src/layout/footer.php'; ?>
+<?php else: ?>
+<?php echo stridebr_i18n_runtime_script(false); ?>
+<script src="<?php echo stridebr_e(stridebr_asset('/assets/js/scripts.js')); ?>"></script>
+<?php endif; ?>
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/time24.js')); ?>"></script>
+<script src="<?php echo stridebr_e(stridebr_asset('/assets/js/activity-route-utils.js')); ?>"></script>
+<?php echo stridebr_maps_runtime_script(); ?>
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/atividades.js')); ?>"></script>
 <?php if ($embedded): ?>
-<script>
-document.addEventListener('click',event=>{const cancel=event.target.closest('.activity-back-link,.activity-edit-actions .activity-secondary-button');if(!cancel)return;event.preventDefault();window.parent.postMessage({type:'stridebr:activity-edit-cancel'},window.location.origin)})
-</script>
+<script src="<?php echo stridebr_e(stridebr_asset('/assets/js/activity-edit-bridge.js')); ?>"></script>
 <?php endif; ?>
 </body>
 </html>

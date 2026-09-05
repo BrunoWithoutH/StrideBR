@@ -31,27 +31,32 @@ function atividadeArquivoXmlAttr(string $attributes, string $name): ?string
     return html_entity_decode((string) $match[2], ENT_QUOTES | ENT_XML1, 'UTF-8');
 }
 
-function atividadeArquivoTimestamp(?string $value): ?int
+function atividadeArquivoTimestamp(?string $value): ?float
 {
     $value = trim((string) $value);
     if ($value === '') return null;
     try {
-        return (new DateTimeImmutable($value))->getTimestamp();
+        $date = new DateTimeImmutable($value);
+        return $date->getTimestamp() + ((int) $date->format('u')) / 1000000;
     } catch (Throwable) {
         return null;
     }
 }
 
-function atividadeArquivoIso(?int $timestamp): ?string
+function atividadeArquivoIso(float|int|null $timestamp): ?string
 {
     if ($timestamp === null) return null;
-    return (new DateTimeImmutable('@' . $timestamp))->setTimezone(new DateTimeZone('UTC'))->format(DateTimeInterface::ATOM);
+    $seconds = (float) $timestamp;
+    $date = DateTimeImmutable::createFromFormat('U.u', number_format($seconds, 6, '.', ''));
+    if (!$date) $date = new DateTimeImmutable('@' . (int) floor($seconds));
+    $date = $date->setTimezone(new DateTimeZone('UTC'));
+    return abs($seconds - round($seconds)) > .0000005 ? $date->format('Y-m-d\TH:i:s.v\Z') : $date->format('Y-m-d\TH:i:s\Z');
 }
 
-function atividadeArquivoLocalDateTime(?int $timestamp): ?string
+function atividadeArquivoLocalDateTime(float|int|null $timestamp): ?string
 {
     if ($timestamp === null) return null;
-    return (new DateTimeImmutable('@' . $timestamp))->setTimezone(new DateTimeZone('America/Sao_Paulo'))->format('Y-m-d H:i');
+    return (new DateTimeImmutable('@' . (int) floor((float) $timestamp)))->setTimezone(new DateTimeZone('America/Sao_Paulo'))->format('Y-m-d H:i');
 }
 
 function atividadeArquivoHaversine(array $a, array $b): float
@@ -103,7 +108,7 @@ function atividadeArquivoResumoSeries(array $series): array
         if (isset($point['cadence']) && is_numeric($point['cadence']) && (float) $point['cadence'] >= 0) $cadences[] = (float) $point['cadence'];
         if (isset($point['power']) && is_numeric($point['power']) && (float) $point['power'] >= 0) $powers[] = (float) $point['power'];
         if (isset($point['speed_mps']) && is_numeric($point['speed_mps']) && (float) $point['speed_mps'] >= 0) $speeds[] = (float) $point['speed_mps'];
-        if (isset($point['timestamp']) && is_int($point['timestamp'])) $timestamps[] = $point['timestamp'];
+        if (isset($point['timestamp']) && is_numeric($point['timestamp'])) $timestamps[] = (float) $point['timestamp'];
     }
     $gain = 0.0;
     $loss = 0.0;
@@ -215,7 +220,7 @@ function atividadeArquivoGpx(string $xml): array
         str_contains($type, 'swim') || str_contains($type, 'nata') => 'swimming',
         default => 'generic',
     };
-    $hasTimestamps = is_int($summary['start_ts'] ?? null) && is_int($summary['end_ts'] ?? null);
+    $hasTimestamps = is_numeric($summary['start_ts'] ?? null) && is_numeric($summary['end_ts'] ?? null);
     return [
         'format' => 'gpx',
         'file_type' => $isRoute || ($isTrack && !$hasTimestamps) ? 'percurso' : ($isTrack ? 'atividade' : 'desconhecido'),
@@ -276,7 +281,7 @@ function atividadeArquivoTcx(string $xml): array
     $start = atividadeArquivoTimestamp(atividadeArquivoXmlTag($xml, 'Id'));
     if ($start === null && preg_match('~<(?:[A-Za-z0-9_-]+:)?Lap\b([^>]*)>~i', $xml, $lap)) $start = atividadeArquivoTimestamp(atividadeArquivoXmlAttr((string) $lap[1], 'StartTime'));
     if ($summary['start_ts'] === null) $summary['start_ts'] = $start;
-    if ($summary['end_ts'] === null && $start !== null && is_numeric($summary['duration_s'] ?? null)) $summary['end_ts'] = $start + (int) round((float) $summary['duration_s']);
+    if ($summary['end_ts'] === null && $start !== null && is_numeric($summary['duration_s'] ?? null)) $summary['end_ts'] = $start + (float) $summary['duration_s'];
     $name = atividadeArquivoXmlTag($xml, 'Name');
     $creator = null;
     if (preg_match('~<(?:[A-Za-z0-9_-]+:)?Creator\b[^>]*>(.*?)</(?:[A-Za-z0-9_-]+:)?Creator>~si', $xml, $creatorMatch)) $creator = atividadeArquivoXmlTag((string) $creatorMatch[1], 'Name');
@@ -692,8 +697,8 @@ function atividadeArquivoCriarPreview(PDO $pdo, string $idUsuario, array $file):
         'file_size' => strlen($binary),
         'modality' => ['id' => $modalidade['idmodalidade'], 'model' => $modalidade['idmodelo'], 'name' => $modalidade['nome'], 'slug' => $modalidade['slug']],
         'title' => $parsed['title'] ?: $modalidade['nome'],
-        'start' => atividadeArquivoIso(is_int($parsed['summary']['start_ts'] ?? null) ? $parsed['summary']['start_ts'] : null),
-        'duration_s' => is_numeric($parsed['summary']['duration_s'] ?? null) ? round((float) $parsed['summary']['duration_s']) : null,
+        'start' => atividadeArquivoIso(is_numeric($parsed['summary']['start_ts'] ?? null) ? (float) $parsed['summary']['start_ts'] : null),
+        'duration_s' => is_numeric($parsed['summary']['duration_s'] ?? null) ? round((float) $parsed['summary']['duration_s'], 3) : null,
         'distance_m' => is_numeric($parsed['summary']['distance_m'] ?? null) ? round((float) $parsed['summary']['distance_m'], 1) : null,
         'elevation_gain_m' => is_numeric($parsed['summary']['elevation_gain_m'] ?? null) ? round((float) $parsed['summary']['elevation_gain_m'], 1) : null,
         'avg_hr' => is_numeric($parsed['summary']['avg_hr'] ?? null) ? round((float) $parsed['summary']['avg_hr']) : null,
@@ -711,8 +716,14 @@ function atividadeArquivoCriarPreview(PDO $pdo, string $idUsuario, array $file):
 
 function atividadeArquivoIntervalo(float $seconds): string
 {
-    $seconds = max(0, (int) round($seconds));
-    return sprintf('%d:%02d:%02d', intdiv($seconds, 3600), intdiv($seconds % 3600, 60), $seconds % 60);
+    return atividadeSegundosParaIntervalo(max(0.0, $seconds));
+}
+
+function atividadeArquivoSegundosDecimal(float|int $seconds): string
+{
+    $value = number_format(max(0.0, (float) $seconds), 3, '.', '');
+    $value = rtrim(rtrim($value, '0'), '.');
+    return $value === '' ? '0' : $value;
 }
 
 function atividadeArquivoPayloadCampos(PDO $pdo, string $idModelo, array $summary): array
@@ -910,7 +921,10 @@ function atividadeArquivoExportData(PDO $pdo, string $idUsuario, string $idRegis
 function atividadeArquivoKnownDuration(array $data): ?float
 {
     $value = $data['known']['duracao'] ?? null;
-    if (is_string($value) && preg_match('/^(\d+):([0-5]\d):([0-5]\d)$/', $value, $m)) return (int) $m[1] * 3600 + (int) $m[2] * 60 + (int) $m[3];
+    if (is_string($value)) {
+        $seconds = function_exists('atividadeIntervaloParaSegundos') ? atividadeIntervaloParaSegundos($value) : null;
+        if ($seconds !== null) return (float) $seconds;
+    }
     $start = strtotime((string) ($data['record']['data_inicio'] ?? ''));
     $end = strtotime((string) ($data['record']['data_fim'] ?? ''));
     return $start !== false && $end !== false && $end >= $start ? (float) ($end - $start) : null;
@@ -932,7 +946,7 @@ function atividadeArquivoExportGpx(array $data): string
         $count = count($route['coordinates']);
         foreach ($route['coordinates'] as $index => $coord) {
             $point = ['lon' => $coord[0], 'lat' => $coord[1]];
-            if ($startTs !== false && $duration !== null && $count > 1) $point['timestamp'] = $startTs + (int) round($duration * $index / ($count - 1));
+            if ($startTs !== false && $duration !== null && $count > 1) $point['timestamp'] = (float) $startTs + $duration * $index / ($count - 1);
             $points[] = $point;
         }
     }
@@ -942,7 +956,7 @@ function atividadeArquivoExportGpx(array $data): string
     foreach ($points as $point) {
         $xml .= '    <trkpt lat="' . number_format((float) $point['lat'], 7, '.', '') . '" lon="' . number_format((float) $point['lon'], 7, '.', '') . '">';
         if (is_numeric($point['altitude_m'] ?? null)) $xml .= '<ele>' . number_format((float) $point['altitude_m'], 2, '.', '') . '</ele>';
-        if (is_int($point['timestamp'] ?? null)) $xml .= '<time>' . atividadeArquivoIso($point['timestamp']) . '</time>';
+        if (is_numeric($point['timestamp'] ?? null)) $xml .= '<time>' . atividadeArquivoIso((float) $point['timestamp']) . '</time>';
         if (isset($point['heart_rate']) || isset($point['cadence'])) {
             $xml .= '<extensions><gpxtpx:TrackPointExtension>';
             if (is_numeric($point['heart_rate'] ?? null)) $xml .= '<gpxtpx:hr>' . (int) $point['heart_rate'] . '</gpxtpx:hr>';
@@ -967,18 +981,23 @@ function atividadeArquivoExportTcx(array $data): string
     if ($distance === null && is_numeric($data['known']['distancia'] ?? null)) $distance = (float) $data['known']['distancia'] * 1000.0;
     $sport = in_array((string) $record['modalidade_slug'], ['corrida', 'corrida-em-trilha', 'corrida-em-esteira', 'caminhada', 'trilha'], true) ? 'Running' : (str_contains((string) $record['modalidade_slug'], 'cicl') || in_array((string) $record['modalidade_slug'], ['mountain-bike', 'gravel', 'bmx'], true) ? 'Biking' : 'Other');
     $points = [];
-    if ($series !== []) foreach ($series as $point) if (isset($point['lat'], $point['lon'])) $points[] = $point;
-    elseif (is_array($route['coordinates'] ?? null)) {
+    if ($series !== []) {
+        foreach ($series as $point) {
+            if (isset($point['lat'], $point['lon'])) $points[] = $point;
+        }
+    } elseif (is_array($route['coordinates'] ?? null)) {
         $count = count($route['coordinates']);
-        foreach ($route['coordinates'] as $index => $coord) $points[] = ['lon' => $coord[0], 'lat' => $coord[1], 'timestamp' => $startTs + ($count > 1 ? (int) round($duration * $index / ($count - 1)) : 0)];
+        foreach ($route['coordinates'] as $index => $coord) {
+            $points[] = ['lon' => $coord[0], 'lat' => $coord[1], 'timestamp' => (float) $startTs + ($count > 1 ? $duration * $index / ($count - 1) : 0.0)];
+        }
     }
     $id = atividadeArquivoIso($startTs);
     $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
     $xml .= '<TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2" xmlns:ns3="http://www.garmin.com/xmlschemas/ActivityExtension/v2"><Activities><Activity Sport="' . $sport . '"><Id>' . $id . '</Id>';
-    $xml .= '<Lap StartTime="' . $id . '"><TotalTimeSeconds>' . number_format($duration, 1, '.', '') . '</TotalTimeSeconds><DistanceMeters>' . number_format((float) ($distance ?? 0), 1, '.', '') . '</DistanceMeters><Intensity>Active</Intensity><TriggerMethod>Manual</TriggerMethod><Track>';
+    $xml .= '<Lap StartTime="' . $id . '"><TotalTimeSeconds>' . atividadeArquivoSegundosDecimal($duration) . '</TotalTimeSeconds><DistanceMeters>' . number_format((float) ($distance ?? 0), 1, '.', '') . '</DistanceMeters><Intensity>Active</Intensity><TriggerMethod>Manual</TriggerMethod><Track>';
     foreach ($points as $point) {
         $xml .= '<Trackpoint>';
-        if (is_int($point['timestamp'] ?? null)) $xml .= '<Time>' . atividadeArquivoIso($point['timestamp']) . '</Time>';
+        if (is_numeric($point['timestamp'] ?? null)) $xml .= '<Time>' . atividadeArquivoIso((float) $point['timestamp']) . '</Time>';
         $xml .= '<Position><LatitudeDegrees>' . number_format((float) $point['lat'], 7, '.', '') . '</LatitudeDegrees><LongitudeDegrees>' . number_format((float) $point['lon'], 7, '.', '') . '</LongitudeDegrees></Position>';
         if (is_numeric($point['altitude_m'] ?? null)) $xml .= '<AltitudeMeters>' . number_format((float) $point['altitude_m'], 2, '.', '') . '</AltitudeMeters>';
         if (is_numeric($point['distance_m'] ?? null)) $xml .= '<DistanceMeters>' . number_format((float) $point['distance_m'], 1, '.', '') . '</DistanceMeters>';

@@ -1,4 +1,8 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const tr = (key, values = {}, fallback = null) => window.StrideBRI18n?.t?.(key, values, fallback) ?? fallback ?? key
+    const trn = (oneKey, otherKey, count, values = {}) => window.StrideBRI18n?.tn?.(oneKey, otherKey, count, values) ?? tr(Number(count) === 1 ? oneKey : otherKey, {...values, count})
+    const localeTag = () => window.StrideBRI18n?.locale === 'en' ? 'en-US' : 'pt-BR'
+    const weekdayShorts = () => Array.from({length: 7}, (_, index) => window.StrideBRI18n?.weekdayShort?.(index) || new Intl.DateTimeFormat(localeTag(), {weekday:'short'}).format(new Date(2023, 0, 1 + index)).replace(/\.$/, ''))
     const uiNotify = (message, type = 'error') => {
         if (window.StrideBRUI?.notify) window.StrideBRUI.notify(message, type)
         else console.error(message)
@@ -41,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
             importError.textContent = '';
         }
         if (importSubmit) importSubmit.disabled = true;
-        if (importFileName) importFileName.textContent = 'Nenhum arquivo selecionado';
+        if (importFileName) importFileName.textContent = tr('schedule.no_file');
     };
 
     const showCreateMode = mode => {
@@ -55,10 +59,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         if (createTitle) {
             createTitle.textContent = mode === 'blank'
-                ? 'Criar cronograma do zero'
+                ? tr('schedule.create_blank_title')
                 : mode === 'import'
-                    ? 'Importar cronograma'
-                    : 'Como você quer começar?';
+                    ? tr('schedule.import_schedule')
+                    : tr('schedule.how_start');
         }
         if (!hasMode) {
             resetImportPreview();
@@ -120,7 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (file.size <= 0 || file.size > 2 * 1024 * 1024) {
             if (importError) {
-                importError.textContent = 'O arquivo deve ter no máximo 2 MB.';
+                importError.textContent = tr('schedule.file_too_large');
                 importError.hidden = false;
             }
             return;
@@ -147,7 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const workoutTarget = document.querySelector('[data-import-preview-workouts]');
             const exerciseTarget = document.querySelector('[data-import-preview-exercises]');
 
-            if (nameTarget) nameTarget.textContent = String(data.cronograma.nome || 'Cronograma importado');
+            if (nameTarget) nameTarget.textContent = String(data.cronograma.nome || tr('schedule.imported_fallback'));
             if (workoutTarget) workoutTarget.textContent = String(workoutCount);
             if (exerciseTarget) exerciseTarget.textContent = String(exerciseCount);
             if (importPreview) importPreview.hidden = false;
@@ -155,10 +159,10 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             if (importError) {
                 importError.textContent = error?.message === 'too-many-workouts'
-                    ? 'Esse arquivo tem mais de 200 treinos e não pode ser importado de uma vez.'
+                    ? tr('schedule.file_too_many_workouts')
                     : error?.message === 'too-many-exercises'
-                        ? 'Esse arquivo tem mais de 2.000 exercícios e não pode ser importado de uma vez.'
-                        : 'Esse arquivo não parece ser um cronograma exportado pelo StrideBR.';
+                        ? tr('schedule.file_too_many_exercises')
+                        : tr('schedule.file_invalid');
                 importError.hidden = false;
             }
         }
@@ -327,7 +331,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         const response = await (window.StrideBRNet?.fetch || fetch)(window.location.href, {headers:{'Accept':'text/html','X-Requested-With':'XMLHttpRequest'}, credentials:'same-origin'}, 15000);
-        if (!response.ok) throw new Error('Não foi possível atualizar o cronograma.');
+        if (!response.ok) throw new Error(tr('schedule.update_error'));
         const html = await response.text();
         const doc = new DOMParser().parseFromString(html, 'text/html');
         const incomingData = doc.querySelector('[data-workout-editor-data]');
@@ -405,7 +409,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const nextDay = editorForm.elements.namedItem('termina_dia_seguinte');
         if (nextDay instanceof HTMLInputElement) nextDay.checked = !!item.termina_dia_seguinte;
         const title = editor.querySelector('[data-editor-title]');
-        if (title) title.textContent = occurrence ? 'Editar treino desta semana' : 'Editar treino';
+        if (title) title.textContent = occurrence ? tr('schedule.edit_occurrence') : tr('schedule.edit_workout_short');
         if (editorExercisesLink) {
             editorExercisesLink.href = `/user/exercicioscronograma.php?idtreino=${encodeURIComponent(item.idtreino || '')}&return_to=${encodeURIComponent(`${location.pathname}${location.search}${location.hash}`)}`;
             editorExercisesLink.hidden = false;
@@ -441,16 +445,16 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await (window.StrideBRNet?.fetch || fetch)('/api/cronograma-ocorrencias.php', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8','Accept':'application/json'}, body:payload}, 15000);
             const data = await response.json();
-            if (!response.ok || !data.ok) throw new Error(data.error || 'Não foi possível salvar o treino.');
+            if (!response.ok || !data.ok) throw new Error(data.error || tr('schedule.save_error'));
             if (saveScopeModal) saveScopeModal.hidden = true;
             pendingWorkoutPayload = null;
             pendingWorkoutSubmit = null;
             closeWorkoutEditor();
             monthCache.clear();
             await refreshScheduleView();
-            showScheduleToast('Treino atualizado.');
+            showScheduleToast(tr('schedule.workout_updated_success'));
         } catch (error) {
-            uiNotify(error.message || 'Não foi possível salvar o treino.');
+            uiNotify(error.message || tr('schedule.save_error'));
             if (pendingWorkoutSubmit) pendingWorkoutSubmit.disabled = false;
         }
     };
@@ -492,10 +496,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let previewRealizedTime = '';
     let previewActivityId = '';
     let previewCompleted = false;
-    const shortDate = value => {
-        const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || '');
-        return match ? `${match[3]}/${match[2]}` : value || '';
-    };
+    const shortDate = value => window.StrideBRI18n?.date?.(value, {day:'2-digit', month:'2-digit'}) || value || '';
     const syncPreviewOccurrenceContext = trigger => {
         const source = trigger.closest('[data-occurrence-workout],[data-planned-date],[data-completed]') || trigger;
         previewOccurrenceOriginal = trigger.dataset.occurrenceOriginal || source.dataset.occurrenceOriginal || '';
@@ -511,19 +512,19 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!context) return;
         let text = '';
         if (completed && previewRealizedDate && previewPlannedDate && previewPlannedDate !== previewRealizedDate) {
-            text = `Realizado em ${shortDate(previewRealizedDate)}${previewRealizedTime ? ` às ${previewRealizedTime}` : ''} · planejado para ${shortDate(previewPlannedDate)}${previewPlannedTime ? ` às ${previewPlannedTime}` : ''}`;
+            text = tr('schedule.realized_planned', {realized: shortDate(previewRealizedDate), realized_time: previewRealizedTime ? tr('schedule.at_time', {time: previewRealizedTime}) : '', planned: shortDate(previewPlannedDate), planned_time: previewPlannedTime ? tr('schedule.at_time', {time: previewPlannedTime}) : ''});
         } else if (!completed && previewPlannedDate && previewOccurrenceOriginal && previewPlannedDate !== previewOccurrenceOriginal) {
-            text = `Planejado para ${shortDate(previewPlannedDate)}${previewPlannedTime ? ` às ${previewPlannedTime}` : ''} · originalmente ${shortDate(previewOccurrenceOriginal)}`;
+            text = tr('schedule.planned_for', {date: shortDate(previewPlannedDate), time: previewPlannedTime ? tr('schedule.at_time', {time: previewPlannedTime}) : '', original: shortDate(previewOccurrenceOriginal)});
         }
         context.textContent = text;
         context.hidden = text === '';
     };
     const previewExerciseMeta = exercise => [
-        exercise.series !== null && exercise.series !== undefined ? `${Number(exercise.series)} séries` : '',
+        exercise.series !== null && exercise.series !== undefined ? `${Number(exercise.series)} ${tr('schedule.sets')}` : '',
         exercise.repeticoes ? String(exercise.repeticoes).replace(/\s*(?:reps?|repetições?)\s*$/i, '') + ' reps' : '',
         exercise.carga || '',
-        exercise.descanso ? `Descanso: ${exercise.descanso}` : '',
-        exercise.bloco ? `Bloco: ${exercise.bloco}` : '',
+        exercise.descanso ? `${tr('schedule.rest')} ${exercise.descanso}` : '',
+        exercise.bloco ? `${tr('schedule.block')} ${exercise.bloco}` : '',
         exercise.cluster || '',
     ].filter(Boolean);
     const renderDynamicPreviewContent = data => {
@@ -537,16 +538,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const exerciseMarkup = exercises.length ? exercises.map((exercise, index) => {
             const meta = previewExerciseMeta(exercise).map(value => `<span>${escapeHtml(value)}</span>`).join('');
             return `<article class="preview-exercise"><span class="preview-exercise-number">${index + 1}</span><div><strong>${escapeHtml(exercise.nome || '')}</strong>${meta ? `<div class="preview-exercise-meta">${meta}</div>` : ''}${exercise.observacoes ? `<small>${escapeHtml(exercise.observacoes)}</small>` : ''}</div></article>`;
-        }).join('') : '<p class="preview-empty">Esse treino ainda não tem exercícios.</p>';
+        }).join('') : `<p class="preview-empty">${escapeHtml(tr('schedule.no_exercises'))}</p>`;
         const libraryAction = workout.biblioteca_disponivel
             ? workout.idtreino_modelo
-                ? `<form method="POST" class="preview-copy-form"><input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}"><input type="hidden" name="action" value="update_library_from_workout"><input type="hidden" name="idcronograma" value="${escapeHtml(workout.idcronograma)}"><input type="hidden" name="idtreino" value="${escapeHtml(workout.idtreino)}"><input type="hidden" name="return_to" value="${escapeHtml(`${location.pathname}${location.search}${location.hash}`)}" data-return-current><button type="submit">Atualizar treino salvo</button></form>`
-                : `<form method="POST" class="preview-copy-form"><input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}"><input type="hidden" name="action" value="save_workout_to_library"><input type="hidden" name="idcronograma" value="${escapeHtml(workout.idcronograma)}"><input type="hidden" name="idtreino" value="${escapeHtml(workout.idtreino)}"><input type="hidden" name="return_to" value="${escapeHtml(`${location.pathname}${location.search}${location.hash}`)}" data-return-current><button type="submit">Salvar na biblioteca</button></form>`
+                ? `<form method="POST" class="preview-copy-form"><input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}"><input type="hidden" name="action" value="update_library_from_workout"><input type="hidden" name="idcronograma" value="${escapeHtml(workout.idcronograma)}"><input type="hidden" name="idtreino" value="${escapeHtml(workout.idtreino)}"><input type="hidden" name="return_to" value="${escapeHtml(`${location.pathname}${location.search}${location.hash}`)}" data-return-current><button type="submit">${escapeHtml(tr('schedule.update_saved'))}</button></form>`
+                : `<form method="POST" class="preview-copy-form"><input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}"><input type="hidden" name="action" value="save_workout_to_library"><input type="hidden" name="idcronograma" value="${escapeHtml(workout.idcronograma)}"><input type="hidden" name="idtreino" value="${escapeHtml(workout.idtreino)}"><input type="hidden" name="return_to" value="${escapeHtml(`${location.pathname}${location.search}${location.hash}`)}" data-return-current><button type="submit">${escapeHtml(tr('schedule.save_library'))}</button></form>`
             : '';
         const sessionActions = document.querySelector('[data-quick-register-modal]')
-            ? `<button type="button" class="primary-button" data-quick-register-workout="${escapeHtml(workout.idtreino)}" data-workout-title="${escapeHtml(workout.titulo)}" data-workout-time="${escapeHtml(workout.hora_inicio)}" data-workout-duration="${escapeHtml(workout.duracao_minutos || 60)}">Registrar</button><button type="button" class="secondary-button" data-start-workout="${escapeHtml(workout.idtreino)}">Iniciar ao vivo</button>`
+            ? `<button type="button" class="primary-button" data-quick-register-workout="${escapeHtml(workout.idtreino)}" data-workout-title="${escapeHtml(workout.titulo)}" data-workout-time="${escapeHtml(workout.hora_inicio)}" data-workout-duration="${escapeHtml(workout.duracao_minutos || 60)}">${escapeHtml(tr('schedule.log'))}</button><button type="button" class="secondary-button" data-start-workout="${escapeHtml(workout.idtreino)}">${escapeHtml(tr('schedule.start_live'))}</button>`
             : '';
-        content.innerHTML = `<div class="workout-preview-heading"><div class="workout-preview-occurrence-context" data-preview-occurrence-context hidden></div><span>${escapeHtml(workout.dia || '')} · ${escapeHtml(workout.hora_inicio || '')}–${escapeHtml(workout.hora_fim || '')}${workout.termina_dia_seguinte ? ' +1' : ''}</span>${tags ? `<div class="workout-preview-tags">${tags}</div>` : ''}<h2>${escapeHtml(workout.titulo || 'Treino')}</h2>${workout.descricao ? `<p>${escapeHtml(workout.descricao)}</p>` : ''}</div><div class="workout-preview-exercises">${exerciseMarkup}</div><div class="workout-preview-actions"><div class="workout-preview-primary-actions">${sessionActions}<button type="button" class="secondary-button" data-edit-workout="${escapeHtml(workout.idtreino)}">Editar</button><details class="workout-preview-more"><summary class="secondary-button">Mais</summary><div class="workout-preview-menu"><button type="button" data-preview-move>Reagendar / mover</button><button type="button" data-preview-adjust-history hidden>Corrigir planejamento e realização</button><button type="button" data-preview-skip>Pular esta ocorrência</button><a href="/user/exercicioscronograma.php?idtreino=${encodeURIComponent(workout.idtreino)}">Editar exercícios</a>${libraryAction}<form method="POST" class="preview-copy-form"><input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}"><input type="hidden" name="action" value="duplicate_workout"><input type="hidden" name="idcronograma" value="${escapeHtml(workout.idcronograma)}"><input type="hidden" name="idtreino" value="${escapeHtml(workout.idtreino)}"><input type="hidden" name="duplicate_mode" value="edit"><input type="hidden" name="return_to" value="${escapeHtml(`${location.pathname}${location.search}${location.hash}`)}" data-return-current><button type="submit">Duplicar e editar</button></form><form method="POST" class="preview-delete-form" data-confirm="Remover este treino do cronograma?"><input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}"><input type="hidden" name="action" value="delete_workout"><input type="hidden" name="idcronograma" value="${escapeHtml(workout.idcronograma)}"><input type="hidden" name="idtreino" value="${escapeHtml(workout.idtreino)}"><input type="hidden" name="return_to" value="${escapeHtml(`${location.pathname}${location.search}${location.hash}`)}" data-return-current><button type="submit" class="is-danger">Excluir treino</button></form></div></details></div></div>`;
+        content.innerHTML = `<div class="workout-preview-heading"><div class="workout-preview-occurrence-context" data-preview-occurrence-context hidden></div><span>${escapeHtml(workout.dia || '')} · ${escapeHtml(workout.hora_inicio || '')}–${escapeHtml(workout.hora_fim || '')}${workout.termina_dia_seguinte ? ' +1' : ''}</span>${tags ? `<div class="workout-preview-tags">${tags}</div>` : ''}<h2>${escapeHtml(workout.titulo || tr('schedule.workout_fallback'))}</h2>${workout.descricao ? `<p>${escapeHtml(workout.descricao)}</p>` : ''}</div><div class="workout-preview-exercises">${exerciseMarkup}</div><div class="workout-preview-actions"><div class="workout-preview-primary-actions">${sessionActions}<button type="button" class="secondary-button" data-edit-workout="${escapeHtml(workout.idtreino)}">${escapeHtml(tr('common.edit'))}</button><details class="workout-preview-more"><summary class="secondary-button">${escapeHtml(tr('common.more'))}</summary><div class="workout-preview-menu"><button type="button" data-preview-move>${escapeHtml(tr('schedule.reschedule'))}</button><button type="button" data-preview-adjust-history hidden>${escapeHtml(tr('schedule.fix_plan_actual'))}</button><button type="button" data-preview-skip>${escapeHtml(tr('schedule.skip_occurrence'))}</button><a href="/user/exercicioscronograma.php?idtreino=${encodeURIComponent(workout.idtreino)}">${escapeHtml(tr('schedule.edit_exercises'))}</a>${libraryAction}<form method="POST" class="preview-copy-form"><input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}"><input type="hidden" name="action" value="duplicate_workout"><input type="hidden" name="idcronograma" value="${escapeHtml(workout.idcronograma)}"><input type="hidden" name="idtreino" value="${escapeHtml(workout.idtreino)}"><input type="hidden" name="duplicate_mode" value="edit"><input type="hidden" name="return_to" value="${escapeHtml(`${location.pathname}${location.search}${location.hash}`)}" data-return-current><button type="submit">${escapeHtml(tr('schedule.duplicate_edit'))}</button></form><form method="POST" class="preview-delete-form" data-confirm="${escapeHtml(tr('schedule.remove_from_schedule'))}"><input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}"><input type="hidden" name="action" value="delete_workout"><input type="hidden" name="idcronograma" value="${escapeHtml(workout.idcronograma)}"><input type="hidden" name="idtreino" value="${escapeHtml(workout.idtreino)}"><input type="hidden" name="return_to" value="${escapeHtml(`${location.pathname}${location.search}${location.hash}`)}" data-return-current><button type="submit" class="is-danger">${escapeHtml(tr('schedule.delete_workout'))}</button></form></div></details></div></div>`;
         previewModal.querySelector('.workout-preview-dialog')?.appendChild(content);
         return content;
     };
@@ -561,12 +562,12 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await (window.StrideBRNet?.fetch || fetch)(`/api/cronograma-treino-preview.php?idtreino=${encodeURIComponent(id)}`, {headers:{'Accept':'application/json'}, credentials:'same-origin'}, 10000);
             const data = await response.json().catch(() => null);
-            if (!response.ok || !data?.ok) throw new Error(data?.error || 'Não foi possível carregar o treino.');
+            if (!response.ok || !data?.ok) throw new Error(data?.error || tr('schedule.load_error'));
             loading.remove();
             content = renderDynamicPreviewContent(data);
             return content;
         } catch (error) {
-            loading.innerHTML = `<div class="workout-preview-load-error"><strong>Não foi possível carregar o treino.</strong><button type="button" class="secondary-button" data-preview-retry> Tentar novamente </button></div>`;
+            loading.innerHTML = `<div class="workout-preview-load-error"><strong>${escapeHtml(tr('schedule.load_error'))}</strong><button type="button" class="secondary-button" data-preview-retry>${escapeHtml(tr('schedule.retry'))}</button></div>`;
             loading.querySelector('[data-preview-retry]')?.addEventListener('click', async () => {
                 loading.remove();
                 await ensurePreviewContent(id);
@@ -584,7 +585,7 @@ document.addEventListener('DOMContentLoaded', () => {
         previewModal.hidden = false;
         document.documentElement.style.overflow = 'hidden';
         previewContents().forEach(content => { content.hidden = content.dataset.workoutPreviewContent !== id; });
-        try { await ensurePreviewContent(id); } catch (error) { uiNotify(error?.message || 'Não foi possível carregar o treino.'); }
+        try { await ensurePreviewContent(id); } catch (error) { uiNotify(error?.message || tr('schedule.load_error')); }
         previewContents().forEach(content => { content.hidden = content.dataset.workoutPreviewContent !== id; });
         syncPreviewOccurrenceContext(trigger);
         previewContents().forEach(content => {
@@ -639,7 +640,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!quickRegisterModal || !quickRegisterForm || !button) return;
         closePreview();
         if (quickRegisterId) quickRegisterId.value = button.dataset.quickRegisterWorkout || '';
-        if (quickRegisterTitle) quickRegisterTitle.textContent = `Registrar ${button.dataset.workoutTitle || 'treino'}`;
+        if (quickRegisterTitle) quickRegisterTitle.textContent = tr('schedule.register_named', {name: button.dataset.workoutTitle || tr('schedule.workout_fallback').toLowerCase()});
         if (quickRegisterDate) quickRegisterDate.value = previewWorkoutDate || localDate();
         if (quickRegisterTime) {
             quickRegisterTime.value = button.dataset.workoutTime || '18:00';
@@ -733,7 +734,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         mainCard.querySelectorAll('.workout-card-status').forEach(node => node.remove());
                         const status = document.createElement('small');
                         status.className = 'workout-card-status';
-                        status.textContent = '✓ realizado';
+                        status.textContent = tr('schedule.completed_badge');
                         mainCard.appendChild(status);
                     }
                 }
@@ -747,7 +748,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const heading = summary.querySelector('.schedule-week-progress-heading strong');
                     const counter = summary.querySelector('.schedule-week-progress-count');
                     const bar = summary.querySelector('.schedule-week-progress-bar span');
-                    if (heading) heading.textContent = total === 0 ? 'Sem treinos' : (done >= total ? 'Concluída' : `${done} de ${total} feitos`);
+                    if (heading) heading.textContent = total === 0 ? tr('schedule.no_workouts') : (done >= total ? tr('schedule.week_completed') : tr('schedule.done_of_total', {done, total}));
                     if (counter) counter.textContent = `${percent}%`;
                     if (bar) bar.style.width = `${percent}%`;
                     summary.classList.toggle('is-complete', total > 0 && done >= total);
@@ -762,7 +763,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             next.dataset.plannedDate = occurrence.dataset.plannedDate || occurrence.dataset.occurrenceDate || '';
                             next.dataset.plannedTime = occurrence.dataset.plannedTime || '';
                             next.dataset.workoutDate = localDate();
-                            next.innerHTML = `${nextItem.codigo ? `<span class="schedule-week-next-code">${escapeHtml(nextItem.codigo)}</span>` : ''}<span class="schedule-week-next-copy"><strong>${escapeHtml(nextItem.titulo || 'Treino')}</strong>${nextItem.foco ? `<small>${escapeHtml(nextItem.foco)}</small>` : ''}</span>`;
+                            next.innerHTML = `${nextItem.codigo ? `<span class="schedule-week-next-code">${escapeHtml(nextItem.codigo)}</span>` : ''}<span class="schedule-week-next-copy"><strong>${escapeHtml(nextItem.titulo || tr('schedule.workout_fallback'))}</strong>${nextItem.foco ? `<small>${escapeHtml(nextItem.foco)}</small>` : ''}</span>`;
                         } else if (done >= total) {
                             summary.querySelector('.schedule-week-next')?.remove();
                         }
@@ -770,7 +771,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 monthCache.clear();
                 if (currentView === 'month' && monthShell?.dataset.currentMonth) await fetchMonth(monthShell.dataset.currentMonth, {force:true});
-                showScheduleToast('Treino registrado.');
+                showScheduleToast(tr('schedule.workout_logged_success'));
             }
         } finally {
             if (submit) submit.disabled = false;
@@ -912,7 +913,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const next = row.nextElementSibling;
             row.remove();
             renumberRows();
-            window.StrideBRUI?.undo?.('Exercício removido do treino.', async () => {
+            window.StrideBRUI?.undo?.(tr('schedule.exercise_removed'), async () => {
                 if (next?.isConnected) rowsContainer.insertBefore(row, next);
                 else rowsContainer.appendChild(row);
                 renumberRows();
@@ -940,7 +941,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const libraryCards = document.querySelectorAll('[data-library-card]');
     let libraryFilter = 'all';
     const applyLibraryFilter = () => {
-        const term = (search?.value || '').trim().toLocaleLowerCase('pt-BR');
+        const term = (search?.value || '').trim().toLocaleLowerCase(localeTag());
         libraryCards.forEach(card => {
             const matchesType = libraryFilter === 'all' || card.dataset.libraryType === libraryFilter;
             const matchesTerm = !term || (card.dataset.libraryText || '').includes(term);
@@ -1027,11 +1028,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const source = quickSource?.value || '';
         if (source) {
             const count = Number(quickOption(source)?.dataset.exercises || 0);
-            quickExerciseSummary.textContent = count > 0 ? `${count} exercício(s) no treino salvo` : 'Treino salvo sem exercícios';
+            quickExerciseSummary.textContent = count > 0 ? trn('schedule.saved_exercises.one','schedule.saved_exercises.other',count) : tr('schedule.saved_no_exercises');
             return;
         }
         const count = Array.isArray(quickDraft?.exercises) ? quickDraft.exercises.filter(row => String(row?.nome || '').trim() !== '').length : 0;
-        quickExerciseSummary.textContent = count > 0 ? `${count} exercício(s) adicionados` : 'Nenhum exercício adicionado';
+        quickExerciseSummary.textContent = count > 0 ? trn('schedule.added_exercises.one','schedule.added_exercises.other',count) : tr('schedule.no_exercises_added_short');
     };
     const collectQuickState = () => {
         const previousExercises = Array.isArray(quickDraft?.exercises) ? quickDraft.exercises : [];
@@ -1062,9 +1063,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (quickSourceRow) quickSourceRow.hidden = isLibrary;
         if (quickScheduleFields) quickScheduleFields.hidden = isLibrary;
         if (quickSaveLibraryRow) quickSaveLibraryRow.hidden = isLibrary || !!quickSource?.value;
-        if (quickTitle) quickTitle.textContent = isLibrary ? 'Novo treino salvo' : 'Adicionar treino';
-        if (quickEyebrow) quickEyebrow.textContent = isLibrary ? 'Meus treinos' : 'Novo treino';
-        if (quickSubmit) quickSubmit.textContent = isLibrary ? 'Salvar em Meus treinos' : 'Salvar treino';
+        if (quickTitle) quickTitle.textContent = isLibrary ? tr('schedule.new_saved_workout') : tr('schedule.add_workout');
+        if (quickEyebrow) quickEyebrow.textContent = isLibrary ? tr('schedule.my_workouts') : tr('schedule.new_workout');
+        if (quickSubmit) quickSubmit.textContent = isLibrary ? tr('schedule.save_my_workouts') : tr('schedule.save_workout');
     };
     const applyQuickSource = (value, fill = true) => {
         if (quickSource && quickSource.value !== value) quickSource.value = value;
@@ -1242,7 +1243,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!quickSource || !model?.idtreino_modelo) return;
         const option = document.createElement('option');
         option.value = model.idtreino_modelo;
-        option.textContent = model.titulo || 'Treino salvo';
+        option.textContent = model.titulo || tr('schedule.saved_workout');
         option.dataset.title = model.titulo || '';
         option.dataset.code = model.codigo || '';
         option.dataset.focus = model.foco || '';
@@ -1255,8 +1256,8 @@ document.addEventListener('DOMContentLoaded', () => {
             card.type = 'button';
             card.className = 'quick-create-source-card';
             card.dataset.quickSourceCard = model.idtreino_modelo;
-            const meta = [model.codigo, model.foco].filter(Boolean).join(' · ') || `${Number(model.exercicios_total || 0)} exercício(s)`;
-            card.innerHTML = `<span class="quick-create-source-icon is-saved">↗</span><span><strong>${escapeHtml(model.titulo || 'Treino salvo')}</strong><small>${escapeHtml(meta)}</small></span>`;
+            const meta = [model.codigo, model.foco].filter(Boolean).join(' · ') || trn('schedule.source_exercises.one','schedule.source_exercises.other',Number(model.exercicios_total || 0));
+            card.innerHTML = `<span class="quick-create-source-icon is-saved">↗</span><span><strong>${escapeHtml(model.titulo || tr('schedule.saved_workout'))}</strong><small>${escapeHtml(meta)}</small></span>`;
             quickSourceCards.appendChild(card);
         }
     };
@@ -1295,7 +1296,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: payload,
             }, 15000);
             const data = await response.json();
-            if (!response.ok || !data.ok) throw new Error(data.error || 'Não foi possível salvar o treino.');
+            if (!response.ok || !data.ok) throw new Error(data.error || tr('schedule.save_error'));
             if (state.mode === 'library') {
                 addLibraryOption(data.modelo);
                 closeQuickCreate(true);
@@ -1308,7 +1309,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (error) {
             if (quickError) {
-                quickError.textContent = error?.message || 'Não foi possível salvar o treino.';
+                quickError.textContent = error?.message || tr('schedule.save_error');
                 quickError.hidden = false;
             }
         } finally {
@@ -1355,7 +1356,9 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     const monthLabel = key => {
         const parts = monthParts(key);
-        return parts ? new Intl.DateTimeFormat('pt-BR', {month:'long', year:'numeric'}).format(new Date(parts.year, parts.month - 1, 1)).replace(/^./, c => c.toUpperCase()) : key;
+        if (!parts) return key;
+        const label = window.StrideBRI18n?.monthYear?.(`${key}-01`) || new Intl.DateTimeFormat(localeTag(), {month:'long', year:'numeric'}).format(new Date(parts.year, parts.month - 1, 1));
+        return label.replace(/^./, c => c.toUpperCase());
     };
     const renderMonthSkeleton = key => {
         if (!monthGrid) return;
@@ -1363,7 +1366,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (monthTitleTarget && key) monthTitleTarget.textContent = monthLabel(key);
         const range = monthRange(key);
         const cellCount = range ? Math.ceil((range.leading + range.days) / 7) * 7 : 35;
-        monthGrid.innerHTML = `${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(day => `<div class="monthly-weekday">${day}</div>`).join('')}${Array.from({length:cellCount}, () => '<div class="monthly-day month-day-skeleton" aria-hidden="true"><span></span><i></i><i></i></div>').join('')}`;
+        monthGrid.innerHTML = `${weekdayShorts().map(day => `<div class="monthly-weekday">${escapeHtml(day)}</div>`).join('')}${Array.from({length:cellCount}, () => '<div class="monthly-day month-day-skeleton" aria-hidden="true"><span></span><i></i><i></i></div>').join('')}`;
     };
     const groupByDate = rows => rows.reduce((map, row) => {
         const date = row.data_treino || '';
@@ -1372,22 +1375,22 @@ document.addEventListener('DOMContentLoaded', () => {
         return map;
     }, {});
     const scheduledMarkup = item => {
-        const time = item.hora_inicio || 'Por data';
-        const kind = item.origem === 'treinador' ? 'Prescrição' : 'Agendado';
+        const time = item.hora_inicio || tr('schedule.by_date');
+        const kind = item.origem === 'treinador' ? tr('schedule.prescription') : tr('schedule.scheduled');
         const author = item.origem === 'treinador' && item.criador_nome ? `<small>${escapeHtml(item.criador_nome)}</small>` : '';
-        const exercises = Number(item.exercicios_total || 0) > 0 ? `<small>${Number(item.exercicios_total)} exercício(s)</small>` : '';
-        const action = item.status === 'concluido' ? '<em>Concluído</em>' : (item.status === 'publicado' ? `<button type="button" class="schedule-month-event-action" data-start-scheduled-workout="${escapeHtml(item.idagendamento)}">Iniciar</button>` : '');
+        const exercises = Number(item.exercicios_total || 0) > 0 ? `<small>${escapeHtml(trn('schedule.exercise_count.one', 'schedule.exercise_count.other', Number(item.exercicios_total)))}</small>` : '';
+        const action = item.status === 'concluido' ? `<em>${escapeHtml(tr('schedule.month_completed'))}</em>` : (item.status === 'publicado' ? `<button type="button" class="schedule-month-event-action" data-start-scheduled-workout="${escapeHtml(item.idagendamento)}">${escapeHtml(tr('schedule.month_start'))}</button>` : '');
         return `<article class="monthly-event is-scheduled${item.origem === 'treinador' ? ' is-trainer' : ''}"><span>${escapeHtml(time)} · ${kind}</span><strong>${escapeHtml(item.titulo)}</strong>${author}${exercises}${action}</article>`;
     };
     const occurrenceMarkup = item => {
         const completed = !!item.concluido;
         const classes = `${!completed && item.excecao ? ' is-exception' : ''}${completed ? ' is-complete' : ''}${item.realizado_fora_planejado ? ' is-realized-shifted' : ''}`;
         const drag = completed ? '' : ' draggable="true"';
-        const menu = completed ? '' : '<button type="button" class="schedule-month-event-menu" data-move-occurrence aria-label="Mover ou pular este treino">•••</button>';
-        const status = completed ? ' · realizado' : (item.excecao ? ' · ajustado' : '');
-        return `<article class="monthly-event is-recurring schedule-month-recurring${classes}"${drag} data-occurrence-workout="${escapeHtml(item.idtreino)}" data-occurrence-original="${escapeHtml(item.data_original)}" data-occurrence-date="${escapeHtml(item.data_treino)}" data-occurrence-title="${escapeHtml(item.titulo)}" data-planned-date="${escapeHtml(item.data_planejada || item.data_treino)}" data-planned-time="${escapeHtml(item.hora_planejada || item.hora_inicio)}" data-realized-date="${escapeHtml(item.data_realizada || '')}" data-realized-time="${escapeHtml(item.hora_realizada || '')}" data-activity-id="${escapeHtml(item.idregistro || '')}" data-completed="${completed ? '1' : '0'}"><button type="button" class="schedule-month-event-main" data-preview-workout="${escapeHtml(item.idtreino)}" data-workout-date="${escapeHtml(item.data_treino)}"><span>${completed ? '✓ ' : ''}${escapeHtml(item.hora_inicio)}${item.termina_dia_seguinte ? ' · +1 dia' : ''}${status}</span><strong>${item.codigo ? `<b class="workout-code-inline">${escapeHtml(item.codigo)}</b> ` : ''}${escapeHtml(item.titulo)}</strong>${item.foco ? `<small>${escapeHtml(item.foco)}</small>` : ''}</button>${menu}</article>`;
+        const menu = completed ? '' : `<button type="button" class="schedule-month-event-menu" data-move-occurrence aria-label="${escapeHtml(tr('schedule.move_or_skip'))}">•••</button>`;
+        const status = completed ? ` · ${tr('schedule.completed_label')}` : (item.excecao ? ` · ${tr('schedule.adjusted')}` : '');
+        return `<article class="monthly-event is-recurring schedule-month-recurring${classes}"${drag} data-occurrence-workout="${escapeHtml(item.idtreino)}" data-occurrence-original="${escapeHtml(item.data_original)}" data-occurrence-date="${escapeHtml(item.data_treino)}" data-occurrence-title="${escapeHtml(item.titulo)}" data-planned-date="${escapeHtml(item.data_planejada || item.data_treino)}" data-planned-time="${escapeHtml(item.hora_planejada || item.hora_inicio)}" data-realized-date="${escapeHtml(item.data_realizada || '')}" data-realized-time="${escapeHtml(item.hora_realizada || '')}" data-activity-id="${escapeHtml(item.idregistro || '')}" data-completed="${completed ? '1' : '0'}"><button type="button" class="schedule-month-event-main" data-preview-workout="${escapeHtml(item.idtreino)}" data-workout-date="${escapeHtml(item.data_treino)}"><span>${completed ? '✓ ' : ''}${escapeHtml(item.hora_inicio)}${item.termina_dia_seguinte ? ` · ${tr('schedule.next_day')}` : ''}${status}</span><strong>${item.codigo ? `<b class="workout-code-inline">${escapeHtml(item.codigo)}</b> ` : ''}${escapeHtml(item.titulo)}</strong>${item.foco ? `<small>${escapeHtml(item.foco)}</small>` : ''}</button>${menu}</article>`;
     };
-    const plannedGhostMarkup = item => `<article class="monthly-event is-recurring is-plan-ghost" data-planned-date="${escapeHtml(item.data_planejada || '')}" data-planned-time="${escapeHtml(item.hora_planejada || '')}" data-realized-date="${escapeHtml(item.data_realizada || '')}" data-realized-time="${escapeHtml(item.hora_realizada || '')}" data-completed="1"><button type="button" class="schedule-month-event-main" data-preview-workout="${escapeHtml(item.idtreino)}" data-workout-date="${escapeHtml(item.data_planejada || '')}" data-occurrence-original="${escapeHtml(item.data_original || '')}"><span>${escapeHtml(item.hora_planejada || '')} · planejado</span><strong>${item.codigo ? `<b class="workout-code-inline">${escapeHtml(item.codigo)}</b> ` : ''}${escapeHtml(item.titulo)}</strong></button></article>`;
+    const plannedGhostMarkup = item => `<article class="monthly-event is-recurring is-plan-ghost" data-planned-date="${escapeHtml(item.data_planejada || '')}" data-planned-time="${escapeHtml(item.hora_planejada || '')}" data-realized-date="${escapeHtml(item.data_realizada || '')}" data-realized-time="${escapeHtml(item.hora_realizada || '')}" data-completed="1"><button type="button" class="schedule-month-event-main" data-preview-workout="${escapeHtml(item.idtreino)}" data-workout-date="${escapeHtml(item.data_planejada || '')}" data-occurrence-original="${escapeHtml(item.data_original || '')}"><span>${escapeHtml(item.hora_planejada || '')} ${escapeHtml(tr('schedule.planned_badge'))}</span><strong>${item.codigo ? `<b class="workout-code-inline">${escapeHtml(item.codigo)}</b> ` : ''}${escapeHtml(item.titulo)}</strong></button></article>`;
     const renderMonth = (key, data) => {
         if (!monthGrid) return;
         const range = monthRange(key);
@@ -1397,7 +1400,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const plannedGhosts = groupByDate(occurrenceRows.filter(item => item.concluido && item.data_planejada && item.data_planejada !== item.data_treino).map(item => ({...item, data_treino:item.data_planejada})));
         const scheduled = groupByDate(data.agendados || []);
         const today = localDate();
-        let html = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(day => `<div class="monthly-weekday">${day}</div>`).join('');
+        let html = weekdayShorts().map(day => `<div class="monthly-weekday">${escapeHtml(day)}</div>`).join('');
         html += Array.from({length:range.leading}, () => '<div class="monthly-day is-outside" aria-hidden="true"></div>').join('');
         for (let day = 1; day <= range.days; day++) {
             const date = `${key}-${String(day).padStart(2, '0')}`;
@@ -1405,7 +1408,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const ghostRows = (plannedGhosts[date] || []).map(plannedGhostMarkup);
             const rows = [...visibleRows, ...ghostRows];
             const empty = visibleRows.length ? '' : '<span class="schedule-month-empty-day">+</span>';
-            html += `<article class="monthly-day${date === today ? ' is-today' : ''}" data-calendar-date="${date}" tabindex="0" aria-label="Adicionar treino em ${date}"${date === today ? ' id="schedule-today"' : ''}><div class="schedule-month-day-heading"><strong>${day}</strong>${date === today ? '<span>Hoje</span>' : ''}</div><div class="monthly-events">${empty}${rows.join('')}</div></article>`;
+            html += `<article class="monthly-day${date === today ? ' is-today' : ''}" data-calendar-date="${date}" tabindex="0" aria-label="${escapeHtml(tr('schedule.add_workout_on',{date}))}"${date === today ? ' id="schedule-today"' : ''}><div class="schedule-month-day-heading"><strong>${day}</strong>${date === today ? `<span>${escapeHtml(tr('common.today'))}</span>` : ''}</div><div class="monthly-events">${empty}${rows.join('')}</div></article>`;
         }
         const usedCells = range.leading + range.days;
         const trailing = (7 - (usedCells % 7)) % 7;
@@ -1415,7 +1418,7 @@ document.addEventListener('DOMContentLoaded', () => {
         monthShell.dataset.currentMonth = key;
         if (monthTitleTarget) monthTitleTarget.textContent = monthLabel(key);
         monthShell.querySelectorAll('[data-month-nav]').forEach(link => {
-            const direction = link.getAttribute('aria-label') === 'Mês anterior' ? -1 : (link.getAttribute('aria-label') === 'Próximo mês' ? 1 : 0);
+            const direction = link.getAttribute('aria-label') === tr('schedule.previous_month') ? -1 : (link.getAttribute('aria-label') === tr('schedule.next_month') ? 1 : 0);
             if (direction) link.dataset.monthNav = monthKeyShift(key, direction);
         });
     };
@@ -1444,7 +1447,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const promise = (async () => {
                 const response = await (window.StrideBRNet?.fetch || fetch)(`/api/cronograma-ocorrencias.php?start=${encodeURIComponent(range.start)}&end=${encodeURIComponent(range.end)}&schedule=${encodeURIComponent(schedule)}`, {headers:{'Accept':'application/json'}, signal:controller.signal}, 10000);
                 const data = await response.json();
-                if (!response.ok || !data.ok) throw new Error(data.error || 'Não foi possível carregar o mês.');
+                if (!response.ok || !data.ok) throw new Error(data.error || tr('schedule.month_load_error'));
                 monthCache.set(key, data);
                 return data;
             })();
@@ -1489,7 +1492,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             if (monthGrid) {
                 monthGrid.classList.remove('is-loading');
-                monthGrid.innerHTML = `<div class="calendar-inline-error"><strong>Não foi possível carregar este mês.</strong><span>Sua conexão pode ter oscilado.</span><button type="button" class="secondary-button" data-retry-month>Tentar novamente</button></div>`;
+                monthGrid.innerHTML = `<div class="calendar-inline-error"><strong>${escapeHtml(tr('schedule.month_load_error'))}</strong><span>${escapeHtml(tr('schedule.connection_wobbled'))}</span><button type="button" class="secondary-button" data-retry-month>${escapeHtml(tr('schedule.retry'))}</button></div>`;
             }
         }
     };
@@ -1551,7 +1554,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const timeInput = occurrenceForm.querySelector('[data-occurrence-new-time]');
         if (timeInput) { timeInput.value = payload.time || '18:00'; window.StrideBRTime24?.set?.(timeInput, timeInput.value); }
         const title = occurrenceModal.querySelector('[data-occurrence-title]');
-        if (title) title.textContent = payload.title ? `Reagendar ${payload.title}` : 'Reagendar treino';
+        if (title) title.textContent = payload.title ? tr('schedule.reschedule_named', {name: payload.title}) : tr('schedule.reschedule_short');
         occurrenceForm.querySelector('input[name="scope"][value="this"]').checked = true;
         occurrenceModal.hidden = false;
     };
@@ -1560,7 +1563,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const body = new URLSearchParams({...payload, csrf_token:csrfToken});
         const response = await (window.StrideBRNet?.fetch || fetch)('/api/cronograma-ocorrencias.php', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8','Accept':'application/json'}, body:body}, 15000);
         const data = await response.json();
-        if (!response.ok || !data.ok) throw new Error(data.error || 'Não foi possível alterar o treino.');
+        if (!response.ok || !data.ok) throw new Error(data.error || tr('schedule.change_error'));
         monthCache.clear();
         if (refreshMonth && monthShell?.dataset.currentMonth) {
             await fetchMonth(monthShell.dataset.currentMonth, {force:true, showSkeleton:false});
@@ -1586,12 +1589,12 @@ document.addEventListener('DOMContentLoaded', () => {
             await postOccurrence({action:'move', idtreino:occurrenceForm.querySelector('[data-occurrence-id]').value, data_original:occurrenceForm.querySelector('[data-occurrence-original]').value, data_treino:occurrenceForm.querySelector('[data-occurrence-new-date]').value, hora_inicio:occurrenceForm.querySelector('[data-occurrence-new-time]')?.value || '', scope}, {refreshMonth: currentView === 'month'});
             closeOccurrence();
             if (currentView !== 'month') await refreshScheduleView();
-            showScheduleToast('Planejamento atualizado.');
+            showScheduleToast(tr('schedule.planning_updated_success'));
         } catch (error) { uiNotify(error.message); }
         finally { if (submit) submit.disabled = false; }
     });
     occurrenceModal?.querySelector('[data-skip-occurrence]')?.addEventListener('click', async () => {
-        if (!occurrenceForm || !await uiConfirm('Pular somente esta ocorrência? A série semanal continua normalmente.', {title:'Pular treino', confirmLabel:'Pular', danger:true})) return;
+        if (!occurrenceForm || !await uiConfirm(tr('schedule.skip_confirm'), {title:tr('schedule.skip_title'), confirmLabel:tr('schedule.skip_button'), danger:true})) return;
         try { await postOccurrence({action:'cancel', idtreino:occurrenceForm.querySelector('[data-occurrence-id]').value, data_original:occurrenceForm.querySelector('[data-occurrence-original]').value}); closeOccurrence(); }
         catch (error) { uiNotify(error.message); }
     });
@@ -1630,14 +1633,14 @@ document.addEventListener('DOMContentLoaded', () => {
             for (const [key, value] of fd.entries()) body.set(key, String(value));
             const response = await (window.StrideBRNet?.fetch || fetch)('/api/cronograma-ocorrencias.php', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8','Accept':'application/json'}, body:body}, 15000);
             const data = await response.json().catch(() => null);
-            if (!response.ok || !data?.ok) throw new Error(data?.error || 'Não foi possível corrigir as datas.');
+            if (!response.ok || !data?.ok) throw new Error(data?.error || tr('schedule.date_fix_error'));
             closeOccurrenceHistory();
             closePreview();
             monthCache.clear();
             await refreshScheduleView();
-            showScheduleToast('Planejamento e realização corrigidos.');
+            showScheduleToast(tr('schedule.plan_actual_fixed_success'));
         } catch (error) {
-            uiNotify(error?.message || 'Não foi possível corrigir as datas.');
+            uiNotify(error?.message || tr('schedule.date_fix_error'));
         } finally {
             if (submit) submit.disabled = false;
         }
@@ -1659,9 +1662,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const skip = event.target.closest('[data-preview-skip]');
         if (skip) {
-            if (!previewOccurrenceOriginal || !previewWorkoutId || !await uiConfirm('Pular somente esta ocorrência? A programação das próximas semanas continua.', {title:'Pular treino', confirmLabel:'Pular', danger:true})) return;
+            if (!previewOccurrenceOriginal || !previewWorkoutId || !await uiConfirm(tr('schedule.skip_preview_confirm'), {title:tr('schedule.skip_title'), confirmLabel:tr('schedule.skip_button'), danger:true})) return;
             skip.disabled = true;
-            try { await postOccurrence({action:'cancel', idtreino:previewWorkoutId, data_original:previewOccurrenceOriginal}); closePreview(); showScheduleToast('Treino pulado nesta semana.'); }
+            try { await postOccurrence({action:'cancel', idtreino:previewWorkoutId, data_original:previewOccurrenceOriginal}); closePreview(); showScheduleToast(tr('schedule.skipped_week')); }
             catch (error) { uiNotify(error.message); }
             finally { skip.disabled = false; }
         }
@@ -1701,7 +1704,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const willOpen = choices.hidden;
             choices.hidden = !willOpen;
             toggleButton.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
-            toggleButton.textContent = willOpen ? 'Fechar' : 'Trocar';
+            toggleButton.textContent = willOpen ? tr('schedule.closed') : tr('schedule.swap');
             return;
         }
         const choice = event.target.closest('[data-week-choice]');
@@ -1736,7 +1739,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const copy = document.createElement('span');
                 copy.className = 'schedule-week-next-copy';
                 const strong = document.createElement('strong');
-                strong.textContent = item?.titulo || 'Treino';
+                strong.textContent = item?.titulo || tr('schedule.workout_fallback');
                 copy.append(strong);
                 if (item?.foco) {
                     const small = document.createElement('small');
@@ -1755,7 +1758,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 const copy = document.createElement('span');
                 const strong = document.createElement('strong');
-                strong.textContent = item?.titulo || 'Treino';
+                strong.textContent = item?.titulo || tr('schedule.workout_fallback');
                 copy.append(strong);
                 if (item?.foco) {
                     const small = document.createElement('small');
@@ -1781,10 +1784,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (choices) choices.hidden = true;
             if (toggle) {
-                toggle.textContent = 'Trocar';
+                toggle.textContent = tr('schedule.swap');
                 toggle.setAttribute('aria-expanded', 'false');
             }
-            showScheduleToast('Próximo treino atualizado.');
+            showScheduleToast(tr('schedule.next_updated'));
         } catch (error) {
             choice.disabled = false;
             uiNotify(error.message);
@@ -1851,7 +1854,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         outro_idtreino:swapTarget.dataset.occurrenceWorkout || '',
                         outra_data_original:swapTarget.dataset.occurrenceOriginal || '',
                     });
-                    showScheduleToast('Treinos trocados só nesta semana.');
+                    showScheduleToast(tr('schedule.swapped_week'));
                 } catch (error) {
                     uiNotify(error.message);
                 }
@@ -1914,7 +1917,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const sourceCard = item.element;
                 const sourceDay = sourceCard?.closest('[data-week-date]');
                 const targetDay = swapCard.closest('[data-week-date]');
-                if (!sourceCard || !sourceDay || !targetDay) throw new Error('Não foi possível trocar estes treinos.');
+                if (!sourceCard || !sourceDay || !targetDay) throw new Error(tr('schedule.swap_error'));
                 const sourceDate = sourceDay.dataset.weekDate || item.date;
                 const targetDate = targetDay.dataset.weekDate || swapCard.dataset.occurrenceDate || '';
                 const sourceStart = weekCardStart(sourceCard);
@@ -1929,7 +1932,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }, {refreshMonth:false});
                 placeWeekCard(sourceCard, targetDay, targetDate, targetStart, duration);
                 placeWeekCard(swapCard, sourceDay, sourceDate, sourceStart, targetDuration);
-                showScheduleToast('Treinos trocados só nesta semana.');
+                showScheduleToast(tr('schedule.swapped_week'));
                 return;
             }
             const rect = day.getBoundingClientRect();
@@ -1941,11 +1944,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const card = item.element;
             if (!card?.isConnected || startMinutes + duration >= 1440) {
                 await refreshScheduleView();
-                showScheduleToast('Treino movido só nesta semana.');
+                showScheduleToast(tr('schedule.moved_week'));
                 return;
             }
             placeWeekCard(card, day, targetDate, startMinutes, duration);
-            showScheduleToast('Treino movido só nesta semana.');
+            showScheduleToast(tr('schedule.moved_week'));
         } catch (error) {
             item.element?.classList.remove('is-dragging');
             uiNotify(error.message);

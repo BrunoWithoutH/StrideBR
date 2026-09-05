@@ -1,7 +1,534 @@
-.gps-recorder-page{width:min(1180px,calc(100% - 32px));margin:0 auto;padding:28px 0 60px}.gps-page-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:18px}.gps-page-heading h1{margin:3px 0 6px}.gps-page-heading p{margin:0;color:#667085}.gps-web-warning,.gps-review-warning{padding:14px 16px;border:1px solid #f0c36a;background:#fff8e8;border-radius:var(--radius-lg);margin-bottom:18px;color:#594417}.gps-web-warning strong{display:block;margin-bottom:4px}.gps-web-warning p{margin:0;line-height:1.55}.gps-restore{display:flex;justify-content:space-between;align-items:center;gap:14px;border:1px solid #94a3b8;background:#f8fafc;border-radius:var(--radius-lg);padding:13px 15px;margin-bottom:18px}.gps-restore>div:first-child{display:grid;gap:3px}.gps-restore span{font-size:.85rem;color:#667085}.gps-restore>div:last-child{display:flex;gap:8px}.gps-setup-grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(280px,.75fr);gap:16px}.gps-start-card,.gps-expect-card,.gps-review-form,.gps-review-side{padding:20px}.gps-section-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.gps-section-heading h2{margin:3px 0 0}.gps-web-badge{font-size:.72rem;font-weight:800;letter-spacing:.08em;color:#475467;background:#eef2f6;border-radius:var(--radius-full);corner-shape:round;padding:5px 8px}.gps-field{display:grid;gap:6px;font-weight:700;color:#344054;margin-top:16px}.gps-field input,.gps-field select,.gps-field textarea{width:100%;min-height:44px;border:1px solid #d0d5dd;border-radius:var(--radius-sm);background:#fff;padding:9px 10px;font:inherit;color:#101828}.gps-field textarea{resize:vertical}.gps-quick-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.gps-quick-sport{border:1px solid #d0d5dd;background:#fff;border-radius:var(--radius-full);corner-shape:round;padding:7px 10px;font:inherit;font-weight:700;cursor:pointer}.gps-quick-sport:hover{background:#f8fafc}.gps-goal-block{border-top:1px solid #eaecf0;margin-top:18px;padding-top:17px}.gps-section-label{font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#667085}.gps-goal-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:9px}.gps-goal-grid label{position:relative}.gps-goal-grid input{position:absolute;opacity:0;pointer-events:none}.gps-goal-grid span{display:flex;justify-content:center;align-items:center;min-height:42px;border:1px solid #d0d5dd;border-radius:var(--radius-md);background:#fff;font-weight:700;cursor:pointer}.gps-goal-grid input:checked+span{border-color:#344054;background:#f1f5f9}.gps-goal-value{display:grid;grid-template-columns:1fr 90px;gap:8px;margin-top:9px}.gps-goal-value input,.gps-goal-value select{min-height:42px;border:1px solid #d0d5dd;border-radius:var(--radius-sm);padding:8px 10px;font:inherit}.gps-check{display:flex;align-items:flex-start;gap:9px;margin-top:14px;color:#344054}.gps-check input{margin-top:3px}.gps-check span{display:grid;gap:2px}.gps-check small{font-weight:500;color:#667085;line-height:1.4}.gps-start-button{border:0;border-radius:var(--radius-sm);background:#293b59;color:#fff;font:inherit;font-weight:800;min-height:48px;padding:10px 18px;cursor:pointer}.gps-start-card>.gps-start-button{width:100%;margin-top:20px;font-size:1rem}.gps-start-button:disabled{opacity:.55;cursor:wait}.gps-start-hint{font-size:.82rem;color:#667085;margin:9px 0 0;text-align:center}.gps-expect-card ul{padding-left:20px;color:#475467;line-height:1.65}.gps-expect-card p{color:#667085;line-height:1.55}.gps-secondary,.gps-quiet-danger{border:1px solid #d0d5dd;background:#fff;color:#344054;border-radius:var(--radius-sm);padding:8px 11px;font:inherit;font-weight:700;cursor:pointer}.gps-quiet-danger{color:#b42318}.gps-live{max-width:1180px;margin:0 auto}.gps-live-header{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:10px}.gps-live-header>div:first-child{display:flex;align-items:center;gap:7px}.gps-live-header small{color:#667085}.gps-recording-dot{width:9px;height:9px;border-radius:var(--radius-circle);corner-shape:round;background:#d92d20;box-shadow:0 0 0 5px rgba(217,45,32,.1)}.gps-live-statuses{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.gps-live-statuses span{font-size:.75rem;font-weight:750;padding:5px 8px;background:#f2f4f7;border-radius:var(--radius-full);corner-shape:round;color:#475467}.gps-live-statuses [data-quality="good"]{background:#ecfdf3;color:#067647}.gps-live-statuses [data-quality="fair"]{background:#fffaeb;color:#b54708}.gps-live-statuses [data-quality="poor"],.gps-live-statuses [data-quality="lost"]{background:#fef3f2;color:#b42318}.gps-live-warning{border:1px solid #f0c36a;background:#fff8e8;color:#694f12;border-radius:var(--radius-md);padding:9px 12px;font-size:.82rem;margin-bottom:12px}.gps-live-layout{display:grid;grid-template-columns:minmax(330px,.7fr) minmax(0,1.3fr);gap:14px}.gps-live-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.gps-live-metrics article{background:#fff;border:1px solid #dce2ea;border-radius:var(--radius-lg);padding:15px;display:grid;align-content:center;min-height:105px}.gps-live-metrics article span{font-size:.78rem;color:#667085;font-weight:700}.gps-live-metrics article strong{font-size:clamp(1.35rem,4vw,2.05rem);letter-spacing:-.03em;margin-top:4px}.gps-live-metrics .gps-primary-metric{grid-column:1/-1;min-height:145px}.gps-live-metrics .gps-primary-metric strong{font-size:clamp(2.5rem,8vw,4.8rem);font-variant-numeric:tabular-nums}.gps-map-shell{position:relative;min-height:470px;border:1px solid #dce2ea;border-radius:var(--radius-lg);overflow:hidden;background:#e9eef4}.gps-map{position:absolute;inset:0;z-index:1}.gps-map-fallback{position:absolute;inset:0;display:grid;place-content:center;text-align:center;gap:5px;color:#667085;padding:20px;background:linear-gradient(135deg,#eef2f6,#e2e8f0)}.gps-map-fallback strong{color:#344054}.gps-lap-strip{display:flex;align-items:baseline;gap:9px;margin:12px 0 0;background:#fff;border:1px solid #dce2ea;border-radius:var(--radius-md);padding:10px 13px}.gps-lap-strip span,.gps-lap-strip small{color:#667085}.gps-lap-strip strong{font-size:1.2rem}.gps-live-controls{position:sticky;bottom:12px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-top:12px;padding:10px;background:rgba(255,255,255,.92);backdrop-filter:blur(14px);border:1px solid #dce2ea;border-radius:var(--radius-lg);z-index:20}.gps-control{min-height:50px;border-radius:var(--radius-sm);font:inherit;font-weight:800;cursor:pointer}.gps-control.secondary{border:1px solid #cbd5e1;background:#fff;color:#344054}.gps-control.finish{border:0;background:#293b59;color:#fff}.gps-review-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(330px,.85fr);gap:16px}.gps-review-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px}.gps-review-fields .is-wide{grid-column:1/-1}.gps-review-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}.gps-save-state{min-height:1.4em;margin-top:12px;color:#667085}.gps-save-state.is-error{color:#b42318}.gps-save-state.is-success{color:#067647}.gps-review-quality{padding:6px 9px;border-radius:var(--radius-full);corner-shape:round;background:#f2f4f7;font-size:.78rem;font-weight:800;color:#475467}.gps-quality-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0}.gps-quality-summary>div{border:1px solid #e4e7ec;border-radius:var(--radius-md);padding:10px;display:grid;gap:3px}.gps-quality-summary span{font-size:.72rem;color:#667085}.gps-quality-summary strong{font-size:1rem}.gps-review-map{min-height:240px;border-radius:var(--radius-lg);background:#e9eef4;overflow:hidden}.gps-segments-review{margin-top:18px}.gps-segments-review [data-gps-segments]{display:grid;gap:7px;margin-top:10px}.gps-segment-row{display:grid;grid-template-columns:auto 1fr auto;gap:9px;align-items:center;border:1px solid #e4e7ec;border-radius:var(--radius-md);padding:8px 10px}.gps-segment-row span{color:#667085;font-size:.78rem}.gps-review-note{font-size:.82rem;line-height:1.5;color:#667085}.gps-page.is-gps-recording .site-header,.gps-page.is-gps-recording .site-footer,.gps-page.is-gps-recording .mobile-bottom-nav,.gps-page.is-gps-recording .mobile-more-sheet,.gps-page.is-gps-recording .quick-tools-shell{display:none!important}.gps-page.is-gps-recording .gps-recorder-page{padding-top:max(12px,env(safe-area-inset-top));padding-bottom:max(14px,env(safe-area-inset-bottom));width:min(1180px,calc(100% - 24px))}
-@media(max-width:800px){.gps-recorder-page{width:min(100% - 20px,680px);padding-top:16px}.gps-page-heading{display:grid}.gps-setup-grid,.gps-review-grid,.gps-live-layout{grid-template-columns:1fr}.gps-expect-card{order:2}.gps-live-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.gps-map-shell{min-height:300px;order:-1}.gps-live-header{align-items:flex-start}.gps-live-statuses{max-width:55%}.gps-review-fields{grid-template-columns:1fr}.gps-review-fields .is-wide{grid-column:auto}.gps-live-controls{bottom:calc(8px + env(safe-area-inset-bottom));grid-template-columns:1fr 1fr}.gps-control.finish{grid-column:1/-1;order:-1}.gps-goal-grid{grid-template-columns:1fr 1fr 1fr}.gps-restore{align-items:flex-start;flex-direction:column}.gps-primary-metric{min-height:120px!important}.gps-quality-summary{grid-template-columns:1fr 1fr}}
-@media(max-width:480px){.gps-live-metrics article{min-height:92px;padding:12px}.gps-live-metrics article strong{font-size:1.3rem}.gps-live-metrics .gps-primary-metric strong{font-size:3rem}.gps-goal-grid{grid-template-columns:1fr}.gps-live-statuses{max-width:none}.gps-live-header{display:grid}.gps-live-statuses{justify-content:flex-start}.gps-review-actions{display:grid;grid-template-columns:1fr 1fr}.gps-review-actions button{width:100%}}
-@media(prefers-reduced-motion:reduce){.gps-recorder-page *{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+.gps-recorder-page {
+    width: min(1180px, calc(100% - 32px));
+    margin: 0 auto;
+    padding: 28px 0 60px;
+}
 
-.gps-quick-sport{display:inline-flex;align-items:center;gap:7px}
-.gps-quick-sport-icon{display:inline-block;width:20px;height:20px;flex:0 0 auto;color:currentColor;background-color:currentColor;-webkit-mask-image:var(--sport-icon-url);mask-image:var(--sport-icon-url);-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;-webkit-mask-size:contain;mask-size:contain}
+.gps-page-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 18px;
+}
+
+.gps-page-heading h1 { margin: 3px 0 6px; }
+.gps-page-heading p { margin: 0; color: var(--ui-muted); }
+
+.gps-web-warning,
+.gps-review-warning,
+.gps-live-warning {
+    border: 1px solid color-mix(in srgb, var(--ui-warning) 36%, var(--ui-border));
+    background: var(--ui-warning-soft);
+    color: var(--ui-text-secondary);
+}
+
+.gps-web-warning,
+.gps-review-warning {
+    margin-bottom: 18px;
+    padding: 14px 16px;
+    border-radius: var(--radius-card);
+}
+
+.gps-web-warning strong { display: block; margin-bottom: 4px; color: var(--ui-text-strong); }
+.gps-web-warning p { margin: 0; line-height: 1.55; }
+
+.gps-restore {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 18px;
+    padding: 13px 15px;
+    border: 1px solid var(--ui-border-strong);
+    border-radius: var(--radius-card);
+    background: var(--ui-panel-soft);
+}
+
+.gps-restore > div:first-child { display: grid; gap: 3px; }
+.gps-restore span { color: var(--ui-muted); font-size: .85rem; }
+.gps-restore > div:last-child { display: flex; gap: 8px; }
+
+.gps-setup-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(280px, .75fr);
+    gap: 16px;
+}
+
+.gps-start-card,
+.gps-expect-card,
+.gps-review-form,
+.gps-review-side { padding: 20px; }
+
+.gps-section-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.gps-section-heading h2 { margin: 3px 0 0; }
+
+.gps-web-badge {
+    padding: 5px 8px;
+    border-radius: var(--radius-full);
+    corner-shape: round;
+    background: var(--ui-panel-soft);
+    color: var(--ui-text-secondary);
+    font-size: .72rem;
+    font-weight: 800;
+    letter-spacing: .08em;
+}
+
+.gps-field {
+    display: grid;
+    gap: 6px;
+    margin-top: 16px;
+    color: var(--ui-text-secondary);
+    font-weight: 700;
+}
+
+.gps-field input,
+.gps-field select,
+.gps-field textarea,
+.gps-goal-value input,
+.gps-goal-value select {
+    width: 100%;
+    min-height: 44px;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--radius-control);
+    background: var(--ui-panel);
+    color: var(--ui-text);
+    padding: 9px 10px;
+    font: inherit;
+}
+
+.gps-field input:hover,
+.gps-field select:hover,
+.gps-field textarea:hover,
+.gps-goal-value input:hover,
+.gps-goal-value select:hover { border-color: var(--ui-border-strong); }
+
+.gps-field input:focus-visible,
+.gps-field select:focus-visible,
+.gps-field textarea:focus-visible,
+.gps-goal-value input:focus-visible,
+.gps-goal-value select:focus-visible {
+    border-color: var(--ui-accent);
+    outline: 2px solid transparent;
+    box-shadow: var(--focus-ring);
+}
+
+.gps-field textarea { resize: vertical; }
+
+.gps-quick-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.gps-quick-sport {
+    min-height: 36px;
+    padding: 7px 10px;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--radius-control);
+    background: var(--ui-panel);
+    color: var(--ui-text-secondary);
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.gps-quick-sport:hover { border-color: var(--ui-border-strong); background: var(--ui-surface-hover); }
+
+.gps-goal-block {
+    margin-top: 18px;
+    padding-top: 17px;
+    border-top: 1px solid var(--ui-border-soft);
+}
+
+.gps-section-label {
+    color: var(--ui-muted);
+    font-size: .78rem;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.gps-goal-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 9px;
+}
+
+.gps-goal-grid label { position: relative; }
+.gps-goal-grid input { position: absolute; opacity: 0; pointer-events: none; }
+.gps-goal-grid span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 42px;
+    padding: 0 10px;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--radius-control);
+    background: var(--ui-panel);
+    color: var(--ui-text-secondary);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.gps-goal-grid input:focus-visible + span {
+    border-color: var(--ui-accent);
+    box-shadow: var(--focus-ring);
+}
+
+.gps-goal-grid input:checked + span {
+    border-color: var(--ui-accent);
+    background: var(--ui-accent-soft);
+    color: var(--ui-text-strong);
+    box-shadow: inset 0 -2px 0 var(--ui-accent);
+}
+
+.gps-goal-value {
+    display: grid;
+    grid-template-columns: 1fr 90px;
+    gap: 8px;
+    margin-top: 9px;
+}
+
+.gps-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    margin-top: 14px;
+    color: var(--ui-text-secondary);
+}
+
+.gps-check input { margin-top: 3px; }
+.gps-check span { display: grid; gap: 2px; }
+.gps-check small { color: var(--ui-muted); font-weight: 500; line-height: 1.4; }
+
+.gps-start-button,
+.gps-secondary,
+.gps-quiet-danger,
+.gps-control {
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-control);
+    font: inherit;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.gps-start-button {
+    min-height: 48px;
+    padding: 10px 18px;
+    border: 1px solid var(--ui-accent);
+    background: var(--ui-accent);
+    color: #fff;
+}
+
+.gps-start-card > .gps-start-button { width: 100%; margin-top: 20px; font-size: 1rem; }
+.gps-start-button:disabled { opacity: .55; cursor: wait; }
+.gps-start-hint { margin: 9px 0 0; color: var(--ui-muted); font-size: .82rem; text-align: center; }
+.gps-expect-card ul { padding-left: 20px; color: var(--ui-text-secondary); line-height: 1.65; }
+.gps-expect-card p { color: var(--ui-muted); line-height: 1.55; }
+
+.gps-secondary,
+.gps-quiet-danger {
+    min-height: 36px;
+    padding: 8px 11px;
+    border: 1px solid var(--ui-border);
+    background: var(--ui-panel);
+    color: var(--ui-text-secondary);
+}
+
+.gps-secondary:hover { border-color: var(--ui-border-strong); background: var(--ui-surface-hover); }
+.gps-quiet-danger { color: var(--ui-danger); }
+.gps-quiet-danger:hover { border-color: var(--ui-danger-border); background: var(--ui-danger-soft); }
+
+.gps-live { max-width: 1180px; margin: 0 auto; }
+.gps-live-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
+.gps-live-header > div:first-child { display: flex; align-items: center; gap: 7px; }
+.gps-live-header small { color: var(--ui-muted); }
+
+.gps-recording-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: var(--radius-circle);
+    corner-shape: round;
+    background: var(--ui-danger);
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--ui-danger) 10%, transparent);
+}
+
+.gps-live-statuses { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.gps-live-statuses span {
+    padding: 5px 8px;
+    border-radius: var(--radius-full);
+    corner-shape: round;
+    background: var(--ui-surface-hover);
+    color: var(--ui-text-secondary);
+    font-size: .75rem;
+    font-weight: 750;
+}
+.gps-live-statuses [data-quality="good"] { background: var(--ui-success-soft); color: var(--ui-success); }
+.gps-live-statuses [data-quality="fair"] { background: var(--ui-warning-soft); color: var(--ui-warning); }
+.gps-live-statuses [data-quality="poor"],
+.gps-live-statuses [data-quality="lost"] { background: var(--ui-danger-soft); color: var(--ui-danger); }
+
+.gps-live-warning {
+    margin-bottom: 12px;
+    padding: 9px 12px;
+    border-radius: var(--radius-detail);
+    font-size: .82rem;
+}
+
+.gps-live-layout {
+    display: grid;
+    grid-template-columns: minmax(330px, .7fr) minmax(0, 1.3fr);
+    gap: 14px;
+}
+
+.gps-live-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.gps-live-metrics article {
+    display: grid;
+    align-content: center;
+    min-height: 105px;
+    padding: 15px;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--radius-card);
+    background: var(--ui-panel);
+}
+
+.gps-live-metrics article span {
+    position: relative;
+    z-index: 1;
+    color: var(--ui-muted);
+    font-size: .78rem;
+    font-weight: 700;
+}
+
+.gps-live-metrics article strong {
+    margin-top: 4px;
+    color: var(--ui-text-strong);
+    font-size: clamp(1.35rem, 4vw, 2.05rem);
+    line-height: 1.05;
+    letter-spacing: -.03em;
+}
+
+.gps-live-metrics .gps-primary-metric {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 8px;
+    min-height: 160px;
+}
+
+.gps-live-metrics .gps-primary-metric strong {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: clamp(2.5rem, 8vw, 4.8rem);
+    line-height: .95;
+    font-variant-numeric: tabular-nums;
+}
+
+.gps-map-shell {
+    position: relative;
+    min-height: 470px;
+    overflow: hidden;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--radius-card);
+    background: var(--ui-panel-soft);
+}
+.gps-map { position: absolute; inset: 0; z-index: 1; }
+.gps-map-fallback { position: absolute; inset: 0; display: grid; place-content: center; gap: 5px; padding: 20px; background: var(--ui-panel-soft); color: var(--ui-muted); text-align: center; }
+.gps-map-fallback strong { color: var(--ui-text-secondary); }
+
+.gps-lap-strip {
+    display: flex;
+    align-items: baseline;
+    gap: 9px;
+    margin: 12px 0 0;
+    padding: 10px 13px;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--radius-detail);
+    background: var(--ui-panel);
+}
+.gps-lap-strip span,
+.gps-lap-strip small { color: var(--ui-muted); }
+.gps-lap-strip strong { font-size: 1.2rem; }
+
+.gps-live-controls {
+    position: sticky;
+    bottom: 12px;
+    z-index: 20;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr auto;
+    gap: 9px;
+    margin-top: 12px;
+    padding: 10px;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--radius-card);
+    background: color-mix(in srgb, var(--ui-panel) 92%, transparent);
+    backdrop-filter: blur(14px);
+    box-shadow: var(--shadow-sm);
+}
+
+.gps-control { min-height: 50px; padding: 0 14px; }
+.gps-control.secondary { border: 1px solid var(--ui-border); background: var(--ui-panel); color: var(--ui-text-secondary); }
+.gps-control.secondary:hover { border-color: var(--ui-border-strong); background: var(--ui-surface-hover); }
+.gps-control.finish { border: 1px solid var(--ui-accent); background: var(--ui-accent); color: #fff; }
+.gps-control.danger { border: 1px solid var(--ui-danger-border); background: var(--ui-panel); color: var(--ui-danger); }
+.gps-control.danger:hover { background: var(--ui-danger-soft); }
+
+.gps-review-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(330px, .85fr); gap: 16px; }
+.gps-review-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; }
+.gps-review-fields .is-wide { grid-column: 1 / -1; }
+.gps-review-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.gps-review-actions .gps-quiet-danger { margin-right: auto; }
+.gps-save-state { min-height: 1.4em; margin-top: 12px; color: var(--ui-muted); }
+.gps-save-state.is-error { color: var(--ui-danger); }
+.gps-save-state.is-success { color: var(--ui-success); }
+.gps-review-quality { padding: 6px 9px; border-radius: var(--radius-full); corner-shape: round; background: var(--ui-surface-hover); color: var(--ui-text-secondary); font-size: .78rem; font-weight: 800; }
+.gps-quality-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 12px 0; }
+.gps-quality-summary > div { display: grid; gap: 3px; padding: 10px; border: 1px solid var(--ui-border-soft); border-radius: var(--radius-detail); }
+.gps-quality-summary span { color: var(--ui-muted); font-size: .72rem; }
+.gps-quality-summary strong { font-size: 1rem; }
+.gps-review-map { min-height: 240px; overflow: hidden; border-radius: var(--radius-card); background: var(--ui-panel-soft); }
+.gps-segments-review { margin-top: 18px; }
+.gps-segments-review [data-gps-segments] { display: grid; gap: 7px; margin-top: 10px; }
+.gps-segment-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 9px; padding: 8px 10px; border: 1px solid var(--ui-border-soft); border-radius: var(--radius-detail); }
+.gps-segment-row span { color: var(--ui-muted); font-size: .78rem; }
+.gps-review-note { color: var(--ui-muted); font-size: .82rem; line-height: 1.5; }
+
+.gps-page.is-gps-recording .site-header,
+.gps-page.is-gps-recording .site-footer,
+.gps-page.is-gps-recording .mobile-bottom-nav,
+.gps-page.is-gps-recording .mobile-more-sheet,
+.gps-page.is-gps-recording .quick-tools-shell { display: none !important; }
+
+.gps-page.is-gps-recording .gps-recorder-page {
+    width: min(1180px, calc(100% - 24px));
+    padding-top: max(12px, env(safe-area-inset-top));
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
+}
+
+@media (max-width: 800px) {
+    .gps-recorder-page { width: min(calc(100% - 20px), 680px); padding-top: 16px; }
+    .gps-page-heading { display: grid; }
+    .gps-setup-grid,
+    .gps-review-grid,
+    .gps-live-layout { grid-template-columns: 1fr; }
+    .gps-expect-card { order: 2; }
+    .gps-live-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .gps-map-shell { min-height: 300px; order: -1; }
+    .gps-live-header { align-items: flex-start; }
+    .gps-live-statuses { max-width: 55%; }
+    .gps-review-fields { grid-template-columns: 1fr; }
+    .gps-review-fields .is-wide { grid-column: auto; }
+    .gps-live-controls { bottom: calc(8px + env(safe-area-inset-bottom)); grid-template-columns: 1fr 1fr; }
+    .gps-control.finish { grid-column: 1 / -1; order: -2; }
+    .gps-control.danger { grid-column: 1 / -1; order: 2; }
+    .gps-goal-grid { grid-template-columns: 1fr 1fr 1fr; }
+    .gps-restore { align-items: flex-start; flex-direction: column; }
+    .gps-live-metrics .gps-primary-metric { min-height: 132px; }
+    .gps-quality-summary { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 480px) {
+    .gps-live-metrics article { min-height: 92px; padding: 12px; }
+    .gps-live-metrics article strong { font-size: 1.3rem; }
+    .gps-live-metrics .gps-primary-metric { min-height: 124px; }
+    .gps-live-metrics .gps-primary-metric strong { font-size: 3rem; }
+    .gps-goal-grid { grid-template-columns: 1fr; }
+    .gps-live-statuses { max-width: none; justify-content: flex-start; }
+    .gps-live-header { display: grid; }
+    .gps-review-actions { display: grid; grid-template-columns: 1fr 1fr; }
+    .gps-review-actions .gps-quiet-danger { grid-column: 1 / -1; margin-right: 0; }
+    .gps-review-actions button { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .gps-recorder-page * {
+        scroll-behavior: auto !important;
+        transition: none !important;
+        animation: none !important;
+    }
+}
+
+.gps-wakelock-fallback{
+    margin:8px 0 0;
+    padding:7px 9px;
+    border-left:2px solid var(--ui-warning);
+    background:var(--ui-warning-soft);
+    color:var(--ui-text-secondary);
+    font-size:.72rem;
+    line-height:1.4;
+}
+.gps-wakelock-fallback[hidden]{display:none}
+.gps-controls-lock-state{
+    position:sticky;
+    bottom:12px;
+    z-index:24;
+    display:grid;
+    grid-template-columns:auto minmax(210px,320px);
+    align-items:center;
+    justify-content:center;
+    gap:12px;
+    margin-top:12px;
+    padding:10px;
+    border:1px solid var(--ui-border-strong);
+    border-radius:var(--radius-card);
+    background:color-mix(in srgb,var(--ui-panel) 95%,transparent);
+    backdrop-filter:blur(14px);
+    box-shadow:var(--shadow-sm);
+}
+.gps-controls-lock-state[hidden]{display:none}
+.gps-controls-lock-label{display:flex;align-items:center;gap:7px;color:var(--ui-text-strong);font-size:.78rem}
+.gps-hold-unlock{
+    --gps-unlock-progress:0%;
+    position:relative;
+    min-height:46px;
+    overflow:hidden;
+    border:1px solid var(--ui-border-strong);
+    border-radius:var(--radius-control);
+    background:var(--ui-panel);
+    color:var(--ui-text-strong);
+    font:inherit;
+    font-size:.76rem;
+    font-weight:800;
+    cursor:pointer;
+    touch-action:none;
+}
+.gps-hold-unlock::before{
+    content:"";
+    position:absolute;
+    inset:0 auto 0 0;
+    width:var(--gps-unlock-progress);
+    background:var(--ui-accent-soft);
+    pointer-events:none;
+}
+.gps-hold-unlock>span{position:relative;z-index:1}
+.gps-live.is-controls-locked .gps-map-shell{pointer-events:none}
+.gps-live.is-controls-locked{overscroll-behavior:none;touch-action:none;user-select:none}
+body.gps-controls-locked{overflow:hidden;overscroll-behavior:none}
+@media(max-width:800px){
+    .gps-controls-lock-state{
+        bottom:calc(8px + env(safe-area-inset-bottom));
+        grid-template-columns:1fr;
+        justify-items:stretch;
+        padding-bottom:max(10px,env(safe-area-inset-bottom));
+    }
+    .gps-controls-lock-label{justify-content:center}
+}
+.gps-live-controls[hidden]{display:none}

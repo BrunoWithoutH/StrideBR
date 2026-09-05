@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const t = (key, values = {}, fallback = key) => window.StrideBRI18n?.t?.(key, values, fallback) ?? fallback
+    const localDate = value => window.StrideBRI18n?.date?.(value, {year:'numeric', month:'short', day:'numeric'}) || String(value || '')
     const page = document.querySelector('.goals-page')
     if (!page) return
 
@@ -18,26 +20,26 @@ document.addEventListener('DOMContentLoaded', () => {
         const units = {
             distancia: ['km', '20'],
             duracao: ['min', '180'],
-            atividades: ['atividades', '4'],
+            atividades: [t('goals.unit.activities', {}, 'activities'), '4'],
             elevacao: ['m', '500'],
-            dias_ativos: ['dias', '4'],
+            dias_ativos: [t('goals.unit.days', {}, 'days'), '4'],
             carga_maxima: ['kg', '200']
         }
 
         const syncSummary = () => {
             if (!summary) return
-            const metricLabel = metric?.selectedOptions?.[0]?.textContent?.trim() || 'métrica'
-            const sportLabel = sport?.selectedOptions?.[0]?.textContent?.replace(/^★\s*/, '').trim() || 'Todos os esportes'
+            const metricLabel = metric?.selectedOptions?.[0]?.textContent?.trim() || t('goals.metric_fallback', {}, 'metric')
+            const sportLabel = sport?.selectedOptions?.[0]?.textContent?.replace(/^★\s*/, '').trim() || t('goals.all_sports', {}, 'All sports')
             const exerciseLabel = exercise?.selectedOptions?.[0]?.textContent?.trim() || ''
             const value = target?.value?.trim() || target?.placeholder || '0'
             const unitLabel = unit?.textContent?.trim() || ''
-            let deadline = 'sem prazo'
-            if (period?.value === 'personalizado') deadline = endDate?.value ? `até ${new Date(`${endDate.value}T12:00:00`).toLocaleDateString('pt-BR')}` : 'até a data escolhida'
-            if (period?.value === 'semanal') deadline = 'a cada semana'
-            if (period?.value === 'mensal') deadline = 'a cada mês'
-            if (period?.value === 'anual') deadline = 'a cada ano'
+            let deadline = t('goals.no_deadline', {}, 'no deadline')
+            if (period?.value === 'personalizado') deadline = endDate?.value ? t('goals.until_date', {date: localDate(`${endDate.value}T12:00:00`)}, `until ${localDate(`${endDate.value}T12:00:00`)}`) : t('goals.until_chosen_date', {}, 'until the selected date')
+            if (period?.value === 'semanal') deadline = t('goals.every_week', {}, 'every week')
+            if (period?.value === 'mensal') deadline = t('goals.every_month', {}, 'every month')
+            if (period?.value === 'anual') deadline = t('goals.every_year', {}, 'every year')
             const subject = metric?.value === 'carga_maxima' && exerciseLabel ? exerciseLabel : sportLabel
-            summary.textContent = `Objetivo: ${metricLabel.toLowerCase()} de ${value} ${unitLabel} em ${subject}, ${deadline}. As atividades concluídas atualizam isso automaticamente.`
+            summary.textContent = t('goals.summary_template', {metric: metricLabel.toLowerCase(), value, unit: unitLabel, subject, deadline}, `${metricLabel}: ${value} ${unitLabel} · ${subject} · ${deadline}`)
         }
 
         const syncMetric = () => {
@@ -108,9 +110,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const html = await response.text()
             const doc = new DOMParser().parseFromString(html, 'text/html')
             const error = doc.querySelector('.goals-page .alert-danger, .goals-page .alert-error')?.textContent?.trim()
-            if (!response.ok || error) throw new Error(error || 'Não foi possível atualizar a meta.')
+            if (!response.ok || error) throw new Error(error || t('goals.update_error', {}, 'Could not update the goal.'))
             const message = doc.querySelector('.goals-page .alert-success, .goals-page .alert-info')?.textContent?.trim()
-                || (action === 'archive' ? 'Meta arquivada.' : action === 'reactivate' ? 'Meta reativada.' : action === 'edit' ? 'Meta atualizada.' : 'Meta criada.')
+                || (action === 'archive' ? t('goals.success.archived') : action === 'reactivate' ? t('goals.success.reactivated') : action === 'edit' ? t('goals.success.updated') : t('goals.success.created'))
             replaceSection(doc, 'active')
             replaceSection(doc, 'history')
             if (form.matches('[data-goals-form]')) {
@@ -128,16 +130,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     const undoHtml = await undoResponse.text()
                     const undoDoc = new DOMParser().parseFromString(undoHtml, 'text/html')
                     const undoError = undoDoc.querySelector('.goals-page .alert-danger, .goals-page .alert-error')?.textContent?.trim()
-                    if (!undoResponse.ok || undoError) throw new Error(undoError || 'Não foi possível reativar a meta.')
+                    if (!undoResponse.ok || undoError) throw new Error(undoError || t('goals.reactivate_error', {}, 'Could not reactivate the goal.'))
                     replaceSection(undoDoc, 'active')
                     replaceSection(undoDoc, 'history')
-                    window.StrideBRUI?.notify('Meta reativada.', 'success', 2600)
+                    window.StrideBRUI?.notify(t('goals.success.reactivated'), 'success', 2600)
                 }, 9000)
             } else {
                 window.StrideBRUI?.notify(message, 'success')
             }
         } catch (error) {
-            window.StrideBRUI?.notify(error?.message || 'Não foi possível atualizar a meta.', 'error', 6000)
+            window.StrideBRUI?.notify(error?.message || t('goals.update_error', {}, 'Could not update the goal.'), 'error', 6000)
         } finally {
             delete form.dataset.ajaxSubmitting
             form.classList.remove('is-submitting')
