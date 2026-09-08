@@ -1,0 +1,40 @@
+# Dokploy writes its private Environment variables to .env beside this Compose.
+# Database may be a separate stack or managed service; this file publishes no host ports.
+x-runtime: &runtime
+  env_file:
+    - ${STRIDEBR_DEPLOY_ENV_FILE:-.env}
+  environment:
+    STRIDEBR_APP_ENV: ${STRIDEBR_APP_ENV:?Set staging or production}
+    STRIDEBR_APP_URL: ${STRIDEBR_APP_URL:?Set the environment HTTPS origin}
+    STRIDEBR_DB_HOST: ${STRIDEBR_DB_HOST:?Set DB host}
+    STRIDEBR_DB_NAME: ${STRIDEBR_DB_NAME:?Set DB name}
+    STRIDEBR_DB_USER: ${STRIDEBR_DB_USER:?Set DB user}
+    STRIDEBR_DB_PASSWORD: ${STRIDEBR_DB_PASSWORD:?Set a non-default DB password}
+    STRIDEBR_ENV_FILE: /nonexistent
+services:
+  app:
+    <<: *runtime
+    build:
+      context: .
+      target: app
+    restart: unless-stopped
+    read_only: true
+    expose: ["80"]
+    tmpfs:
+      - /tmp:mode=1777
+      - /var/run/apache2
+      - /var/lock/apache2
+    volumes:
+      - stridebr_uploads:/var/www/html/public/uploads
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+  migrate:
+    <<: *runtime
+    build:
+      context: .
+      target: migrations
+    restart: "no"
+    command: ["apply"]
+volumes:
+  stridebr_uploads:

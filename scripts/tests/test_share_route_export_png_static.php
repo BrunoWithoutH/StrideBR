@@ -4,7 +4,7 @@ $html = file_get_contents($root . '/public/user/atividades.php');
 $css = file_get_contents($root . '/public/assets/css/activity-sharing.css');
 $js = file_get_contents($root . '/public/assets/js/atividades.js');
 $tests = [
-    ['modal hidden', str_contains($html, 'data-route-export-sheet hidden') && str_contains($css, '.activity-share-route-export-sheet[hidden]')],
+    ['modal hidden', str_contains($html, 'data-route-export-sheet hidden') && str_contains($css, '.activity-share-modal [hidden]') && str_contains($css, 'display: none !important')],
     ['modal dialog', str_contains($html, 'activity-share-route-export-dialog') && str_contains($html, 'aria-modal="true"')],
     ['palette', substr_count($html, 'data-route-export-color') >= 7],
     ['width', str_contains($html, 'min="55" max="180" step="5" value="100" data-route-export-width')],

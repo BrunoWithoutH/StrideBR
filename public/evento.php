@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/src/includes/errors.php';
 require_once dirname(__DIR__) . '/src/includes/app.php';
+require_once dirname(__DIR__) . '/src/layout/ads.php';
 require_once dirname(__DIR__) . '/src/config/pg_config.php';
 require_once dirname(__DIR__) . '/src/function/eventos.php';
 require_once dirname(__DIR__) . '/src/includes/sport_icons.php';
@@ -107,7 +108,7 @@ $flashes = stridebr_take_flashes();
 <?php require dirname(__DIR__) . '/src/layout/header.php'; ?>
 <main class="main-content"><div class="page-shell event-detail-page">
     <?php foreach ($flashes as $flash): ?><div class="alert alert-<?php echo stridebr_e((string) ($flash['type'] ?? 'info')); ?>"><?php echo stridebr_e((string) ($flash['message'] ?? '')); ?></div><?php endforeach; ?>
-    <a class="event-back-link" href="/calendario.php">← <?php echo stridebr_e(stridebr_t('event.back')); ?></a>
+    <a class="event-back-link context-back-button" href="/calendario.php" data-safe-back>← <?php echo stridebr_e(stridebr_t('event.back')); ?></a>
     <article class="event-detail-hero<?php echo $event['status'] === 'cancelado' ? ' is-cancelled' : ''; ?>">
         <div class="event-detail-media"><?php if ($images !== []): ?><img src="<?php echo stridebr_e((string) $images[0]['caminho']); ?>" alt="<?php echo stridebr_e((string) ($images[0]['texto_alternativo'] ?: $event['titulo'])); ?>"><?php else: ?><div class="event-detail-placeholder"><img src="<?php echo stridebr_e(stridebr_asset('/assets/img/logos/stridebr-icon.svg')); ?>" alt=""></div><?php endif; ?></div>
         <div class="event-detail-intro">
@@ -133,6 +134,7 @@ $flashes = stridebr_take_flashes();
     <?php if (count($images) > 1): ?><section class="event-gallery-section"><div class="section-title-row"><div><h2><?php echo stridebr_e(stridebr_t('event.images')); ?></h2><p><?php echo stridebr_e(stridebr_t('event.images_help')); ?></p></div></div><div class="event-public-gallery"><?php foreach ($images as $image): ?><a href="<?php echo stridebr_e((string) $image['caminho']); ?>" target="_blank" rel="noopener"><img src="<?php echo stridebr_e((string) $image['caminho']); ?>" alt="<?php echo stridebr_e((string) ($image['texto_alternativo'] ?: $event['titulo'])); ?>" loading="lazy"></a><?php endforeach; ?></div></section><?php endif; ?>
 
     <section class="content-card event-sources-public"><h2><?php echo stridebr_e(stridebr_t('event.sources')); ?></h2><p><?php echo stridebr_e(stridebr_t('event.disclaimer')); ?></p><?php if (!empty($event['fontes'])): ?><ul><?php foreach ($event['fontes'] as $source): ?><li><a href="<?php echo stridebr_e((string) $source['url']); ?>" target="_blank" rel="noopener noreferrer"><?php echo stridebr_e((string) $source['nome']); ?> ↗</a></li><?php endforeach; ?></ul><?php elseif ($event['url_oficial']): ?><p><a href="<?php echo stridebr_e((string) $event['url_oficial']); ?>" target="_blank" rel="noopener noreferrer"><?php echo stridebr_e(stridebr_t('event.official_site')); ?></a></p><?php else: ?><p><?php echo stridebr_e(stridebr_t('event.no_sources')); ?></p><?php endif; ?></section>
+    <?php stridebr_render_ad_slot('event-detail-end', '/evento.php', $userId !== null); ?>
 </div></main>
 </div>
 <?php require dirname(__DIR__) . '/src/layout/footer.php'; ?>

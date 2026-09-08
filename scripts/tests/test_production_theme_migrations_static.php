@@ -5,7 +5,8 @@ declare(strict_types=1);
 $root = dirname(__DIR__, 2);
 $i18n = (string) file_get_contents($root . '/src/includes/i18n.php');
 $boot = (string) file_get_contents($root . '/public/assets/js/ui-boot.js');
-$htaccess = (string) file_get_contents($root . '/public/.htaccess');
+require_once $root . '/src/includes/http_headers.php';
+$htaccess = stridebr_content_security_policy();
 $diagnostics = (string) file_get_contents($root . '/public/admin/diagnostics.php');
 $rc = (string) file_get_contents($root . '/src/database/migrations/20260903_v1_rc.sql');
 

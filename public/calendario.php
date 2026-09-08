@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/src/includes/errors.php';
 require_once dirname(__DIR__) . '/src/includes/app.php';
+require_once dirname(__DIR__) . '/src/layout/ads.php';
 require_once dirname(__DIR__) . '/src/config/pg_config.php';
 require_once dirname(__DIR__) . '/src/function/eventos.php';
 require_once dirname(__DIR__) . '/src/includes/sport_icons.php';
@@ -114,6 +115,7 @@ $currentQuery = $_SERVER['REQUEST_URI'] ?? '/calendario.php';
                 </section>
                 <?php endif; ?>
             <?php endif; ?>
+            <?php stridebr_render_ad_slot('events-list-end', '/calendario.php', $userId !== null); ?>
         </div>
     </main>
 </div>

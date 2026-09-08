@@ -49,7 +49,7 @@ StrideBR is built around configurable modalities instead of assuming one fixed s
 
 Deeper analysis, richer trainer workflows, broader public discovery, API and dedicated mobile clients remain planned features.
 
-The architecture and product rules are documented in [`docs/architecture.md`](docs/architecture.md). Deployment notes are in [`docs/DEPLOY_ALWAYS_DATA.md`](docs/DEPLOY_ALWAYS_DATA.md) and the current product roadmap is in [`docs/PRODUCT_ROADMAP.md`](docs/PRODUCT_ROADMAP.md).
+Product vision is documented in [`docs/PRODUCT_VISION.md`](docs/PRODUCT_VISION.md), the roadmap in [`docs/PRODUCT_ROADMAP.md`](docs/PRODUCT_ROADMAP.md), and the planned Teams pillar in [`docs/STRIDEBR_TEAMS.md`](docs/STRIDEBR_TEAMS.md). Current architecture and domain rules remain in [`docs/architecture.md`](docs/architecture.md). A documentation index is available at [`docs/README.md`](docs/README.md). Deployment notes are in [`docs/DEPLOY_DOKPLOY.md`](docs/DEPLOY_DOKPLOY.md).
 
 The sports-event admin/import workflow is documented in [`docs/EVENTS_IMPORT_GUIDE.md`](docs/EVENTS_IMPORT_GUIDE.md).
 
@@ -355,4 +355,4 @@ Apply `src/database/migrations/20260903_v1_rc.sql` before enabling Google sign-i
 
 ## Configuração de ambiente e Conexões
 
-Antes de habilitar integrações externas, rode `./scripts/setup_env.sh` (local) ou `./scripts/setup_env.sh --production --url https://seu-dominio` (servidor). Veja `docs/INTEGRATIONS_SETUP.md` e `docs/FINAL_SETUP_CHECKLIST.md`.
+Antes de habilitar integrações externas, rode `./scripts/setup_env.sh` (local) ou `./scripts/setup_env.sh --production --url https://seu-dominio` (arquivo de configuração, antes de entregar para Infra). Veja `docs/INTEGRATIONS_SETUP.md` e `docs/FINAL_SETUP_CHECKLIST.md`.

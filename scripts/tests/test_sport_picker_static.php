@@ -8,6 +8,7 @@ $catalog = $read('src/function/sport_catalog.php');
 $picker = $read('src/layout/sport_picker.php');
 $scripts = $read('public/assets/js/scripts.js');
 $signup = $read('public/signup.php');
+$signup .= (string) file_get_contents($root . '/src/layout/sport_personalization.php');
 $settings = $read('public/user/settings.php');
 $activities = $read('public/user/atividades.php');
 $gps = $read('public/user/gravar-atividade.php');

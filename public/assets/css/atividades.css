@@ -197,6 +197,28 @@
     font-weight: 550;
 }
 
+.input-field .activity-distance-unit-select {
+    width: auto;
+    min-width: 3.4rem;
+    height: 1.75rem;
+    margin-left: .35rem;
+    padding: 0 1.35rem 0 .45rem;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--radius-detail);
+    background-color: var(--ui-panel-soft);
+    color: var(--ui-text-secondary);
+    font: inherit;
+    font-size: .72rem;
+    font-weight: 700;
+    line-height: 1;
+    vertical-align: middle;
+}
+
+.input-field .activity-distance-unit-select:focus-visible {
+    outline: 2px solid var(--ui-focus);
+    outline-offset: 2px;
+}
+
 .input-field input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
 .input-field select,
 .input-field textarea,
@@ -3519,3 +3541,42 @@ html[data-theme="dark"] .activity-post-save-preview{background:#0d1117}
         align-items: flex-start;
     }
 }
+
+@media (max-width: 639px) {
+  .activity-history-summary { display: none; }
+}
+
+/* Product UX 2026: activity actions, contextual compare, and structural loading */
+.activity-toolbar-tools{position:relative}
+.activity-toolbar-tools>summary{list-style:none;user-select:none}.activity-toolbar-tools>summary::-webkit-details-marker{display:none}
+.activity-toolbar-tools[open]>summary{background:var(--ui-surface-hover);color:var(--ui-text-strong)}
+.activity-toolbar-tools-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:var(--z-popover,80);display:grid;min-width:190px;padding:5px;border:1px solid var(--ui-border);border-radius:var(--radius-control);background:var(--ui-panel);box-shadow:0 8px 24px rgba(16,24,40,.12)}
+.activity-toolbar-tools-menu a{display:flex;align-items:center;min-height:34px;padding:0 9px;border-radius:var(--radius-detail);color:var(--ui-text-secondary);font-size:.78rem;font-weight:650;text-decoration:none}
+.activity-toolbar-tools-menu a:hover,.activity-toolbar-tools-menu a:focus-visible{background:var(--ui-surface-hover);color:var(--ui-text-strong)}
+.activity-empty-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.activity-detail-kicker{display:flex;align-items:center;min-width:0}
+.activity-detail-compare{gap:6px;font-size:.76rem!important;font-weight:700!important;padding:0 10px!important;color:var(--ui-text-secondary)!important;background:var(--ui-panel)!important;text-decoration:none!important}
+.activity-detail-compare:hover{background:var(--ui-surface-hover)!important;color:var(--ui-text-strong)!important}
+.activity-detail-loading{display:grid;gap:14px;padding:16px 12px;align-content:start;background:none}
+.activity-detail-loading[hidden]{display:none!important}
+.activity-detail-skeleton-head{display:grid;gap:8px}.activity-detail-skeleton-head span,.activity-detail-skeleton-head strong,.activity-detail-skeleton-metrics i,.activity-detail-skeleton-block{display:block;background:linear-gradient(90deg,var(--ui-panel-soft),var(--ui-surface-hover),var(--ui-panel-soft));background-size:220% 100%;animation:activity-skeleton-shimmer 1.25s ease-in-out infinite;border-radius:var(--radius-detail)}
+.activity-detail-skeleton-head span{width:32%;height:10px}.activity-detail-skeleton-head strong{width:68%;height:20px}
+.activity-detail-skeleton-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.activity-detail-skeleton-metrics i{width:auto;height:58px;flex:auto;border:0;border-radius:var(--radius-detail)}.activity-detail-skeleton-block{height:170px}
+@keyframes activity-skeleton-shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+.activity-list-row.is-optimistic-removed{display:none!important}
+.activity-history-summary.is-optimistic-pending [data-summary-time],.activity-history-summary.is-optimistic-pending [data-summary-distance],.activity-history-summary.is-optimistic-pending [data-summary-elevation]{opacity:.62}
+@media(max-width:760px){
+  .activities-toolbar{align-items:flex-start;flex-direction:column}
+  .activities-toolbar-actions{width:100%;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 40px;gap:6px}
+  .activities-toolbar-actions .activity-primary-action{grid-column:1;grid-row:1;width:100%;order:0}
+  .activities-page .activities-toolbar .activity-toolbar-essential{display:inline-flex;grid-column:2;grid-row:1;width:100%}
+  .activities-page .activities-toolbar .activity-toolbar-quick-run{display:none}
+  .activity-toolbar-tools{grid-column:3;grid-row:1}
+  .activity-toolbar-tools>summary{width:40px;padding:0;font-size:0}
+  .activity-toolbar-tools>summary span{font-size:1rem}
+  .activity-toolbar-tools-menu{right:0;min-width:180px}
+  .activity-detail-header-actions{gap:5px}
+  .activity-detail-compare{padding-inline:8px!important}
+  .activity-detail-compare span{display:none}
+}
+@media(prefers-reduced-motion:reduce){.activity-detail-skeleton-head span,.activity-detail-skeleton-head strong,.activity-detail-skeleton-metrics i,.activity-detail-skeleton-block{animation:none}}

@@ -1,11 +1,15 @@
 #!/bin/sh
 set -eu
 
+project_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+cd "$project_root"
+
 command="${1:-apply}"
 argument="${2:-}"
 
-env_file="${STRIDEBR_ENV_FILE:-$HOME/.config/stridebr/db.env}"
-if [ -f "$env_file" ]; then
+env_file="${STRIDEBR_ENV_FILE:-$project_root/.env}"
+case "$env_file" in /*) ;; *) env_file="$project_root/$env_file" ;; esac
+if [ -f "$env_file" ] && [ -z "${STRIDEBR_DB_HOST:-}" ]; then
   set -a
   . "$env_file"
   set +a
@@ -18,6 +22,7 @@ fi
 
 port="${STRIDEBR_DB_PORT:-5432}"
 export PGPASSWORD="$STRIDEBR_DB_PASSWORD"
+export PGSSLMODE="${STRIDEBR_DB_SSLMODE:-prefer}"
 
 run_psql() {
   psql \
@@ -28,6 +33,24 @@ run_psql() {
     -d "$STRIDEBR_DB_NAME" \
     "$@"
 }
+
+# One connection holds the lock while the child runner applies SQL using its own
+# connections. All replicas/jobs using this runner serialize on the same database.
+if [ "${STRIDEBR_MIGRATION_LOCK_HELD:-0}" != "1" ]; then
+  export STRIDEBR_MIGRATION_LOCK_HELD=1
+  export STRIDEBR_MIGRATION_SCRIPT="$0"
+  export STRIDEBR_MIGRATION_COMMAND="$command"
+  export STRIDEBR_MIGRATION_ARGUMENT="$argument"
+  run_psql <<'SQL'
+SELECT pg_advisory_lock(1937011300, 1);
+\! sh "$STRIDEBR_MIGRATION_SCRIPT" "$STRIDEBR_MIGRATION_COMMAND" "$STRIDEBR_MIGRATION_ARGUMENT"
+\if :SHELL_ERROR
+SELECT 1 / 0;
+\endif
+SELECT pg_advisory_unlock(1937011300, 1);
+SQL
+  exit $?
+fi
 
 ensure_history() {
   run_psql <<'SQL'

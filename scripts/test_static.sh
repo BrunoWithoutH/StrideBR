@@ -12,6 +12,10 @@ fi
 find public src scripts -type f -name '*.php' -not -path '*/vendor/*' -print0 \
   | xargs -0 -n1 php -l >/dev/null
 printf '%s\n' '✓ PHP syntax'
+php scripts/tests/test_workout_load.php
+php scripts/tests/test_deploy_configuration.php
+sh -eu -c '. ./.env.example; test "$FITBIT_OAUTH_SCOPE" = "activity profile heartrate location"'
+printf '%s\n' '✓ canonical env is shell-compatible'
 
 if command -v node >/dev/null 2>&1; then
   find public/assets/js -type f -name '*.js' -print0 | xargs -0 -n1 node --check >/dev/null
@@ -21,6 +25,7 @@ node scripts/tests/test_activity_route_circuit.js
 node scripts/tests/test_share_route_scale.js
 node scripts/tests/test_share_route_export_png.js
 node scripts/tests/test_share_metric_defaults.js
+node scripts/tests/test_activity_sport_context.js
 else
   printf '%s\n' '○ JavaScript syntax: node não encontrado, verificação ignorada'
 fi
@@ -50,8 +55,11 @@ printf '%s\n' '✓ migration search_path'
 
 php scripts/tests/test_unit.php
 php scripts/tests/test_activity_exchange_parser.php
+php scripts/tests/test_activity_sport_context.php
 php scripts/tests/test_activity_performance_static.php
 php scripts/tests/test_dashboard_ux_static.php
+php scripts/tests/test_dashboard_week_consistency.php
+php scripts/tests/test_home_week_interactions_static.php
 php scripts/tests/test_desktop_release_finish_static.php
 php scripts/tests/test_activity_sharing_v2_static.php
 php scripts/tests/test_share_architecture_static.php
@@ -62,6 +70,7 @@ php scripts/tests/test_activity_delete_modal_static.php
 php scripts/tests/test_activity_edit_embed_static.php
 php scripts/tests/test_gps_web_static.php
 php scripts/tests/test_pwa_foundation_static.php
+php scripts/tests/test_web1_robustness_static.php
 php scripts/tests/test_onboarding_copy_ux_static.php
 php scripts/tests/test_onboarding_i18n_static.php
 php scripts/tests/test_ux_consistency_static.php
@@ -80,6 +89,7 @@ STRIDEBR_FAKE_LEGACY=1 php scripts/tests/test_activity_manual_save_fake.php
 php scripts/tests/test_i18n_theme_google_static.php
 php scripts/tests/test_production_theme_migrations_static.php
 php scripts/tests/test_integrations_foundation_static.php
+php scripts/tests/test_ads_placements_static.php
 php scripts/tests/test_sport_hub_monetization_static.php
 php scripts/tests/test_sport_taxonomy_energy_static.php
 php scripts/tests/test_sport_picker_static.php
@@ -88,5 +98,10 @@ php scripts/tests/test_migration_dependency_static.php
 php scripts/tests/test_radius_system_static.php
 php scripts/tests/test_design_system_static.php
 php scripts/tests/test_dark_contrast_static.php
+php scripts/tests/test_visual_consistency_static.php
+php scripts/tests/test_admin_feedback_static.php
 php scripts/tests/test_ui_consolidation_static.php
 php scripts/tests/test_templates.php
+
+php scripts/tests/test_planning_week.php
+php scripts/tests/test_i18n_coverage.php

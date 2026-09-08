@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const tr = (key, values = {}, fallback = null) => i18n.t(key, values, fallback)
     const trn = (one, other, count, values = {}) => i18n.t(Number(count) === 1 ? one : other, {...values, count: i18n.number?.(count, 0) ?? String(count)})
     const sportDisplay = (slug, fallback = '') => i18n.sport?.(slug, fallback) || fallback
+    const sportContextEngine = window.StrideBRActivitySportContext || null
     const page = document.querySelector('[data-activities-page]')
     const shell = document.querySelector('[data-activity-form]')
     const form = document.getElementById('activity-form')
@@ -790,6 +791,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     let durationPrecisionEnabled = false
+    let durationPrecisionWasManuallyChanged = false
 
     const durationToSeconds = field => {
         if (!field) return null
@@ -818,8 +820,10 @@ document.addEventListener('DOMContentLoaded', () => {
         })
     }
 
-    const setDurationPrecision = enabled => {
+    const setDurationPrecision = (enabled, {manual = false, ignoreManual = false} = {}) => {
+        if (!manual && durationPrecisionWasManuallyChanged && !ignoreManual) return
         durationPrecisionEnabled = Boolean(enabled)
+        if (manual) durationPrecisionWasManuallyChanged = true
         updateDurationPrecisionUi()
     }
 
@@ -857,7 +861,7 @@ document.addEventListener('DOMContentLoaded', () => {
             button.type = 'button'
             button.className = 'duration-precision-toggle'
             button.dataset.durationPrecisionToggle = '1'
-            button.addEventListener('click', () => setDurationPrecision(!durationPrecisionEnabled))
+            button.addEventListener('click', () => setDurationPrecision(!durationPrecisionEnabled, {manual: true}))
         }
         mountDurationPrecisionToggle(button)
         updateDurationPrecisionUi()
@@ -865,7 +869,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const setDurationSeconds = (field, totalSeconds) => {
         if (!field || !Number.isFinite(totalSeconds) || totalSeconds < 0) return
-        const totalMs = Math.max(0, Math.round(totalSeconds * 1000))
+        const totalMs = Math.min(359999999, Math.max(0, Math.round(totalSeconds * 1000)))
         const h = Math.floor(totalMs / 3600000)
         const remainingHour = totalMs % 3600000
         const m = Math.floor(remainingHour / 60000)
@@ -896,11 +900,11 @@ document.addEventListener('DOMContentLoaded', () => {
             field.dispatchEvent(new CustomEvent('activity:valuechange', {bubbles: true}))
             return
         }
-        const h = Math.max(0, Number.parseInt(digitsOnly(hours?.value, 4) || '0', 10) || 0)
+        const h = Math.max(0, Number.parseInt(digitsOnly(hours?.value, 2) || '0', 10) || 0)
         const m = Math.max(0, Number.parseInt(digitsOnly(minutes?.value, 4) || '0', 10) || 0)
         const sec = Math.max(0, Number.parseInt(digitsOnly(seconds?.value, 4) || '0', 10) || 0)
         const ms = Math.min(999, Math.max(0, Number.parseInt(digitsOnly(milliseconds?.value, 3) || '0', 10) || 0))
-        const totalMs = h * 3600000 + m * 60000 + sec * 1000 + ms
+        const totalMs = Math.min(359999999, h * 3600000 + m * 60000 + sec * 1000 + ms)
         const normalizedHours = Math.floor(totalMs / 3600000)
         const remainingHour = totalMs % 3600000
         const normalizedMinutes = Math.floor(remainingHour / 60000)
@@ -926,11 +930,25 @@ document.addEventListener('DOMContentLoaded', () => {
         const milliseconds = field.querySelector('[data-duration-milliseconds]')
         const parts = [hours, minutes, seconds].filter(Boolean)
         const nextByInput = new Map([[hours, minutes], [minutes, seconds]])
+        const previousByInput = new Map([[minutes, hours], [seconds, minutes], [milliseconds, seconds]])
+        const pasteCompleteDuration = event => {
+            const text = String(event.clipboardData?.getData('text') || '').trim()
+            const match = text.match(/^(\d{1,2}):([0-5]?\d):([0-5]?\d)(?:[.,](\d{1,3}))?$/)
+            if (!match) return
+            event.preventDefault()
+            if (hours) hours.value = String(Math.min(99, Number.parseInt(match[1], 10) || 0)).padStart(2, '0')
+            if (minutes) minutes.value = String(Math.min(59, Number.parseInt(match[2], 10) || 0)).padStart(2, '0')
+            if (seconds) seconds.value = String(Math.min(59, Number.parseInt(match[3], 10) || 0)).padStart(2, '0')
+            if (milliseconds) milliseconds.value = match[4] ? match[4].padEnd(3, '0') : ''
+            if (match[4]) setDurationPrecision(true)
+            syncDuration(field)
+        }
         parts.forEach(input => {
-            input.maxLength = input === hours ? 3 : 2
+            input.maxLength = 2
             input.addEventListener('focus', () => input.select())
+            input.addEventListener('paste', pasteCompleteDuration)
             input.addEventListener('input', () => {
-                input.value = digitsOnly(input.value, input === hours ? 3 : 2)
+                input.value = digitsOnly(input.value, 2)
                 field.dispatchEvent(new CustomEvent('activity:valuechange', {bubbles: true}))
                 if (input.value.length >= 2) {
                     const next = nextByInput.get(input)
@@ -942,6 +960,11 @@ document.addEventListener('DOMContentLoaded', () => {
             input.addEventListener('blur', () => syncDuration(field))
             input.addEventListener('change', () => syncDuration(field))
             input.addEventListener('keydown', event => {
+                if (event.key === 'Backspace' && input.value === '') {
+                    const previous = previousByInput.get(input)
+                    if (previous) { event.preventDefault(); previous.focus(); previous.select?.() }
+                    return
+                }
                 if (event.key !== 'Enter') return
                 event.preventDefault(); syncDuration(field)
                 const next = nextByInput.get(input) || (durationPrecisionEnabled ? milliseconds : null)
@@ -951,7 +974,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (milliseconds) {
             milliseconds.maxLength = 3
             milliseconds.addEventListener('focus', () => milliseconds.select())
+            milliseconds.addEventListener('paste', pasteCompleteDuration)
             milliseconds.addEventListener('input', () => { milliseconds.value = digitsOnly(milliseconds.value, 3); field.dispatchEvent(new CustomEvent('activity:valuechange', {bubbles: true})) })
+            milliseconds.addEventListener('keydown', event => {
+                if (event.key === 'Backspace' && milliseconds.value === '') {
+                    event.preventDefault(); seconds?.focus(); seconds?.select?.()
+                }
+            })
             milliseconds.addEventListener('blur', () => {
                 if (milliseconds.value !== '') milliseconds.value = String(Math.min(999, Number.parseInt(milliseconds.value, 10) || 0)).padStart(3, '0')
                 syncDuration(field)
@@ -1364,8 +1393,19 @@ document.addEventListener('DOMContentLoaded', () => {
         event.preventDefault()
         event.stopPropagation()
         const id = favoriteButton.dataset.sportId || ''
+        if (!id) return
         const nextFavorite = !favoriteButton.classList.contains('is-favorite')
-        favoriteButton.disabled = true
+        const favoriteButtons = [...sportCombobox.querySelectorAll(`[data-toggle-sport-favorite][data-sport-id="${CSS.escape(id)}"]`)]
+        const sportOptions = [...sportCombobox.querySelectorAll(`[data-sport-option][data-sport-id="${CSS.escape(id)}"]`)]
+        const applyFavoriteState = (favorite) => {
+            favoriteButtons.forEach((button) => {
+                button.classList.toggle('is-favorite', favorite)
+                button.setAttribute('aria-pressed', favorite ? 'true' : 'false')
+            })
+            sportOptions.forEach((item) => item.dataset.sportFavorite = favorite ? '1' : '0')
+        }
+        applyFavoriteState(nextFavorite)
+        favoriteButtons.forEach((button) => { button.disabled = true })
         try {
             const body = new URLSearchParams({
                 csrf_token: page.dataset.csrfToken || '',
@@ -1378,13 +1418,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 body,
             })
             if (!response.ok) throw new Error('favorite')
-            favoriteButton.classList.toggle('is-favorite', nextFavorite)
-            sportCombobox.querySelectorAll(`[data-sport-option][data-sport-id="${CSS.escape(id)}"]`).forEach((item) => item.dataset.sportFavorite = nextFavorite ? '1' : '0')
         } catch (_) {
-            favoriteButton.classList.add('has-error')
-            window.setTimeout(() => favoriteButton.classList.remove('has-error'), 900)
+            applyFavoriteState(!nextFavorite)
+            favoriteButtons.forEach((button) => button.classList.add('has-error'))
+            window.setTimeout(() => favoriteButtons.forEach((button) => button.classList.remove('has-error')), 900)
+            showActivityToast(tr('sport_picker.favorite_error', {}, 'Não foi possível atualizar o favorito.'), 'error')
         } finally {
-            favoriteButton.disabled = false
+            favoriteButtons.forEach((button) => { button.disabled = false })
         }
     })
 
@@ -1537,7 +1577,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     workoutSelect?.addEventListener('change', () => syncWorkoutMetadata({force: true}))
 
-    const updateModelsForModality = () => {
+    const updateModelsForModality = ({semanticChange = false} = {}) => {
         if (!modalitySelect || !modelSelect) return
         const modality = modalitySelect.value
         const options = Array.from(modelSelect.options)
@@ -1558,11 +1598,12 @@ document.addEventListener('DOMContentLoaded', () => {
         updateSportCurrent()
         updateRouteAvailability()
         syncStrengthVisibility()
+        syncActiveSportContext({semanticChange, allowNominal:true})
         if (shell?.classList.contains('is-open')) loadEditorDetails(modelSelect.value)
     }
 
-    modalitySelect?.addEventListener('change', updateModelsForModality)
-    modelSelect?.addEventListener('change', () => { if (shell?.classList.contains('is-open')) loadEditorDetails(modelSelect.value); updateModelPanels(); syncWorkoutMetadata(); syncAutomaticActivityTitle() })
+    modalitySelect?.addEventListener('change', () => updateModelsForModality({semanticChange:true}))
+    modelSelect?.addEventListener('change', () => { if (shell?.classList.contains('is-open')) loadEditorDetails(modelSelect.value); updateModelPanels(); syncWorkoutMetadata(); syncAutomaticActivityTitle(); syncActiveSportContext({allowNominal:true}) })
     form?.addEventListener('input', (event) => {
         if (event.target.closest('[data-dynamic-field][data-field-slug="foco_muscular"]')) syncAutomaticActivityTitle()
     })
@@ -1676,6 +1717,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const template = document.querySelector(`template[data-unit-template="${CSS.escape(key)}"]`)
         const container = document.querySelector(`[data-units][data-model="${CSS.escape(key)}"]`)
         if (!template || !container) return
+        const previousRoot = container.lastElementChild || panel?.querySelector('[data-primary-unit-card]') || null
+        const inheritedUnit = previousRoot ? segmentDistanceUnit(previousRoot) : ''
+        const inheritedMeters = previousRoot ? segmentMeters(previousRoot) : null
         const index = nextUnitIndex(container)
         const number = index + 1
         const html = template.innerHTML.replaceAll('__INDEX__', String(index)).replaceAll('__NUMBER__', String(number))
@@ -1687,6 +1731,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.StrideBRSportPickerInit?.(unit || container)
         bindStructuredFields(unit || container)
         bindUnitRouteEditors(unit || container)
+        if (isSegmentMode(panel)) syncSegmentDistanceContext(unit, panel, {allowNominal:true, inheritedUnit, inheritedMeters})
         syncUnitSportState(unit)
         updateUnitDerivedMetric(unit)
         renumberSegmentTitles(panel)
@@ -1722,6 +1767,187 @@ document.addEventListener('DOMContentLoaded', () => {
     })
 
     const findPrimaryField = (panel, slug) => Array.from(panel?.querySelectorAll(`[data-dynamic-field][data-field-slug="${CSS.escape(slug)}"]`) || []).find((field) => field.closest('[data-unit-index]') === null)
+    const sportContextLocale = () => String(i18n.locale || document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en' : 'pt-BR'
+    const mainSportContext = (panel, extra = {}) => {
+        const option = modalitySelect?.selectedOptions?.[0]
+        return sportContextEngine?.context?.({
+            slug: panel?.dataset.sportSlug || option?.dataset.slug || '',
+            family: panel?.dataset.sportFamily || option?.dataset.family || '',
+            ...extra,
+        }) || {slug:'', family:'', is_track:false, is_sprint:false, nominal_distance_m:null, prefers_milliseconds:false, performance_priority:'default'}
+    }
+    const unitSportContextData = (context, panel, extra = {}) => {
+        const root = unitContextRoot(context)
+        const option = unitSportSelect(root)?.selectedOptions?.[0]
+        return sportContextEngine?.context?.({
+            slug: option?.dataset.slug || panel?.dataset.sportSlug || modalitySelect?.selectedOptions?.[0]?.dataset.slug || '',
+            family: option?.dataset.family || panel?.dataset.sportFamily || modalitySelect?.selectedOptions?.[0]?.dataset.family || '',
+            segment: isSegmentMode(panel),
+            ...extra,
+        }) || mainSportContext(panel, {segment:isSegmentMode(panel), ...extra})
+    }
+    const distanceFieldInput = field => field?.querySelector('input[type="number"], input[type="text"]') || null
+    const distanceDisplayUnit = field => {
+        const select = field?.querySelector('[data-distance-unit-select]')
+        const value = select?.value || field?.dataset.distanceDisplayUnit || field?.dataset.distanceCanonicalUnit || field?.querySelector('[data-distance-unit-label]')?.textContent?.trim() || field?.querySelector('.field-unit')?.textContent?.trim() || 'km'
+        return value === 'm' ? 'm' : 'km'
+    }
+    const distanceCanonicalUnit = field => field?.dataset.distanceCanonicalUnit === 'm' ? 'm' : 'km'
+    const distanceMetersFromField = field => {
+        const input = distanceFieldInput(field)
+        if (!input || !sportContextEngine) return null
+        return sportContextEngine.metersFrom(input.value, distanceDisplayUnit(field))
+    }
+    const writeDistanceFieldValue = (field, meters, unit, {automatic = true} = {}) => {
+        const input = distanceFieldInput(field)
+        const select = field?.querySelector('[data-distance-unit-select]')
+        if (!input || !sportContextEngine || !Number.isFinite(Number(meters))) return
+        const value = unit === 'm' ? Number(meters) : Number(meters) / 1000
+        if (automatic) field.dataset.distanceWritingAutomatic = '1'
+        input.value = sportContextEngine.inputNumber(value, 3)
+        if (select) select.value = unit
+        field.dataset.distanceDisplayUnit = unit
+        const label = field.querySelector('[data-distance-unit-label]')
+        if (label) label.textContent = unit
+        if (automatic) delete field.dataset.distanceWritingAutomatic
+    }
+    const syncDistanceFieldContext = (field, context, {allowNominal = false} = {}) => {
+        if (!field || !sportContextEngine) return
+        const input = distanceFieldInput(field)
+        if (!input) return
+        let meters = distanceMetersFromField(field)
+        const hasDistance = Number.isFinite(meters) && meters >= 0 && String(input.value || '').trim() !== ''
+        if (!hasDistance && allowNominal && field.dataset.distanceManual !== '1' && Number.isFinite(Number(context?.nominal_distance_m))) {
+            meters = Number(context.nominal_distance_m)
+        }
+        if (!Number.isFinite(meters)) return
+        const manualUnit = field.dataset.distanceUnitManual === '1' ? distanceDisplayUnit(field) : ''
+        const target = sportContextEngine.chooseDistanceUnit(meters, context, manualUnit)
+        writeDistanceFieldValue(field, meters, target)
+        if (!hasDistance && allowNominal && Number.isFinite(Number(context?.nominal_distance_m))) field.dataset.distanceAutomaticNominal = '1'
+    }
+    const segmentDistanceField = root => unitContextRoot(root)?.querySelector('[data-segment-distance-field]') || null
+    const segmentDistanceUnit = root => {
+        const field = segmentDistanceField(root)
+        const select = field?.querySelector('[data-segment-distance-unit-select]')
+        const hidden = field?.querySelector('[data-segment-distance-unit-value]')
+        return (select?.value || hidden?.value || 'km') === 'm' ? 'm' : 'km'
+    }
+    const segmentMeters = root => {
+        const field = segmentDistanceField(root)
+        const input = field?.querySelector('[data-segment-distance]')
+        if (!field || !input || !sportContextEngine) return null
+        return sportContextEngine.metersFrom(input.value, segmentDistanceUnit(root))
+    }
+    const writeSegmentDistance = (root, meters, unit, {automatic = true} = {}) => {
+        const field = segmentDistanceField(root)
+        const input = field?.querySelector('[data-segment-distance]')
+        const select = field?.querySelector('[data-segment-distance-unit-select]')
+        const hidden = field?.querySelector('[data-segment-distance-unit-value]')
+        if (!field || !input || !sportContextEngine || !Number.isFinite(Number(meters))) return
+        if (automatic) field.dataset.distanceWritingAutomatic = '1'
+        input.value = sportContextEngine.inputNumber(unit === 'm' ? Number(meters) : Number(meters) / 1000, 3)
+        if (select) select.value = unit
+        if (hidden) hidden.value = unit
+        field.dataset.distanceDisplayUnit = unit
+        const label = field.querySelector('[data-segment-distance-unit]')
+        if (label) label.textContent = unit
+        if (automatic) delete field.dataset.distanceWritingAutomatic
+    }
+    const segmentSeriesContext = (panel, omitRoot = null) => {
+        if (!sportContextEngine || !panel || !isSegmentMode(panel)) return null
+        const roots = [panel.querySelector('[data-primary-unit-card]'), ...panel.querySelectorAll('[data-unit-index]')].filter(root => root && root !== omitRoot)
+        const values = roots.map(root => segmentMeters(root)).filter(value => Number.isFinite(value) && value > 0)
+        const base = mainSportContext(panel, {segment:true})
+        return sportContextEngine.equivalentSeries(values, base)
+    }
+    const syncSegmentDistanceContext = (root, panel, {allowNominal = false, inheritedUnit = '', inheritedMeters = null} = {}) => {
+        const field = segmentDistanceField(root)
+        if (!field || !sportContextEngine) return
+        const input = field.querySelector('[data-segment-distance]')
+        let meters = segmentMeters(root)
+        let hasDistance = Number.isFinite(meters) && String(input?.value || '').trim() !== ''
+        const series = segmentSeriesContext(panel, root)
+        const baseContext = unitSportContextData(root, panel, {
+            registered_m: hasDistance ? meters : null,
+            segment: true,
+            structured_series: Boolean(series),
+            series_unit: series?.unit || inheritedUnit || '',
+        })
+        if (!hasDistance && allowNominal && field.dataset.distanceManual !== '1' && Number.isFinite(Number(baseContext.nominal_distance_m))) {
+            meters = Number(baseContext.nominal_distance_m)
+            hasDistance = true
+            field.dataset.distanceAutomaticNominal = '1'
+        } else if (!hasDistance && field.dataset.distanceManual !== '1' && Number.isFinite(Number(series?.distance_m))) {
+            meters = Number(series.distance_m)
+            hasDistance = true
+            field.dataset.distanceAutomaticSeries = '1'
+        } else if (!hasDistance && field.dataset.distanceManual !== '1' && Number.isFinite(Number(inheritedMeters)) && inheritedMeters > 0 && series) {
+            meters = Number(inheritedMeters)
+            hasDistance = true
+        }
+        const manualUnit = field.dataset.distanceUnitManual === '1' ? segmentDistanceUnit(root) : ''
+        let target = sportContextEngine.chooseDistanceUnit(Number.isFinite(meters) ? meters : 0, baseContext, manualUnit)
+        if (!manualUnit && !hasDistance && inheritedUnit && !baseContext.is_track) target = inheritedUnit
+        if (Number.isFinite(meters)) writeSegmentDistance(root, meters, target)
+        else {
+            const select = field.querySelector('[data-segment-distance-unit-select]')
+            const hidden = field.querySelector('[data-segment-distance-unit-value]')
+            if (select) select.value = target
+            if (hidden) hidden.value = target
+            const label = field.querySelector('[data-segment-distance-unit]')
+            if (label) label.textContent = target
+        }
+    }
+    const activeContextsPreferMilliseconds = panel => {
+        if (!panel || !sportContextEngine) return false
+        if (mainSportContext(panel).prefers_milliseconds) return true
+        if (!isSegmentMode(panel)) return false
+        return [panel.querySelector('[data-primary-unit-card]'), ...panel.querySelectorAll('[data-unit-index]')].filter(Boolean).some(root => {
+            const meters = segmentMeters(root)
+            return unitSportContextData(root, panel, {registered_m: meters, segment:true}).prefers_milliseconds
+        })
+    }
+    const syncDurationPrecisionFromContext = (panel, {semanticChange = false} = {}) => {
+        if (!form || !panel) return
+        if (semanticChange) durationPrecisionWasManuallyChanged = false
+        const hasExistingMilliseconds = Array.from(form.querySelectorAll('[data-duration-milliseconds]')).some(input => Number.parseInt(String(input.value || '0'), 10) > 0)
+        if (hasExistingMilliseconds) setDurationPrecision(true, {ignoreManual: semanticChange})
+        else setDurationPrecision(activeContextsPreferMilliseconds(panel), {ignoreManual: semanticChange})
+    }
+    const syncActiveSportContext = ({semanticChange = false, allowNominal = true} = {}) => {
+        const panel = modelSelect?.value ? form?.querySelector(`[data-model-panel="${CSS.escape(modelSelect.value)}"]`) : form?.querySelector('[data-model-panel]:not([hidden])')
+        if (!panel) return
+        const primaryField = findPrimaryField(panel, 'distancia')
+        syncDistanceFieldContext(primaryField, mainSportContext(panel), {allowNominal})
+        if (isSegmentMode(panel)) {
+            const roots = [panel.querySelector('[data-primary-unit-card]'), ...panel.querySelectorAll('[data-unit-index]')].filter(Boolean)
+            roots.forEach(root => syncSegmentDistanceContext(root, panel, {allowNominal}))
+        }
+        syncDurationPrecisionFromContext(panel, {semanticChange})
+    }
+    const normalizeDistanceFieldsForSubmission = () => {
+        const snapshots = []
+        form?.querySelectorAll('[data-dynamic-field][data-field-slug="distancia"]').forEach(field => {
+            const input = distanceFieldInput(field)
+            if (!input || input.disabled) return
+            const display = distanceDisplayUnit(field)
+            const canonical = distanceCanonicalUnit(field)
+            if (display === canonical || String(input.value || '').trim() === '') return
+            const converted = sportContextEngine?.convertDistance?.(input.value, display, canonical)
+            if (!Number.isFinite(converted)) return
+            snapshots.push({field, input, value:input.value, display})
+            field.dataset.distanceWritingAutomatic = '1'
+            input.value = sportContextEngine.inputNumber(converted, 6)
+            delete field.dataset.distanceWritingAutomatic
+        })
+        return () => snapshots.forEach(({field,input,value,display}) => {
+            field.dataset.distanceWritingAutomatic = '1'
+            input.value = value
+            field.dataset.distanceDisplayUnit = display
+            delete field.dataset.distanceWritingAutomatic
+        })
+    }
     const routeEditor = document.querySelector('[data-route-editor]')
     const updateRouteAvailability = () => {
         if (!routeEditor || !modalitySelect) return
@@ -1737,6 +1963,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const input = field?.querySelector('input[type="number"], input[type="text"]')
         const value = Number.parseFloat(String(input?.value || '').replace(',', '.'))
         return Number.isFinite(value) && value > 0 ? value : null
+    }
+    const primaryDistanceData = panel => {
+        const field = findPrimaryField(panel, 'distancia')
+        const input = distanceFieldInput(field)
+        const value = Number.parseFloat(String(input?.value || '').replace(',', '.'))
+        const symbol = distanceDisplayUnit(field)
+        const meters = Number.isFinite(value) && value > 0 ? (symbol === 'm' ? value : value * 1000) : null
+        return {field, input, value:Number.isFinite(value) && value > 0 ? value : null, meters, symbol}
     }
     const durationField = (panel) => findPrimaryField(panel, 'duracao')?.querySelector('[data-duration-field]') || null
 
@@ -1762,7 +1996,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function unitDistanceData(context, panel) {
         const root = unitContextRoot(context)
         const segmentInput = root?.querySelector('[data-segment-distance]')
-        const segmentUnit = root?.querySelector('[data-segment-distance-unit-value]')?.value || root?.querySelector('[data-segment-distance-unit]')?.textContent?.trim() || 'km'
+        const segmentUnit = segmentDistanceUnit(root)
         if (segmentInput && isSegmentMode(panel)) {
             const value = Number.parseFloat(String(segmentInput.value || '').replace(',', '.'))
             if (Number.isFinite(value) && value > 0) return {value, meters: segmentUnit === 'm' ? value : value * 1000, symbol: segmentUnit, field: segmentInput.closest('[data-segment-distance-field]'), input: segmentInput}
@@ -1772,7 +2006,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const field = findUnitField(root, 'distancia')
         const input = field?.querySelector('input[type="number"], input[type="text"]')
         const value = Number.parseFloat(String(input?.value || '').replace(',', '.'))
-        const symbol = field?.querySelector('.field-unit')?.textContent?.trim() || panel?.dataset.distanceUnit || 'km'
+        const symbol = distanceDisplayUnit(field)
         if (Number.isFinite(value) && value > 0) return {value, meters: symbol === 'm' ? value : value * 1000, symbol, field, input}
         const routeMeters = Number(rootRouteEditor(root)?.dataset.routeDistanceM || 0)
         return Number.isFinite(routeMeters) && routeMeters > 0 ? {value: symbol === 'm' ? routeMeters : routeMeters / 1000, meters: routeMeters, symbol, field, input} : {value: null, meters: null, symbol, field, input}
@@ -1886,8 +2120,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const distanceField = findPrimaryField(panel, 'distancia')
         const distanceInput = distanceField?.querySelector('input[type="number"], input[type="text"]')
         const segmentDistance = root.querySelector('[data-segment-distance]')
-        const segmentUnit = root.querySelector('[data-segment-distance-unit-value]')?.value || 'km'
-        const sourceUnit = distanceField?.querySelector('.field-unit')?.textContent?.trim() || panel.dataset.distanceUnit || 'km'
+        const segmentUnit = segmentDistanceUnit(root)
+        const sourceUnit = distanceDisplayUnit(distanceField)
         const distance = Number.parseFloat(String(distanceInput?.value || '').replace(',', '.'))
         if (segmentDistance && !String(segmentDistance.value || '').trim() && Number.isFinite(distance) && distance > 0) {
             const meters = sourceUnit === 'm' ? distance : distance * 1000
@@ -1910,13 +2144,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const root = panel?.querySelector('[data-primary-unit-card]')
         if (!root) return
         const segmentDistance = root.querySelector('[data-segment-distance]')
-        const segmentUnit = root.querySelector('[data-segment-distance-unit-value]')?.value || 'km'
+        const segmentUnit = segmentDistanceUnit(root)
         const distanceField = findPrimaryField(panel, 'distancia')
         const distanceInput = distanceField?.querySelector('input[type="number"], input[type="text"]')
         const distance = Number.parseFloat(String(segmentDistance?.value || '').replace(',', '.'))
         if (distanceInput && Number.isFinite(distance) && distance > 0) {
             const meters = segmentUnit === 'm' ? distance : distance * 1000
-            const targetUnit = distanceField?.querySelector('.field-unit')?.textContent?.trim() || panel.dataset.distanceUnit || 'km'
+            const targetUnit = distanceDisplayUnit(distanceField)
             distanceInput.value = String(Number((targetUnit === 'm' ? meters : meters / 1000).toFixed(3)))
         }
         const segmentDuration = durationToSeconds(root.querySelector('[data-segment-duration-field] [data-duration-field]'))
@@ -1989,17 +2223,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (hidden) hidden.disabled = !allowed
         }
         const derivedType = selected?.dataset.derivedType || panel?.dataset.derivedType || 'nenhuma'
-        const distanceUnit = derivedType === 'pace_100m' ? 'm' : 'km'
-        const distanceUnitLabel = root.querySelector('[data-segment-distance-unit]')
-        const distanceUnitInput = root.querySelector('[data-segment-distance-unit-value]')
-        const distanceInput = root.querySelector('[data-segment-distance]')
-        if (distanceUnitInput && distanceUnitInput.value !== distanceUnit) {
-            const previous = distanceUnitInput.value || 'km'
-            const numeric = Number.parseFloat(String(distanceInput?.value || '').replace(',', '.'))
-            if (distanceInput && Number.isFinite(numeric) && numeric > 0) distanceInput.value = String(Number((previous === 'km' && distanceUnit === 'm' ? numeric * 1000 : previous === 'm' && distanceUnit === 'km' ? numeric / 1000 : numeric).toFixed(3)))
-            distanceUnitInput.value = distanceUnit
+        if (isSegmentMode(panel)) syncSegmentDistanceContext(root, panel, {allowNominal:true})
+        else {
+            const field = findUnitField(root, 'distancia')
+            syncDistanceFieldContext(field, unitSportContextData(root, panel), {allowNominal:true})
         }
-        if (distanceUnitLabel) distanceUnitLabel.textContent = distanceUnit
         const segmentDerived = root.querySelector('[data-segment-core-metrics] [data-unit-derived-field]')
         const segmentDerivedInput = segmentDerived?.querySelector('[data-unit-derived-input]')
         if (segmentDerived) segmentDerived.hidden = derivedType === 'nenhuma'
@@ -2019,6 +2247,7 @@ document.addEventListener('DOMContentLoaded', () => {
             simpleDerived.querySelectorAll('input').forEach(input => { input.disabled = simpleDerived.hidden || panel.hidden })
         }
         syncContextualMetricLabels(root)
+        syncDurationPrecisionFromContext(panel)
     }
 
     function syncSegmentPanel(panel) {
@@ -2086,6 +2315,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const formatDurationCompact = (seconds) => {
+        if (sportContextEngine?.formatDuration) return sportContextEngine.formatDuration(seconds, sportContextLocale(), true)
         if (!Number.isFinite(seconds) || seconds < 0) return ''
         const totalMs = Math.round(seconds * 1000)
         const h = Math.floor(totalMs / 3600000)
@@ -2150,13 +2380,14 @@ document.addEventListener('DOMContentLoaded', () => {
         input.placeholder = config.type === 'velocidade_kmh' ? '--,-' : '--:--'
 
         if (input.dataset.manual === '1') return
-        const distance = distanceValue(panel)
+        const distanceData = primaryDistanceData(panel)
+        const distance = distanceData.value
         const duration = durationToSeconds(durationField(panel))
         if (!distance || !duration) {
             input.value = ''
             return
         }
-        const unit = panel.dataset.distanceUnit || 'km'
+        const unit = distanceData.symbol
         const distanceKm = unit === 'm' ? distance / 1000 : distance
         if (config.type === 'velocidade_kmh') input.value = (distanceKm / (duration / 3600)).toFixed(1).replace('.', ',')
         if (config.type === 'pace_km') input.value = formatPace(duration / distanceKm)
@@ -2181,10 +2412,11 @@ document.addEventListener('DOMContentLoaded', () => {
             return
         }
         const distanceField = findPrimaryField(panel, 'distancia')
-        const distanceInput = distanceField?.querySelector('input[type="number"], input[type="text"]')
+        const distanceInput = distanceFieldInput(distanceField)
         const duration = durationToSeconds(durationField(panel))
-        const distance = distanceValue(panel)
-        const unit = panel.dataset.distanceUnit || 'km'
+        const distanceData = primaryDistanceData(panel)
+        const distance = distanceData.value
+        const unit = distanceData.symbol
         let derived = config.type === 'velocidade_kmh' ? Number.parseFloat(raw.replace(',', '.')) : parsePace(raw)
         if (!Number.isFinite(derived) || derived <= 0) return
 
@@ -2295,6 +2527,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!panel || panel.hidden) return
         if (event.target.matches('[data-derived-input], [data-unit-derived-input]')) return
         const field = event.target.closest('[data-dynamic-field]')
+        if (event.isTrusted && field?.dataset.fieldSlug === 'distancia' && event.target === distanceFieldInput(field) && field.dataset.distanceWritingAutomatic !== '1') {
+            field.dataset.distanceManual = '1'
+            delete field.dataset.distanceAutomaticNominal
+        }
+        if (event.isTrusted && event.target.matches('[data-segment-distance]')) {
+            const segmentField = event.target.closest('[data-segment-distance-field]')
+            if (segmentField && segmentField.dataset.distanceWritingAutomatic !== '1') {
+                segmentField.dataset.distanceManual = '1'
+                delete segmentField.dataset.distanceAutomaticNominal
+                delete segmentField.dataset.distanceAutomaticSeries
+            }
+        }
         const segmentMetric = event.target.matches('[data-segment-distance], [data-segment-elevation]') || event.target.closest('[data-segment-duration-field]')
         if (field?.dataset.fieldSlug === 'distancia' || event.target.closest('[data-duration-field]') || segmentMetric) {
             const context = unitContextRoot(event.target)
@@ -2327,6 +2571,42 @@ document.addEventListener('DOMContentLoaded', () => {
     })
 
     document.addEventListener('change', (event) => {
+        const mainDistanceUnit = event.target.closest?.('[data-distance-unit-select]')
+        if (mainDistanceUnit) {
+            const field = mainDistanceUnit.closest('[data-dynamic-field][data-field-slug="distancia"]')
+            const input = distanceFieldInput(field)
+            const previous = field?.dataset.distanceDisplayUnit || field?.dataset.distanceCanonicalUnit || 'km'
+            const next = mainDistanceUnit.value === 'm' ? 'm' : 'km'
+            const meters = sportContextEngine?.metersFrom?.(input?.value, previous)
+            if (field) field.dataset.distanceUnitManual = '1'
+            if (Number.isFinite(meters)) writeDistanceFieldValue(field, meters, next)
+            else if (field) field.dataset.distanceDisplayUnit = next
+            const panel = field?.closest('[data-model-panel]')
+            if (panel) {
+                updateDerivedMetric(panel)
+                updateSummary(panel)
+            }
+            return
+        }
+        const segmentDistanceUnitSelect = event.target.closest?.('[data-segment-distance-unit-select]')
+        if (segmentDistanceUnitSelect) {
+            const root = unitContextRoot(segmentDistanceUnitSelect)
+            const field = segmentDistanceField(root)
+            const previous = field?.dataset.distanceDisplayUnit || field?.querySelector('[data-segment-distance-unit-value]')?.value || 'km'
+            const next = segmentDistanceUnitSelect.value === 'm' ? 'm' : 'km'
+            const meters = sportContextEngine?.metersFrom?.(field?.querySelector('[data-segment-distance]')?.value, previous)
+            if (field) field.dataset.distanceUnitManual = '1'
+            if (Number.isFinite(meters)) writeSegmentDistance(root, meters, next)
+            else {
+                const hidden = field?.querySelector('[data-segment-distance-unit-value]')
+                if (hidden) hidden.value = next
+                if (field) field.dataset.distanceDisplayUnit = next
+            }
+            const panel = root?.closest('[data-model-panel]')
+            updateUnitDerivedMetric(root)
+            if (panel) updateSummary(panel)
+            return
+        }
         const sport = event.target.closest?.('[data-unit-sport-select]')
         if (sport) {
             const context = unitContextRoot(sport)
@@ -2339,6 +2619,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (event.target.matches('[data-derived-input]')) calculateFromDerived(event.target.closest('[data-model-panel]'))
         if (event.target.matches('[data-unit-derived-input]')) calculateUnitFromDerived(event.target)
+    })
+
+    document.addEventListener('focusout', event => {
+        const field = event.target.closest?.('[data-dynamic-field][data-field-slug="distancia"]')
+        if (field && event.target === distanceFieldInput(field) && field.dataset.distanceUnitManual !== '1') {
+            const panel = field.closest('[data-model-panel]')
+            if (panel && !panel.hidden) {
+                syncDistanceFieldContext(field, mainSportContext(panel))
+                updateDerivedMetric(panel)
+                updateSummary(panel)
+            }
+            return
+        }
+        if (!event.target.matches?.('[data-segment-distance]')) return
+        const root = unitContextRoot(event.target)
+        const segmentField = segmentDistanceField(root)
+        if (!root || segmentField?.dataset.distanceUnitManual === '1') return
+        const panel = root.closest('[data-model-panel]')
+        if (!panel || panel.hidden) return
+        syncSegmentDistanceContext(root, panel)
+        updateUnitDerivedMetric(root)
+        updateSummary(panel)
     })
 
     document.addEventListener('keydown', (event) => {
@@ -2400,9 +2702,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (type && type !== 'nenhuma') derivedTypes.add(type)
             })
             if (distanceCount) {
-                const displayUnit = panel.dataset.distanceUnit || 'km'
-                const value = displayUnit === 'm' ? distanceM : distanceM / 1000
-                parts.push(`${i18n.number(Number(value.toFixed(3)), 3, true)} ${displayUnit}`.trim())
+                const distanceText = sportContextEngine?.formatDistance?.(distanceM, mainSportContext(panel, {registered_m:distanceM}), sportContextLocale())
+                if (distanceText) parts.push(distanceText)
             }
             if (durationCount) parts.push(formatDurationCompact(duration))
             if (distanceCount && durationCount && derivedTypes.size === 1) {
@@ -2422,12 +2723,13 @@ document.addEventListener('DOMContentLoaded', () => {
             return
         }
         if (label) label.textContent = tr('activity.summary')
-        const distance = distanceValue(panel)
-        const distanceUnit = panel.dataset.distanceUnit || ''
+        const distanceData = primaryDistanceData(panel)
+        const distance = distanceData.value
+        const distanceUnit = distanceData.symbol
         const duration = durationToSeconds(durationField(panel))
         const derived = panel.querySelector('[data-derived-input]')
         const config = derivedConfig(panel)
-        if (distance) parts.push(`${i18n.number(Number(distance.toFixed(3)), 3, true)} ${distanceUnit}`.trim())
+        if (distanceData.meters) parts.push(sportContextEngine?.formatDistance?.(distanceData.meters, mainSportContext(panel, {registered_m:distanceData.meters}), sportContextLocale(), distanceFieldInput(distanceData.field)?.closest('[data-dynamic-field]')?.dataset.distanceUnitManual === '1' ? distanceUnit : '') || `${i18n.number(Number(distance.toFixed(3)), 3, true)} ${distanceUnit}`.trim())
         if (duration !== null) parts.push(formatDurationCompact(duration))
         if (derived?.value) parts.push(`${derived.value} ${config.unit}`)
         if (distance && duration && config.type === 'pace_km') {
@@ -2600,7 +2902,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 let unit = 'm'
                 if (slugs.includes('distancia')) {
                     input = activeUnitContext.querySelector('[data-segment-distance]') || findUnitField(activeUnitContext, 'distancia')?.querySelector('input[type="number"], input[type="text"]')
-                    unit = activeUnitContext.querySelector('[data-segment-distance-unit-value]')?.value || findUnitField(activeUnitContext, 'distancia')?.querySelector('.field-unit')?.textContent?.trim() || panel.dataset.distanceUnit || 'km'
+                    unit = activeUnitContext.querySelector('[data-segment-distance]') ? segmentDistanceUnit(activeUnitContext) : distanceDisplayUnit(findUnitField(activeUnitContext, 'distancia'))
                 } else {
                     input = activeUnitContext.querySelector('[data-segment-elevation]') || (findUnitField(activeUnitContext, 'elevacao') || findUnitField(activeUnitContext, 'desnivel'))?.querySelector('input[type="number"], input[type="text"]')
                 }
@@ -2610,6 +2912,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 input.value = String(Number((unit === 'km' ? meters / 1000 : meters).toFixed(slugs.includes('distancia') ? 3 : 1)))
                 input.dataset.routeAutoFilled = '1'
                 input.dispatchEvent(new Event('input', {bubbles: true}))
+                if (slugs.includes('distancia')) {
+                    if (isSegmentMode(panel)) syncSegmentDistanceContext(activeUnitContext, panel)
+                    else syncDistanceFieldContext(findUnitField(activeUnitContext, 'distancia'), unitSportContextData(activeUnitContext, panel, {registered_m:meters}))
+                }
                 return
             }
             const field = slugs.map(slug => findPrimaryField(panel, slug)).find(Boolean)
@@ -2617,9 +2923,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!field || !input || manuallyEditedCalculatedInputs.has(input)) return
             field.hidden = false
             field.classList.remove('is-optional-hidden')
-            const unit = field.querySelector('.field-unit')?.textContent?.trim() || (slugs.includes('distancia') ? panel.dataset.distanceUnit : 'm')
+            const unit = slugs.includes('distancia') ? distanceDisplayUnit(field) : (field.querySelector('.field-unit')?.textContent?.trim() || 'm')
             input.value = String(Number((unit === 'km' ? meters / 1000 : meters).toFixed(3)))
             input.dispatchEvent(new Event('input', {bubbles: true}))
+            if (slugs.includes('distancia')) syncDistanceFieldContext(field, mainSportContext(panel, {registered_m:meters}))
             updateOptionalChips(panel)
         }
         document.addEventListener('input', event => {
@@ -3125,7 +3432,8 @@ document.addEventListener('DOMContentLoaded', () => {
     })
 
     form?.addEventListener('stridebr:draft-restored', () => {
-        if (Array.from(form.querySelectorAll('[data-duration-milliseconds]')).some(input => Number.parseInt(String(input.value || '0'), 10) > 0)) setDurationPrecision(true)
+        durationPrecisionWasManuallyChanged = false
+        if (Array.from(form.querySelectorAll('[data-duration-milliseconds]')).some(input => Number.parseInt(String(input.value || '0'), 10) > 0)) setDurationPrecision(true, {ignoreManual:true})
         syncEffortUI()
         updateModelsForModality()
         initializeSegmentPanels(document)
@@ -3167,8 +3475,12 @@ document.addEventListener('DOMContentLoaded', () => {
             form.querySelector('[data-clock-hours]')?.focus()
             return
         }
+        if (event.defaultPrevented) return
+        const restoreDistancePresentation = normalizeDistanceFieldsForSubmission()
         if (!page || !window.fetch) return
         event.preventDefault()
+        const requestBody = new FormData(form)
+        restoreDistancePresentation()
         const submit = form.querySelector('button[type="submit"]')
         if (submit) {
             submit.disabled = true
@@ -3181,7 +3493,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const request = window.StrideBRNet?.fetch || fetch
             const response = await request(form.action || window.location.href, {
                 method: 'POST',
-                body: new FormData(form),
+                body: requestBody,
                 headers: {'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
                 credentials: 'same-origin'
             }, 18000)
@@ -3336,11 +3648,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const shareFormatInputs = Array.from(shareModal?.querySelectorAll('[data-share-format]') || [])
     const shareCompositionInputs = Array.from(shareModal?.querySelectorAll('[data-share-composition]') || [])
     const shareCompositionOptions = shareModal?.querySelector('[data-share-composition-options]')
-    const shareSelectedRoute = shareModal?.querySelector('[data-share-selected-route]')
-    const shareSelectedRouteName = shareModal?.querySelector('[data-share-selected-route-name]')
-    const shareChangeRouteButton = shareModal?.querySelector('[data-share-change-route]')
-    const shareRoutePicker = shareModal?.querySelector('[data-share-route-picker]')
-    const shareRoutePickerList = shareModal?.querySelector('[data-share-route-picker-list]')
     const shareColorInputs = Array.from(shareModal?.querySelectorAll('[data-share-background-color]') || [])
     const shareColorOptions = shareModal?.querySelector('[data-share-color-options]')
     const shareMapOption = shareModal?.querySelector('[data-share-map-option]')
@@ -3367,10 +3674,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const shareScopeButtons = Array.from(shareModal?.querySelectorAll('[data-share-scope]') || [])
     const shareSingleSegmentPicker = shareModal?.querySelector('[data-share-single-segment-picker]')
     const shareSingleSegmentList = shareModal?.querySelector('[data-share-single-segment-list]')
+    const shareMultipleSummary = shareModal?.querySelector('[data-share-multiple-summary]')
+    const shareSegmentSelectionSummary = shareModal?.querySelector('[data-share-segment-selection-summary]')
+    const shareSegmentSelectionInline = shareModal?.querySelector('[data-share-segment-selection-inline]')
+    const shareEditSegmentsButton = shareModal?.querySelector('[data-share-edit-segments]')
+    const shareSegmentDisclosure = shareModal?.querySelector('[data-share-segment-disclosure]')
     const shareSelectAllButton = shareModal?.querySelector('[data-share-select-all]')
     const shareComparisonControls = shareModal?.querySelector('[data-share-comparison-controls]')
     const shareComparisonMetric = shareModal?.querySelector('[data-share-comparison-metric]')
     const shareComparisonReference = shareModal?.querySelector('[data-share-comparison-reference]')
+    const shareSessionRouteOption = shareModal?.querySelector('[data-share-session-route-option]')
+    const shareActivityRouteToggle = shareModal?.querySelector('.activity-share-quick-controls [data-share-show="route"]')
+    const shareSessionRouteToggle = shareSessionRouteOption?.querySelector('[data-share-show="route"]')
+    const shareSessionCompactControls = shareModal?.querySelector('[data-share-session-compact-controls]')
+    const shareSessionCompactPrimary = shareModal?.querySelector('[data-share-session-compact-primary]')
+    const shareSessionCompactSecondary = shareModal?.querySelector('[data-share-session-compact-secondary]')
     const shareHeadingMode = shareModal?.querySelector('[data-share-heading-mode]')
     const shareSingleOnlySections = Array.from(shareModal?.querySelectorAll('[data-share-single-only]') || [])
     const shareSessionOnlySections = Array.from(shareModal?.querySelectorAll('[data-share-session-only]') || [])
@@ -3466,71 +3784,61 @@ document.addEventListener('DOMContentLoaded', () => {
             id: 'standard', label: tr('activity.share.composition_standard'), family: 'activity',
             supportedScopes: Object.freeze([SHARE_SCOPES.activity, SHARE_SCOPES.singleSegment]),
             supportedFormats: Object.freeze(['story', 'portrait', 'square']),
-            minSegments: 0, maxVisibleSegments: 1, requiresGeometry: false, supportsMap: true, supportsTitle: true,
+            minSegments: 0, maxVisibleSegments: 1, requiresGeometry: false, minGeometryCount: 0, minComparableSegments: 0, supportsMap: true, supportsTitle: true,
             metricBehavior: 'activity',
         }),
         compact: Object.freeze({
             id: 'compact', label: tr('activity.share.composition_compact'), family: 'activity',
             supportedScopes: Object.freeze([SHARE_SCOPES.activity, SHARE_SCOPES.singleSegment]),
             supportedFormats: Object.freeze(['story', 'portrait', 'square']),
-            minSegments: 0, maxVisibleSegments: 1, requiresGeometry: false, supportsMap: false, supportsTitle: false,
+            minSegments: 0, maxVisibleSegments: 1, requiresGeometry: false, minGeometryCount: 0, minComparableSegments: 0, supportsMap: false, supportsTitle: false,
             layoutByFormat: Object.freeze({story: 'vertical', portrait: 'vertical', square: 'grid'}),
             metricBehavior: 'activity',
         }),
         session_overview: Object.freeze({
-            id: 'session_overview', label: tr('activity.share.session_overview'), family: 'routes',
+            id: 'session_overview', label: tr('activity.share.session_overview'), family: 'session',
             supportedScopes: Object.freeze([SHARE_SCOPES.session, SHARE_SCOPES.multipleSegments]), supportedFormats: Object.freeze(['story']),
-            minSegments: 2, maxVisibleSegments: 5, requiresGeometry: true, supportsMap: true, supportsTitle: true, metricBehavior: 'session',
+            minSegments: 2, maxVisibleSegments: 6, requiresGeometry: true, minGeometryCount: 1, minComparableSegments: 0, supportsMap: true, supportsTitle: true, metricBehavior: 'session',
         }),
         session_by_segment: Object.freeze({
-            id: 'session_by_segment', label: tr('activity.share.session_by_segment'), family: 'routes',
+            id: 'session_by_segment', label: tr('activity.share.session_by_segment'), family: 'session',
             supportedScopes: Object.freeze([SHARE_SCOPES.session, SHARE_SCOPES.multipleSegments]), supportedFormats: Object.freeze(['story']),
-            minSegments: 2, maxVisibleSegments: 5, requiresGeometry: true, supportsMap: false, supportsTitle: true, metricBehavior: 'segment_primary',
+            minSegments: 2, maxVisibleSegments: 5, requiresGeometry: true, minGeometryCount: 1, minComparableSegments: 0, supportsMap: false, supportsTitle: true, metricBehavior: 'segment_primary',
         }),
         session_comparison: Object.freeze({
-            id: 'session_comparison', label: tr('activity.share.comparison'), family: 'routes',
+            id: 'session_comparison', label: tr('activity.share.comparison'), family: 'session',
             supportedScopes: Object.freeze([SHARE_SCOPES.session, SHARE_SCOPES.multipleSegments]), supportedFormats: Object.freeze(['story']),
-            minSegments: 2, maxVisibleSegments: 6, requiresGeometry: true, supportsMap: false, supportsTitle: true, metricBehavior: 'comparison',
-        }),
-        session_highlight_route: Object.freeze({
-            id: 'session_highlight_route', label: tr('activity.share.highlight'), family: 'routes',
-            supportedScopes: Object.freeze([SHARE_SCOPES.session, SHARE_SCOPES.multipleSegments]), supportedFormats: Object.freeze(['story']),
-            minSegments: 2, maxVisibleSegments: 4, requiresGeometry: true, supportsMap: false, supportsTitle: true, metricBehavior: 'highlight',
-        }),
-        session_sequence_route: Object.freeze({
-            id: 'session_sequence_route', label: tr('activity.share.sequence'), family: 'routes',
-            supportedScopes: Object.freeze([SHARE_SCOPES.session, SHARE_SCOPES.multipleSegments]), supportedFormats: Object.freeze(['story']),
-            minSegments: 2, maxVisibleSegments: 6, requiresGeometry: true, supportsMap: false, supportsTitle: true, metricBehavior: 'sequence',
-        }),
-        session_summary: Object.freeze({
-            id: 'session_summary', label: tr('activity.share.session_summary'), family: 'summary',
-            supportedScopes: Object.freeze([SHARE_SCOPES.session, SHARE_SCOPES.multipleSegments]), supportedFormats: Object.freeze(['story']),
-            minSegments: 2, maxVisibleSegments: null, requiresGeometry: false, supportsMap: false, supportsTitle: true, metricBehavior: 'session',
-        }),
-        session_list: Object.freeze({
-            id: 'session_list', label: tr('activity.share.list'), family: 'summary',
-            supportedScopes: Object.freeze([SHARE_SCOPES.session, SHARE_SCOPES.multipleSegments]), supportedFormats: Object.freeze(['story']),
-            minSegments: 2, maxVisibleSegments: 10, requiresGeometry: false, supportsMap: false, supportsTitle: true, metricBehavior: 'segment_primary',
-        }),
-        session_sequence: Object.freeze({
-            id: 'session_sequence', label: tr('activity.share.sequence'), family: 'summary',
-            supportedScopes: Object.freeze([SHARE_SCOPES.session, SHARE_SCOPES.multipleSegments]), supportedFormats: Object.freeze(['story']),
-            minSegments: 2, maxVisibleSegments: 7, requiresGeometry: false, supportsMap: false, supportsTitle: true, metricBehavior: 'sequence',
+            minSegments: 2, maxVisibleSegments: 6, requiresGeometry: false, minGeometryCount: 0, minComparableSegments: 2, supportsMap: false, supportsTitle: true, metricBehavior: 'comparison',
         }),
         session_highlight: Object.freeze({
-            id: 'session_highlight', label: tr('activity.share.highlight'), family: 'summary',
+            id: 'session_highlight', label: tr('activity.share.highlight'), family: 'session',
             supportedScopes: Object.freeze([SHARE_SCOPES.session, SHARE_SCOPES.multipleSegments]), supportedFormats: Object.freeze(['story']),
-            minSegments: 2, maxVisibleSegments: 4, requiresGeometry: false, supportsMap: false, supportsTitle: true, metricBehavior: 'highlight',
+            minSegments: 2, maxVisibleSegments: 4, requiresGeometry: false, minGeometryCount: 0, minComparableSegments: 2, supportsMap: false, supportsTitle: true, metricBehavior: 'highlight', supportsRouteToggle: true,
+        }),
+        session_sequence: Object.freeze({
+            id: 'session_sequence', label: tr('activity.share.sequence'), family: 'session',
+            supportedScopes: Object.freeze([SHARE_SCOPES.session, SHARE_SCOPES.multipleSegments]), supportedFormats: Object.freeze(['story']),
+            minSegments: 2, maxVisibleSegments: 6, requiresGeometry: false, minGeometryCount: 0, minComparableSegments: 0, supportsMap: false, supportsTitle: true, metricBehavior: 'sequence', supportsRouteToggle: true,
+        }),
+        session_summary: Object.freeze({
+            id: 'session_summary', label: tr('activity.share.session_summary'), family: 'session',
+            supportedScopes: Object.freeze([SHARE_SCOPES.session, SHARE_SCOPES.multipleSegments]), supportedFormats: Object.freeze(['story']),
+            minSegments: 2, maxVisibleSegments: null, requiresGeometry: false, minGeometryCount: 0, minComparableSegments: 0, supportsMap: false, supportsTitle: true, metricBehavior: 'session',
+        }),
+        session_list: Object.freeze({
+            id: 'session_list', label: tr('activity.share.list'), family: 'session',
+            supportedScopes: Object.freeze([SHARE_SCOPES.session, SHARE_SCOPES.multipleSegments]), supportedFormats: Object.freeze(['story']),
+            minSegments: 2, maxVisibleSegments: 10, requiresGeometry: false, minGeometryCount: 0, minComparableSegments: 0, supportsMap: false, supportsTitle: true, metricBehavior: 'segment_primary',
         }),
         session_minimal: Object.freeze({
-            id: 'session_minimal', label: tr('activity.share.minimal'), family: 'summary',
+            id: 'session_minimal', label: tr('activity.share.minimal'), family: 'session',
             supportedScopes: Object.freeze([SHARE_SCOPES.session, SHARE_SCOPES.multipleSegments]), supportedFormats: Object.freeze(['story']),
-            minSegments: 2, maxVisibleSegments: null, requiresGeometry: false, supportsMap: false, supportsTitle: true, metricBehavior: 'minimal',
+            minSegments: 2, maxVisibleSegments: null, requiresGeometry: false, minGeometryCount: 0, minComparableSegments: 0, supportsMap: false, supportsTitle: true, metricBehavior: 'minimal',
         }),
         session_compact: Object.freeze({
-            id: 'session_compact', label: tr('activity.share.composition_compact'), family: 'summary',
+            id: 'session_compact', label: tr('activity.share.composition_compact'), family: 'session',
             supportedScopes: Object.freeze([SHARE_SCOPES.session, SHARE_SCOPES.multipleSegments]), supportedFormats: Object.freeze(['story']),
-            minSegments: 2, maxVisibleSegments: 5, requiresGeometry: false, supportsMap: false, supportsTitle: false, metricBehavior: 'compact_session',
+            minSegments: 2, maxVisibleSegments: 5, requiresGeometry: false, minGeometryCount: 0, minComparableSegments: 0, supportsMap: false, supportsTitle: false, metricBehavior: 'compact_session',
         }),
     })
     const shareCompositionCompatibility = (compositionId, context = {}) => {
@@ -3542,7 +3850,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const geometryCount = Math.max(0, Number(context.geometryCount) || 0)
         if (!definition.supportedScopes.includes(scope) || !definition.supportedFormats.includes(format)) return false
         if (segmentCount < definition.minSegments) return false
-        if (definition.requiresGeometry && geometryCount < 1) return false
+        const minGeometryCount = Math.max(Number(definition.minGeometryCount) || 0, definition.requiresGeometry ? 1 : 0)
+        if (geometryCount < minGeometryCount) return false
+        const minComparableSegments = Math.max(0, Number(definition.minComparableSegments) || 0)
+        if (minComparableSegments > 0 && Math.max(0, Number(context.comparableSegmentCount) || 0) < minComparableSegments) return false
         if (context.requiresMap && !definition.supportsMap) return false
         if (context.requiresTitle && !definition.supportsTitle) return false
         return true
@@ -3587,11 +3898,21 @@ document.addEventListener('DOMContentLoaded', () => {
     let lastNonMapSharePresetId = SHARE_PRESET_FALLBACK
     let activeShareContentId = 'route'
     let activeShareCompositionId = 'standard'
-    let shareSingleRouteMode = false
+    const SHARE_BACKGROUND_COLORS = Object.freeze({
+        deep: Object.freeze({id: 'deep', base: '#132243', stops: Object.freeze(['#101f3d', '#132243', '#0f1c35'])}),
+        dark: Object.freeze({id: 'dark', base: '#0B1324', stops: Object.freeze(['#08101f', '#0B1324', '#070e1b'])}),
+    })
+    const normalizeShareBackgroundColor = value => {
+        const id = String(value || '')
+        if (id === 'dark' || id === 'black') return 'dark'
+        return 'deep'
+    }
     const shareDefaultPresetColors = Object.freeze({stats: 'deep', map: 'deep', photo: 'deep', transparent: 'deep'})
     let sharePresetColors = {...shareDefaultPresetColors}
     const tileCache = new Map()
     const shareMapPreviewCache = new Map()
+    const shareStreetLabelFreeCache = new Map()
+    const shareStreetLabelFreeRequests = new Map()
     const roadCache = new Map()
     const shareRouteCoordinateCache = new WeakMap()
     const shareSegmentDataCache = new WeakMap()
@@ -3681,7 +4002,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
         const savedPresetColors = JSON.parse(localStorage.getItem(SHARE_PRESET_COLORS_KEY) || '{}')
         if (savedPresetColors && typeof savedPresetColors === 'object') {
-            sharePresetColors = {...shareDefaultPresetColors, ...Object.fromEntries(Object.entries(savedPresetColors).filter(([key, value]) => key in shareDefaultPresetColors && ['deep', 'dark', 'light', 'black'].includes(String(value))))}
+            sharePresetColors = {...shareDefaultPresetColors, ...Object.fromEntries(Object.entries(savedPresetColors).filter(([key]) => key in shareDefaultPresetColors).map(([key, value]) => [key, normalizeShareBackgroundColor(value)]))}
         }
     } catch (_) {}
     const SHARE_ROUTE_STYLE = Object.freeze({
@@ -3787,8 +4108,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const drawWidth = image.naturalWidth * scale; const drawHeight = image.naturalHeight * scale
         context.drawImage(image, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight)
     }
-    const shareShows = (key) => shareModal?.querySelector(`[data-share-show="${key}"]`)?.checked !== false
-    const getShareHeadingMode = () => ['title', 'none'].includes(String(shareHeadingMode?.value || '')) ? shareHeadingMode.value : 'title'
+    const shareShows = (key) => {
+        if (key === 'route') {
+            const toggle = shareSessionRouteOption && !shareSessionRouteOption.hidden ? shareSessionRouteToggle : shareActivityRouteToggle
+            return toggle?.checked !== false
+        }
+        return shareModal?.querySelector(`[data-share-show="${key}"]`)?.checked !== false
+    }
+    const getShareHeadingMode = () => shareHeadingMode?.checked === false ? 'none' : 'title'
     const shareHeadingText = (data, mode = getShareHeadingMode()) => {
         if (mode === 'none') return ''
         if (mode === 'sport') return String(data?.modalidade || tr('nav.physical_activity')).trim()
@@ -3850,13 +4177,45 @@ document.addEventListener('DOMContentLoaded', () => {
         const index = orders[family].indexOf(type)
         return index >= 0 ? index : 40 + shareMetricCanonicalRank(metric)
     }
+    const shareMetricIsZeroElevation = metric => {
+        if (shareMetricType(metric) !== 'elevation') return false
+        const raw = String(metric?.valor ?? '').replace(',', '.').match(/-?\d+(?:\.\d+)?/)
+        return raw ? Math.abs(Number(raw[0])) < .000001 : false
+    }
     const applyShareMetricDefaults = (data, metrics) => {
         const ordered = (Array.isArray(metrics) ? metrics : []).slice().sort((a,b) => shareMetricPriority(data,a) - shareMetricPriority(data,b))
-        const automatic = ordered.filter(metric => shareMetricType(metric) !== 'effort').slice(0,4)
+        const automatic = ordered.filter(metric => shareMetricType(metric) !== 'effort' && !shareMetricIsZeroElevation(metric)).slice(0,4)
         const selectedKeys = new Set(automatic.map(metric => metric.key))
         ordered.forEach(metric => { metric.defaultSelected = selectedKeys.has(metric.key) })
         return ordered
     }
+    const isShareableSegment = segment => {
+        if (!segment || typeof segment !== 'object') return false
+        const semanticFlags = [
+            'synthetic','sintetico','is_summary','isSummary','summary','resumo','is_primary','isPrimary','primary','principal',
+            'is_aggregate','isAggregate','aggregate','agregado','placeholder','is_placeholder','isPlaceholder','is_general','isGeneral',
+            'general','geral','is_main','isMain','main','is_activity','isActivity','activity_unit','is_overall','isOverall','overall'
+        ]
+        if (semanticFlags.some(key => segment[key] === true)) return false
+        const role = normalizeShareMetricLabel(segment.share_role || segment.role || segment.papel || segment.kind || segment.tipo_registro || '')
+        if (['summary','resumo','primary','principal','main','aggregate','agregado','placeholder','activity','atividade','overall','geral','general','session','sessao','total'].includes(role)) return false
+        const type = normalizeShareMetricLabel(segment.tipo || segment.tipo_unidade || segment.type || '')
+        if (['sessao','session','resumo','summary','principal','primary','main','atividade','activity','agregado','aggregate','overall','geral','general','total','placeholder'].includes(type)) return false
+        return true
+    }
+    const shareableSegmentsForData = data => {
+        if (!data || data.usa_trechos !== true) return []
+        const seenIds = new Set()
+        return (Array.isArray(data.trechos) ? data.trechos : []).filter(segment => {
+            if (!isShareableSegment(segment)) return false
+            const id = String(segment?.id ?? segment?.unidade_id ?? '').trim()
+            if (!id) return true
+            if (seenIds.has(id)) return false
+            seenIds.add(id)
+            return true
+        })
+    }
+
     const activityDetailToShareData = activity => {
         const rawShareMetrics = activity?.metricas_compartilhamento || activity?.metricas || []
         const focusMetric = rawShareMetrics.find(metric => normalizeShareMetricLabel(metric?.rotulo) === 'foco')
@@ -3868,7 +4227,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (Number(strength?.volume_kg) > 0 && !hasType('volume')) shareMetrics.push({key:'strength-volume', rotulo:tr('activity.strength.volume', {}, 'Volume'), valor:`${i18n.number?.(Math.round(Number(strength.volume_kg)), 0) ?? Math.round(Number(strength.volume_kg))} kg`})
         if (Number(strength?.total_exercicios) > 0 && !hasType('exercises')) shareMetrics.push({key:'strength-exercises', rotulo:tr('activity.strength.exercises'), valor:String(strength.total_exercicios)})
         if (Number(strength?.total_series) > 0 && !hasType('sets')) shareMetrics.push({key:'strength-sets', rotulo:tr('activity.strength.sets'), valor:String(strength.total_series)})
-        if (Boolean(activity?.usa_trechos) && Array.isArray(activity?.unidades) && activity.unidades.length > 0 && !hasType('segments')) shareMetrics.push({key:'activity-segments', rotulo:tr('activity.share.segments'), valor:String(activity.unidades.length)})
+        const rawUnits = Array.isArray(activity?.unidades) ? activity.unidades : []
+        const shareUnits = rawUnits.filter(isShareableSegment)
+        if (Boolean(activity?.usa_trechos) && shareUnits.length > 0 && !hasType('segments')) shareMetrics.push({key:'activity-segments', rotulo:tr('activity.share.segments'), valor:String(shareUnits.length)})
         return {
             ...(activity?.rota || {}),
             id: activity?.id || '',
@@ -3881,7 +4242,7 @@ document.addEventListener('DOMContentLoaded', () => {
             hora: activity?.hora || '',
             metricas: shareMetrics,
             usa_trechos: Boolean(activity?.usa_trechos),
-            trechos: Array.isArray(activity?.unidades) ? activity.unidades.map((unit, index) => ({
+            trechos: shareUnits.map((unit, index) => ({
                 id: unit.id || String(index + 1),
                 tipo: unit.tipo || 'trecho',
                 rotulo: unit.rotulo || `${tr('activity.share.segment')} ${index + 1}`,
@@ -3895,7 +4256,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 rota: unit.rota || null,
                 metricas: (unit.metricas_compartilhamento || unit.valores || []).filter(metric => !isSharePrivateMetric(metric)),
                 ...(unit.rota || {})
-            })) : []
+            }))
         }
     }
     const availableShareMetrics = (data) => {
@@ -3906,26 +4267,45 @@ document.addEventListener('DOMContentLoaded', () => {
         return applyShareMetricDefaults(data, unique)
     }
     const shareFocusLabel = data => String(data?.foco || '').trim()
-    const formatShareDistance = meters => {
+    const shareLocaleTag = () => String(i18n.locale || '').toLowerCase().startsWith('en') ? 'en-US' : 'pt-BR'
+    const formatShareNumber = (value, minimumFractionDigits = 0, maximumFractionDigits = minimumFractionDigits, {useGrouping = true} = {}) => {
+        const number = Number(value)
+        if (!Number.isFinite(number)) return ''
+        return number.toLocaleString(shareLocaleTag(), {minimumFractionDigits, maximumFractionDigits, useGrouping})
+    }
+    const formatShareDistance = (meters, subject = shareData) => {
         const value = Number(meters)
-        if (!Number.isFinite(value)) return ''
-        if (value >= 1000) return `${i18n.number?.(value / 1000, value >= 10000 ? 1 : 2, true) ?? String(Number((value / 1000).toFixed(value >= 10000 ? 1 : 2)))} km`
-        return `${i18n.number?.(Math.round(value), 0) ?? String(Math.round(value))} m`
+        if (!Number.isFinite(value) || value < 0) return ''
+        if (sportContextEngine?.formatDistance) return sportContextEngine.formatDistance(value, sportContextEngine.context({slug:String(subject?.modalidade_slug || ''), family:String(subject?.modalidade_familia_hub || ''), registered_m:value}), sportContextLocale())
+        if (value >= 1000) {
+            const digits = value >= 10000 ? 1 : 2
+            return `${formatShareNumber(value / 1000, 0, digits)} km`
+        }
+        return `${formatShareNumber(Math.round(value), 0, 0)} m`
     }
     const formatShareDuration = seconds => {
-        const totalMilliseconds = Math.max(0, Math.round((Number(seconds) || 0) * 1000))
-        const totalSeconds = Math.floor(totalMilliseconds / 1000)
-        const h = Math.floor(totalSeconds / 3600)
-        const m = Math.floor((totalSeconds % 3600) / 60)
-        const s = totalSeconds % 60
-        const ms = totalMilliseconds % 1000
-        const decimal = i18n.locale === 'pt-BR' ? ',' : '.'
-        const fraction = ms > 0 ? `${decimal}${String(ms).padStart(3, '0')}` : ''
-        return h > 0 ? `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}${fraction}` : `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}${fraction}`
+        const value = Number(seconds)
+        if (!Number.isFinite(value) || value < 0) return ''
+        const totalMilliseconds = Math.max(0, Math.round(value * 1000))
+        const h = Math.floor(totalMilliseconds / 3600000)
+        const remainingHour = totalMilliseconds % 3600000
+        const m = Math.floor(remainingHour / 60000)
+        const remainingMinute = remainingHour % 60000
+        const s = Math.floor(remainingMinute / 1000)
+        const ms = remainingMinute % 1000
+        const fractionDigits = ms > 0 ? String(ms).padStart(3, '0').replace(/0+$/, '') : ''
+        const fraction = fractionDigits ? `${shareLocaleTag() === 'pt-BR' ? ',' : '.'}${fractionDigits}` : ''
+        return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}${fraction}` : `${m}:${String(s).padStart(2, '0')}${fraction}`
     }
-    const formatSharePaceSeconds = seconds => {
-        const total = Math.max(0, Math.round(Number(seconds) || 0))
+    const formatSharePaceClock = seconds => {
+        const value = Number(seconds)
+        if (!Number.isFinite(value) || value < 0) return ''
+        const total = Math.max(0, Math.round(value))
         return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
+    }
+    const formatSharePace = (seconds, unit = '/km') => {
+        const clock = formatSharePaceClock(seconds)
+        return clock ? `${clock}${unit}` : ''
     }
     const shareSegmentNumbers = segment => {
         const route = segment?.rota || segment || {}
@@ -3969,30 +4349,30 @@ document.addEventListener('DOMContentLoaded', () => {
         if (durationValues.length) metrics.push({key: 'session-duration', rotulo: durationValues.length === selected.length ? tr('activity.share.total_time') : tr('activity.share.logged_time'), valor: formatShareDuration(totalDuration), defaultSelected: true})
         if (compatibleDerived) {
             const type = Array.from(derivedTypes)[0]
-            if (type === 'pace_km') metrics.push({key: 'session-weighted-pace', rotulo: tr('activity.share.average_pace'), valor: `${formatSharePaceSeconds(totalDuration / (totalDistance / 1000))}/km`, defaultSelected: true})
-            else if (type === 'velocidade_kmh') metrics.push({key: 'session-weighted-speed', rotulo: tr('activity.share.average_speed'), valor: `${i18n.number?.((totalDistance / 1000 / (totalDuration / 3600)), 1) ?? (totalDistance / 1000 / (totalDuration / 3600)).toFixed(1)} km/h`, defaultSelected: true})
-            else if (type === 'pace_100m') metrics.push({key: 'session-weighted-100m', rotulo: tr('activity.share.average_pace'), valor: `${formatSharePaceSeconds(totalDuration / (totalDistance / 100))}/100 m`, defaultSelected: true})
-            else if (type === 'split_500m') metrics.push({key: 'session-weighted-500m', rotulo: tr('activity.share.average_split'), valor: `${formatSharePaceSeconds(totalDuration / (totalDistance / 500))}/500 m`, defaultSelected: true})
+            if (type === 'pace_km') metrics.push({key: 'session-weighted-pace', rotulo: tr('activity.share.average_pace'), valor: formatSharePace(totalDuration / (totalDistance / 1000)), defaultSelected: true})
+            else if (type === 'velocidade_kmh') metrics.push({key: 'session-weighted-speed', rotulo: tr('activity.share.average_speed'), valor: `${formatShareNumber(totalDistance / 1000 / (totalDuration / 3600), 1, 1)} km/h`, defaultSelected: true})
+            else if (type === 'pace_100m') metrics.push({key: 'session-weighted-100m', rotulo: tr('activity.share.average_pace'), valor: formatSharePace(totalDuration / (totalDistance / 100), '/100 m'), defaultSelected: true})
+            else if (type === 'split_500m') metrics.push({key: 'session-weighted-500m', rotulo: tr('activity.share.average_split'), valor: formatSharePace(totalDuration / (totalDistance / 500), '/500 m'), defaultSelected: true})
         }
         metrics.push({key: 'session-segments', rotulo: tr('activity.share.segments'), valor: String(selected.length), defaultSelected: !compatibleDerived})
-        if (elevationValues.length) metrics.push({key: 'session-elevation-total', rotulo: elevationValues.length === selected.length ? tr('activity.share.total_elevation') : tr('activity.share.logged_elevation'), valor: `${i18n.number?.(Number(totalElevation.toFixed(1)), 1, true) ?? String(Number(totalElevation.toFixed(1)))} m`, defaultSelected: true})
+        if (elevationValues.length) metrics.push({key: 'session-elevation-total', rotulo: elevationValues.length === selected.length ? tr('activity.share.total_elevation') : tr('activity.share.logged_elevation'), valor: `${formatShareNumber(totalElevation, 0, 1)} m`, defaultSelected: true})
         if (gainValues.length) {
             const maxGain = Math.max(...gainValues)
             const avgGain = gainValues.reduce((sum, value) => sum + value, 0) / gainValues.length
-            metrics.push({key: 'session-elevation-max-gain', rotulo: tr('activity.share.max_segment_gain'), valor: `${i18n.number?.(Number(maxGain.toFixed(1)), 1, true) ?? String(Number(maxGain.toFixed(1)))} m`, defaultSelected: false})
-            metrics.push({key: 'session-elevation-average-gain', rotulo: tr('activity.share.average_gain'), valor: `${i18n.number?.(Number(avgGain.toFixed(1)), 1, true) ?? String(Number(avgGain.toFixed(1)))} m`, defaultSelected: false})
+            metrics.push({key: 'session-elevation-max-gain', rotulo: tr('activity.share.max_segment_gain'), valor: `${formatShareNumber(maxGain, 0, 1)} m`, defaultSelected: false})
+            metrics.push({key: 'session-elevation-average-gain', rotulo: tr('activity.share.average_gain'), valor: `${formatShareNumber(avgGain, 0, 1)} m`, defaultSelected: false})
         }
-        if (maxAltitudeValues.length) metrics.push({key: 'session-elevation-max-altitude', rotulo: tr('activity.share.max_altitude'), valor: `${i18n.number?.(Number(Math.max(...maxAltitudeValues).toFixed(1)), 1, true) ?? String(Number(Math.max(...maxAltitudeValues).toFixed(1)))} m`, defaultSelected: false})
+        if (maxAltitudeValues.length) metrics.push({key: 'session-elevation-max-altitude', rotulo: tr('activity.share.max_altitude'), valor: `${formatShareNumber(Math.max(...maxAltitudeValues), 0, 1)} m`, defaultSelected: false})
         if (compatibleDerived) {
             const type = Array.from(derivedTypes)[0]
             const perSegment = numbers.map((item, index) => ({...item, index})).filter(item => item.distance > 0 && item.duration > 0)
             if (type === 'pace_km' && perSegment.length) {
                 const best = Math.min(...perSegment.map(item => item.duration / (item.distance / 1000)))
-                metrics.push({key: 'session-best-pace', rotulo: tr('activity.share.best_segment_pace'), valor: `${formatSharePaceSeconds(best)}/km`, defaultSelected: false})
+                metrics.push({key: 'session-best-pace', rotulo: tr('activity.share.best_segment_pace'), valor: formatSharePace(best), defaultSelected: false})
             }
             if (type === 'velocidade_kmh' && perSegment.length) {
                 const best = Math.max(...perSegment.map(item => item.distance / 1000 / (item.duration / 3600)))
-                metrics.push({key: 'session-best-speed', rotulo: tr('activity.share.best_segment_speed'), valor: `${i18n.number?.(best, 1) ?? best.toFixed(1)} km/h`, defaultSelected: false})
+                metrics.push({key: 'session-best-speed', rotulo: tr('activity.share.best_segment_speed'), valor: `${formatShareNumber(best, 1, 1)} km/h`, defaultSelected: false})
             }
         }
         const wanted = compatibleDerived
@@ -4137,15 +4517,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const getShareContentPreset = (id = activeShareContentId) => SHARE_CONTENT_PRESETS.find(preset => preset.id === id) || SHARE_CONTENT_PRESETS[0]
     const getShareCompositionDefinition = (id = activeShareCompositionId) => SHARE_COMPOSITION_REGISTRY[String(id || '')] || SHARE_COMPOSITION_REGISTRY.standard
-    const getSharePresetColor = (presetId) => sharePresetColors[presetId] || shareDefaultPresetColors[presetId] || 'deep'
+    const getSharePresetColor = (presetId) => normalizeShareBackgroundColor(sharePresetColors[presetId] || shareDefaultPresetColors[presetId] || 'deep')
     const persistSharePresetColors = () => { try { localStorage.setItem(SHARE_PRESET_COLORS_KEY, JSON.stringify(sharePresetColors)) } catch (_) {} }
     const syncShareColorSelection = (presetId = activeSharePresetId) => {
         const color = getSharePresetColor(presetId)
         shareColorInputs.forEach(input => { input.checked = input.value === color })
     }
     const setSharePresetColor = (presetId, color, {persist = true} = {}) => {
-        if (!presetId || !['deep', 'dark', 'light', 'black'].includes(String(color))) return
-        sharePresetColors[presetId] = String(color)
+        if (!presetId) return
+        sharePresetColors[presetId] = normalizeShareBackgroundColor(color)
         if (persist) persistSharePresetColors()
         if (presetId === activeSharePresetId) syncShareColorSelection(presetId)
     }
@@ -4156,7 +4536,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const getShareContentMode = () => [SHARE_SCOPES.session, SHARE_SCOPES.multipleSegments, SHARE_SCOPES.singleSegment].includes(getShareScope()) ? 'segments' : 'activity'
     const getShareSegmentMode = () => getShareScope() === SHARE_SCOPES.singleSegment ? 'separate' : 'together'
-    const shareSegments = () => Array.isArray(shareData?.trechos) ? shareData.trechos : []
+    const shareSegments = () => shareableSegmentsForData(shareData)
     const shareHasRoute = data => routeCoordinatesForSharing(data).length >= 2
     const shareSelectedIndexesForScope = (scope = getShareScope()) => {
         const normalized = normalizeShareScope(scope)
@@ -4166,6 +4546,13 @@ document.addEventListener('DOMContentLoaded', () => {
         return []
     }
     const shareGeometryCountForScope = (scope = getShareScope()) => shareSelectedIndexesForScope(scope).filter(index => shareHasRoute(shareDataForSegment(index))).length
+    const shareComparableSegmentCountForScope = (scope = getShareScope()) => {
+        const normalized = normalizeShareScope(scope)
+        if (![SHARE_SCOPES.session, SHARE_SCOPES.multipleSegments].includes(normalized)) return 0
+        const segments = shareSelectedIndexesForScope(normalized).map(index => shareDataForSegment(index)).filter(Boolean)
+        const capabilities = shareComparisonCapabilities(segments).capabilities
+        return capabilities.reduce((maximum, capability) => Math.max(maximum, Number(capability.count) || 0), 0)
+    }
     const sharePreferenceContext = scope => [SHARE_SCOPES.session, SHARE_SCOPES.multipleSegments].includes(normalizeShareScope(scope)) ? 'session' : 'activity'
     const sharePreferenceStorageKey = scope => `${SHARE_LAST_USED_KEY}.${sharePreferenceContext(scope)}.v2`
     const defaultSharePreference = (data, scope = getShareScope()) => {
@@ -4184,7 +4571,9 @@ document.addEventListener('DOMContentLoaded', () => {
             showDate: false,
             showLogo: true,
             showRoute: hasRoute,
-            metricKeys: []
+            metricKeys: [],
+            compactPrimaryMetric: '',
+            compactSecondaryMetric: ''
         }
     }
     const normalizeSharePreference = (value, data, scope = getShareScope()) => {
@@ -4196,7 +4585,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const geometryCount = normalizedScope === SHARE_SCOPES.activity ? (shareHasRoute(data) ? 1 : 0) : shareGeometryCountForScope(normalizedScope)
         let composition = SHARE_COMPOSITION_REGISTRY[String(raw.composition || '')]?.id || fallback.composition
         const requestedFormat = SHARE_FORMATS[String(raw.format || '')] ? String(raw.format) : fallback.format
-        const compatibility = {scope: normalizedScope, format: requestedFormat, segmentCount, geometryCount}
+        const comparableSegmentCount = [SHARE_SCOPES.session, SHARE_SCOPES.multipleSegments].includes(normalizedScope)
+            ? shareComparableSegmentCountForScope(normalizedScope)
+            : 0
+        const compatibility = {scope: normalizedScope, format: requestedFormat, segmentCount, geometryCount, comparableSegmentCount}
         if (!shareCompositionCompatibility(composition, compatibility)) composition = fallback.composition
         const definition = SHARE_COMPOSITION_REGISTRY[composition] || SHARE_COMPOSITION_REGISTRY.standard
         const format = definition.supportedFormats.includes(requestedFormat) ? requestedFormat : definition.supportedFormats[0]
@@ -4207,12 +4599,14 @@ document.addEventListener('DOMContentLoaded', () => {
         let content = getShareContentPreset(String(raw.content || fallback.content)).id
         if (![SHARE_SCOPES.activity, SHARE_SCOPES.singleSegment].includes(normalizedScope)) content = 'none'
         if (content === 'route' && !hasRoute) content = 'sport'
-        const color = ['deep', 'dark', 'light', 'black'].includes(String(raw.color || '')) ? String(raw.color) : fallback.color
+        const color = normalizeShareBackgroundColor(raw.color || fallback.color)
         const routeScale = Math.max(50, Math.min(200, Number(raw.routeScale) || fallback.routeScale))
         const mapStyle = ['street', 'satellite'].includes(String(raw.mapStyle || '')) ? String(raw.mapStyle) : fallback.mapStyle
         const headingMode = [SHARE_SCOPES.session, SHARE_SCOPES.multipleSegments].includes(normalizedScope) ? 'sport' : (String(raw.headingMode || '') === 'none' ? 'none' : 'title')
         const metricKeys = Array.isArray(raw.metricKeys) ? raw.metricKeys.map(String).filter(Boolean).slice(0, 4) : []
-        return {format, composition, preset, content, color, routeScale, mapStyle, headingMode, showDate: raw.showDate === true, showLogo: raw.showLogo !== false, showRoute: hasRoute && raw.showRoute !== false, metricKeys}
+        const compactPrimaryMetric = String(raw.compactPrimaryMetric || fallback.compactPrimaryMetric || '')
+        const compactSecondaryMetric = String(raw.compactSecondaryMetric || fallback.compactSecondaryMetric || '')
+        return {format, composition, preset, content, color, routeScale, mapStyle, headingMode, showDate: raw.showDate === true, showLogo: true, showRoute: hasRoute && raw.showRoute !== false, metricKeys, compactPrimaryMetric, compactSecondaryMetric}
     }
     const loadLastSharePreference = (data, scope = getShareScope()) => {
         try {
@@ -4228,8 +4622,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const captureCurrentSharePreference = (data, scope = getShareScope()) => normalizeSharePreference({
         format: getShareFormatValue(), composition: activeShareCompositionId, preset: activeSharePresetId, content: activeShareContentId,
         color: getSharePresetColor(activeSharePresetId) || getShareColorValue(), routeScale: getShareRouteScaleValue(), mapStyle: getShareMapStyleValue(),
-        headingMode: getShareHeadingMode(), showDate: shareShows('date'), showLogo: shareShows('logo'), showRoute: shareShows('route'),
-        metricKeys: Array.from(shareMetricOptions?.querySelectorAll('[data-share-metric]:checked') || []).map(input => String(input.dataset.metricKey || '')).filter(Boolean).slice(0, 4)
+        headingMode: getShareHeadingMode(), showDate: shareShows('date'), showLogo: true, showRoute: shareShows('route'),
+        metricKeys: Array.from(shareMetricOptions?.querySelectorAll('[data-share-metric]:checked') || []).map(input => String(input.dataset.metricKey || '')).filter(Boolean).slice(0, 4),
+        compactPrimaryMetric: shareSessionCompactPrimary?.value || '',
+        compactSecondaryMetric: shareSessionCompactSecondary?.value || ''
     }, data, scope)
     const storeSharePreference = (data, value, scope = getShareScope()) => {
         const preference = normalizeSharePreference(value, data, scope)
@@ -4240,6 +4636,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const getSelectedShareSegmentIndexes = () => Array.from(shareSegmentList?.querySelectorAll('[data-share-segment-check]:checked') || [])
         .map(input => Number(input.value))
         .filter(index => Number.isFinite(index) && Boolean(shareSegments()[index]))
+    const syncShareSegmentSelectionSummary = () => {
+        const total = shareSegments().length
+        const selected = getSelectedShareSegmentIndexes().length
+        const text = tr('activity.share.segments_selected', {selected, total})
+        if (shareSegmentSelectionSummary) shareSegmentSelectionSummary.textContent = text
+        if (shareSegmentSelectionInline) shareSegmentSelectionInline.textContent = text
+    }
     const getActiveShareSegmentIndex = () => {
         const selected = Number(shareSegmentPreviewSelect?.value)
         if (Number.isFinite(selected) && shareSegments()[selected]) return selected
@@ -4255,7 +4658,7 @@ document.addEventListener('DOMContentLoaded', () => {
             modalidade: segment.modalidade || shareData?.modalidade || tr('common.activity'),
             modalidade_slug: segment.modalidade_slug || shareData?.modalidade_slug || '',
             modalidade_icone: segment.modalidade_icone || shareData?.modalidade_icone || 'track_and_field',
-            titulo: segment.rotulo || `${tr('activity.share.segment')} ${index + 1}`,
+            titulo: segment.rotulo || segment.titulo || `${tr('activity.share.segment')} ${index + 1}`,
             data: shareData?.data || '',
             hora: shareData?.hora || '',
             metricas: Array.isArray(segment.metricas) ? segment.metricas : [],
@@ -4308,12 +4711,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const strong = document.createElement('strong')
                 strong.textContent = String(data?.titulo || `${tr('activity.share.segment')} ${index + 1}`)
                 const small = document.createElement('small')
-                small.textContent = shareRoutePickerMeta(data, index)
+                small.textContent = shareSegmentPreviewMeta(data, index)
                 copy.append(strong, small)
                 button.append(route, copy)
                 button.addEventListener('click', () => {
                     shareSegmentPreviewSelect.value = String(index)
-                    shareSegmentList.querySelectorAll('[data-share-segment-check]').forEach(candidate => { candidate.checked = Number(candidate.value) === index })
                     syncSingleSegmentSelection()
                     populateShareMetricOptions({preserve: false})
                     updateShareControlAvailability()
@@ -4323,6 +4725,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         })
         syncSingleSegmentSelection()
+        syncShareSegmentSelectionSummary()
     }
     const syncSingleSegmentSelection = () => {
         const index = getActiveShareSegmentIndex()
@@ -4332,7 +4735,6 @@ document.addEventListener('DOMContentLoaded', () => {
             button.setAttribute('aria-pressed', active ? 'true' : 'false')
         })
     }
-    const routableShareSegmentIndexes = () => shareSegments().map((segment, index) => shareHasRoute(shareDataForSegment(index)) ? index : -1).filter(index => index >= 0)
     const shareRouteSilhouetteSvg = data => {
         const coordinates = routeCoordinatesForSharing(data)
         if (coordinates.length < 2) return ''
@@ -4345,78 +4747,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const points = coordinates.map(([x,y]) => `${(8 + (116-usedX)/2 + (Number(x)-minX)*scale).toFixed(1)},${(7 + (70-usedY)/2 + (maxY-Number(y))*scale).toFixed(1)}`).join(' ')
         return `<svg viewBox="0 0 132 84" aria-hidden="true"><polyline points="${points}" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>`
     }
-    const shareRoutePickerMeta = (data, index) => {
+    const shareSegmentPreviewMeta = (data, index) => {
         const metrics = availableShareMetrics(data)
         const preferred = metrics.filter(metric => ['distance','duration','pace','speed'].includes(shareMetricType(metric))).slice(0,2)
         return preferred.map(metric => metric.valor).filter(Boolean).join(' · ') || `${tr('activity.share.segment')} ${index + 1}`
-    }
-    const buildShareRoutePicker = () => {
-        if (!shareRoutePickerList) return []
-        const indexes = routableShareSegmentIndexes()
-        shareRoutePickerList.replaceChildren()
-        indexes.forEach(index => {
-            const data = shareDataForSegment(index)
-            const button = document.createElement('button')
-            button.type = 'button'
-            button.className = 'activity-share-route-picker-option'
-            button.dataset.shareRouteIndex = String(index)
-            const visual = document.createElement('span')
-            visual.className = 'activity-share-route-picker-visual'
-            visual.innerHTML = shareRouteSilhouetteSvg(data)
-            const copy = document.createElement('span')
-            copy.className = 'activity-share-route-picker-copy'
-            const strong = document.createElement('strong')
-            strong.textContent = String(data?.titulo || `${tr('activity.share.segment')} ${index + 1}`)
-            const small = document.createElement('small')
-            small.textContent = shareRoutePickerMeta(data, index)
-            copy.append(strong, small)
-            button.append(visual, copy)
-            button.addEventListener('click', () => selectShareRoute(index, {closePicker: true, draw: true}))
-            shareRoutePickerList.append(button)
-        })
-        return indexes
-    }
-    const syncSelectedShareRoute = () => {
-        const indexes = routableShareSegmentIndexes()
-        const multiple = indexes.length > 1 && shareSingleRouteMode
-        if (shareSelectedRoute) shareSelectedRoute.hidden = !multiple
-        if (!multiple || !shareSelectedRouteName) return
-        const index = getActiveShareSegmentIndex()
-        const data = shareDataForSegment(index)
-        shareSelectedRouteName.textContent = String(data?.titulo || `${tr('activity.share.segment')} ${index + 1}`)
-    }
-    const showShareRoutePicker = ({required = false} = {}) => {
-        if (!shareRoutePicker) return false
-        const indexes = buildShareRoutePicker()
-        if (indexes.length < 2) return false
-        shareRoutePicker.hidden = false
-        shareRoutePicker.dataset.required = required ? '1' : '0'
-        shareRoutePicker.querySelector('[data-share-route-index]')?.focus?.()
-        return true
-    }
-    const hideShareRoutePicker = () => {
-        if (!shareRoutePicker) return
-        shareRoutePicker.hidden = true
-        shareRoutePicker.dataset.required = '0'
-        shareChangeRouteButton?.focus?.({preventScroll:true})
-    }
-    const selectShareRoute = (index, {closePicker = true, draw = true} = {}) => {
-        const data = shareDataForSegment(index)
-        if (!data || !shareHasRoute(data)) return false
-        shareSingleRouteMode = true
-        if (shareMasterSwitch) {
-            shareMasterSwitch.dataset.shareScope = SHARE_SCOPES.singleSegment
-            shareMasterSwitch.hidden = true
-        }
-        if (shareSegmentPreviewSelect) shareSegmentPreviewSelect.value = String(index)
-        shareSegmentList?.querySelectorAll('[data-share-segment-check]').forEach(input => { input.checked = Number(input.value) === Number(index) })
-        activeShareContentId = 'route'
-        populateShareMetricOptions({preserve:false})
-        updateShareControlAvailability()
-        syncSelectedShareRoute()
-        if (closePicker) hideShareRoutePicker()
-        if (draw) scheduleShareDraw()
-        return true
     }
     const updateSharePhotoPreview = () => {
         if (!sharePhotoPreview) return
@@ -4445,6 +4779,7 @@ document.addEventListener('DOMContentLoaded', () => {
             format: formatId,
             segmentCount,
             geometryCount: normalized === SHARE_SCOPES.activity ? (shareHasRoute(shareData) ? 1 : 0) : shareGeometryCountForScope(normalized),
+            comparableSegmentCount: shareComparableSegmentCountForScope(normalized),
             ...extra,
         }
     }
@@ -4460,7 +4795,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const updateShareControlAvailability = () => {
         const segments = shareSegments()
-        const segmentsAvailable = Boolean(shareData?.usa_trechos) && segments.length > 1
+        const segmentsAvailable = segments.length > 1
         let scope = normalizeShareScope(shareMasterSwitch?.dataset.shareScope || (segmentsAvailable ? SHARE_SCOPES.session : SHARE_SCOPES.activity))
         if (!segmentsAvailable) scope = SHARE_SCOPES.activity
         if (segmentsAvailable && scope === SHARE_SCOPES.activity) scope = SHARE_SCOPES.session
@@ -4491,10 +4826,12 @@ document.addEventListener('DOMContentLoaded', () => {
         shareSingleOnlySections.forEach(section => { section.hidden = !activityEditor })
         shareSessionOnlySections.forEach(section => { section.hidden = !sessionEditor })
         if (shareSingleSegmentPicker) shareSingleSegmentPicker.hidden = scope !== SHARE_SCOPES.singleSegment
+        if (shareMultipleSummary) shareMultipleSummary.hidden = scope !== SHARE_SCOPES.multipleSegments
         if (shareSegmentsGroup) shareSegmentsGroup.hidden = scope !== SHARE_SCOPES.multipleSegments
         if (shareSegmentList) shareSegmentList.hidden = scope !== SHARE_SCOPES.multipleSegments
         if (shareSegmentPreviewPicker) shareSegmentPreviewPicker.hidden = true
         syncSingleSegmentSelection()
+        syncShareSegmentSelectionSummary()
 
         let format = getShareFormat()
         if (!shareCompositionCompatibility(activeShareCompositionId, shareCurrentCompatibilityContext(scope, format.id))) {
@@ -4528,11 +4865,17 @@ document.addEventListener('DOMContentLoaded', () => {
             card.classList.toggle('is-active', visible && id === activeShareCompositionId)
         })
 
-        const routeToggle = shareModal?.querySelector('[data-share-show="route"]')
-        if (routeToggle) routeToggle.checked = activityEditor ? activeShareContentId === 'route' && hasRoute : hasRoute
-        const compact = activeShareCompositionId === 'compact'
+        const routeToggle = sessionEditor ? shareSessionRouteToggle : shareActivityRouteToggle
+        const sessionRouteVisible = sessionEditor && Boolean(definition.supportsRouteToggle) && hasRoute
+        if (activityEditor && shareActivityRouteToggle) shareActivityRouteToggle.checked = activeShareContentId === 'route' && hasRoute
+        if (shareSessionRouteToggle) {
+            if (sessionRouteVisible && !shareSessionRouteToggle.dataset.sessionTouched) shareSessionRouteToggle.checked = true
+            else if (!sessionRouteVisible) shareSessionRouteToggle.checked = false
+        }
+        if (shareSessionRouteOption) shareSessionRouteOption.hidden = !sessionRouteVisible
+        const compact = activeShareCompositionId === 'compact' || activeShareCompositionId === 'session_compact'
         const routeScaleBlock = shareRouteScaleInput?.closest('.activity-share-route-scale')
-        const routeScaleVisible = activityEditor && activeShareContentId === 'route' && hasRoute
+        const routeScaleVisible = hasRoute && ((activityEditor && activeShareContentId === 'route') || (sessionEditor && (activeShareCompositionId === 'session_overview' || activeShareCompositionId === 'session_by_segment' || (sessionRouteVisible && routeToggle?.checked !== false))))
         if (routeScaleBlock) routeScaleBlock.hidden = !routeScaleVisible
         if (shareExportRouteButton) shareExportRouteButton.hidden = !hasRoute
 
@@ -4604,14 +4947,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const headingLabel = shareHeadingMode?.closest('label')
         if (headingLabel) headingLabel.hidden = !activityEditor || !definition.supportsTitle
+        const captionLabel = shareCaption?.closest('label')
+        if (captionLabel) captionLabel.hidden = !activityEditor
         if (shareComparisonControls) shareComparisonControls.hidden = activeShareCompositionId !== 'session_comparison'
         if (activeShareCompositionId === 'session_comparison') populateShareComparisonControls()
+        if (shareSessionCompactControls) shareSessionCompactControls.hidden = activeShareCompositionId !== 'session_compact'
+        if (activeShareCompositionId === 'session_compact') populateShareCompactMetricControls()
 
         syncSharePresetCards()
         syncShareContentCards()
         syncShareSessionLayoutCards()
         syncShareRouteScaleLabel()
-        syncSelectedShareRoute()
         scheduleSharePreviewFit()
         if (shareDownloadButton) shareDownloadButton.textContent = tr('activity.share.download')
         if (shareNativeButton) shareNativeButton.textContent = tr('activity.share.native')
@@ -4669,7 +5015,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const shareSegmentIdentity = (segment, index) => String(segment?.id ?? segment?.idunidade ?? segment?.unit_id ?? index + 1)
     const buildShareRenderState = (data, legacyScope = getShareScope()) => {
         const scope = normalizeShareScope(legacyScope)
-        const segments = Array.isArray(data?.trechos) ? data.trechos : []
+        const segments = shareableSegmentsForData(data)
         let selectedIndexes = []
         if (scope === SHARE_SCOPES.singleSegment) {
             selectedIndexes = data === shareData ? [getActiveShareSegmentIndex()] : (segments.length ? [0] : [])
@@ -4734,6 +5080,10 @@ document.addEventListener('DOMContentLoaded', () => {
             scope,
             format: format.id,
             segmentCount: renderState.selectedSegmentIds.length || renderState.segments.length,
+            geometryCount: renderState.routes.filter(route => route.segmentId !== null || scope === SHARE_SCOPES.activity).length,
+            comparableSegmentCount: [SHARE_SCOPES.session, SHARE_SCOPES.multipleSegments].includes(scope)
+                ? shareComparableSegmentCountForScope(scope)
+                : 0,
             requiresMap: !compact && Boolean(override.showMapBase ?? (preset.id === 'map' && content === 'route')),
             requiresTitle: !compact && Boolean(override.showTitle ?? headingMode !== 'none'),
         }
@@ -4763,16 +5113,16 @@ document.addEventListener('DOMContentLoaded', () => {
             content,
             background: mode === 'photo' ? 'photo' : mode === 'transparent' ? 'transparent' : mode === 'map' ? `map:${mapStyle}` : color,
             mapStyle,
-            showMapBase: Boolean(override.showMapBase ?? (preset.id === 'map' && content === 'route')),
+            showMapBase: Boolean(content === 'route' && (override.showMapBase ?? (preset.id === 'map')) && routeCoordinates.length >= 2),
             showRoads: false,
             roadFade: false,
             mapFade: false,
             headingMode,
             headingText,
             showTitle: compact ? false : Boolean(override.showTitle ?? headingMode !== 'none'),
-            showRoute: Boolean(override.showRoute ?? (content === 'route' && shareShows('route'))),
+            showRoute: Boolean(content === 'route' && (override.showRoute ?? true) && routeCoordinates.length >= 2),
             showDate: Boolean(override.showDate ?? shareShows('date')),
-            showLogo: Boolean(override.showLogo ?? shareShows('logo')),
+            showLogo: true,
             caption: String(override.caption ?? shareCaption?.value ?? '').trim().slice(0, 60),
             selectedMetrics: metrics,
             width: override.width || format.width,
@@ -4815,43 +5165,40 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const buildShareSessionLayoutCards = () => {
         if (!shareSessionLayoutGrid || shareSessionLayoutGrid.childElementCount) return
-        const families = [
-            {id: 'routes', label: tr('activity.share.family_routes')},
-            {id: 'summary', label: tr('activity.share.family_summary')},
+        const orderedLayouts = [
+            'session_overview',
+            'session_by_segment',
+            'session_comparison',
+            'session_highlight',
+            'session_sequence',
+            'session_summary',
+            'session_list',
+            'session_minimal',
+            'session_compact',
         ]
-        families.forEach(family => {
-            const group = document.createElement('div')
-            group.className = 'activity-share-session-layout-family'
-            group.dataset.shareCompositionFamily = family.id
-            const heading = document.createElement('span')
-            heading.className = 'activity-share-session-layout-family-title'
-            heading.textContent = family.label
-            const cards = document.createElement('div')
-            cards.className = 'activity-share-session-layout-family-grid'
-            Object.values(SHARE_COMPOSITION_REGISTRY).filter(layout => layout.family === family.id).forEach(layout => {
-                const button = document.createElement('button')
-                button.type = 'button'
-                button.className = 'activity-share-session-layout-card'
-                button.dataset.shareSessionLayoutCard = ''
-                button.dataset.shareSessionLayoutValue = layout.id
-                const preview = document.createElement('span')
-                preview.className = `activity-share-session-layout-preview is-${layout.id.replace(/^session_/, '').replaceAll('_', '-')}`
-                preview.setAttribute('aria-hidden', 'true')
-                preview.innerHTML = '<i></i><i></i><i></i><i></i><i></i>'
-                const title = document.createElement('strong')
-                title.textContent = layout.label
-                button.append(preview, title)
-                button.addEventListener('click', () => {
-                    activeShareCompositionId = layout.id
-                    syncShareSessionLayoutCards()
-                    updateShareControlAvailability()
-                    populateShareComparisonControls()
-                    scheduleShareDraw()
-                })
-                cards.append(button)
+        orderedLayouts.forEach(id => {
+            const layout = SHARE_COMPOSITION_REGISTRY[id]
+            if (!layout) return
+            const button = document.createElement('button')
+            button.type = 'button'
+            button.className = 'activity-share-session-layout-card'
+            button.dataset.shareSessionLayoutCard = ''
+            button.dataset.shareSessionLayoutValue = layout.id
+            const preview = document.createElement('span')
+            preview.className = `activity-share-session-layout-preview is-${layout.id.replace(/^session_/, '').replaceAll('_', '-')}`
+            preview.setAttribute('aria-hidden', 'true')
+            preview.innerHTML = '<i></i><i></i><i></i><i></i><i></i>'
+            const title = document.createElement('strong')
+            title.textContent = layout.label
+            button.append(preview, title)
+            button.addEventListener('click', () => {
+                activeShareCompositionId = layout.id
+                syncShareSessionLayoutCards()
+                updateShareControlAvailability()
+                populateShareComparisonControls()
+                scheduleShareDraw()
             })
-            group.append(heading, cards)
-            shareSessionLayoutGrid.append(group)
+            shareSessionLayoutGrid.append(button)
         })
     }
     const applyShareContentPreset = (contentId, {remember = true} = {}) => {
@@ -4859,8 +5206,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const candidate = getShareScope() === SHARE_SCOPES.singleSegment ? shareDataForSegment(getActiveShareSegmentIndex()) : shareData
         if (content.requiresRoute && !shareHasRoute(candidate)) return
         activeShareContentId = content.id
-        const routeToggle = shareModal?.querySelector('[data-share-show="route"]')
-        if (routeToggle) routeToggle.checked = content.id === 'route'
+        if (shareActivityRouteToggle) shareActivityRouteToggle.checked = content.id === 'route'
         if (remember) {
             try { localStorage.setItem(SHARE_CONTENT_KEY, content.id) } catch (_) {}
         }
@@ -4903,7 +5249,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             syncShareColorSelection(preset.id)
         }
-        const routeToggle = shareModal?.querySelector('[data-share-show="route"]')
+        const routeToggle = shareSessionRouteOption && !shareSessionRouteOption.hidden ? shareSessionRouteToggle : shareActivityRouteToggle
         if (routeToggle && preset.requiresRoute && shareHasRoute(currentShareRouteData())) routeToggle.checked = true
         if (preset.id === 'photo' && !sharePhoto && sharePhotoName) sharePhotoName.textContent = tr('activity.share.no_photo')
         if (remember) {
@@ -4920,16 +5266,21 @@ document.addEventListener('DOMContentLoaded', () => {
         activeShareCompositionId = preference.composition
         shareCompositionInputs.forEach(input => { input.checked = input.value === activeShareCompositionId })
         activeShareContentId = preference.content
-        if (shareHeadingMode) shareHeadingMode.value = preference.headingMode
+        if (shareHeadingMode) shareHeadingMode.checked = preference.headingMode !== 'none'
         if (shareRouteScaleInput) shareRouteScaleInput.value = String(preference.routeScale)
         setShareMapStyleValue(preference.mapStyle, {persist: false})
         syncShareRouteScaleLabel()
-        ;['route', 'date', 'logo'].forEach(key => {
+        ;['route', 'date'].forEach(key => {
+            if (key === 'route') {
+                if (shareActivityRouteToggle) shareActivityRouteToggle.checked = preference.showRoute
+                if (shareSessionRouteToggle) {
+                    shareSessionRouteToggle.checked = preference.showRoute
+                    shareSessionRouteToggle.dataset.sessionTouched = preference.showRoute ? '1' : '0'
+                }
+                return
+            }
             const input = shareModal?.querySelector(`[data-share-show="${key}"]`)
-            if (!input) return
-            if (key === 'route') input.checked = preference.showRoute
-            if (key === 'date') input.checked = preference.showDate
-            if (key === 'logo') input.checked = preference.showLogo
+            if (input) input.checked = preference.showDate
         })
         applySharePreset(preference.preset, {remember: false})
         setSharePresetColor(preference.preset, preference.color, {persist: false})
@@ -4938,6 +5289,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const metricInputs = Array.from(shareMetricOptions?.querySelectorAll('[data-share-metric]') || [])
         const matched = metricInputs.filter(input => preference.metricKeys.includes(String(input.dataset.metricKey || '')))
         if (preference.metricKeys.length && matched.length) metricInputs.forEach(input => { input.checked = matched.includes(input) })
+        if (scope !== SHARE_SCOPES.activity && activeShareCompositionId === 'session_compact') {
+            populateShareCompactMetricControls()
+            if (shareSessionCompactPrimary && preference.compactPrimaryMetric) shareSessionCompactPrimary.value = preference.compactPrimaryMetric
+            if (shareSessionCompactSecondary) shareSessionCompactSecondary.value = preference.compactSecondaryMetric || ''
+        }
         updateShareControlAvailability()
         scheduleShareDraw()
         return preference
@@ -5067,6 +5423,42 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return viewport
     }
+    const shareStreetLabelFreeKey = (configuration, viewport, rasterScale) => {
+        if (!viewport) return ''
+        const coordinates = Array.isArray(configuration.routeCoordinates) ? configuration.routeCoordinates : []
+        const bounds = coordinates.length >= 2 ? routeBounds(coordinates) : null
+        return [
+            'street-label-free', configuration.width, configuration.height, Number(rasterScale).toFixed(2), viewport.zoom,
+            viewport.left.toFixed(2), viewport.top.toFixed(2), viewport.outputScale.toFixed(5),
+            bounds ? `${bounds.south.toFixed(4)}:${bounds.west.toFixed(4)}:${bounds.north.toFixed(4)}:${bounds.east.toFixed(4)}` : ''
+        ].join(':')
+    }
+    const trimShareStreetLabelFreeCache = () => {
+        while (shareStreetLabelFreeCache.size > 4) shareStreetLabelFreeCache.delete(shareStreetLabelFreeCache.keys().next().value)
+    }
+    const drawShareLabelFreeStreetBackground = async (context, {width, height, viewport, routeCoordinates, token}) => {
+        context.fillStyle = '#dce2e6'
+        context.fillRect(0, 0, width, height)
+        if (!viewport || !Array.isArray(routeCoordinates) || routeCoordinates.length < 2) return {drawn:false, attribution:'Map data © OpenStreetMap contributors'}
+        const geometry = await fetchRoadNetwork(routeCoordinates)
+        if (Number.isFinite(token) && token !== shareRenderToken) return {drawn:false, stale:true, attribution:'Map data © OpenStreetMap contributors'}
+        const roads = Array.isArray(geometry?.roads) ? geometry.roads : []
+        const areas = Array.isArray(geometry?.areas) ? geometry.areas : []
+        if (!roads.length && !areas.length) return {drawn:false, attribution:'Map data © OpenStreetMap contributors'}
+        const project = viewport.project.bind(viewport)
+        const routePoints = routeCoordinates.map(([lon, lat]) => project(lon, lat))
+        drawMapAreas(context, areas, project, {variant:'light'})
+        const roadsDrawn = drawBaseRoadNetwork(context, roads, routePoints, project, {variant:'light', thumbnail:false})
+        context.fillStyle = 'rgba(12,25,42,.16)'
+        context.fillRect(0, 0, width, height)
+        const shade = context.createLinearGradient(0, 0, 0, height)
+        shade.addColorStop(0, 'rgba(5,13,24,.08)')
+        shade.addColorStop(.52, 'rgba(5,13,24,.02)')
+        shade.addColorStop(1, 'rgba(5,13,24,.26)')
+        context.fillStyle = shade
+        context.fillRect(0, 0, width, height)
+        return {drawn:Boolean(roadsDrawn || areas.length), attribution:'Map data © OpenStreetMap contributors'}
+    }
     const drawShareMapTiles = async (context, {width, height, viewport, style, token}) => {
         const provider = shareMapProvider(style)
         const range = shareMapTileRange(viewport, style, width, height)
@@ -5116,30 +5508,103 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const compositeShareMapBackground = async (context, configuration, viewport, token) => {
         const rasterScale = Math.max(.4, Math.min(1, Number(configuration.mapRasterScale) || .55))
+        const style = String(configuration.mapStyle || 'street')
         const cacheKey = shareMapPreviewCacheKey(configuration, viewport)
+        if (style === 'street') {
+            const labelFreeKey = shareStreetLabelFreeKey(configuration, viewport, rasterScale)
+            const cachedLabelFree = labelFreeKey ? shareStreetLabelFreeCache.get(labelFreeKey) : null
+            if (cachedLabelFree?.canvas) {
+                context.save()
+                context.globalCompositeOperation = 'destination-over'
+                context.drawImage(cachedLabelFree.canvas, 0, 0, configuration.width, configuration.height)
+                context.restore()
+                return {drawn:true, attribution:cachedLabelFree.attribution || 'Map data © OpenStreetMap contributors', labelFree:true}
+            }
+            let labelFreeRequest = labelFreeKey ? shareStreetLabelFreeRequests.get(labelFreeKey) : null
+            if (!labelFreeRequest && labelFreeKey) {
+                const labelCanvas = document.createElement('canvas')
+                labelCanvas.width = Math.max(1, Math.round(configuration.width * rasterScale))
+                labelCanvas.height = Math.max(1, Math.round(configuration.height * rasterScale))
+                const labelContext = labelCanvas.getContext('2d', {alpha:false})
+                labelContext.setTransform(rasterScale, 0, 0, rasterScale, 0, 0)
+                labelFreeRequest = drawShareLabelFreeStreetBackground(labelContext, {
+                    width:configuration.width,
+                    height:configuration.height,
+                    viewport,
+                    routeCoordinates:Array.isArray(configuration.routeCoordinates) ? configuration.routeCoordinates : [],
+                }).then(result => {
+                    shareStreetLabelFreeRequests.delete(labelFreeKey)
+                    if (!result?.drawn) return null
+                    const entry = {canvas:labelCanvas, attribution:result.attribution || 'Map data © OpenStreetMap contributors'}
+                    shareStreetLabelFreeCache.set(labelFreeKey, entry)
+                    trimShareStreetLabelFreeCache()
+                    return entry
+                }).catch(() => {
+                    shareStreetLabelFreeRequests.delete(labelFreeKey)
+                    return null
+                })
+                shareStreetLabelFreeRequests.set(labelFreeKey, labelFreeRequest)
+            }
+            if (String(configuration.renderPurpose || 'preview') === 'export' && labelFreeRequest) {
+                const ready = await labelFreeRequest
+                if (token !== shareRenderToken) return {drawn:false, attribution:''}
+                if (ready?.canvas) {
+                    context.save()
+                    context.globalCompositeOperation = 'destination-over'
+                    context.drawImage(ready.canvas, 0, 0, configuration.width, configuration.height)
+                    context.restore()
+                    return {drawn:true, attribution:ready.attribution || 'Map data © OpenStreetMap contributors', labelFree:true}
+                }
+            }
+            const fallbackCanvas = document.createElement('canvas')
+            fallbackCanvas.width = Math.max(1, Math.round(configuration.width * rasterScale))
+            fallbackCanvas.height = Math.max(1, Math.round(configuration.height * rasterScale))
+            const fallbackContext = fallbackCanvas.getContext('2d', {alpha:false})
+            fallbackContext.setTransform(rasterScale, 0, 0, rasterScale, 0, 0)
+            const fallbackResult = await drawShareMapTiles(fallbackContext, {
+                width:configuration.width,
+                height:configuration.height,
+                viewport,
+                style:'street',
+                token,
+            })
+            if (token !== shareRenderToken) return fallbackResult
+            context.save()
+            context.globalCompositeOperation = 'destination-over'
+            context.drawImage(fallbackCanvas, 0, 0, configuration.width, configuration.height)
+            context.restore()
+            if (labelFreeRequest && String(configuration.renderPurpose || 'preview') !== 'export') {
+                labelFreeRequest.then(ready => {
+                    if (!ready?.canvas || token !== shareRenderToken) return
+                    if (getSharePreset(activeSharePresetId).mode !== 'map' || getShareMapStyleValue() !== 'street') return
+                    scheduleShareDraw()
+                }).catch(() => {})
+            }
+            return {drawn:Boolean(fallbackResult?.drawn), attribution:fallbackResult?.attribution || 'Map data © OpenStreetMap contributors', labelFree:false}
+        }
         const cached = cacheKey ? shareMapPreviewCache.get(cacheKey) : null
         if (cached?.canvas) {
             context.save()
             context.globalCompositeOperation = 'destination-over'
             context.drawImage(cached.canvas, 0, 0, configuration.width, configuration.height)
             context.restore()
-            return {drawn: true, attribution: cached.attribution || ''}
+            return {drawn:true, attribution:cached.attribution || ''}
         }
         const canvas = document.createElement('canvas')
         canvas.width = Math.max(1, Math.round(configuration.width * rasterScale))
         canvas.height = Math.max(1, Math.round(configuration.height * rasterScale))
-        const backgroundContext = canvas.getContext('2d', {alpha: false})
+        const backgroundContext = canvas.getContext('2d', {alpha:false})
         backgroundContext.setTransform(rasterScale, 0, 0, rasterScale, 0, 0)
         const result = await drawShareMapTiles(backgroundContext, {
-            width: configuration.width,
-            height: configuration.height,
+            width:configuration.width,
+            height:configuration.height,
             viewport,
-            style: configuration.mapStyle || 'street',
+            style,
             token,
         })
         if (token !== shareRenderToken) return result
         if (cacheKey && result.drawn) {
-            shareMapPreviewCache.set(cacheKey, {canvas, attribution: result.attribution || ''})
+            shareMapPreviewCache.set(cacheKey, {canvas, attribution:result.attribution || ''})
             trimShareMapPreviewCache()
         }
         context.save()
@@ -5490,12 +5955,7 @@ document.addEventListener('DOMContentLoaded', () => {
         context.fillText(text, x, y)
         context.restore()
     }
-    const shareBackgroundStops = color => {
-        if (color === 'black') return ['#010205', '#02060a', '#03080e']
-        if (color === 'dark') return ['#11233c', '#15304b', '#183551']
-        if (color === 'light') return ['#f7f9fc', '#f1f4f8', '#e8edf4']
-        return ['#071225', '#0a1930', '#0d1d36']
-    }
+    const shareBackgroundStops = color => SHARE_BACKGROUND_COLORS[normalizeShareBackgroundColor(color)].stops
     const getShareNoisePattern = (context, {light = false} = {}) => {
         const key = light ? 'light' : 'dark'
         let canvas = shareNoiseTileCache.get(key)
@@ -5521,35 +5981,26 @@ document.addEventListener('DOMContentLoaded', () => {
         return context.createPattern(canvas, 'repeat')
     }
     const fillShareBackground = (context, width, height, color) => {
-        const isLight = color === 'light'
-        const stops = shareBackgroundStops(color)
-        if (isLight) {
-            const gradient = context.createLinearGradient(0, 0, 0, height)
-            gradient.addColorStop(0, stops[0])
-            gradient.addColorStop(.62, stops[1])
-            gradient.addColorStop(1, stops[2])
-            context.fillStyle = gradient
-            context.fillRect(0, 0, width, height)
-        } else {
-            context.fillStyle = stops[1]
-            context.fillRect(0, 0, width, height)
-            const wash = context.createLinearGradient(0, 0, 0, height)
-            wash.addColorStop(0, stops[0])
-            wash.addColorStop(.48, 'rgba(0,0,0,0)')
-            wash.addColorStop(1, stops[2])
-            context.fillStyle = wash
-            context.fillRect(0, 0, width, height)
-            const sideGlow = context.createRadialGradient(width * .5, height * .58, width * .08, width * .5, height * .58, width * .82)
-            sideGlow.addColorStop(0, color === 'black' ? 'rgba(28, 42, 74, .07)' : 'rgba(48, 76, 126, .12)')
-            sideGlow.addColorStop(.58, 'rgba(18, 31, 54, .035)')
-            sideGlow.addColorStop(1, 'rgba(4, 8, 14, 0)')
-            context.fillStyle = sideGlow
-            context.fillRect(0, 0, width, height)
-        }
-        const noise = getShareNoisePattern(context, {light: isLight})
+        const normalized = normalizeShareBackgroundColor(color)
+        const stops = shareBackgroundStops(normalized)
+        context.fillStyle = stops[1]
+        context.fillRect(0, 0, width, height)
+        const wash = context.createLinearGradient(0, 0, 0, height)
+        wash.addColorStop(0, stops[0])
+        wash.addColorStop(.48, 'rgba(0,0,0,0)')
+        wash.addColorStop(1, stops[2])
+        context.fillStyle = wash
+        context.fillRect(0, 0, width, height)
+        const sideGlow = context.createRadialGradient(width * .5, height * .58, width * .08, width * .5, height * .58, width * .82)
+        sideGlow.addColorStop(0, normalized === 'dark' ? 'rgba(28, 42, 74, .07)' : 'rgba(48, 76, 126, .12)')
+        sideGlow.addColorStop(.58, 'rgba(18, 31, 54, .035)')
+        sideGlow.addColorStop(1, 'rgba(4, 8, 14, 0)')
+        context.fillStyle = sideGlow
+        context.fillRect(0, 0, width, height)
+        const noise = getShareNoisePattern(context, {light: false})
         if (noise) {
             context.save()
-            context.globalAlpha = isLight ? .10 : .13
+            context.globalAlpha = .13
             context.fillStyle = noise
             context.fillRect(0, 0, width, height)
             context.restore()
@@ -5641,6 +6092,15 @@ document.addEventListener('DOMContentLoaded', () => {
         ]
     }
 
+    const compactMetricLayout = (formatId, count, left, width, top, rowHeight, definition = SHARE_COMPOSITION_REGISTRY.compact) => {
+        const total = Math.max(0, Math.min(4, Number(count) || 0))
+        if (!total) return []
+        const mode = String(definition?.layoutByFormat?.[formatId] || (formatId === 'square' ? 'grid' : 'vertical'))
+        if (mode === 'grid') return shareMetricLayout(total, left, width, top, rowHeight)
+        const center = left + width / 2
+        return Array.from({length: total}, (_, index) => ({x: center, y: top + index * rowHeight, row: index}))
+    }
+
     const drawRouteLessShareCard = async (context, configuration, {primaryText, secondaryText, accentText, outlinedText, isLightSurface}) => {
         const {width, height, format, content, showTitle, showDate, showLogo, caption, selectedMetrics, data, thumbnail, headingText} = configuration
         const isCompact = configuration.composition === 'compact'
@@ -5670,9 +6130,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 y += lines.length * 30 + 24
             } else y += 18
             const metricRowHeight = 94
-            const metricRows = shareMetricRowCount(metrics.length)
+            const routeLessCompactDefinition = configuration.compositionDefinition || SHARE_COMPOSITION_REGISTRY.compact
+            const routeLessCompactMode = String(routeLessCompactDefinition?.layoutByFormat?.[format] || (format === 'square' ? 'grid' : 'vertical'))
+            const metricRows = routeLessCompactMode === 'vertical' ? metrics.length : shareMetricRowCount(metrics.length)
             const metricsTop = Math.max(y, height - (metricRows * metricRowHeight + 96))
-            const metricLayout = shareMetricLayout(metrics.length, side, width - side * 2, metricsTop, metricRowHeight)
+            const metricLayout = compactMetricLayout(format, metrics.length, side, width - side * 2, metricsTop, metricRowHeight, routeLessCompactDefinition)
             metrics.forEach((metric, index) => {
                 const position = metricLayout[index]
                 if (!position) return
@@ -5808,7 +6270,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const drawCompactShareCardSurface = async (context, configuration, token) => {
         const palette = SHARE_CARD_THEME
         const {width, height, format, mode, color, content, showMapBase, showTitle, showRoute, showDate, showLogo, caption, selectedMetrics, data, routeCoordinates, routeScale, headingText, mapStyle} = configuration
-        const isWide = format === 'square'
+        const compactDefinition = configuration.compositionDefinition || SHARE_COMPOSITION_REGISTRY.compact
+        const compactLayoutMode = String(compactDefinition?.layoutByFormat?.[format] || (format === 'square' ? 'grid' : 'vertical'))
+        const isWide = compactLayoutMode === 'grid'
         const isTransparent = mode === 'transparent'
         const isPhoto = mode === 'photo'
         const isMapSurface = mode === 'map'
@@ -5845,7 +6309,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const hasSportVisual = content === 'sport' && Boolean(String(data?.modalidade || '').trim())
         const hasMiddleVisual = hasVisibleRoute || hasSportVisual
-        const metricRows = shareMetricRowCount(metrics.length)
+        const metricRows = compactLayoutMode === 'vertical' ? metrics.length : shareMetricRowCount(metrics.length)
         const metricRowHeight = isWide ? 194 : 174
         const metricSpan = metricRows ? metricRows * metricRowHeight - 8 : 0
         const logoWidth = isWide ? (isTransparent ? 170 : 150) : (isTransparent ? 208 : 190)
@@ -5872,7 +6336,7 @@ document.addEventListener('DOMContentLoaded', () => {
             metricTop += titleLines.length * 48 + (isWide ? 24 : 18)
         }
 
-        const metricLayout = shareMetricLayout(metrics.length, side, contentWidth, metricTop, metricRowHeight)
+        const metricLayout = compactMetricLayout(format, metrics.length, side, contentWidth, metricTop, metricRowHeight, compactDefinition)
         context.textAlign = 'center'
         metrics.forEach((metric, index) => {
             const position = metricLayout[index]
@@ -5885,7 +6349,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let valueSize = (isWide ? 74 : 70) + (isTransparent ? 4 : 0)
             const value = String(metric?.valor || '')
             context.font = `820 ${valueSize}px Inter, system-ui, sans-serif`
-            const maxValueWidth = contentWidth * (metrics.length === 1 ? .78 : .44)
+            const maxValueWidth = contentWidth * (compactLayoutMode === 'vertical' ? .78 : (metrics.length === 1 ? .78 : .44))
             while (valueSize > 48 && context.measureText(value).width > maxValueWidth) {
                 valueSize -= 2
                 context.font = `820 ${valueSize}px Inter, system-ui, sans-serif`
@@ -6215,41 +6679,29 @@ document.addEventListener('DOMContentLoaded', () => {
         const value = Number.parseFloat(raw.replace(/[^0-9.+-]/g, ''))
         return Number.isFinite(value) ? value : null
     }
-    const shareFormatDurationPrecise = seconds => {
-        const value = Math.max(0, Number(seconds) || 0)
-        const milliseconds = Math.round((value - Math.floor(value)) * 1000)
-        const totalSeconds = Math.floor(value)
-        const hours = Math.floor(totalSeconds / 3600)
-        const minutes = Math.floor((totalSeconds % 3600) / 60)
-        const secs = totalSeconds % 60
-        const base = hours > 0 ? `${hours}:${String(minutes).padStart(2,'0')}:${String(secs).padStart(2,'0')}` : `${minutes}:${String(secs).padStart(2,'0')}`
-        return milliseconds > 0 ? `${base}.${String(milliseconds).padStart(3,'0')}` : base
-    }
-    const shareFormatPaceSeconds = seconds => {
-        const value = Math.max(0, Number(seconds) || 0)
-        const whole = Math.floor(value)
-        const minutes = Math.floor(whole / 60)
-        const secs = whole % 60
-        const milliseconds = Math.round((value - whole) * 1000)
-        return `${minutes}:${String(secs).padStart(2,'0')}${milliseconds ? `.${String(milliseconds).padStart(3,'0')}` : ''}/km`
-    }
+    const shareFormatDurationPrecise = seconds => formatShareDuration(seconds)
+    const shareFormatPaceSeconds = seconds => formatSharePace(seconds)
     const shareComparisonCapabilities = segments => {
         const valid = segments.filter(Boolean)
-        const distances = valid.map(shareSegmentDistanceMeters)
-        const durations = valid.map(shareSegmentDurationSeconds)
-        const completeDistance = valid.length >= 2 && distances.every(value => value !== null)
-        const completeDuration = valid.length >= 2 && durations.every(value => value !== null)
-        const averageDistance = completeDistance ? distances.reduce((sum, value) => sum + value, 0) / distances.length : 0
-        const equalDistance = completeDistance && Math.max(...distances) - Math.min(...distances) <= Math.max(5, averageDistance * .02)
+        const distanceDuration = valid.map(segment => ({
+            segment,
+            distance: shareSegmentDistanceMeters(segment),
+            duration: shareSegmentDurationSeconds(segment),
+        })).filter(item => item.distance !== null && item.duration !== null && item.distance > 0 && item.duration >= 0)
+        const distances = distanceDuration.map(item => item.distance)
+        const averageDistance = distances.length >= 2 ? distances.reduce((sum, value) => sum + value, 0) / distances.length : 0
+        const equalDistance = distances.length >= 2 && Math.max(...distances) - Math.min(...distances) <= Math.max(5, averageDistance * .02)
         const capabilities = []
-        if (equalDistance && completeDuration) capabilities.push({id:'time', label:tr('activity.share.compare_time'), direction:'lower'})
-        if (completeDistance && completeDuration) {
-            capabilities.push({id:'pace', label:tr('activity.share.compare_pace'), direction:'lower'})
-            capabilities.push({id:'speed', label:tr('activity.share.compare_speed'), direction:'higher'})
+        if (equalDistance && distanceDuration.length >= 2) capabilities.push({id:'time', label:tr('activity.share.compare_time'), direction:'lower', count:distanceDuration.length})
+        if (distanceDuration.length >= 2) {
+            capabilities.push({id:'pace', label:tr('activity.share.compare_pace'), direction:'lower', count:distanceDuration.length})
+            capabilities.push({id:'speed', label:tr('activity.share.compare_speed'), direction:'higher', count:distanceDuration.length})
         }
-        if (valid.length >= 2 && valid.every(segment => shareMetricNumericValue(segment, 'power') !== null)) capabilities.push({id:'power', label:tr('activity.share.compare_power'), direction:'higher'})
-        if (valid.length >= 2 && valid.every(segment => shareMetricNumericValue(segment, 'heart_avg') !== null)) capabilities.push({id:'heart', label:tr('activity.share.compare_heart'), direction:'neutral'})
-        return {capabilities, equalDistance}
+        const powerCount = valid.filter(segment => shareMetricNumericValue(segment, 'power') !== null).length
+        if (powerCount >= 2) capabilities.push({id:'power', label:tr('activity.share.compare_power'), direction:'higher', count:powerCount})
+        const heartCount = valid.filter(segment => shareMetricNumericValue(segment, 'heart_avg') !== null).length
+        if (heartCount >= 2) capabilities.push({id:'heart', label:tr('activity.share.compare_heart'), direction:'neutral', count:heartCount})
+        return {capabilities, equalDistance, comparableCount:capabilities.reduce((maximum, capability) => Math.max(maximum, capability.count || 0), 0)}
     }
     const shareComparisonMetricValue = (segment, metricId) => {
         if (metricId === 'time') return shareSegmentDurationSeconds(segment)
@@ -6270,20 +6722,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (metricId === 'heart') return `${stridebrLocaleNumber(Number(value), 0)} bpm`
         return String(value)
     }
-    const stridebrLocaleNumber = (value, digits = 1) => Number(value).toLocaleString(i18n.locale === 'en' ? 'en-US' : 'pt-BR', {minimumFractionDigits: digits, maximumFractionDigits: digits})
+    const stridebrLocaleNumber = (value, digits = 1, options = {}) => formatShareNumber(value, digits, digits, options)
     const shareFormatComparisonDelta = (metricId, delta) => {
-        const value = Number(delta) || 0
+        const value = Number(delta)
+        if (!Number.isFinite(value)) return ''
         const sign = value > 0 ? '+' : value < 0 ? '−' : '±'
         const abs = Math.abs(value)
-        if (metricId === 'time') {
-            const digits = Math.abs(abs - Math.round(abs)) > .0005 ? 3 : 1
-            return `${sign}${stridebrLocaleNumber(abs, digits)} s`
-        }
-        if (metricId === 'pace') return `${sign}${stridebrLocaleNumber(abs, abs < 10 ? 1 : 0)} s/km`
+        if (metricId === 'time') return `${sign}${formatShareNumber(abs, 0, 3)} s`
+        if (metricId === 'pace') return `${sign}${formatShareNumber(abs, 0, 1)} s/km`
         if (metricId === 'speed') return `${sign}${stridebrLocaleNumber(abs, 1)} km/h`
         if (metricId === 'power') return `${sign}${stridebrLocaleNumber(abs, 0)} W`
         if (metricId === 'heart') return `${sign}${stridebrLocaleNumber(abs, 0)} bpm`
-        return `${sign}${stridebrLocaleNumber(abs, 1)}`
+        return `${sign}${formatShareNumber(abs, 0, 1)}`
     }
     const defaultShareComparisonMetric = segments => {
         const {capabilities, equalDistance} = shareComparisonCapabilities(segments)
@@ -6342,21 +6792,47 @@ document.addEventListener('DOMContentLoaded', () => {
         let row
         if (comparison.capability?.direction === 'higher') row = comparison.rows.reduce((best, item) => item.value > best.value ? item : best)
         else row = comparison.rows.reduce((best, item) => item.value < best.value ? item : best)
-        const headline = metricId === 'time' ? tr('activity.share.best_time') : metricId === 'pace' || metricId === 'speed' ? tr('activity.share.fastest') : metricId === 'power' ? tr('activity.share.highest_power') : tr('activity.share.highlight')
+        const headline = metricId === 'time'
+            ? tr('activity.share.best_time')
+            : metricId === 'pace'
+                ? tr('activity.share.best_pace')
+                : metricId === 'speed'
+                    ? tr('activity.share.fastest')
+                    : metricId === 'power'
+                        ? tr('activity.share.highest_power')
+                        : tr('activity.share.highlight')
         return {...row, metricId, headline, valueText:shareFormatComparisonValue(metricId, row.value)}
     }
-    const sessionSurfaceState = (compositionId, token, renderPurpose = 'preview', mapRasterScale = .72) => {
+    const sessionSurfaceState = (compositionId, token, renderPurpose = 'preview', mapRasterScale = .72, selectedIndexesOverride = null) => {
         const definition = SHARE_COMPOSITION_REGISTRY[compositionId] || SHARE_COMPOSITION_REGISTRY.session_summary
         const format = SHARE_FORMATS.story
         const preset = getSharePreset(activeSharePresetId)
         const color = getSharePresetColor(preset.id) || getShareColorValue()
-        const selectedIndexes = shareSelectedIndexesForScope()
+        const selectedIndexes = Array.isArray(selectedIndexesOverride) ? selectedIndexesOverride : shareSelectedIndexesForScope()
         const segments = selectedIndexes.map((index) => ({index, data:shareDataForSegment(index)})).filter(item => item.data)
         const geometryCount = segments.filter(item => shareHasRoute(item.data)).length
         const mapAllowed = definition.supportsMap && geometryCount > 0
         const mode = preset.mode === 'map' && mapAllowed ? 'map' : preset.mode === 'map' ? 'stats' : preset.mode
         const light = color === 'light' && mode !== 'photo' && mode !== 'transparent' && mode !== 'map'
-        return {definition, format, preset, color, segments, geometryCount, mapAllowed, mode, light, token, renderPurpose, mapRasterScale}
+        const compactMetrics = getShareCompactMetricSelection()
+        const comparisonMetricId = shareComparisonMetric?.value || defaultShareComparisonMetric(segments.map(item => item.data))
+        const comparisonReferenceId = shareComparisonReference?.value || 'best'
+        const routeToggleAllowed = Boolean(definition.supportsRouteToggle && geometryCount > 0)
+        const showRoute = definition.id === 'session_overview' || definition.id === 'session_by_segment'
+            ? geometryCount > 0
+            : routeToggleAllowed
+                ? shareShows('route')
+                : false
+        return {
+            definition, format, preset, color, segments, geometryCount, mapAllowed, mode, light, token, renderPurpose, mapRasterScale,
+            compactPrimaryMetric: compactMetrics.primary,
+            compactSecondaryMetric: compactMetrics.secondary,
+            comparisonMetricId,
+            comparisonReferenceId,
+            routeToggleAllowed,
+            showRoute,
+            commonDistance: shareCommonSegmentDistanceMeters(segments),
+        }
     }
     const drawSessionBase = async (context, state) => {
         const {format, color, mode, light, mapAllowed, segments, token} = state
@@ -6387,22 +6863,75 @@ document.addEventListener('DOMContentLoaded', () => {
         fillShareBackground(context,width,height,color)
         return {outlined:false,mapDrawn:false,attribution:''}
     }
+    const SESSION_VISUAL = Object.freeze({
+        frame: Object.freeze({titleY:.118, logoY:.865, logoWidth:.25}),
+        type: Object.freeze({
+            title:36,
+            label:24,
+            meta:22,
+            value:46,
+            strongValue:62,
+            hero:128,
+            segmentLabel:22,
+            segmentPrimary:52,
+            segmentSecondary:25,
+            compactLabel:38,
+            compactPrimary:100,
+            compactSecondary:58,
+        }),
+        spacing: Object.freeze({
+            labelValueGap:76,
+            compactLabelValueGap:84,
+            compactPrimarySecondaryGap:70,
+            compactInterItemGap:118,
+        }),
+        columns: Object.freeze({
+            comparison:Object.freeze({id:.0,value:.18,delta:1,barStart:.0,barWidth:.86}),
+        }),
+        stage: Object.freeze({
+            session_overview:Object.freeze({x:.14,y:.205,width:.72,height:.585}),
+            session_by_segment:Object.freeze({x:.14,y:.19,width:.72,height:.60}),
+            session_comparison:Object.freeze({x:.14,y:.265,width:.72,height:.50}),
+            session_highlight:Object.freeze({x:.12,y:.225,width:.76,height:.555}),
+            session_sequence:Object.freeze({x:.14,y:.215,width:.72,height:.585}),
+            session_summary:Object.freeze({x:.12,y:.245,width:.76,height:.54}),
+            session_list:Object.freeze({x:.105,y:.19,width:.79,height:.575}),
+            session_minimal:Object.freeze({x:.105,y:.235,width:.79,height:.54}),
+            session_compact:Object.freeze({x:.20,y:.19,width:.60,height:.52}),
+        }),
+    })
+    const fitSharePeerFontSize = (context, texts, {weight=800, baseSize=52, minSize=38, maxWidth=Infinity, family='Inter, system-ui, sans-serif'}={}) => {
+        const values=(Array.isArray(texts)?texts:[]).map(value=>String(value || '')).filter(Boolean)
+        let size=baseSize
+        while(size>minSize){
+            context.font=`${weight} ${size}px ${family}`
+            if(values.every(value=>context.measureText(value).width<=maxWidth))break
+            size-=2
+        }
+        return size
+    }
+    const drawSessionLogo = (context, state, y = SESSION_VISUAL.frame.logoY, widthScale = 1) => {
+        const {width,height}=state.format
+        if (!((state.light && shareLogoDarkReady) || (!state.light && shareLogoReady))) return false
+        const image=state.light?shareLogoDark:shareLogo
+        const logoWidth=width*SESSION_VISUAL.frame.logoWidth*widthScale
+        const logoHeight=logoWidth*(552.6/1408.82)
+        context.drawImage(image,width/2-logoWidth/2,height*y-logoHeight/2,logoWidth,logoHeight)
+        return true
+    }
     const drawSessionFixedFrame = (context, state, surface, {title=true, logo=true}={}) => {
         const {format, light} = state
-        const {width,height,anchors}=format
+        const {width,height}=format
         const primary = light ? '#223148' : '#f8fafc'
         const accent = light ? '#526b9c' : '#a8b8e8'
-        if (title) drawShareSportLabel(context, String(shareData?.modalidade || tr('common.activity')).toUpperCase(), anchors.titleAnchor.x*width, anchors.titleAnchor.y*height, width*.78, {fontSize:30,color:accent,outlined:surface.outlined,lineColor:light?'rgba(82,107,156,.52)':'rgba(159,177,219,.62)',lineWidth:1.6,gap:18})
-        if (logo && shareShows('logo') && ((light && shareLogoDarkReady) || (!light && shareLogoReady))) {
-            const image=light?shareLogoDark:shareLogo
-            const logoWidth=166, logoHeight=logoWidth*(552.6/1408.82)
-            context.drawImage(image,anchors.logoAnchor.x*width-logoWidth/2,anchors.logoAnchor.y*height-logoHeight/2,logoWidth,logoHeight)
-        }
+        if (title) drawShareSportLabel(context, String(shareData?.modalidade || tr('common.activity')).toUpperCase(), width*.5, height*SESSION_VISUAL.frame.titleY, width*.52, {fontSize:SESSION_VISUAL.type.title,color:accent,outlined:surface.outlined,lineColor:light?'rgba(82,107,156,.52)':'rgba(159,177,219,.62)',lineWidth:2,gap:22})
+        if (logo) drawSessionLogo(context,state)
         context.fillStyle=primary
     }
     const shareSessionStage = state => {
-        const a=state.format.anchors.contentStage, w=state.format.width, h=state.format.height
-        return {x:a.x*w,y:a.y*h,width:a.width*w,height:a.height*h}
+        const token=SESSION_VISUAL.stage[state.definition?.id] || state.format.anchors.contentStage
+        const w=state.format.width, h=state.format.height
+        return {x:token.x*w,y:token.y*h,width:token.width*w,height:token.height*h}
     }
     const drawSessionRoute = (context, data, box, index, state, {commonProject=null,widthScale=1}={}) => {
         const coords=routeCoordinatesForSharing(data)
@@ -6418,85 +6947,496 @@ document.addEventListener('DOMContentLoaded', () => {
         if (family==='running' && distance && duration!==null) return {label:tr('activity.share.pace'),value:shareFormatPaceSeconds(duration/(distance/1000)),type:'pace'}
         if (family==='cycling' && distance && duration>0) return {label:tr('activity.share.compare_speed'),value:`${stridebrLocaleNumber((distance/duration)*3.6,1)} km/h`,type:'speed'}
         const power=availableShareMetrics(segment).find(item=>shareMetricType(item)==='power')
-        if (power) return {label:power.rotulo,value:power.valor,type:'power'}
+        if (power && shareMetricHasValue(power.valor)) return {label:String(power.rotulo || ''),value:String(power.valor || ''),type:'power'}
         if (duration!==null) return {label:tr('activity.share.duration'),value:shareFormatDurationPrecise(duration),type:'time'}
-        return availableShareMetrics(segment)[0] || {label:'',value:''}
+        const fallback=availableShareMetrics(segment).find(item=>shareMetricHasValue(item?.valor))
+        return fallback ? {label:String(fallback.rotulo || ''),value:String(fallback.valor || ''),type:shareMetricType(fallback)} : {label:'',value:'',type:'other'}
     }
-    const drawSessionOverflow = (context, count, x, y, light) => {
-        if (count<=0) return
-        context.textAlign='right'; context.fillStyle=light?'#526178':'#c8d1df'; context.font='700 24px Inter, system-ui, sans-serif'; context.fillText(`+${count}`,x,y)
+    const shareSportContext = (subject = null, distance = null) => sportContextEngine?.context?.({
+        slug: String(subject?.modalidade_slug || subject?.sport || shareData?.modalidade_slug || ''),
+        family: String(subject?.modalidade_familia_hub || subject?.familia_hub || ''),
+        registered_m: Number.isFinite(Number(distance)) ? Number(distance) : null,
+        segment: Boolean(subject && subject !== shareData),
+    }) || {}
+    const shareFormatDistanceMeters = (distance, subject = null) => {
+        const value = Number(distance)
+        if (!Number.isFinite(value) || value <= 0) return ''
+        if (sportContextEngine?.formatDistance) return sportContextEngine.formatDistance(value, shareSportContext(subject, value), sportContextLocale())
+        if (value >= 1000) return `${formatShareNumber(value / 1000, 2, 2)} km`
+        return `${formatShareNumber(value, value < 100 ? 1 : 0, value < 100 ? 1 : 0)} m`
     }
-    const drawSessionOverview = (context,state,stage) => {
-        const visible=state.segments.slice(0,state.definition.maxVisibleSegments)
-        const routeItems=visible.filter(item=>shareHasRoute(item.data))
-        const top=stage.y+20, routeHeight=stage.height*.52
-        const allCoords=routeItems.flatMap(item=>routeCoordinatesForSharing(item.data))
-        let commonProject=null
-        if (state.mapViewport) commonProject=state.mapViewport.project.bind(state.mapViewport)
-        else if (allCoords.length>=2) {
-            const projector=canvasGeoProjector(allCoords,stage.x+20,top,stage.width-40,routeHeight)
-            if (projector) commonProject=(lon,lat)=>projector([lon,lat])
+    const sessionMetricLabel = metricId => ({
+        distance: tr('activity.share.distance'),
+        time: tr('activity.share.compare_time'),
+        pace: tr('activity.share.compare_pace'),
+        speed: tr('activity.share.compare_speed'),
+        power: tr('activity.share.compare_power'),
+        heart: tr('activity.share.compare_heart'),
+        cadence: tr('activity.share.cadence'),
+    }[metricId] || tr('activity.statistics'))
+    const sessionSegmentMetric = (segment, metricId) => {
+        if (metricId === 'distance') {
+            const distance = shareSegmentDistanceMeters(segment)
+            return distance ? {id:'distance', label: sessionMetricLabel('distance'), value: shareFormatDistanceMeters(distance, segment), numeric: distance} : null
         }
-        routeItems.forEach((item,pos)=>drawSessionRoute(context,item.data,{x:0,y:0,width:0,height:0},pos,state,{commonProject,widthScale:.92}))
-        const metrics=getSelectedShareMetrics(shareData).slice(0,4)
-        const summaryY=top+routeHeight+44
-        context.textAlign='left'; context.fillStyle=state.light?'#223148':'#f8fafc'; context.font='780 54px Inter, system-ui, sans-serif'
-        const hero=metrics[0] || sessionShareMetrics(state.segments.map(item=>item.index))[0]
-        if (hero) context.fillText(String(hero.valor||''),stage.x,summaryY)
-        context.fillStyle=state.light?'#64748b':'#c0c8d6'; context.font='650 19px Inter, system-ui, sans-serif'; if(hero) context.fillText(String(hero.rotulo||'').toUpperCase(),stage.x,summaryY-58)
-        const shortMetrics=metrics.slice(1,4)
-        shortMetrics.forEach((metric,index)=>{const x=stage.x+stage.width*.45+(index%2)*stage.width*.27; const y=summaryY-42+Math.floor(index/2)*78; context.fillStyle=state.light?'#64748b':'#c0c8d6'; context.font='650 15px Inter, system-ui, sans-serif'; context.fillText(String(metric.rotulo||'').toUpperCase(),x,y); context.fillStyle=state.light?'#223148':'#f8fafc'; context.font='760 26px Inter, system-ui, sans-serif'; context.fillText(String(metric.valor||''),x,y+30)})
-        context.textAlign='right'; context.fillStyle=state.light?'#64748b':'#c0c8d6'; context.font='650 20px Inter, system-ui, sans-serif'; context.fillText(tr('activity.share.segment_count',{count:state.segments.length}),stage.x+stage.width,summaryY+82)
-        drawSessionOverflow(context,state.segments.length-visible.length,stage.x+stage.width,summaryY+118,state.light)
+        if (metricId === 'cadence') {
+            const value = shareMetricNumericValue(segment, 'cadence')
+            return value !== null ? {id:'cadence', label: sessionMetricLabel('cadence'), value: `${stridebrLocaleNumber(value, 0)} rpm`, numeric: value} : null
+        }
+        const value = shareComparisonMetricValue(segment, metricId)
+        return value !== null && Number.isFinite(value)
+            ? {id: metricId, label: sessionMetricLabel(metricId), value: shareFormatComparisonValue(metricId, value), numeric: value}
+            : null
     }
-    const drawSessionBySegment = (context,state,stage) => {
-        const visible=state.segments.slice(0,state.definition.maxVisibleSegments), gap=18, rowH=(stage.height-gap*(visible.length-1))/Math.max(1,visible.length)
-        visible.forEach((item,pos)=>{const y=stage.y+pos*(rowH+gap); shareRoundedRect(context,stage.x,y,stage.width,rowH,24); context.fillStyle=state.light?'rgba(255,255,255,.72)':'rgba(5,13,27,.48)'; context.fill(); context.strokeStyle=state.light?'rgba(64,80,124,.16)':'rgba(220,228,242,.14)'; context.lineWidth=2; context.stroke(); const routeBox={x:stage.x+26,y:y+18,width:stage.width*.57,height:rowH-36}; drawSessionRoute(context,item.data,routeBox,pos,state,{widthScale:.72}); const metric=sessionPrimaryMetric(item.data); context.textAlign='right'; context.fillStyle=state.light?'#64748b':'#aab6c8'; context.font='650 15px Inter, system-ui, sans-serif'; context.fillText(shareSegmentName(item.data,item.index).toUpperCase(),stage.x+stage.width-26,y+38); context.fillStyle=state.light?'#223148':'#f8fafc'; context.font='780 30px Inter, system-ui, sans-serif'; context.fillText(metric.value,stage.x+stage.width-26,y+76); const distance=shareSegmentDistanceMeters(item.data); if(distance){context.fillStyle=state.light?'#64748b':'#c0c8d6'; context.font='600 17px Inter, system-ui, sans-serif'; context.fillText(`${stridebrLocaleNumber(distance/1000,2)} km`,stage.x+stage.width-26,y+104)}})
-        drawSessionOverflow(context,state.segments.length-visible.length,stage.x+stage.width,stage.y+stage.height+34,state.light)
+    const sessionAvailableMetricChoices = segments => {
+        const base = ['time', 'pace', 'speed', 'power', 'heart', 'cadence', 'distance']
+        return base.filter(metricId => segments.some(segment => sessionSegmentMetric(segment, metricId)))
+            .map(metricId => ({id: metricId, label: sessionMetricLabel(metricId)}))
     }
-    const drawSessionComparison = (context,state,stage) => {
-        const all=state.segments.map(item=>item.data), comparison=shareComparisonRows(all), visible=comparison.rows.slice(0,state.definition.maxVisibleSegments), gap=16, rowH=(stage.height-gap*Math.max(0,visible.length-1))/Math.max(1,visible.length)
-        visible.forEach((row,pos)=>{const source=state.segments[row.index]||state.segments[pos], y=stage.y+pos*(rowH+gap); shareRoundedRect(context,stage.x,y,stage.width,rowH,24); context.fillStyle=state.light?'rgba(255,255,255,.72)':'rgba(5,13,27,.5)'; context.fill(); context.strokeStyle=state.light?'rgba(64,80,124,.16)':'rgba(220,228,242,.14)'; context.lineWidth=2; context.stroke(); drawSessionRoute(context,row.segment,{x:stage.x+22,y:y+18,width:stage.width*.48,height:rowH-36},pos,state,{widthScale:.64}); const value=shareFormatComparisonValue(comparison.metricId,row.value); context.textAlign='left'; context.fillStyle=state.light?'#64748b':'#aab6c8'; context.font='650 15px Inter, system-ui, sans-serif'; context.fillText(shareSegmentName(row.segment,source?.index??pos).toUpperCase(),stage.x+stage.width*.56,y+38); context.fillStyle=state.light?'#223148':'#f8fafc'; context.font='780 29px Inter, system-ui, sans-serif'; context.fillText(value,stage.x+stage.width*.56,y+75); const best=comparison.best!==null&&Math.abs(row.value-comparison.best)<.0005; context.textAlign='right'; context.fillStyle=best?'#86a4ff':(state.light?'#526178':'#c0c8d6'); context.font=`${best?'800':'650'} 19px Inter, system-ui, sans-serif`; const delta=best&&comparison.referenceId==='best'?tr('activity.share.best').toUpperCase():comparison.reference!==null?shareFormatComparisonDelta(comparison.metricId,row.value-comparison.reference):''; context.fillText(delta,stage.x+stage.width-24,y+66)})
-        drawSessionOverflow(context,comparison.rows.length-visible.length,stage.x+stage.width,stage.y+stage.height+34,state.light)
+    const shareCommonSegmentDistanceMeters = segments => {
+        const distances = segments.map(item => shareSegmentDistanceMeters(item.data || item)).filter(value => value !== null)
+        if (distances.length < 2 || distances.length !== segments.length) return null
+        const average = distances.reduce((sum, value) => sum + value, 0) / distances.length
+        if (Math.max(...distances) - Math.min(...distances) > Math.max(5, average * .02)) return null
+        return average
     }
-    const drawSessionHighlight = (context,state,stage,withRoute) => {
-        const all=state.segments.map(item=>item.data), result=shareHighlightResult(all); if(!result)return
-        context.textAlign='center'; context.fillStyle=state.light?'#526b9c':'#a8b8e8'; context.font='750 22px Inter, system-ui, sans-serif'; context.fillText(result.headline.toUpperCase(),stage.x+stage.width/2,stage.y+38)
-        let heroY=stage.y+96
-        if(withRoute){drawSessionRoute(context,result.segment,{x:stage.x+stage.width*.08,y:heroY,width:stage.width*.84,height:stage.height*.43},result.index,state,{widthScale:.9}); heroY+=stage.height*.47}
-        context.fillStyle=state.light?'#64748b':'#aab6c8'; context.font='650 17px Inter, system-ui, sans-serif'; context.fillText(shareSegmentName(result.segment,result.index).toUpperCase(),stage.x+stage.width/2,heroY+28); context.fillStyle=state.light?'#223148':'#f8fafc'; context.font='820 58px Inter, system-ui, sans-serif'; context.fillText(result.valueText,stage.x+stage.width/2,heroY+94)
-        const comparison=shareComparisonRows(all,result.metricId,'best'); const leaderboard=comparison.rows.slice().sort((a,b)=>comparison.capability?.direction==='higher'?b.value-a.value:a.value-b.value).slice(0,3); const bottom=stage.y+stage.height-20; const boxW=(stage.width-32)/3; leaderboard.forEach((row,pos)=>{const x=stage.x+pos*(boxW+16); shareRoundedRect(context,x,bottom-92,boxW,82,18); context.fillStyle=state.light?'rgba(255,255,255,.68)':'rgba(5,13,27,.46)'; context.fill(); context.textAlign='center'; context.fillStyle=state.light?'#64748b':'#aab6c8'; context.font='650 14px Inter, system-ui, sans-serif'; context.fillText(`T${row.index+1}`,x+boxW/2,bottom-62); context.fillStyle=state.light?'#223148':'#f8fafc'; context.font='760 22px Inter, system-ui, sans-serif'; context.fillText(shareFormatComparisonValue(result.metricId,row.value),x+boxW/2,bottom-28)})
+    const populateShareCompactMetricControls = () => {
+        if (!shareSessionCompactPrimary || !shareSessionCompactSecondary) return
+        const segments = shareSelectedIndexesForScope().map(index => shareDataForSegment(index)).filter(Boolean)
+        const choices = sessionAvailableMetricChoices(segments)
+        const previousPrimary = shareSessionCompactPrimary.value
+        const previousSecondary = shareSessionCompactSecondary.value
+        shareSessionCompactPrimary.replaceChildren()
+        shareSessionCompactSecondary.replaceChildren()
+        choices.forEach(choice => {
+            const primaryOption = document.createElement('option')
+            primaryOption.value = choice.id
+            primaryOption.textContent = choice.label
+            shareSessionCompactPrimary.append(primaryOption)
+            const secondaryOption = document.createElement('option')
+            secondaryOption.value = choice.id
+            secondaryOption.textContent = choice.label
+            shareSessionCompactSecondary.append(secondaryOption)
+        })
+        const noneOption = document.createElement('option')
+        noneOption.value = ''
+        noneOption.textContent = tr('common.none')
+        shareSessionCompactSecondary.prepend(noneOption)
+        const defaultPrimary = defaultShareComparisonMetric(segments) || choices[0]?.id || ''
+        shareSessionCompactPrimary.value = choices.some(choice => choice.id === previousPrimary) ? previousPrimary : defaultPrimary
+        const defaultSecondary = choices.find(choice => choice.id !== shareSessionCompactPrimary.value)?.id || ''
+        shareSessionCompactSecondary.value = choices.some(choice => choice.id === previousSecondary) && previousSecondary !== shareSessionCompactPrimary.value ? previousSecondary : defaultSecondary
     }
-    const drawSessionSequence = (context,state,stage,withRoute) => {
-        const visible=state.segments.slice(0,state.definition.maxVisibleSegments), gap=10, rowH=(stage.height-gap*Math.max(0,visible.length-1))/Math.max(1,visible.length), lineX=stage.x+28
-        context.strokeStyle=state.light?'rgba(82,107,156,.34)':'rgba(126,151,222,.38)'; context.lineWidth=3; context.beginPath(); context.moveTo(lineX,stage.y+rowH*.5); context.lineTo(lineX,stage.y+stage.height-rowH*.5); context.stroke()
-        visible.forEach((item,pos)=>{const y=stage.y+pos*(rowH+gap); context.beginPath(); context.arc(lineX,y+rowH/2,9,0,Math.PI*2); context.fillStyle=SHARE_BLUE_SERIES[pos%SHARE_BLUE_SERIES.length]; context.fill(); context.lineWidth=4; context.strokeStyle=state.light?'#fff':'#14213b'; context.stroke(); const x=stage.x+58; if(withRoute){shareRoundedRect(context,x,y,stage.width-58,rowH,20); context.fillStyle=state.light?'rgba(255,255,255,.68)':'rgba(5,13,27,.44)'; context.fill(); drawSessionRoute(context,item.data,{x:x+18,y:y+12,width:(stage.width-58)*.46,height:rowH-24},pos,state,{widthScale:.58}); context.textAlign='left'; const metric=sessionPrimaryMetric(item.data); context.fillStyle=state.light?'#64748b':'#aab6c8'; context.font='650 14px Inter, system-ui, sans-serif'; context.fillText(shareSegmentName(item.data,item.index).toUpperCase(),x+(stage.width-58)*.53,y+rowH*.42); context.fillStyle=state.light?'#223148':'#f8fafc'; context.font='760 23px Inter, system-ui, sans-serif'; context.fillText(metric.value,x+(stage.width-58)*.53,y+rowH*.7)} else {const metric=sessionPrimaryMetric(item.data), distance=shareSegmentDistanceMeters(item.data), duration=shareSegmentDurationSeconds(item.data); context.textAlign='left'; context.fillStyle=state.light?'#64748b':'#aab6c8'; context.font='650 14px Inter, system-ui, sans-serif'; context.fillText(shareSegmentName(item.data,item.index).toUpperCase(),x,y+rowH*.34); context.fillStyle=state.light?'#223148':'#f8fafc'; context.font='780 30px Inter, system-ui, sans-serif'; context.fillText(metric.value,x,y+rowH*.62); context.fillStyle=state.light?'#64748b':'#c0c8d6'; context.font='600 16px Inter, system-ui, sans-serif'; const meta=[distance?`${stridebrLocaleNumber(distance/1000,2)} km`:'',duration!==null?shareFormatDurationPrecise(duration):''].filter(Boolean).join(' · '); context.fillText(meta,x,y+rowH*.82)}})
-        drawSessionOverflow(context,state.segments.length-visible.length,stage.x+stage.width,stage.y+stage.height+32,state.light)
+    const getShareCompactMetricSelection = () => {
+        const segments = shareSelectedIndexesForScope().map(index => shareDataForSegment(index)).filter(Boolean)
+        const choices = sessionAvailableMetricChoices(segments)
+        const defaultPrimary = defaultShareComparisonMetric(segments) || choices[0]?.id || ''
+        const primary = choices.some(choice => choice.id === shareSessionCompactPrimary?.value) ? shareSessionCompactPrimary.value : defaultPrimary
+        let secondary = choices.some(choice => choice.id === shareSessionCompactSecondary?.value) ? shareSessionCompactSecondary.value : ''
+        if (secondary === primary) secondary = ''
+        return {primary, secondary}
     }
-    const drawSessionSummary = (context,state,stage) => {
-        const metrics=getSelectedShareMetrics(shareData).filter(metric=>shareMetricHasValue(metric.valor)).slice(0,4); const hero=metrics[0]||sessionShareMetrics(state.segments.map(item=>item.index))[0]; if(!hero)return
-        context.textAlign='center'; context.fillStyle=state.light?'#64748b':'#aab6c8'; context.font='650 18px Inter, system-ui, sans-serif'; context.fillText(String(hero.rotulo||'').toUpperCase(),stage.x+stage.width/2,stage.y+112); context.fillStyle=state.light?'#223148':'#f8fafc'; context.font='820 86px Inter, system-ui, sans-serif'; context.fillText(String(hero.valor||''),stage.x+stage.width/2,stage.y+210); context.fillStyle=state.light?'#64748b':'#c0c8d6'; context.font='650 18px Inter, system-ui, sans-serif'; context.fillText(tr('activity.share.segment_count',{count:state.segments.length}),stage.x+stage.width/2,stage.y+252)
-        const secondary=metrics.slice(1,4); const cols=secondary.length===1?1:2; secondary.forEach((metric,index)=>{const col=index%cols,row=Math.floor(index/cols),boxW=cols===1?stage.width*.62:(stage.width-24)/2,x=cols===1?stage.x+(stage.width-boxW)/2:stage.x+col*(boxW+24),y=stage.y+338+row*142; shareRoundedRect(context,x,y,boxW,118,22); context.fillStyle=state.light?'rgba(255,255,255,.7)':'rgba(5,13,27,.46)'; context.fill(); context.textAlign='left'; context.fillStyle=state.light?'#64748b':'#aab6c8'; context.font='650 15px Inter, system-ui, sans-serif'; context.fillText(String(metric.rotulo||'').toUpperCase(),x+22,y+36); context.fillStyle=state.light?'#223148':'#f8fafc'; context.font='780 30px Inter, system-ui, sans-serif'; context.fillText(String(metric.valor||''),x+22,y+80)})
+    const drawSessionOverflow = (context, count, x, y, light, align = 'center') => {
+        if (count <= 0) return
+        context.textAlign = align
+        context.fillStyle = light ? '#526178' : '#aab6c8'
+        context.font = '700 26px Inter, system-ui, sans-serif'
+        context.fillText(`+${count} ${tr('activity.share.segments').toLowerCase()}`, x, y)
     }
-    const drawSessionList = (context,state,stage) => {
-        const visible=state.segments.slice(0,state.definition.maxVisibleSegments), rowH=Math.min(116,stage.height/Math.max(1,visible.length)), gap=12
-        visible.forEach((item,pos)=>{const y=stage.y+pos*(rowH+gap); shareRoundedRect(context,stage.x,y,stage.width,rowH,20); context.fillStyle=state.light?'rgba(255,255,255,.66)':'rgba(5,13,27,.42)'; context.fill(); context.textAlign='left'; context.fillStyle=state.light?'#526b9c':'#a8b8e8'; context.font='760 28px Inter, system-ui, sans-serif'; context.fillText(String(pos+1),stage.x+24,y+44); context.fillStyle=state.light?'#223148':'#f8fafc'; context.font='730 24px Inter, system-ui, sans-serif'; context.fillText(shareSegmentName(item.data,item.index),stage.x+76,y+42); const primary=sessionPrimaryMetric(item.data); context.textAlign='right'; context.font='780 25px Inter, system-ui, sans-serif'; context.fillText(primary.value,stage.x+stage.width-24,y+42); const distance=shareSegmentDistanceMeters(item.data),duration=shareSegmentDurationSeconds(item.data); const meta=[distance?`${stridebrLocaleNumber(distance/1000,2)} km`:'',duration!==null?shareFormatDurationPrecise(duration):''].filter(Boolean).join(' · '); context.fillStyle=state.light?'#64748b':'#aab6c8'; context.font='600 16px Inter, system-ui, sans-serif'; context.fillText(meta,stage.x+stage.width-24,y+76)})
-        drawSessionOverflow(context,state.segments.length-visible.length,stage.x+stage.width,stage.y+stage.height+34,state.light)
+    const drawSessionOverview = (context, state, stage) => {
+        const routeItems = state.segments.filter(item => shareHasRoute(item.data))
+        const visibleRoutes = routeItems.slice(0, 3)
+        const routeTop = stage.y
+        const routeAreaH = stage.height * .55
+        if (state.mapViewport) {
+            const commonProject = state.mapViewport.project.bind(state.mapViewport)
+            routeItems.forEach((item, pos) => drawSessionRoute(context, item.data, {x:stage.x,y:routeTop,width:stage.width,height:routeAreaH}, pos, state, {commonProject, widthScale:.92}))
+        } else if (visibleRoutes.length) {
+            const gap = state.format.height * .018
+            const rowH = (routeAreaH - gap * Math.max(0, visibleRoutes.length - 1)) / visibleRoutes.length
+            visibleRoutes.forEach((item, pos) => {
+                const y = routeTop + pos * (rowH + gap)
+                drawSessionRoute(context, item.data, {x:stage.x + stage.width*.015,y:y + rowH*.06,width:stage.width*.97,height:rowH*.88}, pos, state, {widthScale:.92})
+            })
+        }
+        const sessionMetrics = sessionShareMetrics(state.segments.map(item => item.index)).filter(metric => shareMetricHasValue(metric?.valor))
+        const hero = sessionMetrics.find(metric => /dist[aâ]ncia/i.test(String(metric.rotulo || ''))) || sessionMetrics[0]
+        const time = sessionMetrics.find(metric => /tempo|dura[cç][aã]o/i.test(String(metric.rotulo || '')))?.valor || ''
+        const pace = sessionMetrics.find(metric => /ritmo|pace|velocidade|speed/i.test(String(metric.rotulo || '')))?.valor || ''
+        const heroY = stage.y + stage.height * .71
+        context.textAlign = 'center'
+        if (hero) {
+            const heroValue=String(hero.valor || '')
+            let heroSize=SESSION_VISUAL.type.hero*.88
+            context.fillStyle = state.light ? '#223148' : '#f8fafc'
+            context.font = `900 ${heroSize}px Inter, system-ui, sans-serif`
+            while (heroSize > 76 && context.measureText(heroValue).width > stage.width*.92) {
+                heroSize -= 2
+                context.font = `900 ${heroSize}px Inter, system-ui, sans-serif`
+            }
+            context.fillText(heroValue, stage.x + stage.width/2, heroY)
+        }
+        const metaLine=[time,pace,tr('activity.share.segment_count',{count:state.segments.length})].filter(Boolean).join(' · ')
+        context.fillStyle = state.light ? '#64748b' : '#c0c8d6'
+        context.font = '650 30px Inter, system-ui, sans-serif'
+        context.fillText(metaLine, stage.x + stage.width/2, heroY + 74)
     }
-    const drawSessionMinimal = (context,state,stage) => {
-        const metrics=getSelectedShareMetrics(shareData).filter(metric=>shareMetricHasValue(metric.valor)).slice(0,3); if(!metrics.length)return
-        const positions=metrics.length===3?[.28,.52,.76]:metrics.length===2?[.39,.65]:[.52]; context.textAlign='center'; metrics.forEach((metric,index)=>{const y=stage.y+stage.height*positions[index]; context.fillStyle=state.light?'#64748b':'#aab6c8'; context.font='650 18px Inter, system-ui, sans-serif'; context.fillText(String(metric.rotulo||'').toUpperCase(),stage.x+stage.width/2,y-22); context.fillStyle=state.light?'#223148':'#f8fafc'; context.font=`820 ${index===0?72:58}px Inter, system-ui, sans-serif`; context.fillText(String(metric.valor||''),stage.x+stage.width/2,y+50)})
+    const drawSessionBySegment = (context, state, stage) => {
+        const capacity = Math.min(4, state.definition.maxVisibleSegments || 4)
+        const visible = state.segments.slice(0, capacity)
+        const gap = state.format.height * .014
+        const usableH = stage.height - (state.segments.length > visible.length ? 56 : 0)
+        const rowH = (usableH - gap * Math.max(0, visible.length - 1)) / Math.max(1, visible.length)
+        const routeWidth = stage.width * .67
+        const textX = stage.x + routeWidth + stage.width*.035
+        visible.forEach((item, pos) => {
+            const y = stage.y + pos * (rowH + gap)
+            if (shareHasRoute(item.data)) drawSessionRoute(context, item.data, {x:stage.x,y:y+rowH*.08,width:routeWidth,height:rowH*.84}, pos, state, {widthScale:.9})
+            const cy=y+rowH*.5
+            context.textAlign='left'
+            context.fillStyle=state.light?'#64748b':'#aab6c8'
+            context.font='700 20px Inter, system-ui, sans-serif'
+            context.fillText(shareSegmentName(item.data,item.index).toUpperCase(),textX,cy-48)
+            const distance=shareSegmentDistanceMeters(item.data)
+            if(distance){
+                context.fillStyle=state.light?'#223148':'#f8fafc'
+                context.font='820 34px Inter, system-ui, sans-serif'
+                context.fillText(shareFormatDistanceMeters(distance,item.data),textX,cy-7)
+            }
+            const metric=sessionPrimaryMetric(item.data)
+            context.fillStyle=state.light?'#223148':'#f8fafc'
+            context.font='780 26px Inter, system-ui, sans-serif'
+            context.fillText(metric.value,textX,cy+31)
+        })
+        drawSessionOverflow(context,state.segments.length-visible.length,stage.x+stage.width/2,stage.y+stage.height+22,state.light)
     }
-    const drawSessionCompact = (context,state,stage) => {
-        const visible=state.segments.slice(0,state.definition.maxVisibleSegments), rowH=Math.min(142,stage.height/Math.max(1,visible.length)), gap=16, total=visible.length*rowH+Math.max(0,visible.length-1)*gap, top=stage.y+(stage.height-total)/2
-        visible.forEach((item,pos)=>{const y=top+pos*(rowH+gap), hasRoute=shareHasRoute(item.data), metric=sessionPrimaryMetric(item.data); if(hasRoute) drawSessionRoute(context,item.data,{x:stage.x,y:y+8,width:stage.width*.42,height:rowH-16},pos,state,{widthScale:.6}); context.textAlign='left'; const x=stage.x+(hasRoute?stage.width*.48:0); context.fillStyle=state.light?'#64748b':'#aab6c8'; context.font='650 15px Inter, system-ui, sans-serif'; context.fillText(shareSegmentName(item.data,item.index).toUpperCase(),x,y+48); context.fillStyle=state.light?'#223148':'#f8fafc'; context.font='780 28px Inter, system-ui, sans-serif'; context.fillText(metric.value,x,y+84); const distance=shareSegmentDistanceMeters(item.data); if(distance){context.fillStyle=state.light?'#64748b':'#c0c8d6'; context.font='600 15px Inter, system-ui, sans-serif'; context.fillText(`${stridebrLocaleNumber(distance/1000,2)} km`,x,y+112)}})
-        drawSessionOverflow(context,state.segments.length-visible.length,stage.x+stage.width,top+total+34,state.light)
-        if (shareShows('logo') && ((state.light&&shareLogoDarkReady)||(!state.light&&shareLogoReady))) {const logo=state.light?shareLogoDark:shareLogo, logoW=154, logoH=logoW*(552.6/1408.82); context.drawImage(logo,stage.x+stage.width/2-logoW/2,stage.y+stage.height+48-logoH/2,logoW,logoH)}
+    const drawSessionComparison = (context, state, stage) => {
+        const all=state.segments.map(item=>item.data)
+        const comparison=shareComparisonRows(all,state.comparisonMetricId,state.comparisonReferenceId)
+        const visible=comparison.rows.slice(0,Math.min(4,state.definition.maxVisibleSegments||4))
+        if(!visible.length)return
+        const values=visible.map(row=>row.value)
+        const best=comparison.capability?.direction==='higher'?Math.max(...values):Math.min(...values)
+        const worst=comparison.capability?.direction==='higher'?Math.min(...values):Math.max(...values)
+        const contextText=state.commonDistance?`${shareFormatDistanceMeters(state.commonDistance,state.segments[0]?.data || shareData)} · ${state.segments.length} ${tr('activity.share.segments').toLowerCase()}`:(comparison.capability?.label||'')
+        context.textAlign='center'
+        context.fillStyle=state.light?'#64748b':'#aab6c8'
+        context.font='700 28px Inter, system-ui, sans-serif'
+        context.fillText(String(contextText).toUpperCase(),stage.x+stage.width/2,stage.y)
+        const top=stage.y+86
+        const gap=34
+        const rowH=(stage.height-86-gap*Math.max(0,visible.length-1))/Math.max(1,visible.length)
+        const columns=SESSION_VISUAL.columns.comparison
+        const idX=stage.x+stage.width*columns.id
+        const valueX=stage.x+stage.width*columns.value
+        const deltaX=stage.x+stage.width*columns.delta
+        const valueTexts=visible.map(row=>shareFormatComparisonValue(comparison.metricId,row.value))
+        const valueSize=fitSharePeerFontSize(context,valueTexts,{weight:860,baseSize:46,minSize:40,maxWidth:stage.width*.31})
+        visible.forEach((row,pos)=>{
+            const y=top+pos*(rowH+gap)
+            const baseY=y+44
+            context.textAlign='left'
+            context.fillStyle=state.light?'#64748b':'#aab6c8'
+            context.font='700 32px Inter, system-ui, sans-serif'
+            context.fillText(`T${row.index+1}`,idX,baseY)
+            context.fillStyle=state.light?'#223148':'#f8fafc'
+            context.font=`860 ${valueSize}px Inter, system-ui, sans-serif`
+            context.fillText(valueTexts[pos],valueX,baseY)
+            const isBest=comparison.best!==null&&Math.abs(row.value-comparison.best)<.0005
+            const deltaText=isBest&&comparison.referenceId==='best'?tr('activity.share.best'):comparison.reference!==null?shareFormatComparisonDelta(comparison.metricId,row.value-comparison.reference):''
+            context.textAlign='right'
+            context.fillStyle=isBest?(state.light?'#40507c':'#a8b8e8'):(state.light?'#64748b':'#aab6c8')
+            context.font=`${isBest?'800':'650'} 31px Inter, system-ui, sans-serif`
+            context.fillText(deltaText,deltaX,baseY)
+            let ratio=.5
+            if(comparison.capability?.direction==='higher')ratio=best===worst?.5:(row.value-worst)/(best-worst)
+            else if(comparison.capability?.direction==='lower')ratio=best===worst?.5:(row.value-best)/(worst-best)
+            else ratio=Math.max(...values)>0?row.value/Math.max(...values):.5
+            const trackY=baseY+46
+            const trackX=stage.x+stage.width*columns.barStart
+            const trackW=stage.width*columns.barWidth
+            const fillW=trackW*(.56+.44*Math.max(0,Math.min(1,ratio)))
+            context.strokeStyle=SHARE_BLUE_SERIES[row.index%SHARE_BLUE_SERIES.length]
+            context.lineWidth=5
+            context.beginPath();context.moveTo(trackX,trackY);context.lineTo(trackX+fillW,trackY);context.stroke()
+        })
+        drawSessionOverflow(context,comparison.rows.length-visible.length,stage.x+stage.width/2,stage.y+stage.height+32,state.light)
+    }
+    const drawSessionHighlight = (context, state, stage, withRoute) => {
+        const result=shareHighlightResult(state.segments.map(item=>item.data))
+        if(!result)return
+        const cx=stage.x+stage.width/2
+        const distance=shareSegmentDistanceMeters(result.segment)
+        const duration=shareSegmentDurationSeconds(result.segment)
+        const meta=[distance?shareFormatDistanceMeters(distance,result.segment):'',duration!==null?shareFormatDurationPrecise(duration):''].filter(Boolean).join(' · ')
+        context.textAlign='center'
+        context.fillStyle=state.light?'#526b9c':'#a8b8e8'
+        context.font='760 28px Inter, system-ui, sans-serif'
+        context.fillText(result.headline.toUpperCase(),cx,stage.y+38)
+        context.fillStyle=state.light?'#64748b':'#aab6c8'
+        context.font='700 22px Inter, system-ui, sans-serif'
+        context.fillText(shareSegmentName(result.segment,result.index).toUpperCase(),cx,stage.y+92)
+        const leaderboard=shareComparisonRows(state.segments.map(item=>item.data),result.metricId,'best').rows
+            .sort((a,b)=>result.metricId==='speed'||result.metricId==='power'?b.value-a.value:a.value-b.value)
+            .slice(0,3)
+        const leaderboardValues=leaderboard.map(row=>shareFormatComparisonValue(result.metricId,row.value))
+        if(withRoute&&shareHasRoute(result.segment)){
+            const routeY=stage.y+118
+            const routeH=stage.height*.35
+            drawSessionRoute(context,result.segment,{x:stage.x+stage.width*.10,y:routeY,width:stage.width*.80,height:routeH},result.index,state,{widthScale:.98})
+            const heroY=routeY+routeH+80
+            context.fillStyle=state.light?'#223148':'#f8fafc'
+            context.font='900 74px Inter, system-ui, sans-serif'
+            context.fillText(result.valueText,cx,heroY)
+            context.font='800 38px Inter, system-ui, sans-serif'
+            context.fillText(meta,cx,heroY+54)
+            const listY=stage.y+stage.height*.86
+            const colW=stage.width/Math.max(1,leaderboard.length)
+            const valueSize=fitSharePeerFontSize(context,leaderboardValues,{weight:860,baseSize:52,minSize:40,maxWidth:colW*.88})
+            leaderboard.forEach((row,index)=>{
+                const x=stage.x+colW*(index+.5)
+                context.fillStyle=state.light?'#64748b':'#aab6c8'
+                context.font='700 22px Inter, system-ui, sans-serif'
+                context.fillText(`T${row.index+1}`,x,listY)
+                context.fillStyle=state.light?'#223148':'#f8fafc'
+                context.font=`860 ${valueSize}px Inter, system-ui, sans-serif`
+                context.fillText(leaderboardValues[index],x,listY+52)
+            })
+        }else{
+            const heroY=stage.y+268
+            context.fillStyle=state.light?'#223148':'#f8fafc'
+            let heroSize=160
+            context.font=`900 ${heroSize}px Inter, system-ui, sans-serif`
+            while(heroSize>104&&context.measureText(result.valueText).width>stage.width*.98){heroSize-=4;context.font=`900 ${heroSize}px Inter, system-ui, sans-serif`}
+            context.fillText(result.valueText,cx,heroY)
+            context.fillStyle=state.light?'#64748b':'#c0c8d6'
+            context.font='650 25px Inter, system-ui, sans-serif'
+            context.fillText(meta,cx,heroY+62)
+            const listTop=heroY+320
+            const blockWidth=Math.min(stage.width*.68,620)
+            const blockLeft=cx-blockWidth/2
+            const labelWidth=blockWidth*.42
+            const columnGap=52
+            const labelX=blockLeft+labelWidth
+            const valueX=labelX+columnGap
+            const valueWidth=blockWidth-labelWidth-columnGap
+            const valueSize=fitSharePeerFontSize(context,leaderboardValues,{weight:860,baseSize:54,minSize:46,maxWidth:valueWidth})
+            leaderboard.forEach((row,index)=>{
+                const y=listTop+index*200
+                context.textAlign='right'
+                context.fillStyle=state.light?'#64748b':'#aab6c8'
+                context.font='700 28px Inter, system-ui, sans-serif'
+                context.fillText(shareSegmentName(row.segment,row.index).toUpperCase(),labelX,y)
+                context.textAlign='left'
+                context.fillStyle=state.light?'#223148':'#f8fafc'
+                context.font=`860 ${valueSize}px Inter, system-ui, sans-serif`
+                context.fillText(leaderboardValues[index],valueX,y)
+            })
+        }
+    }
+    const drawSessionSequence = (context, state, stage, withRoute) => {
+        const capacity=withRoute?4:5
+        const visible=state.segments.slice(0,Math.min(capacity,state.definition.maxVisibleSegments||capacity))
+        if(!visible.length)return
+        const gap=withRoute?26:18
+        const rowH=(stage.height-gap*Math.max(0,visible.length-1))/visible.length
+        const canvasW=state.format.width
+        const lineX=withRoute?stage.x+8:canvasW*.34
+        context.strokeStyle=state.light?'rgba(82,107,156,.68)':'rgba(126,151,222,.72)'
+        context.lineWidth=5
+        context.beginPath();context.moveTo(lineX,stage.y+rowH*.5);context.lineTo(lineX,stage.y+stage.height-rowH*.5);context.stroke()
+        visible.forEach((item,pos)=>{
+            const y=stage.y+pos*(rowH+gap)
+            const cy=y+rowH/2
+            context.beginPath();context.arc(lineX,cy,11,0,Math.PI*2)
+            context.fillStyle=state.light?'#fff':'#0f1d36';context.fill()
+            context.lineWidth=5;context.strokeStyle=SHARE_BLUE_SERIES[pos%SHARE_BLUE_SERIES.length];context.stroke()
+            if(withRoute&&shareHasRoute(item.data)){
+                const routeX=lineX+78
+                const routeW=stage.width*.43
+                drawSessionRoute(context,item.data,{x:routeX,y:y+rowH*.09,width:routeW,height:rowH*.82},pos,state,{widthScale:.82})
+                const textX=routeX+routeW+stage.width*.045
+                context.textAlign='left'
+                context.fillStyle=state.light?'#64748b':'#aab6c8'
+                context.font='700 22px Inter, system-ui, sans-serif'
+                context.fillText(shareSegmentName(item.data,item.index).toUpperCase(),textX,cy-13)
+                context.fillStyle=state.light?'#223148':'#f8fafc'
+                context.font='820 34px Inter, system-ui, sans-serif'
+                context.fillText(sessionPrimaryMetric(item.data).value,textX,cy+32)
+            }else{
+                const blockX=canvasW*.405
+                const distance=shareSegmentDistanceMeters(item.data)
+                const duration=shareSegmentDurationSeconds(item.data)
+                const metric=sessionPrimaryMetric(item.data)
+                context.textAlign='left'
+                context.fillStyle=state.light?'#64748b':'#aab6c8'
+                context.font='700 21px Inter, system-ui, sans-serif'
+                context.fillText(shareSegmentName(item.data,item.index).toUpperCase(),blockX,cy-48)
+                context.fillStyle=state.light?'#223148':'#f8fafc'
+                context.font='840 52px Inter, system-ui, sans-serif'
+                context.fillText(distance?shareFormatDistanceMeters(distance,item.data):metric.value,blockX,cy+4)
+                context.fillStyle=state.light?'#64748b':'#c0c8d6'
+                context.font='650 25px Inter, system-ui, sans-serif'
+                context.fillText([duration!==null?shareFormatDurationPrecise(duration):'',metric.value].filter(Boolean).join(' · '),blockX,cy+45)
+            }
+        })
+        drawSessionOverflow(context,state.segments.length-visible.length,stage.x+stage.width/2,stage.y+stage.height+34,state.light)
+    }
+    const drawSessionSummary = (context, state, stage) => {
+        const metrics=sessionShareMetrics(state.segments.map(item=>item.index)).filter(metric=>shareMetricHasValue(metric?.valor)&&!(/^0(?:[,.]0+)?\s*m$/i).test(String(metric?.valor||'').trim()))
+        if(!metrics.length)return
+        const hero=metrics.find(metric=>/dist[aâ]ncia/i.test(String(metric.rotulo||'')))||metrics[0]
+        const candidates=metrics.filter(metric=>metric!==hero&&metric.key!=='session-segments')
+        const orderedKeys=['session-duration','session-weighted-pace','session-weighted-speed','session-weighted-100m','session-weighted-500m','session-best-pace','session-best-speed','session-elevation-total']
+        const secondary=[]
+        orderedKeys.forEach(key=>{const metric=candidates.find(item=>item.key===key);if(metric&&!secondary.includes(metric))secondary.push(metric)})
+        candidates.forEach(metric=>{if(secondary.length<4&&!secondary.includes(metric))secondary.push(metric)})
+        secondary.splice(4)
+        const cx=stage.x+stage.width/2
+        context.textAlign='center'
+        context.fillStyle=state.light?'#64748b':'#aab6c8'
+        context.font='700 24px Inter, system-ui, sans-serif'
+        context.fillText(String(hero.rotulo||'').toUpperCase(),cx,stage.y+46)
+        let heroSize=180
+        context.fillStyle=state.light?'#223148':'#f8fafc'
+        context.font=`900 ${heroSize}px Inter, system-ui, sans-serif`
+        const heroText=String(hero.valor||'')
+        while(heroSize>118&&context.measureText(heroText).width>stage.width*.96){heroSize-=2;context.font=`900 ${heroSize}px Inter, system-ui, sans-serif`}
+        context.fillText(heroText,cx,stage.y+206)
+        context.fillStyle=state.light?'#64748b':'#c0c8d6'
+        context.font='650 25px Inter, system-ui, sans-serif'
+        context.fillText(tr('activity.share.segment_count',{count:state.segments.length}),cx,stage.y+350)
+        if(!secondary.length)return
+        const gridTop=stage.y+665
+        const colCenters=[stage.x+stage.width*.25,stage.x+stage.width*.75]
+        const drawMetric=(metric,x,y)=>{
+            context.textAlign='center'
+            context.fillStyle=state.light?'#64748b':'#aab6c8'
+            context.font='700 24px Inter, system-ui, sans-serif'
+            context.fillText(String(metric.rotulo||'').toUpperCase(),x,y)
+            context.fillStyle=state.light?'#223148':'#f8fafc'
+            context.font='880 60px Inter, system-ui, sans-serif'
+            context.fillText(String(metric.valor||''),x,y+58)
+        }
+        if(secondary.length===1)drawMetric(secondary[0],cx,gridTop)
+        else if(secondary.length===2){drawMetric(secondary[0],colCenters[0],gridTop);drawMetric(secondary[1],colCenters[1],gridTop)}
+        else if(secondary.length===3){drawMetric(secondary[0],colCenters[0],gridTop);drawMetric(secondary[1],colCenters[1],gridTop);drawMetric(secondary[2],cx,gridTop+190)}
+        else{secondary.slice(0,4).forEach((metric,index)=>drawMetric(metric,colCenters[index%2],gridTop+Math.floor(index/2)*190))}
+    }
+    const drawSessionList = (context, state, stage) => {
+        const rowTarget=180
+        const capacity=Math.max(1,Math.min(state.definition.maxVisibleSegments||10,Math.floor(stage.height/rowTarget)))
+        const visible=state.segments.slice(0,capacity)
+        const rowH=stage.height/Math.max(1,visible.length)
+        visible.forEach((item,pos)=>{
+            const y=stage.y+pos*rowH
+            if(pos>0){
+                context.strokeStyle=state.light?'rgba(82,107,156,.34)':'rgba(168,184,232,.30)'
+                context.lineWidth=2
+                context.beginPath();context.moveTo(stage.x,y);context.lineTo(stage.x+stage.width,y);context.stroke()
+            }
+            const cy=y+rowH*.52
+            context.textAlign='left'
+            context.fillStyle=state.light?'#526b9c':'#a8b8e8'
+            context.font='780 38px Inter, system-ui, sans-serif'
+            context.fillText(String(pos+1),stage.x,cy-5)
+            context.fillStyle=state.light?'#223148':'#f8fafc'
+            context.font='760 38px Inter, system-ui, sans-serif'
+            context.fillText(shareSegmentName(item.data,item.index),stage.x+58,cy-5)
+            const distance=shareSegmentDistanceMeters(item.data)
+            const duration=shareSegmentDurationSeconds(item.data)
+            context.fillStyle=state.light?'#64748b':'#aab6c8'
+            context.font='650 22px Inter, system-ui, sans-serif'
+            context.fillText([distance?shareFormatDistanceMeters(distance,item.data):'',duration!==null?shareFormatDurationPrecise(duration):''].filter(Boolean).join(' · '),stage.x+58,cy+31)
+            context.textAlign='right'
+            context.fillStyle=state.light?'#223148':'#f8fafc'
+            context.font='820 40px Inter, system-ui, sans-serif'
+            context.fillText(sessionPrimaryMetric(item.data).value,stage.x+stage.width,cy-4)
+        })
+        drawSessionOverflow(context,state.segments.length-visible.length,stage.x+stage.width/2,stage.y+stage.height+38,state.light)
+    }
+    const drawSessionMinimal = (context, state, stage) => {
+        const all=sessionShareMetrics(state.segments.map(item=>item.index)).filter(metric=>shareMetricHasValue(metric?.valor))
+        if(!all.length)return
+        const total=all.find(metric=>/dist[aâ]ncia/i.test(String(metric.rotulo||'')))||all[0]
+        const secondary=all.find(metric=>metric!==total&&/ritmo|pace|velocidade|speed/i.test(String(metric.rotulo||'')))||all.find(metric=>metric!==total)||null
+        const metrics=[{rotulo:'TOTAL',valor:total.valor},secondary,{rotulo:tr('activity.share.segments').toUpperCase(),valor:String(state.segments.length)}].filter(Boolean)
+        const ys=[stage.y+stage.height*.20,stage.y+stage.height*.53,stage.y+stage.height*.82]
+        context.textAlign='center'
+        metrics.forEach((metric,index)=>{
+            const y=ys[index]
+            if(index>0){
+                const lineY=(ys[index-1]+y)/2-4
+                context.strokeStyle=state.light?'rgba(82,107,156,.28)':'rgba(168,184,232,.23)'
+                context.lineWidth=2
+                context.beginPath();context.moveTo(stage.x+stage.width*.01,lineY);context.lineTo(stage.x+stage.width*.99,lineY);context.stroke()
+            }
+            context.fillStyle=state.light?'#64748b':'#aab6c8'
+            context.font='700 22px Inter, system-ui, sans-serif'
+            context.fillText(String(metric.rotulo||'').toUpperCase(),stage.x+stage.width/2,y-(index===2?36:70))
+            context.fillStyle=state.light?'#223148':'#f8fafc'
+            const size=index===2?90:140
+            context.font=`${index===2?'840':'900'} ${size}px Inter, system-ui, sans-serif`
+            context.fillText(String(metric.valor||''),stage.x+stage.width/2,y+68)
+        })
+    }
+    const drawSessionCompact = (context, state, stage) => {
+        const secondaryEnabled=Boolean(state.compactSecondaryMetric)
+        const capacity=secondaryEnabled?3:4
+        const visible=state.segments.slice(0,Math.min(capacity,state.definition.maxVisibleSegments||capacity))
+        if(!visible.length){drawSessionLogo(context,state,.74);return}
+        const rows=visible.map(item=>({
+            item,
+            primary:sessionSegmentMetric(item.data,state.compactPrimaryMetric)||sessionPrimaryMetric(item.data),
+            secondary:secondaryEnabled?sessionSegmentMetric(item.data,state.compactSecondaryMetric):null,
+        }))
+        const cx=stage.x+stage.width/2
+        let cursor=stage.y+(state.commonDistance?88:152)
+        if(state.commonDistance){
+            context.textAlign='center'
+            context.fillStyle=state.light?'#223148':'#f8fafc'
+            context.font='860 46px Inter, system-ui, sans-serif'
+            const commonDistanceText=shareFormatDistanceMeters(state.commonDistance,state.segments[0]?.data || shareData)
+            context.fillText(commonDistanceText,cx,cursor)
+            cursor+=112
+        }
+        const primaryTexts=rows.map(row=>String(row.primary?.value||''))
+        const secondaryTexts=rows.map(row=>String(row.secondary?.value||'')).filter(Boolean)
+        const primarySize=fitSharePeerFontSize(context,primaryTexts,{weight:900,baseSize:SESSION_VISUAL.type.compactPrimary,minSize:68,maxWidth:stage.width*.98})
+        const secondarySize=fitSharePeerFontSize(context,secondaryTexts,{weight:840,baseSize:SESSION_VISUAL.type.compactSecondary,minSize:48,maxWidth:stage.width*.92})
+        const labelValueGap=SESSION_VISUAL.spacing.compactLabelValueGap
+        const secondaryBaselineGap=SESSION_VISUAL.spacing.compactPrimarySecondaryGap
+        const blockH=secondaryEnabled?labelValueGap+secondaryBaselineGap+SESSION_VISUAL.spacing.compactInterItemGap:210
+        rows.forEach(row=>{
+            context.textAlign='center'
+            context.fillStyle=state.light?'#64748b':'#aab6c8'
+            context.font=`700 ${SESSION_VISUAL.type.compactLabel}px Inter, system-ui, sans-serif`
+            context.fillText(`T${row.item.index+1}`,cx,cursor)
+            context.fillStyle=state.light?'#223148':'#f8fafc'
+            context.font=`900 ${primarySize}px Inter, system-ui, sans-serif`
+            context.fillText(String(row.primary?.value||''),cx,cursor+labelValueGap)
+            if(row.secondary){
+                context.fillStyle=state.light?'#223148':'#f8fafc'
+                context.font=`840 ${secondarySize}px Inter, system-ui, sans-serif`
+                context.fillText(String(row.secondary.value||''),cx,cursor+labelValueGap+secondaryBaselineGap)
+            }
+            cursor+=blockH
+        })
+        const overflow=state.segments.length-visible.length
+        if(overflow>0){
+            context.textAlign='center'
+            context.fillStyle=state.light?'#526178':'#c0c8d6'
+            context.font='750 30px Inter, system-ui, sans-serif'
+            context.fillText(`+${overflow}`,cx,cursor-8)
+        }
+        drawSessionLogo(context,state,overflow>0?(secondaryEnabled?.79:.78):(secondaryEnabled?.765:.735))
     }
     const drawShareSessionComposition = async (context, token, options = {}) => {
         if (!shareData) return false
-        const state=sessionSurfaceState(activeShareCompositionId,token,String(options.renderPurpose || 'preview'),Math.max(.4,Math.min(1,Number(options.mapRasterScale)||.72)))
-        if (!shareCompositionCompatibility(state.definition.id,{scope:getShareScope(),format:'story',segmentCount:state.segments.length,geometryCount:state.geometryCount})) return false
+        const state=sessionSurfaceState(activeShareCompositionId,token,String(options.renderPurpose || 'preview'),Math.max(.4,Math.min(1,Number(options.mapRasterScale)||.72)),Array.isArray(options.selectedIndexes)?options.selectedIndexes:null)
+        if (typeof options.showRoute === 'boolean' && state.routeToggleAllowed) state.showRoute = options.showRoute
+        const scope = normalizeShareScope(options.scope || getShareScope())
+        if (!shareCompositionCompatibility(state.definition.id,{scope,format:'story',segmentCount:state.segments.length,geometryCount:state.geometryCount,comparableSegmentCount:shareComparisonCapabilities(state.segments.map(item=>item.data)).comparableCount})) return false
         const surface=await drawSessionBase(context,state)
         if(token!==shareRenderToken)return false
         const compact=state.definition.id==='session_compact'
@@ -6505,12 +7445,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if(state.definition.id==='session_overview') drawSessionOverview(context,state,stage)
         else if(state.definition.id==='session_by_segment') drawSessionBySegment(context,state,stage)
         else if(state.definition.id==='session_comparison') drawSessionComparison(context,state,stage)
-        else if(state.definition.id==='session_highlight_route') drawSessionHighlight(context,state,stage,true)
-        else if(state.definition.id==='session_sequence_route') drawSessionSequence(context,state,stage,true)
+        else if(state.definition.id==='session_highlight') drawSessionHighlight(context,state,stage,state.showRoute)
+        else if(state.definition.id==='session_sequence') drawSessionSequence(context,state,stage,state.showRoute)
         else if(state.definition.id==='session_summary') drawSessionSummary(context,state,stage)
         else if(state.definition.id==='session_list') drawSessionList(context,state,stage)
-        else if(state.definition.id==='session_sequence') drawSessionSequence(context,state,stage,false)
-        else if(state.definition.id==='session_highlight') drawSessionHighlight(context,state,stage,false)
         else if(state.definition.id==='session_minimal') drawSessionMinimal(context,state,stage)
         else if(state.definition.id==='session_compact') drawSessionCompact(context,state,stage)
         if(surface.mapDrawn&&surface.attribution) drawShareMapAttribution(context,surface.attribution,state.format.width,state.format.height,54,true,24)
@@ -6572,11 +7510,100 @@ document.addEventListener('DOMContentLoaded', () => {
             formatDuration: value => shareFormatDurationPrecise(value),
             formatComparisonValue: (metricId, value) => shareFormatComparisonValue(metricId, value),
             formatComparisonDelta: (metricId, value) => shareFormatComparisonDelta(metricId, value),
+            formatDistance: (meters, subject = null) => shareFormatDistanceMeters(meters, subject),
             primaryMetric: segment => sessionPrimaryMetric(segment),
             sessionMetrics: indexes => sessionShareMetrics(indexes),
             sessionSurfaceState: (compositionId, renderPurpose = 'preview', mapRasterScale = .72) => sessionSurfaceState(compositionId, shareRenderToken, renderPurpose, mapRasterScale),
             sessionStage: state => shareSessionStage(state),
+            compactMetricLayout: (format, count, left = 0, width = 1000, top = 0, rowHeight = 100) => compactMetricLayout(format, count, left, width, top, rowHeight),
+            selectedIndexesForScope: scope => shareSelectedIndexesForScope(scope),
+            geometryCountForScope: scope => shareGeometryCountForScope(scope),
+            shareableSegments: data => shareableSegmentsForData(data),
+            renderCard: async (canvas, override = {}) => {
+                if (!canvas) return {rendered:false, configuration:null, result:null}
+                if (override.data) shareData = override.data
+                const configuration = readShareConfiguration(override || {})
+                canvas.width = configuration.width
+                canvas.height = configuration.height
+                const context = canvas.getContext('2d', {alpha:true})
+                const token = ++shareRenderToken
+                const result = await drawShareCardSurface(context, configuration, token)
+                return {rendered:Boolean(result && token === shareRenderToken), configuration, result}
+            },
+            beginRender: () => ++shareRenderToken,
+            currentRenderToken: () => shareRenderToken,
+            mapViewport: (coordinates, width, height, frame, routeScale = 100, style = 'street', rasterScale = .55) => createShareMapViewport(coordinates, width, height, frame, routeScale, style, rasterScale),
+            compositeMapBackground: async (canvas, configuration, viewport, token = shareRenderToken) => {
+                const context = canvas.getContext('2d', {alpha:true})
+                return compositeShareMapBackground(context, configuration, viewport, token)
+            },
+            clearMapCaches: () => {
+                shareMapPreviewCache.clear()
+                shareStreetLabelFreeCache.clear()
+                shareStreetLabelFreeRequests.clear()
+                roadCache.clear()
+            },
+            renderSession: async (canvas, override = {}) => {
+                if (!canvas || !override.data) return {rendered:false, result:null}
+                shareData = override.data
+                activeShareCompositionId = String(override.compositionId || 'session_summary')
+                activeSharePresetId = String(override.presetId || 'stats')
+                if (override.color) setSharePresetColor(activeSharePresetId, override.color, {persist:false})
+                canvas.width = SHARE_FORMATS.story.width
+                canvas.height = SHARE_FORMATS.story.height
+                const context = canvas.getContext('2d', {alpha:true})
+                const token = ++shareRenderToken
+                const selectedIndexes = Array.isArray(override.selectedIndexes) ? override.selectedIndexes : shareableSegmentsForData(shareData).map((_, index) => index)
+                const result = await drawShareSessionComposition(context, token, {renderPurpose:String(override.renderPurpose || 'export'), mapRasterScale:Number(override.mapRasterScale) || 1, scope:override.scope || SHARE_SCOPES.session, selectedIndexes, showRoute:override.showRoute})
+                return {rendered:Boolean(result && token === shareRenderToken), result, compositionId:activeShareCompositionId, width:canvas.width, height:canvas.height}
+            },
         })
+    }
+
+    const syncShareColorSwatches = () => {
+        shareModal?.querySelectorAll('[data-share-color-swatch]').forEach(swatch => {
+            const definition = SHARE_BACKGROUND_COLORS[normalizeShareBackgroundColor(swatch.dataset.shareColorSwatch)]
+            swatch.style.background = `linear-gradient(180deg, ${definition.stops[0]}, ${definition.stops[1]} 62%, ${definition.stops[2]})`
+        })
+    }
+    const drawShareChoiceThumbnail = async (context, canvas, {kind, value}) => {
+        const width = canvas.width, height = canvas.height
+        context.clearRect(0, 0, width, height)
+        context.save()
+        context.lineCap = 'round'; context.lineJoin = 'round'
+        if (kind === 'background') {
+            if (value === 'transparent') {
+                const size = 24
+                for (let y = 0; y < height; y += size) for (let x = 0; x < width; x += size) {
+                    context.fillStyle = ((x / size + y / size) % 2) ? '#d7dbe2' : '#f4f5f7'
+                    context.fillRect(x, y, size, size)
+                }
+            } else if (value === 'map') {
+                context.fillStyle = '#182435'; context.fillRect(0, 0, width, height)
+                drawSharePreviewMapPattern(context, width, height, false)
+            } else if (value === 'photo') {
+                const gradient = context.createLinearGradient(0, 0, width, height)
+                gradient.addColorStop(0, '#43546a'); gradient.addColorStop(1, '#172235')
+                context.fillStyle = gradient; context.fillRect(0, 0, width, height)
+                context.fillStyle = 'rgba(255,255,255,.7)'; context.beginPath(); context.arc(width*.72,height*.28,12,0,Math.PI*2); context.fill()
+                context.fillStyle = 'rgba(255,255,255,.34)'; context.beginPath(); context.moveTo(0,height); context.lineTo(width*.38,height*.48); context.lineTo(width*.62,height*.72); context.lineTo(width*.82,height*.42); context.lineTo(width,height*.6); context.lineTo(width,height); context.fill()
+            } else {
+                fillShareBackground(context, width, height, getSharePresetColor('stats'))
+            }
+        } else {
+            fillShareBackground(context, width, height, getSharePresetColor(activeSharePresetId))
+            if (value === 'route') {
+                const coords = [[.12,.68],[.27,.47],[.43,.59],[.57,.31],[.74,.44],[.88,.24]].map(([x,y]) => [x*width,y*height])
+                drawRoute(context, coords, false, false, {color:'#5f82ff',coreColor:'#eef3ff',showEndpoints:false,widthScale:.42})
+            } else if (value === 'sport') {
+                await drawShareSportIcon(context, 'track_and_field', width/2, height/2, Math.min(width,height)*.42, '#6d8cff', false, true)
+            } else {
+                const metrics = [[.24,.34],[.68,.34],[.46,.68]]
+                context.fillStyle = 'rgba(230,236,248,.75)'
+                metrics.forEach(([x,y],index) => { context.fillRect(width*x, height*y, width*(index===2?.28:.22), 5) })
+            }
+        }
+        context.restore()
     }
 
     const sharePresetPreviewFingerprint = () => JSON.stringify({
@@ -6589,61 +7616,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (fingerprint === sharePreviewFingerprint) return
         sharePreviewRenderQueued = true
         const token = shareRenderToken
-        const data = SHARE_PREVIEW_ROUTE
         try {
             for (const preset of SHARE_CARD_PRESETS) {
                 const canvas = shareStyleGrid?.querySelector(`[data-share-preset-preview="${preset.id}"]`)
                 if (!canvas) continue
-                const context = canvas.getContext('2d', {alpha: true})
-                const config = readShareConfiguration({
-                    data,
-                    width: canvas.width,
-                    height: canvas.height,
-                    format: 'story',
-                    content: 'route',
-                    preset,
-                    mode: preset.mode,
-                    color: preset.mode === 'map' ? 'light' : getSharePresetColor(preset.id),
-                    showMapBase: false,
-                    showRoads: false,
-                    roadFade: false,
-                    showTitle: true,
-                    showRoute: true,
-                    showDate: false,
-                    showLogo: true,
-                    caption: '',
-                    selectedMetrics: data.metricas.slice(0, 2),
-                    routeScale: 110,
-                    thumbnail: true,
-                })
-                await drawShareCardSurface(context, config, token)
+                await drawShareChoiceThumbnail(canvas.getContext('2d', {alpha: true}), canvas, {kind:'background', value:preset.id})
             }
-            const activePreset = getSharePreset(activeSharePresetId)
             for (const content of SHARE_CONTENT_PRESETS) {
                 const canvas = shareContentGrid?.querySelector(`[data-share-content-preview="${content.id}"]`)
                 if (!canvas) continue
-                const context = canvas.getContext('2d', {alpha: true})
-                const config = readShareConfiguration({
-                    data,
-                    width: canvas.width,
-                    height: canvas.height,
-                    format: 'story',
-                    content: content.id,
-                    preset: activePreset,
-                    mode: activePreset.mode,
-                    color: getSharePresetColor(activePreset.id),
-                    showMapBase: false,
-                    showRoads: false,
-                    showTitle: true,
-                    showRoute: content.id === 'route',
-                    showDate: false,
-                    showLogo: true,
-                    caption: '',
-                    selectedMetrics: data.metricas.slice(0, 2),
-                    routeScale: 110,
-                    thumbnail: true,
-                })
-                await drawShareCardSurface(context, config, token)
+                await drawShareChoiceThumbnail(canvas.getContext('2d', {alpha: true}), canvas, {kind:'content', value:content.id})
             }
             if (token === shareRenderToken) sharePreviewFingerprint = fingerprint
         } finally {
@@ -6743,10 +7725,9 @@ document.addEventListener('DOMContentLoaded', () => {
         setSharePhoto({src: dataUrl, label: 'Foto capturada'})
     }
     const resetShareControls = () => {
-        const segmented = Boolean(shareData?.usa_trechos) && shareSegments().length > 1
+        const segmented = shareSegments().length > 1
         const scope = segmented ? SHARE_SCOPES.session : SHARE_SCOPES.activity
         if (shareMasterSwitch) shareMasterSwitch.dataset.shareScope = scope
-        shareSingleRouteMode = false
         shareSegmentList?.querySelectorAll('[data-share-segment-check]').forEach(input => { input.checked = true })
         if (shareSegmentPreviewSelect) shareSegmentPreviewSelect.selectedIndex = 0
         const hasRoute = segmented ? shareGeometryCountForScope(scope) > 0 : shareHasRoute(shareData)
@@ -6760,12 +7741,14 @@ document.addEventListener('DOMContentLoaded', () => {
         syncShareColorSelection(activeSharePresetId)
         if (shareRouteScaleInput) shareRouteScaleInput.value = '100'
         setShareMapStyleValue('street', {persist: false})
-        if (shareHeadingMode) shareHeadingMode.value = segmented ? 'sport' : 'title'
-        ;['route', 'date', 'logo'].forEach(key => {
-            const input = shareModal?.querySelector(`[data-share-show="${key}"]`)
-            if (!input) return
-            input.checked = key === 'route' ? hasRoute : key === 'logo'
-        })
+        if (shareHeadingMode) shareHeadingMode.checked = true
+        if (shareActivityRouteToggle) shareActivityRouteToggle.checked = hasRoute
+        if (shareSessionRouteToggle) {
+            shareSessionRouteToggle.checked = hasRoute
+            delete shareSessionRouteToggle.dataset.sessionTouched
+        }
+        const dateToggle = shareModal?.querySelector('[data-share-show="date"]')
+        if (dateToggle) dateToggle.checked = false
         if (shareMapToggle) shareMapToggle.checked = false
         if (shareCaption) shareCaption.value = ''
         populateShareMetricOptions({preserve: false})
@@ -6793,8 +7776,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const closeShareModal = () => {
         closeShareCamera()
-        if (shareRoutePicker) shareRoutePicker.hidden = true
-        shareSingleRouteMode = false
         if (shareRouteExportSheet) shareRouteExportSheet.hidden = true
         shareRouteExportSets = []
         closeShareCustomize()
@@ -6805,19 +7786,24 @@ document.addEventListener('DOMContentLoaded', () => {
     buildShareContentCards()
     buildSharePresetCards()
     buildShareSessionLayoutCards()
+    syncShareColorSwatches()
     enableShareStyleScroller()
     shareScopeButtons.forEach(button => button.addEventListener('click', () => {
         if (!shareMasterSwitch) return
         const scope = normalizeShareScope(button.dataset.shareScope)
         if (![SHARE_SCOPES.session, SHARE_SCOPES.singleSegment, SHARE_SCOPES.multipleSegments].includes(scope)) return
         shareMasterSwitch.dataset.shareScope = scope
-        shareSingleRouteMode = false
-        if (scope === SHARE_SCOPES.session) {
-            shareSegmentList?.querySelectorAll('[data-share-segment-check]').forEach(input => { input.checked = true })
-        } else if (scope === SHARE_SCOPES.multipleSegments) {
+        if (scope === SHARE_SCOPES.multipleSegments) {
             const checks = Array.from(shareSegmentList?.querySelectorAll('[data-share-segment-check]') || [])
-            if (checks.length && !checks.some(input => input.checked)) checks.forEach(input => { input.checked = true })
-        } else if (shareSegmentPreviewSelect && shareSegmentPreviewSelect.selectedIndex < 0) {
+            let selected = checks.filter(input => input.checked)
+            if (selected.length < 2) {
+                checks.forEach(input => {
+                    if (selected.length >= 2 || input.checked) return
+                    input.checked = true
+                    selected.push(input)
+                })
+            }
+        } else if (scope === SHARE_SCOPES.singleSegment && shareSegmentPreviewSelect && shareSegmentPreviewSelect.selectedIndex < 0) {
             shareSegmentPreviewSelect.selectedIndex = 0
         }
         const preferenceData = scope === SHARE_SCOPES.singleSegment ? shareDataForSegment(getActiveShareSegmentIndex()) : shareData
@@ -6835,9 +7821,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const shareScript = drawer?.querySelector('[data-activity-share-data]')
         try { shareData = JSON.parse(shareScript?.textContent || '') } catch (_) { shareData = null }
         if (!shareData || !shareModal) return
-        shareSingleRouteMode = false
         populateShareSegments()
-        const segmented = Boolean(shareData?.usa_trechos) && shareSegments().length > 1
+        const segmented = shareSegments().length > 1
         const scope = segmented ? SHARE_SCOPES.session : SHARE_SCOPES.activity
         if (shareMasterSwitch) shareMasterSwitch.dataset.shareScope = scope
         shareSegmentList?.querySelectorAll('[data-share-segment-check]').forEach(input => { input.checked = true })
@@ -6859,11 +7844,6 @@ document.addEventListener('DOMContentLoaded', () => {
         shareModal.querySelector('.activity-share-panel > header [data-close-share]')?.focus()
     })
     shareModal?.querySelectorAll('[data-close-share]').forEach(button => button.addEventListener('click', closeShareModal))
-    shareChangeRouteButton?.addEventListener('click', () => showShareRoutePicker({required:false}))
-    shareModal?.querySelectorAll('[data-share-route-picker-close]').forEach(button => button.addEventListener('click', () => {
-        if (shareRoutePicker?.dataset.required === '1') closeShareModal()
-        else hideShareRoutePicker()
-    }))
     window.visualViewport?.addEventListener('resize', () => { if (!shareModal?.hidden) syncShareViewportHeight() })
     window.visualViewport?.addEventListener('scroll', () => { if (!shareModal?.hidden) syncShareViewportHeight() })
     window.addEventListener('resize', () => { if (!shareModal?.hidden) syncShareViewportHeight() })
@@ -6895,7 +7875,15 @@ document.addEventListener('DOMContentLoaded', () => {
         scheduleShareDraw()
     }))
     shareMapToggle?.addEventListener('change', scheduleShareDraw)
-    shareModal?.querySelectorAll('[data-share-show]').forEach(input => input.addEventListener('change', () => { updateShareControlAvailability(); scheduleShareDraw() }))
+    shareModal?.querySelectorAll('[data-share-show]').forEach(input => input.addEventListener('change', () => {
+        if (input.dataset.shareShow === 'route') input.dataset.sessionTouched = '1'
+        updateShareControlAvailability()
+        scheduleShareDraw()
+    }))
+    ;[shareSessionCompactPrimary, shareSessionCompactSecondary].forEach(input => input?.addEventListener('change', () => {
+        updateShareControlAvailability()
+        scheduleShareDraw()
+    }))
     shareHeadingMode?.addEventListener('change', () => {
         try { localStorage.setItem(SHARE_HEADING_MODE_KEY, getShareHeadingMode()) } catch (_) {}
         updateShareControlAvailability()
@@ -6905,19 +7893,29 @@ document.addEventListener('DOMContentLoaded', () => {
     shareSegmentModeInputs.forEach(input => input.addEventListener('change', () => { updateShareControlAvailability(); scheduleShareDraw() }))
     shareSegmentList?.addEventListener('change', event => {
         let selected = getSelectedShareSegmentIndexes()
-        if (!selected.length && event.target?.matches?.('[data-share-segment-check]')) {
+        if (getShareScope() === SHARE_SCOPES.multipleSegments && selected.length < 2 && event.target?.matches?.('[data-share-segment-check]')) {
             event.target.checked = true
             selected = getSelectedShareSegmentIndexes()
-            if (shareStatus) shareStatus.textContent = tr('activity.share.keep_one_segment')
+            if (shareStatus) shareStatus.textContent = tr('activity.share.keep_two_segments', {}, 'Selecione pelo menos 2 trechos.')
         }
         if (!selected.includes(getActiveShareSegmentIndex()) && shareSegmentPreviewSelect) shareSegmentPreviewSelect.value = String(selected[0] ?? 0)
         populateShareMetricOptions({preserve: true})
+        syncShareSegmentSelectionSummary()
         updateShareControlAvailability()
         scheduleShareDraw()
+    })
+    shareEditSegmentsButton?.addEventListener('click', () => {
+        if (shareSegmentDisclosure) shareSegmentDisclosure.open = true
+        if (window.innerWidth <= 900) openShareCustomize()
+        window.requestAnimationFrame(() => {
+            shareSegmentDisclosure?.scrollIntoView?.({block: 'nearest', behavior: 'smooth'})
+            shareSegmentList?.querySelector('[data-share-segment-check]')?.focus?.({preventScroll: true})
+        })
     })
     shareSelectAllButton?.addEventListener('click', () => {
         shareSegmentList?.querySelectorAll('[data-share-segment-check]').forEach(input => { input.checked = true })
         populateShareMetricOptions({preserve: true})
+        syncShareSegmentSelectionSummary()
         updateShareControlAvailability()
         scheduleShareDraw()
     })
@@ -6926,7 +7924,7 @@ document.addEventListener('DOMContentLoaded', () => {
         scheduleShareDraw()
     })
     shareComparisonReference?.addEventListener('change', scheduleShareDraw)
-    shareSegmentPreviewSelect?.addEventListener('change', () => { populateShareMetricOptions({preserve: false}); updateShareControlAvailability(); syncSelectedShareRoute(); scheduleShareDraw() })
+    shareSegmentPreviewSelect?.addEventListener('change', () => { populateShareMetricOptions({preserve: false}); updateShareControlAvailability(); scheduleShareDraw() })
     shareCaption?.addEventListener('input', scheduleShareDraw)
     shareMetricOptions?.addEventListener('change', event => {
         const checked = shareMetricOptions.querySelectorAll('[data-share-metric]:checked')
@@ -7232,6 +8230,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let historyRequest = null
     let historyDebounce = null
     let detailRequest = null
+    let detailOpenSequence = 0
+    let detailSkeletonTimer = 0
     let activeDetailId = ''
     let detailExpanded = false
     let historyReturnScrollY = 0
@@ -7773,11 +8773,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const closeActivityDetails = () => {
         const restoreScroll = !usesDesktopActivityPanel() ? historyReturnScrollY : null
+        detailOpenSequence += 1
+        window.clearTimeout(detailSkeletonTimer)
+        detailSkeletonTimer = 0
         detailRequest?.abort()
         activeDetailId = ''
         syncActiveDetailRow()
         setDetailExpanded(false)
         if (detailDrawer) detailDrawer.hidden = true
+        if (detailLoading) detailLoading.hidden = true
         if (detailPlaceholder) detailPlaceholder.hidden = false
         document.documentElement.classList.remove('activity-detail-open')
         if (restoreScroll !== null) window.requestAnimationFrame(() => window.scrollTo({top: restoreScroll, behavior: 'auto'}))
@@ -7844,16 +8848,55 @@ document.addEventListener('DOMContentLoaded', () => {
         activityContextMenu.style.top = `${Math.max(margin, Math.min(y, window.innerHeight - rect.height - margin))}px`
     }
 
-    const deleteActivity = async (id, title = tr('common.activity')) => {
-        if (!id) return false
+    const deleteActivity = async (id, title = tr('common.activity'), options = {}) => {
+        const key = String(id || '')
+        if (!key) return false
         const message = tr('activity.delete_confirm_named_primary', {title})
-        const confirmed = window.StrideBRUI?.confirm
+        const confirmed = options.confirmed === true ? true : (window.StrideBRUI?.confirm
             ? await window.StrideBRUI.confirm(message, {title: tr('activity.delete_title'), confirmLabel: tr('activity.delete_label'), danger: true, messageBlocks: [message, tr('activity.delete_confirm_named_secondary')]})
-            : window.confirm(message)
+            : window.confirm(message))
         if (!confirmed) return false
+
+        const row = historyList?.querySelector(`[data-history-row][data-activity-id="${CSS.escape(key)}"]`) || null
+        const rowParent = row?.parentNode || null
+        const rowNext = row?.nextSibling || null
+        const detailWasOpen = activeDetailId === key && detailDrawer && !detailDrawer.hidden
+        const previousSummaryActivities = summaryActivities?.textContent || ''
+        const previousHistoryTotal = historyTotal
+        const parsedSummaryCount = Number(String(previousSummaryActivities).replace(/[^0-9-]/g, ''))
+
+        row?.classList.add('is-optimistic-removed')
+        row?.remove()
+        if (detailWasOpen) closeActivityDetails()
+        closeActivityContextMenu()
+        historyTotal = Math.max(0, historyTotal - (row ? 1 : 0))
+        if (Number.isFinite(parsedSummaryCount) && summaryActivities) summaryActivities.textContent = String(Math.max(0, parsedSummaryCount - 1))
+        if (historyCount) historyCount.textContent = trn('activity.history.loaded.one', 'activity.history.loaded.other', historyTotal)
+        historySummary?.classList.add('is-optimistic-pending')
+        if (historyList && historyList.childElementCount === 0 && !historyCursor) {
+            if (historyEmptyText) historyEmptyText.textContent = tr('activity.first_help')
+            setHistoryState('empty')
+        }
+
+        let undoRequested = false
+        const rollbackOptimisticDelete = async () => {
+            if (row && rowParent && !row.isConnected) {
+                row.classList.remove('is-optimistic-removed')
+                const anchor = rowNext && rowNext.parentNode === rowParent ? rowNext : null
+                rowParent.insertBefore(row, anchor)
+            }
+            historyTotal = previousHistoryTotal
+            if (summaryActivities) summaryActivities.textContent = previousSummaryActivities
+            if (historyCount) historyCount.textContent = trn('activity.history.loaded.one', 'activity.history.loaded.other', historyTotal)
+            historySummary?.classList.remove('is-optimistic-pending')
+            if (historyTotal > 0) setHistoryState('ready')
+            syncActiveDetailRow()
+            if (detailWasOpen) await openActivityDetail(key)
+        }
+
         const token = page?.dataset.csrfToken || form?.querySelector('[name="csrf_token"]')?.value || ''
-        const body = new URLSearchParams({id, csrf_token: token, _idempotency_key: requestKey()})
-        try {
+        const body = new URLSearchParams({id: key, csrf_token: token, _idempotency_key: requestKey()})
+        const backendDelete = (async () => {
             const response = await fetchWithDeadline('/function/apagaratividade.php', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8', 'Accept': 'application/json'},
@@ -7862,16 +8905,30 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 12000)
             const data = await response.json().catch(() => null)
             if (!response.ok || !data?.ok) throw new Error(data?.message || tr('activity.delete_error'))
-            detailCache.delete(String(id))
-            detailPrefetches.delete(String(id))
+            detailCache.delete(key)
+            detailPrefetches.delete(key)
             clearHistoryCache()
-            closeActivityDetails()
-            closeActivityContextMenu()
-            if (historyRoot) await loadHistory()
-            if (window.StrideBRUI?.undo) window.StrideBRUI.undo(tr('activity.deleted'), () => restoreActivities([String(id)]), 9000)
-            else showActivityToast(tr('activity.deleted'))
+            return true
+        })()
+
+        if (window.StrideBRUI?.undo) {
+            window.StrideBRUI.undo(tr('activity.deleted'), async () => {
+                undoRequested = true
+                await backendDelete
+                await restoreActivities([key])
+                historySummary?.classList.remove('is-optimistic-pending')
+                if (detailWasOpen) await openActivityDetail(key)
+            }, 9000)
+        }
+
+        try {
+            await backendDelete
+            historySummary?.classList.remove('is-optimistic-pending')
+            if (!window.StrideBRUI?.undo) showActivityToast(tr('activity.deleted'))
+            if (!undoRequested && historyRoot) await loadHistory({background: true, preserveDetail: true})
             return true
         } catch (error) {
+            await rollbackOptimisticDelete()
             showActivityToast(error?.message || tr('activity.delete_error'), 'error')
             return false
         }
@@ -7987,36 +9044,59 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const openActivityDetail = async (id) => {
         if (!detailDrawer || !detailContent) return
+        const key = String(id || '')
+        if (!key) return
+        const sequence = ++detailOpenSequence
+        window.clearTimeout(detailSkeletonTimer)
+        detailSkeletonTimer = 0
         detailRequest?.abort()
         detailRequest = new AbortController()
         if (!usesDesktopActivityPanel() && detailDrawer.hidden) historyReturnScrollY = window.scrollY
-        activeDetailId = String(id || '')
+        activeDetailId = key
         if (!detailExpanded) setDetailExpanded(false)
         syncActiveDetailRow()
         detailDrawer.hidden = false
         if (detailPlaceholder) detailPlaceholder.hidden = true
         scheduleDesktopDetailViewportSync()
         document.documentElement.classList.toggle('activity-detail-open', !usesDesktopActivityPanel())
-        detailContent.hidden = true
-        detailContent.replaceChildren()
-        if (detailLoading) detailLoading.hidden = false
+
+        const cached = detailCache.get(key) || null
+        if (cached) {
+            if (detailLoading) detailLoading.hidden = true
+            renderDetail(cached)
+            return
+        }
+
         const title = detailDrawer.querySelector('[data-detail-title]')
         const sport = detailDrawer.querySelector('[data-detail-sport]')
         const date = detailDrawer.querySelector('[data-detail-date]')
         const visibility = detailDrawer.querySelector('[data-detail-visibility]')
-        if (title) title.textContent = tr('activity.loading')
+        const sourceRow = historyList?.querySelector(`[data-history-row][data-activity-id="${CSS.escape(key)}"]`)
+        detailContent.hidden = true
+        detailContent.replaceChildren()
+        if (detailLoading) detailLoading.hidden = true
+        if (title) title.textContent = sourceRow?.dataset.activityTitle || tr('activity.loading')
         if (sport) sport.textContent = tr('common.activity')
         if (date) date.textContent = ''
         if (visibility) { visibility.textContent = ''; visibility.hidden = true }
+        detailSkeletonTimer = window.setTimeout(() => {
+            if (sequence !== detailOpenSequence || activeDetailId !== key) return
+            if (detailLoading) detailLoading.hidden = false
+        }, 140)
+
         try {
-            const key = String(id)
-            let activity = detailCache.get(key) || null
-            if (!activity && detailPrefetches.has(key)) activity = await detailPrefetches.get(key)
+            let activity = null
+            if (detailPrefetches.has(key)) activity = await detailPrefetches.get(key)
             if (!activity) activity = await fetchActivityDetail(key, detailRequest.signal)
+            if (sequence !== detailOpenSequence || activeDetailId !== key) return
             if (!activity) throw new Error(tr('activity.load_error'))
+            window.clearTimeout(detailSkeletonTimer)
+            detailSkeletonTimer = 0
             renderDetail(activity)
         } catch (error) {
-            if (error?.name === 'AbortError') return
+            if (error?.name === 'AbortError' || sequence !== detailOpenSequence || activeDetailId !== key) return
+            window.clearTimeout(detailSkeletonTimer)
+            detailSkeletonTimer = 0
             if (detailLoading) detailLoading.hidden = true
             detailContent.hidden = false
             detailContent.innerHTML = `<div class="activity-detail-section"><h3>${escapeHtml(tr('activity.load_short_error'))}</h3><p>${escapeHtml(error?.message || tr('common.try_again'))}</p></div>`
@@ -8066,7 +9146,7 @@ document.addEventListener('DOMContentLoaded', () => {
             : window.confirm(tr('activity.post_delete_confirm_short', {title}))
         if (!confirmed) return
         postSaveDelete.disabled = true
-        const removed = await deleteActivity(id, title)
+        const removed = await deleteActivity(id, title, {confirmed: true})
         postSaveDelete.disabled = false
         if (!removed) return
         closePostSaveShare()

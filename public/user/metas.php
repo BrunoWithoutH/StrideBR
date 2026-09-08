@@ -82,7 +82,7 @@ $flashes = stridebr_take_flashes();
     <main class="main-content">
         <div class="page-shell goals-page">
             <header class="page-heading goals-heading">
-                <div><span class="dashboard-eyebrow"><?php echo stridebr_e(stridebr_t('goals.progress')); ?></span><h1><?php echo stridebr_e(stridebr_t('goals.page_title')); ?></h1><p><?php echo stridebr_e(stridebr_t('goals.subtitle')); ?></p></div>
+                <div><span class="dashboard-eyebrow"><?php echo stridebr_e(stridebr_t('goals.progress')); ?></span><h1><?php echo stridebr_e(stridebr_t('goals.page_title')); ?></h1></div>
                 <?php if ($available): ?><a class="primary-button" href="/user/metas.php?new=1">+ <?php echo stridebr_e(stridebr_t('goals.new')); ?></a><?php endif; ?>
             </header>
 

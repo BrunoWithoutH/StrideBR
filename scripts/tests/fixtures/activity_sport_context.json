@@ -1,0 +1,30 @@
+{
+  "distances": [
+    {"slug":"corrida","meters":823,"pt":"823 m","en":"823 m"},
+    {"slug":"corrida","meters":1500,"pt":"1,5 km","en":"1.5 km"},
+    {"slug":"corrida","meters":3145,"pt":"3,145 km","en":"3.145 km"},
+    {"slug":"corrida","meters":5000,"pt":"5 km","en":"5 km"},
+    {"slug":"atletismo-100m","meters":100,"pt":"100 m","en":"100 m"},
+    {"slug":"atletismo-400m","meters":400,"pt":"400 m","en":"400 m"},
+    {"slug":"atletismo-1500m","meters":1500,"pt":"1.500 m","en":"1,500 m"},
+    {"slug":"atletismo-5000m","meters":5000,"pt":"5.000 m","en":"5,000 m"},
+    {"slug":"atletismo-10000m","meters":10000,"pt":"10.000 m","en":"10,000 m"}
+  ],
+  "durations": [
+    {"seconds":14.438,"forceClock":false,"pt":"14,438 s","en":"14.438 s"},
+    {"seconds":77.921,"forceClock":true,"pt":"1:17,921","en":"1:17.921"},
+    {"seconds":517.5,"forceClock":true,"pt":"8:37,5","en":"8:37.5"},
+    {"seconds":300,"forceClock":true,"pt":"5:00","en":"5:00"},
+    {"seconds":14.4,"forceClock":false,"pt":"14,4 s","en":"14.4 s"}
+  ],
+  "paces": [
+    {"seconds":143.833,"value":"2:24/km"},
+    {"seconds":250.833,"value":"4:11/km"},
+    {"seconds":300.833,"value":"5:01/km"}
+  ],
+  "series": [
+    {"slug":"atletismo-400m","values":[399.7,400.1,400.2,399.9,400.0,400.1],"count":6,"distance":400,"unit":"m"},
+    {"slug":"atletismo-1500m","values":[1499.5,1500.4,1500.2,1499.9],"count":4,"distance":1500,"unit":"m"},
+    {"slug":"corrida","values":[1499.5,1500.4,1500.2,1499.9],"count":4,"distance":1500,"unit":"km"}
+  ]
+}

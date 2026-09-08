@@ -16,9 +16,9 @@ require_once dirname(__DIR__, 2) . '/src/function/cronograma.php';
 
 try {
     $idTreino = trim((string) ($_GET['idtreino'] ?? ''));
-    if ($idTreino === '') throw new InvalidArgumentException('Treino não informado.');
+    if ($idTreino === '') throw new InvalidArgumentException(stridebr_t('schedule.validation.workout_required'));
     $treino = cronogramaBuscarTreino($pdo, $idTreino, $idUsuario);
-    if ($treino === []) throw new RuntimeException('Treino não encontrado.');
+    if ($treino === []) throw new RuntimeException(stridebr_t('schedule.workout_not_found'));
     $exercicios = cronogramaListarTreinoExercicios($pdo, $idTreino, $idUsuario);
     $dias = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
     echo json_encode([

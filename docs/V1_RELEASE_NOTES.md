@@ -1,8 +1,12 @@
-# StrideBR 1.0.0 RC2
+# StrideBR 1.0.0 RC3
 
-A RC2 fecha a Web 1.0 para smoke real. O foco desta candidata é consolidar o editor de atividades, rotas, compartilhamento e a fundação PWA sem abrir novas áreas de produto.
+A RC3 consolida a Web 1.0 para staging no Dokploy. O foco desta candidata é consolidar o editor de atividades, rotas, compartilhamento e a fundação PWA sem abrir novas áreas de produto.
 
 ## Principais alterações
+
+- Inclui a rodada atual de Produto/UX: planejamento semanal, cargas de treino, progresso, dashboard, contexto esportivo e administração de feedback.
+- Consolida PWA/offline, GPS e compartilhamento, com ajustes mobile e evidências visuais.
+- Prepara Docker/Dokploy com código imutável, uploads persistentes, job de migrations, health/readiness, SMTP e proxy confiável; staging e production separados.
 
 - Registrar e Editar atividade compartilham a mesma base visual e de componentes, incluindo Trechos, métricas opcionais, duração e rotas.
 - Duração suporta precisão opcional em milissegundos de forma global para a atividade e seus Trechos, preservando valores como `0.005` e `12.438`.
@@ -32,7 +36,7 @@ A única migration pós-RC1 presente no estado recebido é:
 
 Ela altera `unidades_atividade.duracao_segundos` para `NUMERIC(14,3)`, preserva `NULL`, mantém a restrição de valor não negativo e permite precisão de três casas decimais.
 
-A migration não foi renomeada/squashada nesta candidata porque o ambiente de validação disponível não possui PostgreSQL/Docker nem um registry compartilhado acessível para confirmar que o nome intermediário nunca foi aplicado. Migrations já aplicadas não podem ser renomeadas retroativamente.
+As migrations existentes foram preservadas integralmente nesta rodada. Os resultados de fresh/upgrade e registry da RC3 estão no [relatório final](reports/RC3_RELEASE_VALIDATION_2026-09-08.md).
 
 Antes do deploy, execute no ambiente autorizado:
 
@@ -44,7 +48,7 @@ Antes do deploy, execute no ambiente autorizado:
 
 O status final deve ficar sem migrations pendentes.
 
-## Validação da RC2
+## Validação da RC3
 
 Execute:
 
@@ -58,8 +62,8 @@ E, em um ambiente com Docker/PostgreSQL:
 ./scripts/release_check.sh --full
 ```
 
-A publicação também exige backup recente, restore em banco separado e o smoke manual descrito em `docs/V1_RELEASE_CHECKLIST.md`.
+A promoção para produção/1.0 final exige backup recente, restore em banco separado e o smoke manual descrito em `docs/V1_RELEASE_CHECKLIST.md`. A RC3 é publicada para permitir a homologação em staging.
 
 ## Versão
 
-A base está preparada para `v1.0.0-rc.2`, mas a tag só deve ser criada depois do smoke real aprovado. A mesma base pode virar `v1.0.0` posteriormente se não houver bloqueadores e os checks forem repetidos.
+A candidata atual é `v1.0.0-rc.3`. A publicação desta RC exige os checks locais e a auditoria registrados no relatório final. Deploy real e homologação são etapas posteriores de Infra; não criar `v1.0.0` nesta rodada.

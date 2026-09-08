@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/src/includes/errors.php';
 require_once dirname(__DIR__, 2) . '/src/includes/app.php';
+require_once dirname(__DIR__, 2) . '/src/layout/ads.php';
 require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
 require_once dirname(__DIR__, 2) . '/src/function/integrations.php';
 
@@ -205,6 +206,7 @@ if (!str_starts_with($profileMetaImage, 'http')) $profileMetaImage = stridebr_pu
                     </div>
                 </section>
             <?php endif; ?>
+            <?php stridebr_render_ad_slot('profile-end', '/user/perfil.php', true); ?>
         </div>
     </main>
 </div>

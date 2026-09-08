@@ -272,3 +272,106 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+document.addEventListener('DOMContentLoaded', () => {
+    const popover = document.querySelector('[data-dashboard-week-popover]')
+    const triggers = Array.from(document.querySelectorAll('[data-week-popover-trigger]'))
+    if (!(popover instanceof HTMLElement) || triggers.length === 0) return
+    if (popover.parentElement !== document.body) document.body.append(popover)
+
+    let activeTrigger = null
+    let closeTimer = 0
+
+    const isTouchContext = () => window.matchMedia('(hover: none), (pointer: coarse)').matches
+    const clearCloseTimer = () => {
+        if (!closeTimer) return
+        window.clearTimeout(closeTimer)
+        closeTimer = 0
+    }
+    const position = () => {
+        if (!(activeTrigger instanceof HTMLElement) || popover.hidden) return
+        const margin = 8
+        const gap = 8
+        const target = activeTrigger.getBoundingClientRect()
+        const box = popover.getBoundingClientRect()
+        const viewportWidth = document.documentElement.clientWidth
+        const viewportHeight = window.visualViewport?.height || document.documentElement.clientHeight
+        let left = target.left + (target.width / 2) - (box.width / 2)
+        left = Math.max(margin, Math.min(left, viewportWidth - box.width - margin))
+        let top = target.bottom + gap
+        if (top + box.height > viewportHeight - margin) top = target.top - box.height - gap
+        if (top < margin) top = margin
+        popover.style.left = `${Math.round(left)}px`
+        popover.style.top = `${Math.round(top)}px`
+        popover.style.visibility = 'visible'
+    }
+    const close = () => {
+        clearCloseTimer()
+        if (activeTrigger instanceof HTMLElement) activeTrigger.setAttribute('aria-expanded', 'false')
+        activeTrigger = null
+        popover.hidden = true
+        popover.replaceChildren()
+        popover.style.removeProperty('left')
+        popover.style.removeProperty('top')
+        popover.style.removeProperty('visibility')
+        popover.removeAttribute('aria-label')
+    }
+    const scheduleClose = source => {
+        clearCloseTimer()
+        closeTimer = window.setTimeout(() => {
+            if (source instanceof HTMLElement && activeTrigger !== source) return
+            if (popover.matches(':hover') || popover.contains(document.activeElement)) return
+            close()
+        }, 100)
+    }
+    const open = trigger => {
+        const templateId = trigger.dataset.weekPopoverTemplate || ''
+        const template = templateId ? document.getElementById(templateId) : null
+        if (!(template instanceof HTMLTemplateElement)) return
+        clearCloseTimer()
+        if (activeTrigger instanceof HTMLElement && activeTrigger !== trigger) activeTrigger.setAttribute('aria-expanded', 'false')
+        activeTrigger = trigger
+        popover.replaceChildren(template.content.cloneNode(true))
+        popover.setAttribute('aria-label', trigger.getAttribute('aria-label') || '')
+        popover.style.visibility = 'hidden'
+        popover.hidden = false
+        trigger.setAttribute('aria-expanded', 'true')
+        requestAnimationFrame(position)
+    }
+
+    triggers.forEach(trigger => {
+        trigger.addEventListener('mouseenter', () => {
+            if (!isTouchContext()) open(trigger)
+        })
+        trigger.addEventListener('mouseleave', () => {
+            if (!isTouchContext()) scheduleClose(trigger)
+        })
+        trigger.addEventListener('focus', () => open(trigger))
+        trigger.addEventListener('blur', () => scheduleClose(trigger))
+        trigger.addEventListener('click', event => {
+            const isLink = trigger instanceof HTMLAnchorElement
+            if (isLink && !isTouchContext()) return
+            event.preventDefault()
+            open(trigger)
+        })
+    })
+
+    popover.addEventListener('mouseenter', clearCloseTimer)
+    popover.addEventListener('mouseleave', () => scheduleClose(activeTrigger))
+    popover.addEventListener('focusin', clearCloseTimer)
+    popover.addEventListener('focusout', () => scheduleClose(activeTrigger))
+    document.addEventListener('pointerdown', event => {
+        if (popover.hidden) return
+        if (popover.contains(event.target) || activeTrigger?.contains?.(event.target)) return
+        close()
+    })
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && !popover.hidden) {
+            const returnTarget = activeTrigger
+            returnTarget?.focus?.({preventScroll: true})
+            close()
+        }
+    })
+    window.addEventListener('resize', position)
+    window.addEventListener('scroll', position, {passive: true, capture: true})
+})

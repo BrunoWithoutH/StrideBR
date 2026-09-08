@@ -48,13 +48,15 @@ function sportCatalogFamilyKey(string $family, string $category = '', string $sl
 function sportCatalogGroups(array $sports): array
 {
     $families = sportCatalogFamilies();
+    // Selection taxonomy only: preserve stored analytics families.
+    $families = ['running' => ['label' => stridebr_t('sport_picker.running'), 'description' => stridebr_t('sport_picker.running_help'), 'popular' => ['corrida', 'caminhada', 'corrida-em-esteira']]] + $families;
     $groups = [];
     foreach ($families as $key => $meta) {
         $groups[$key] = ['key' => $key, 'label' => $meta['label'], 'description' => $meta['description'], 'popular' => [], 'more' => []];
     }
     foreach ($sports as $sport) {
         $family = sportCatalogFamilyKey((string) ($sport['familia_hub'] ?? ''), (string) ($sport['categoria'] ?? ''), (string) ($sport['slug'] ?? ''));
-        $sport['familia_hub'] = $family;
+        if (in_array((string) ($sport['slug'] ?? ''), ['corrida', 'caminhada', 'corrida-em-esteira'], true) || preg_match('/^atletismo-(?:[0-9]|.*barreira|.*revezamento)/', (string) ($sport['slug'] ?? ''))) $family = 'running';
         $popular = $families[$family]['popular'] ?? [];
         if (in_array((string) ($sport['slug'] ?? ''), $popular, true)) $groups[$family]['popular'][] = $sport;
         else $groups[$family]['more'][] = $sport;

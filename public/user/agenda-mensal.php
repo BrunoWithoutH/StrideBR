@@ -9,6 +9,7 @@ $idUsuario = stridebr_require_login();
 require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
 require_once dirname(__DIR__, 2) . '/src/function/treinador.php';
 require_once dirname(__DIR__, 2) . '/src/function/cronograma.php';
+require_once dirname(__DIR__, 2) . '/src/function/planejamento.php';
 
 if (!stridebr_feature_enabled($pdo, 'monthly_calendar.enabled', false)) {
     stridebr_error_document(404);
@@ -196,7 +197,9 @@ $workoutSql .= ' ORDER BY tc.dia_semana, tc.hora_inicio, tc.ordem';
 $workoutStmt = $pdo->prepare($workoutSql);
 $workoutStmt->execute($params);
 $recurringWorkouts = $workoutStmt->fetchAll();
-$recurringOccurrences = cronogramaListarOcorrenciasConciliadas($pdo, $targetId, $monthStart->format('Y-m-d'), $monthEnd->format('Y-m-d'), $scheduleFilter !== '' ? $scheduleFilter : null);
+$canViewActivityFacts = $isSelf || stridebr_db_bool($trainerLink['pode_ver_atividades'] ?? false);
+$occurrenceLoader = $canViewActivityFacts ? 'cronogramaListarOcorrenciasConciliadas' : 'cronogramaListarOcorrencias';
+$recurringOccurrences = $occurrenceLoader($pdo, $targetId, $monthStart->format('Y-m-d'), $monthEnd->format('Y-m-d'), $scheduleFilter !== '' ? $scheduleFilter : null);
 $recurringOccurrencesByDate = [];
 foreach ($recurringOccurrences as $occurrence) {
     $recurringOccurrencesByDate[(string) $occurrence['data_treino']][] = $occurrence;
@@ -210,6 +213,11 @@ $scheduledStmt->execute([
     ':viewer' => $idUsuario,
 ]);
 $scheduled = $scheduledStmt->fetchAll();
+if (!$canViewActivityFacts) foreach ($scheduled as &$appointment) {
+    if ($appointment['status'] === 'concluido') $appointment['status'] = 'publicado';
+    unset($appointment['feedback_atleta'], $appointment['nota_atleta'], $appointment['feedback_em']);
+}
+unset($appointment);
 $scheduledByDate = [];
 foreach ($scheduled as $item) {
     $scheduledByDate[(string) $item['data_treino']][] = $item;
@@ -267,7 +275,7 @@ $flashes = stridebr_take_flashes();
             <section class="monthly-toolbar content-card" aria-label="<?php echo stridebr_e(stridebr_t('agenda.controls')); ?>">
                 <div class="monthly-nav">
                     <a class="monthly-nav-button" data-month-nav href="?month=<?php echo rawurlencode($prevMonth); ?><?php echo !$isSelf ? '&atleta=' . rawurlencode($targetId) : ''; ?><?php echo $scheduleFilter !== '' ? '&cronograma=' . rawurlencode($scheduleFilter) : ''; ?>" aria-label="<?php echo stridebr_e(stridebr_t('schedule.previous_month')); ?>">‹</a>
-                    <div class="monthly-title-block"><strong><?php echo stridebr_e($monthTitle); ?></strong><span><?php $completedText = stridebr_tn('agenda.completed_count.one', 'agenda.completed_count.other', $monthCompleted); echo stridebr_e(stridebr_tn('agenda.workouts_count.one', 'agenda.workouts_count.other', $monthTotal, ['completed' => $completedText])); ?></span><small data-monthly-load-status hidden><?php echo stridebr_e(stridebr_t('agenda.updating')); ?></small></div>
+                    <div class="monthly-title-block"><strong><?php echo stridebr_e($monthTitle); ?></strong><span><?php $completedText = stridebr_tn('agenda.completed_count.one', 'agenda.completed_count.other', $monthCompleted); echo $canViewActivityFacts ? stridebr_e(stridebr_tn('agenda.workouts_count.one', 'agenda.workouts_count.other', $monthTotal, ['completed' => $completedText])) : stridebr_e(stridebr_t('planning.planned_count', ['count' => $monthTotal])); ?></span><small data-monthly-load-status hidden><?php echo stridebr_e(stridebr_t('agenda.updating')); ?></small></div>
                     <a class="monthly-nav-button" data-month-nav href="?month=<?php echo rawurlencode($nextMonth); ?><?php echo !$isSelf ? '&atleta=' . rawurlencode($targetId) : ''; ?><?php echo $scheduleFilter !== '' ? '&cronograma=' . rawurlencode($scheduleFilter) : ''; ?>" aria-label="<?php echo stridebr_e(stridebr_t('schedule.next_month')); ?>">›</a>
                     <?php if ($monthKey !== $currentMonthKey): ?><a class="secondary-button monthly-today-button" data-month-nav href="?month=<?php echo rawurlencode($currentMonthKey); ?><?php echo !$isSelf ? '&atleta=' . rawurlencode($targetId) : ''; ?><?php echo $scheduleFilter !== '' ? '&cronograma=' . rawurlencode($scheduleFilter) : ''; ?>"><?php echo stridebr_e(stridebr_t('common.today')); ?></a><?php endif; ?>
                 </div>
@@ -307,6 +315,8 @@ $flashes = stridebr_take_flashes();
                 </details>
             <?php endif; ?>
 
+            <p class="monthly-scroll-hint"><?php echo stridebr_e(stridebr_t('agenda.scroll_days')); ?></p>
+            <div class="monthly-calendar-scroll" tabindex="0" role="region" aria-label="<?php echo stridebr_e(stridebr_t('agenda.calendar')); ?>">
             <section class="monthly-calendar" aria-label="<?php echo stridebr_e(stridebr_t('agenda.calendar')); ?>">
                 <?php foreach ($dayNames as $dayName): ?><div class="monthly-weekday"><?php echo stridebr_e($dayName); ?></div><?php endforeach; ?>
                 <?php for ($blank = 0; $blank < $leading; $blank++): ?><div class="monthly-day is-outside" aria-hidden="true"></div><?php endfor; ?>
@@ -324,7 +334,7 @@ $flashes = stridebr_take_flashes();
                                 <?php $scheduledDone = (string) ($item['status'] ?? '') === 'concluido'; ?>
                                 <div class="monthly-event is-scheduled<?php echo $item['origem'] === 'treinador' ? ' is-trainer' : ''; ?><?php echo $scheduledDone ? ' is-completed' : ''; ?>">
                                     <div class="monthly-event-kicker"><span><?php echo $scheduledDone ? '✓ ' : ''; ?><?php echo $item['hora_inicio'] ? stridebr_e(substr((string) $item['hora_inicio'], 0, 5)) : stridebr_e(stridebr_t('schedule.by_date')); ?></span><em><?php echo stridebr_e($item['origem'] === 'treinador' ? stridebr_t('agenda.trainer') : stridebr_t('agenda.specific')); ?></em></div>
-                                    <strong><?php echo stridebr_e($item['titulo']); ?></strong>
+                                    <strong><?php echo stridebr_e($item['titulo']); ?></strong><?php if ($canViewActivityFacts): ?><small><?php echo stridebr_e(stridebr_t('planning.status.' . planejamentoEstado($item))); ?></small><?php endif; ?>
                                     <?php if ($item['origem'] === 'treinador' && $item['criador_nome']): ?><small><?php echo stridebr_e(stridebr_t('agenda.by', ['name' => (string) $item['criador_nome']])); ?></small><?php endif; ?>
                                     <?php if ((int) $item['exercicios_total'] > 0): ?><small><?php echo stridebr_e(stridebr_tn('agenda.exercise_count.one', 'agenda.exercise_count.other', (int) $item['exercicios_total'])); ?></small><?php endif; ?>
                                     <?php if ($isSelf && $item['status'] === 'publicado'): ?><div class="monthly-event-actions"><button type="button" data-start-scheduled-workout="<?php echo stridebr_e($item['idagendamento']); ?>"><?php echo stridebr_e(stridebr_t('agenda.start')); ?></button><form method="POST" data-confirm="<?php echo stridebr_e(stridebr_t('agenda.cancel_confirm')); ?>"><?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="cancel_scheduled"><input type="hidden" name="idagendamento" value="<?php echo stridebr_e($item['idagendamento']); ?>"><input type="hidden" name="month" value="<?php echo stridebr_e($monthKey); ?>"><button type="submit" aria-label="<?php echo stridebr_e(stridebr_t('common.cancel')); ?>">×</button></form></div><?php endif; ?>
@@ -343,8 +353,8 @@ $flashes = stridebr_take_flashes();
                                 <div class="monthly-event is-recurring<?php echo $completed ? ' is-completed' : ''; ?><?php echo $shifted ? ' is-shifted' : ''; ?>">
                                     <div class="monthly-event-kicker"><span><?php echo $completed ? '✓ ' : ''; ?><?php echo stridebr_e(substr((string) $workout['hora_inicio'], 0, 5)); ?></span><em><?php echo stridebr_e($workout['cronograma_nome']); ?></em></div>
                                     <strong><?php if (!empty($workout['codigo'])): ?><b><?php echo stridebr_e((string) $workout['codigo']); ?></b><?php endif; ?><?php echo stridebr_e($workout['titulo']); ?></strong>
-                                    <?php if (!empty($workout['foco'])): ?><small><?php echo stridebr_e((string) $workout['foco']); ?></small><?php endif; ?>
-                                    <?php if ($shifted && $plannedDate !== ''): ?><?php if ($isSelf && $activityId !== ''): ?><button type="button" class="monthly-plan-note" data-edit-schedule-history data-activity-id="<?php echo stridebr_e($activityId); ?>" data-planned-date="<?php echo stridebr_e($plannedDate); ?>" data-planned-time="<?php echo stridebr_e($plannedTime); ?>" data-realized-date="<?php echo stridebr_e($realizedDate); ?>" data-realized-time="<?php echo stridebr_e($realizedTime); ?>"><?php echo stridebr_e(stridebr_t('home.planned')); ?> <?php echo stridebr_e((new DateTimeImmutable($plannedDate))->format('d/m')); ?></button><?php else: ?><small class="monthly-plan-note"><?php echo stridebr_e(stridebr_t('home.planned')); ?> <?php echo stridebr_e((new DateTimeImmutable($plannedDate))->format('d/m')); ?></small><?php endif; ?><?php endif; ?>
+                                    <?php if ($canViewActivityFacts): ?><small><?php echo stridebr_e(stridebr_t('planning.status.' . planejamentoEstado($workout))); ?></small><?php endif; ?><?php if (!empty($workout['foco'])): ?><small><?php echo stridebr_e((string) $workout['foco']); ?></small><?php endif; ?>
+                                    <?php if ($shifted && $plannedDate !== ''): ?><?php if ($isSelf && $activityId !== ''): ?><button type="button" class="monthly-plan-note" data-edit-schedule-history data-activity-id="<?php echo stridebr_e($activityId); ?>" data-planned-date="<?php echo stridebr_e($plannedDate); ?>" data-planned-time="<?php echo stridebr_e($plannedTime); ?>" data-realized-date="<?php echo stridebr_e($realizedDate); ?>" data-realized-time="<?php echo stridebr_e($realizedTime); ?>"><?php echo stridebr_e(stridebr_t('home.planned')); ?> <?php echo stridebr_e(stridebr_format_date_short($plannedDate)); ?></button><?php else: ?><small class="monthly-plan-note"><?php echo stridebr_e(stridebr_t('home.planned')); ?> <?php echo stridebr_e(stridebr_format_date_short($plannedDate)); ?></small><?php endif; ?><?php endif; ?>
                                     <?php if ($isSelf): ?><div class="monthly-event-actions is-link-row"><?php if ($completed && $activityId !== ''): ?><a href="/user/atividades.php?highlight=<?php echo rawurlencode($activityId); ?>"><?php echo stridebr_e(stridebr_t('agenda.view_activity')); ?></a><button type="button" class="monthly-inline-action" data-edit-schedule-history data-activity-id="<?php echo stridebr_e($activityId); ?>" data-planned-date="<?php echo stridebr_e($plannedDate); ?>" data-planned-time="<?php echo stridebr_e($plannedTime); ?>" data-realized-date="<?php echo stridebr_e($realizedDate); ?>" data-realized-time="<?php echo stridebr_e($realizedTime); ?>"><?php echo stridebr_e(stridebr_t('agenda.adjust_dates')); ?></button><?php else: ?><a href="/user/cronogramatreinos.php?id=<?php echo rawurlencode((string) $workout['idcronograma']); ?>&treino=<?php echo rawurlencode((string) $workout['idtreino']); ?>"><?php echo stridebr_e(stridebr_t('agenda.open_workout')); ?></a><?php endif; ?></div><?php endif; ?>
                                 </div>
                             <?php endforeach; ?>
@@ -352,7 +362,8 @@ $flashes = stridebr_take_flashes();
                     </article>
                 <?php endfor; ?>
                 <?php for ($blank = 0; $blank < $trailing; $blank++): ?><div class="monthly-day is-outside" aria-hidden="true"></div><?php endfor; ?>
-            </section>
+            </section>            </div>
+
             </div>
 
             <?php if ($isSelf): ?>

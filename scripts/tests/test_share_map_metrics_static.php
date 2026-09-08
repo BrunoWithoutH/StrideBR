@@ -17,8 +17,8 @@ $tests=[
  ['invalid map preset falls back to last non map preset', str_contains($js,'lastNonMapSharePresetId') && str_contains($js,'const previous = getSharePreset(lastNonMapSharePresetId)')],
  ['map config disables unavailable styles', str_contains($js,'shareMapApi?.available?.(input.value)') && str_contains($js,"tr('activity.share.map_config_required')")],
  ['share tile API centralized', str_contains($maps,'const shareDefinitions = () => ({') && str_contains($maps,'share: Object.freeze({')],
- ['streets and satellite providers retained', str_contains($maps,"arcgis/streets/static/tile") && str_contains($maps,'World_Imagery/MapServer/tile')],
- ['provider specific attribution', str_contains($maps,'Map layer © Esri') && str_contains($maps,'Imagery © Esri')],
+ ['streets and satellite providers retained', str_contains($maps,'tile.openstreetmap.org/{z}/{x}/{y}.png') && str_contains($maps,'World_Imagery/MapServer/tile')],
+ ['provider specific attribution', str_contains($maps,'Map data © OpenStreetMap contributors') && str_contains($maps,'Imagery © Esri')],
  ['tile images are canvas safe', str_contains($js,"image.crossOrigin = 'anonymous'")],
  ['tile cache is reused', str_contains($js,'const tileCache = new Map()') && str_contains($js,'if (tileCache.has(key)) return tileCache.get(key)')],
  ['preview basemap composite cache exists', str_contains($js,'const shareMapPreviewCache = new Map()') && str_contains($js,'shareMapPreviewCacheKey')],
@@ -31,8 +31,8 @@ $tests=[
  ['dynamic metric helper exists', str_contains($js,'const shareMetricLayout = (count, left, width, top, rowHeight) =>') && str_contains($js,'const shareMetricRowCount = count =>')],
  ['three metric triangle points down', str_contains($js,'{x: quarter, y: top, row: 0}') && str_contains($js,'{x: threeQuarter, y: top, row: 0}') && str_contains($js,'{x: center, y: top + rowHeight, row: 1}')],
  ['canonical metric ordering exists', str_contains($js,'const shareMetricCanonicalRank = metric =>') && str_contains($js,'const canonicalizeShareMetrics = metrics =>')],
- ['metric helper used in standard and compact cards', substr_count($js,'shareMetricLayout(')>=4 && substr_count($js,'shareMetricRowCount(')>=4],
- ['map style controls hide correctly', str_contains($css,'.activity-share-map-style-options[hidden]')],
+ ['metric helpers used in standard and compact cards', substr_count($js,'shareMetricLayout(')>=3 && substr_count($js,'shareMetricRowCount(')>=4 && substr_count($js,'compactMetricLayout(')>=2],
+ ['map style controls hide correctly', str_contains($css,'.activity-share-modal [hidden]') && str_contains($css,'display: none !important')],
  ['map viewport route and tiles share projection', str_contains($js,'createShareMapViewport') && str_contains($js,'viewport.worldToCanvas') && str_contains($js,'viewport.project')],
 ];
 foreach($tests as [$name,$ok]){if(!$ok){fwrite(STDERR,"FAIL: $name\n");exit(1);}}

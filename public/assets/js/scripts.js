@@ -1,4 +1,4 @@
-const stridebrCommonT = (key, values = {}, fallback = key) => window.StrideBRI18n?.t?.(key, values, fallback) ?? fallback
+const stridebrCommonT = (key, values = {}, fallback = key) => window.StrideBRI18n?.t?.(key, values, fallback) ?? fallback;
 
 (() => {
     const requestKey = () => {
@@ -52,6 +52,50 @@ const stridebrCommonT = (key, values = {}, fallback = key) => window.StrideBRI18
         }
     }
     window.StrideBRNet = {fetch: request, requestKey, ensureIdempotency}
+})();
+
+(() => {
+    const sameOriginReferrer = () => {
+        const raw = String(document.referrer || '').trim()
+        if (!raw) return null
+        try {
+            const url = new URL(raw, window.location.href)
+            if (url.origin !== window.location.origin) return null
+            if (url.href === window.location.href) return null
+            return url
+        } catch (_) {
+            return null
+        }
+    }
+
+    const safeBack = (element, event = null) => {
+        if (!(element instanceof HTMLElement)) return false
+        if (event && element instanceof HTMLAnchorElement && (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0)) return false
+        const fallback = element instanceof HTMLAnchorElement ? element.href : String(element.dataset.safeBackFallback || '').trim()
+        const referrer = sameOriginReferrer()
+        if (referrer && window.history.length > 1) {
+            event?.preventDefault()
+            window.history.back()
+            return true
+        }
+        if (!(element instanceof HTMLAnchorElement) && fallback) {
+            event?.preventDefault()
+            window.location.assign(fallback)
+            return true
+        }
+        return false
+    }
+
+    const init = (scope = document) => {
+        scope.querySelectorAll('[data-safe-back]').forEach(element => {
+            if (!(element instanceof HTMLElement) || element.dataset.safeBackBound === '1') return
+            element.dataset.safeBackBound = '1'
+            element.addEventListener('click', event => safeBack(element, event))
+        })
+    }
+
+    window.StrideBRSafeBack = {init, navigate: safeBack}
+    document.addEventListener('DOMContentLoaded', () => init(document))
 })();
 
 (() => {
@@ -509,6 +553,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const key = button.dataset.settingsSportFamilyOpen || '';
         if (familyGrid instanceof HTMLElement) familyGrid.hidden = true;
         panels.forEach(panel => panel.hidden = panel.dataset.settingsSportFamilyPanel !== key);
+        panels.find(panel => !panel.hidden)?.querySelector('button')?.focus();
         if (hint instanceof HTMLElement) hint.textContent = stridebrCommonT('sport_picker.settings_more_hint', {}, 'The most common sports appear first. Open “More sports” to see the rest.');
     }));
 
@@ -881,7 +926,8 @@ window.StrideBRSportPickerInit = (root = document) => {
             const below = Math.max(0, window.innerHeight - rect.bottom - gap - padding);
             const above = Math.max(0, rect.top - gap - padding);
             const openAbove = below < 260 && above > below;
-            const available = Math.max(180, Math.min(560, openAbove ? above : below));
+            const viewportAvailable = Math.max(120, window.innerHeight - padding * 2);
+            const available = Math.max(120, Math.min(560, viewportAvailable, openAbove ? above : below));
             popover.style.position = 'fixed';
             popover.style.left = `${Math.round(left)}px`;
             popover.style.right = 'auto';
@@ -889,8 +935,10 @@ window.StrideBRSportPickerInit = (root = document) => {
             popover.style.width = `${Math.round(width)}px`;
             popover.style.maxHeight = `${Math.round(available)}px`;
             const measured = Math.min(popover.scrollHeight, available);
-            const top = openAbove ? Math.max(padding, rect.top - gap - measured) : Math.min(window.innerHeight - padding - measured, rect.bottom + gap);
-            popover.style.top = `${Math.round(Math.max(padding, top))}px`;
+            const desiredTop = openAbove ? rect.top - gap - measured : rect.bottom + gap;
+            const maxTop = Math.max(padding, window.innerHeight - padding - measured);
+            const top = Math.min(maxTop, Math.max(padding, desiredTop));
+            popover.style.top = `${Math.round(top)}px`;
         };
 
         const close = () => {
@@ -925,6 +973,7 @@ window.StrideBRSportPickerInit = (root = document) => {
                 const key = familyButton.dataset.genericSportFamilyOpen || '';
                 if (familyGrid instanceof HTMLElement) familyGrid.hidden = true;
                 getPanels().forEach(panel => panel.hidden = panel.dataset.genericSportFamilyPanel !== key);
+                getPanels().find(panel => !panel.hidden)?.querySelector('button')?.focus({preventScroll:true});
                 popover.scrollTop = 0;
                 placePopover();
                 return;

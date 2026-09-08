@@ -8,6 +8,7 @@ $idUsuario = stridebr_require_login();
 require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
 require_once dirname(__DIR__, 2) . '/src/function/gps_web.php';
 require_once dirname(__DIR__, 2) . '/src/function/atividade_modelo.php';
+require_once dirname(__DIR__, 2) . '/src/function/activity_sport_context.php';
 require_once dirname(__DIR__, 2) . '/src/includes/sport_icons.php';
 require_once dirname(__DIR__, 2) . '/src/layout/sport_picker.php';
 
@@ -37,6 +38,7 @@ $autostart = isset($_GET['autostart']) && (string) $_GET['autostart'] !== '0';
           data-gps-recorder
           data-csrf-token="<?php echo stridebr_e(stridebr_csrf_token()); ?>"
           data-save-endpoint="/api/gps-salvar.php"
+          data-elevation-endpoint="/api/atividade-elevacao.php"
           data-autostart="<?php echo $autostart ? '1' : '0'; ?>">
         <section class="gps-setup" data-gps-setup>
             <div class="gps-page-heading">
@@ -180,6 +182,8 @@ $autostart = isset($_GET['autostart']) && (string) $_GET['autostart'] !== '0';
     <?php require dirname(__DIR__, 2) . '/src/layout/footer.php'; ?>
 </div>
 <?php echo stridebr_maps_runtime_script(); ?>
+<?php echo atividadeContextoJsConfigScript(); ?>
+<script src="<?php echo stridebr_e(stridebr_asset('/assets/js/activity-sport-context.js')); ?>" defer></script>
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/gps-recorder.js')); ?>" defer></script>
 </body>
 </html>

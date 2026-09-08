@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/includes/errors.php';
 require_once dirname(__DIR__) . '/includes/app.php';
+require_once __DIR__ . '/ads.php';
 
 $pageTitle = isset($pageTitle) ? (string) $pageTitle : 'StrideBR';
 $pageDescription = isset($pageDescription) ? (string) $pageDescription : '';
@@ -41,6 +42,7 @@ $metaDescription = $pageDescription !== '' ? $pageDescription : 'StrideBR: plane
         <div class="page-shell static-page-shell">
             <div class="page-heading"><h1><?php echo stridebr_e($pageTitle); ?></h1><?php if ($pageDescription !== ''): ?><p><?php echo stridebr_e($pageDescription); ?></p><?php endif; ?></div>
             <section class="content-card static-content"><?php echo $pageHtml; ?></section>
+            <?php stridebr_render_ad_slot('public-content-end', $currentPath, stridebr_is_logged_in()); ?>
         </div>
     </main>
 </div>

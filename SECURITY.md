@@ -15,7 +15,7 @@ Security-relevant administrative actions are written to `admin_audit_log`.
 If a vulnerability is found, report it privately to the project owner instead of testing it against other users' data.
 
 
-Authentication, signup, password recovery, verification resend and authenticated feedback use persistent throttling stored in PostgreSQL. In production on alwaysdata, the application uses the reverse proxy-provided `X-Real-IP` as the client address and falls back to `REMOTE_ADDR` outside production. A successful login clears the account/e-mail bucket but does not reset the global IP failure bucket.
+Authentication, signup, password recovery, verification resend and authenticated feedback use persistent throttling stored in PostgreSQL. The application trusts forwarded headers only when REMOTE_ADDR matches STRIDEBR_TRUSTED_PROXIES. X-Forwarded-For is traversed right-to-left, removing trusted proxy hops; malformed chains fall back to REMOTE_ADDR. Without X-Forwarded-For, a validated X-Real-IP may be used from the trusted proxy. HTTPS forwarding uses the same trust boundary. A successful login clears the account/e-mail bucket but does not reset the global IP failure bucket.
 
 Production-generated authentication links require an explicit HTTPS `STRIDEBR_APP_URL`; the application must not trust the incoming Host header for reset or verification links in production. Production responses also enforce HTTPS and HSTS.
 

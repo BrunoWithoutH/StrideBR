@@ -24,7 +24,8 @@ Crie uma credencial exclusiva para os mapas e limite-a ao acesso de basemaps nec
 
 ```text
 http://localhost:8080
-https://stridebr.alwaysdata.net
+https://stridebr.com.br
+https://staging.stridebr.com.br
 https://stride.com.br
 ```
 

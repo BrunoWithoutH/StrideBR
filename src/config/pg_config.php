@@ -2,20 +2,30 @@
 
 declare(strict_types=1);
 
-require_once dirname(__DIR__) . '/includes/env.php';
+require_once dirname(__DIR__) . '/includes/environment.php';
+if (!stridebr_is_development()) {
+    foreach (['HOST', 'NAME', 'USER', 'PASSWORD'] as $key) {
+        if (trim((string) getenv('STRIDEBR_DB_' . $key)) === '') throw new RuntimeException('Missing required database configuration');
+    }
+}
 
 $dbhost = getenv('STRIDEBR_DB_HOST') ?: 'localhost';
 $dbport = getenv('STRIDEBR_DB_PORT') ?: '5432';
 $dbname = getenv('STRIDEBR_DB_NAME') ?: 'stridebr';
 $dbuser = getenv('STRIDEBR_DB_USER') ?: 'stridebr';
 $dbpassword = getenv('STRIDEBR_DB_PASSWORD') ?: '';
+$dbSslMode = getenv('STRIDEBR_DB_SSLMODE') ?: 'prefer';
+if (!in_array($dbSslMode, ['disable','allow','prefer','require','verify-ca','verify-full'], true)) throw new RuntimeException('Invalid database SSL mode');
+foreach ([$dbhost, $dbport, $dbname] as $value) {
+    if (preg_match('/[;\s]/', $value)) throw new RuntimeException('Invalid database configuration');
+}
 $dbConnectTimeout = max(2, min(20, (int) (getenv('STRIDEBR_DB_CONNECT_TIMEOUT') ?: 6)));
 $dbStatementTimeout = max(3000, min(60000, (int) (getenv('STRIDEBR_DB_STATEMENT_TIMEOUT_MS') ?: 15000)));
 $dbLockTimeout = max(1000, min(30000, (int) (getenv('STRIDEBR_DB_LOCK_TIMEOUT_MS') ?: 5000)));
 
 try {
     $dbConnectStartedAt = microtime(true);
-    $dsn = "pgsql:host={$dbhost};port={$dbport};dbname={$dbname};connect_timeout={$dbConnectTimeout}";
+    $dsn = "pgsql:host={$dbhost};port={$dbport};dbname={$dbname};sslmode={$dbSslMode};connect_timeout={$dbConnectTimeout}";
 
     $pdo = new PDO($dsn, $dbuser, $dbpassword, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,

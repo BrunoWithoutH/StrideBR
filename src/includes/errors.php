@@ -2,10 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/env.php';
+require_once __DIR__ . '/environment.php';
 
-$environment = getenv('STRIDEBR_APP_ENV') ?: 'development';
-$showErrors = $environment !== 'production';
+try { $showErrors = stridebr_is_development(); } catch (Throwable) { $showErrors = false; }
 
 if (!isset($GLOBALS['stridebr_request_id']) || !is_string($GLOBALS['stridebr_request_id'])) {
     try {

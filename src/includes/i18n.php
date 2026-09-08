@@ -1,23 +1,34 @@
 <?php
 
 declare(strict_types=1);
+require_once __DIR__ . '/environment.php';
+
+/** Language labels are autonyms, independent of the active UI dictionary. */
+function stridebr_locale_registry(): array
+{
+    return [
+        'pt-BR' => ['autonym' => 'Português (Brasil)', 'fallback' => 'pt-BR', 'language' => 'pt'],
+        'en' => ['autonym' => 'English', 'fallback' => 'pt-BR', 'language' => 'en'],
+    ];
+}
 
 function stridebr_supported_locales(): array
 {
-    return ['pt-BR', 'en'];
+    return array_keys(stridebr_locale_registry());
 }
 
 function stridebr_supported_locale_modes(): array
 {
-    return ['auto', 'pt-BR', 'en'];
+    return array_merge(['auto'], stridebr_supported_locales());
 }
 
 function stridebr_normalize_locale(?string $locale): string
 {
     $locale = trim((string) $locale);
     $normalized = str_replace('_', '-', $locale);
-    if (preg_match('/^pt(?:-|$)/i', $normalized) === 1) return 'pt-BR';
-    if (preg_match('/^en(?:-|$)/i', $normalized) === 1) return 'en';
+    foreach (stridebr_locale_registry() as $id => $metadata) {
+        if (preg_match('/^' . preg_quote($metadata['language'], '/') . '(?:-|$)/i', $normalized) === 1) return $id;
+    }
     return 'pt-BR';
 }
 
@@ -46,7 +57,7 @@ function stridebr_set_locale_preference(string $locale, bool $persistCookie = tr
         $cookieOptions = [
             'expires' => time() + 31536000,
             'path' => '/',
-            'secure' => stridebr_is_production() || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
+            'secure' => stridebr_secure_cookie(),
             'httponly' => false,
             'samesite' => 'Lax',
         ];
@@ -354,7 +365,7 @@ function stridebr_present_activity_title(string $title, string $sportSlug, ?stri
 function stridebr_js_i18n_dictionary(?string $locale = null): array
 {
     $dictionary = stridebr_locale_dictionary($locale ?? stridebr_locale());
-    $allowedPrefixes = ['common.', 'nav.', 'activity.', 'route.', 'schedule.', 'agenda.', 'library.', 'sport.', 'notifications.', 'onboarding.', 'auth.', 'trainer.', 'friends.', 'events.', 'event.', 'profile.', 'settings.', 'account.', 'progress.', 'goals.', 'home.', 'js.'];
+    $allowedPrefixes = ['workout_session.', 'planning.', 'common.', 'nav.', 'activity.', 'route.', 'schedule.', 'agenda.', 'library.', 'sport.', 'notifications.', 'onboarding.', 'auth.', 'trainer.', 'friends.', 'events.', 'event.', 'profile.', 'settings.', 'account.', 'progress.', 'goals.', 'home.', 'js.'];
     return array_filter($dictionary, static function (mixed $value, string $key) use ($allowedPrefixes): bool {
         if (!is_string($value) || $value === '') return false;
         foreach ($allowedPrefixes as $prefix) if (str_starts_with($key, $prefix)) return true;
@@ -385,7 +396,7 @@ function stridebr_set_theme(string $theme, bool $persistCookie = true): string
         setcookie('stridebr_theme', $theme, [
             'expires' => time() + 31536000,
             'path' => '/',
-            'secure' => stridebr_is_production() || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
+            'secure' => stridebr_secure_cookie(),
             'httponly' => false,
             'samesite' => 'Lax',
         ]);
@@ -423,5 +434,5 @@ function stridebr_ui_boot_script(): string
         . '<meta name="apple-mobile-web-app-status-bar-style" content="default">'
         . '<link rel="apple-touch-icon" href="' . $escape($touchIcon) . '">'
         . '<script data-stridebr-ui-boot src="' . $escape($uiSrc) . '" data-theme-mode="' . $escape(stridebr_theme()) . '" data-locale-mode="' . $escape(stridebr_locale_preference()) . '" data-locale="' . $escape(stridebr_locale()) . '"></script>'
-        . '<script src="' . $escape($pwaSrc) . '" defer></script>';
+        . '<script src="' . $escape($pwaSrc) . '" data-build="' . $escape(function_exists('stridebr_build') ? stridebr_build() : 'rc') . '" defer></script>';
 }

@@ -20,7 +20,8 @@ $googleStart = $read('public/auth/google.php');
 $googleCallback = $read('public/auth/google-callback.php');
 $themeJs = $read('public/assets/js/ui-preferences.js');
 $themeBootJs = $read('public/assets/js/ui-boot.js');
-$htaccess = $read('public/.htaccess');
+require_once $root . '/src/includes/http_headers.php';
+$htaccess = stridebr_content_security_policy();
 $diagnostics = $read('public/admin/diagnostics.php');
 $runtime = $read('public/assets/js/i18n-runtime.js');
 $css = $read('public/assets/css/ui-refresh.css');
@@ -32,7 +33,7 @@ $env = $read('.env.example');
 $checks = [
     'i18n carregado no bootstrap' => str_contains($app, "require_once __DIR__ . '/i18n.php'"),
     'português e inglês disponíveis' => str_contains($i18n, "'pt-BR'") && str_contains($i18n, "'en'") && str_contains($en, "'nav.home' => 'Home'") && str_contains($pt, "'nav.home' => 'Início'"),
-    'idioma automático usa pt ou inglês' => str_contains($i18n, 'stridebr_detect_locale') && str_contains($i18n, "return 'en';") && str_contains($i18n, "return 'pt-BR';") && str_contains($i18n, "['auto', 'pt-BR', 'en']"),
+    'idioma automático usa pt ou inglês' => str_contains($i18n, 'stridebr_detect_locale') && str_contains($i18n, "return 'en';") && str_contains($i18n, "return 'pt-BR';") && str_contains($i18n, "array_merge(['auto'], stridebr_supported_locales())"),
     'idioma e tema persistíveis nas preferências' => str_contains($settings, 'name="locale"') && str_contains($settings, 'value="auto"') && str_contains($settings, 'name="theme"') && str_contains($settings, "\$preferences['locale']") && str_contains($settings, "\$preferences['theme']"),
     'idioma e tema ficam em personalização' => str_contains($settings, "settings.personalization") && str_contains($settings, "settings.language_auto"),
     'cabeçalho não expõe tema e idioma' => !str_contains($header, 'data-locale-select') && !str_contains($header, 'data-theme-select') && !str_contains($header, 'data-theme-toggle'),

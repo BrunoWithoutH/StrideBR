@@ -49,21 +49,21 @@ function treinadorVinculoAceito(PDO $pdo, string $idTreinador, string $idAtleta)
 function treinadorCriarConvite(PDO $pdo, string $idAtual, string $username, string $papelAtual): string
 {
     if (!in_array($papelAtual, ['treinador', 'atleta'], true)) {
-        throw new InvalidArgumentException('Tipo de convite inválido.');
+        throw new InvalidArgumentException(stridebr_t('planning.message.invalid_invite'));
     }
 
     $atual = treinadorUsuario($pdo, $idAtual);
     if ($atual === []) {
-        throw new RuntimeException('Conta não encontrada.');
+        throw new RuntimeException(stridebr_t('planning.message.account_missing'));
     }
 
     if ($papelAtual === 'treinador') {
         if (!stridebr_db_bool($atual['modo_treinador'] ?? false)) {
-            throw new RuntimeException('Ative o modo treinador antes de convidar atletas.');
+            throw new RuntimeException(stridebr_t('planning.message.enable_invite'));
         }
         $destino = treinadorBuscarUsername($pdo, $username, $idAtual, false);
         if ($destino === []) {
-            throw new RuntimeException('Atleta não encontrado ou indisponível para busca.');
+            throw new RuntimeException(stridebr_t('planning.message.athlete_missing'));
         }
         $idTreinador = $idAtual;
         $idAtleta = (string) $destino['idusuario'];
@@ -71,7 +71,7 @@ function treinadorCriarConvite(PDO $pdo, string $idAtual, string $username, stri
     } else {
         $destino = treinadorBuscarUsername($pdo, $username, $idAtual, true);
         if ($destino === []) {
-            throw new RuntimeException('Treinador não encontrado ou indisponível para busca.');
+            throw new RuntimeException(stridebr_t('planning.message.coach_missing'));
         }
         $idTreinador = (string) $destino['idusuario'];
         $idAtleta = $idAtual;
@@ -82,10 +82,10 @@ function treinadorCriarConvite(PDO $pdo, string $idAtual, string $username, stri
     $existing->execute([':treinador' => $idTreinador, ':atleta' => $idAtleta]);
     $status = $existing->fetchColumn();
     if ($status === 'aceito') {
-        throw new RuntimeException('Esse vínculo já está ativo.');
+        throw new RuntimeException(stridebr_t('planning.message.link_active'));
     }
     if ($status === 'pendente') {
-        throw new RuntimeException('Já existe um convite pendente entre vocês.');
+        throw new RuntimeException(stridebr_t('planning.message.invite_pending'));
     }
 
     $id = stridebr_generate_id();
@@ -102,23 +102,23 @@ function treinadorCriarConvite(PDO $pdo, string $idAtual, string $username, stri
 function treinadorResponderVinculo(PDO $pdo, string $idAtual, string $idVinculo, string $acao): void
 {
     if (!in_array($acao, ['aceitar', 'recusar'], true)) {
-        throw new InvalidArgumentException('Ação inválida.');
+        throw new InvalidArgumentException(stridebr_t('planning.message.invalid_action'));
     }
     $vinculo = treinadorVinculo($pdo, $idVinculo);
     if ($vinculo === [] || $vinculo['status'] !== 'pendente') {
-        throw new RuntimeException('Convite não encontrado.');
+        throw new RuntimeException(stridebr_t('planning.message.invite_missing'));
     }
 
     $podeResponder = ($vinculo['solicitado_por'] === 'treinador' && $vinculo['idatleta'] === $idAtual)
         || ($vinculo['solicitado_por'] === 'atleta' && $vinculo['idtreinador'] === $idAtual);
     if (!$podeResponder) {
-        throw new RuntimeException('Você não pode responder esse convite.');
+        throw new RuntimeException(stridebr_t('planning.message.invite_forbidden'));
     }
 
     if ($vinculo['solicitado_por'] === 'atleta' && $acao === 'aceitar') {
         $user = treinadorUsuario($pdo, $idAtual);
         if (!stridebr_db_bool($user['modo_treinador'] ?? false)) {
-            throw new RuntimeException('Ative o modo treinador antes de aceitar atletas.');
+            throw new RuntimeException(stridebr_t('planning.message.enable_accept'));
         }
     }
 
@@ -141,7 +141,7 @@ function treinadorEncerrarVinculo(PDO $pdo, string $idAtual, string $idVinculo):
 {
     $vinculo = treinadorVinculo($pdo, $idVinculo);
     if ($vinculo === [] || $vinculo['status'] !== 'aceito' || !in_array($idAtual, [(string) $vinculo['idtreinador'], (string) $vinculo['idatleta']], true)) {
-        throw new RuntimeException('Vínculo não encontrado.');
+        throw new RuntimeException(stridebr_t('planning.message.link_missing'));
     }
     $stmt = $pdo->prepare("UPDATE vinculos_treinador_atleta SET status = 'encerrado', encerrado_em = NOW(), data_atualizacao = NOW() WHERE idvinculo = :id AND status = 'aceito'");
     $stmt->execute([':id' => $idVinculo]);
@@ -151,7 +151,7 @@ function treinadorAtualizarPermissoes(PDO $pdo, string $idAtleta, string $idVinc
 {
     $vinculo = treinadorVinculo($pdo, $idVinculo);
     if ($vinculo === [] || $vinculo['status'] !== 'aceito' || $vinculo['idatleta'] !== $idAtleta) {
-        throw new RuntimeException('Vínculo não encontrado.');
+        throw new RuntimeException(stridebr_t('planning.message.link_missing'));
     }
     $stmt = $pdo->prepare('UPDATE vinculos_treinador_atleta SET pode_prescrever = :prescrever, pode_ver_cronograma = :cronograma, pode_ver_atividades = :atividades, pode_ver_feedback = :feedback, data_atualizacao = NOW() WHERE idvinculo = :id');
     $stmt->bindValue(':prescrever', isset($dados['pode_prescrever']), PDO::PARAM_BOOL);
@@ -187,11 +187,11 @@ function treinadorCriarPrescricao(PDO $pdo, string $idTreinador, string $idAtlet
 {
     $user = treinadorUsuario($pdo, $idTreinador);
     if (!stridebr_db_bool($user['modo_treinador'] ?? false)) {
-        throw new RuntimeException('Ative o modo treinador para prescrever treinos.');
+        throw new RuntimeException(stridebr_t('planning.message.enable_prescribe'));
     }
     $vinculo = treinadorVinculoAceito($pdo, $idTreinador, $idAtleta);
     if ($vinculo === [] || !stridebr_db_bool($vinculo['pode_prescrever'] ?? false)) {
-        throw new RuntimeException('Esse atleta não autorizou prescrições.');
+        throw new RuntimeException(stridebr_t('planning.message.prescribe_forbidden'));
     }
 
     $titulo = trim((string) ($dados['titulo'] ?? ''));
@@ -202,26 +202,26 @@ function treinadorCriarPrescricao(PDO $pdo, string $idTreinador, string $idAtlet
     $status = (string) ($dados['status'] ?? 'rascunho');
 
     if ($titulo === '' || stridebr_length($titulo) > 120) {
-        throw new InvalidArgumentException('Informe um título de até 120 caracteres.');
+        throw new InvalidArgumentException(stridebr_t('planning.message.invalid_title'));
     }
     if (stridebr_length($descricao) > 5000) {
-        throw new InvalidArgumentException('A descrição deve ter no máximo 5.000 caracteres.');
+        throw new InvalidArgumentException(stridebr_t('planning.message.description_long'));
     }
     if (!treinadorDataValida($data)) {
-        throw new InvalidArgumentException('Escolha uma data entre hoje e os próximos dois anos.');
+        throw new InvalidArgumentException(stridebr_t('planning.message.invalid_date'));
     }
     if (!treinadorHoraValida($hora)) {
-        throw new InvalidArgumentException('Horário inválido.');
+        throw new InvalidArgumentException(stridebr_t('planning.message.invalid_time'));
     }
     $duracao = null;
     if ($duracaoRaw !== '') {
         if (filter_var($duracaoRaw, FILTER_VALIDATE_INT) === false || (int) $duracaoRaw < 1 || (int) $duracaoRaw > 1440) {
-            throw new InvalidArgumentException('Duração prevista inválida.');
+            throw new InvalidArgumentException(stridebr_t('planning.message.invalid_duration'));
         }
         $duracao = (int) $duracaoRaw;
     }
     if (!in_array($status, ['rascunho', 'publicado'], true)) {
-        throw new InvalidArgumentException('Status da prescrição inválido.');
+        throw new InvalidArgumentException(stridebr_t('planning.message.invalid_status'));
     }
 
     $rows = [];
@@ -234,13 +234,13 @@ function treinadorCriarPrescricao(PDO $pdo, string $idTreinador, string $idAtlet
             continue;
         }
         if (stridebr_length($nome) > 120) {
-            throw new InvalidArgumentException('Um dos exercícios tem nome maior que 120 caracteres.');
+            throw new InvalidArgumentException(stridebr_t('planning.message.exercise_long'));
         }
         $seriesRaw = trim((string) ($row['series'] ?? ''));
         $series = null;
         if ($seriesRaw !== '') {
             if (filter_var($seriesRaw, FILTER_VALIDATE_INT) === false || (int) $seriesRaw < 1 || (int) $seriesRaw > 99) {
-                throw new InvalidArgumentException('Quantidade de séries inválida.');
+                throw new InvalidArgumentException(stridebr_t('planning.message.invalid_sets'));
             }
             $series = (int) $seriesRaw;
         }
@@ -248,13 +248,13 @@ function treinadorCriarPrescricao(PDO $pdo, string $idTreinador, string $idAtlet
         foreach (['repeticoes', 'carga', 'descanso'] as $field) {
             $value = trim((string) ($row[$field] ?? ''));
             if (stridebr_length($value) > 40) {
-                throw new InvalidArgumentException('Um campo de exercício ultrapassou 40 caracteres.');
+                throw new InvalidArgumentException(stridebr_t('planning.message.field_long'));
             }
             $fields[$field] = $value !== '' ? $value : null;
         }
         $observacoes = trim((string) ($row['observacoes'] ?? ''));
         if (stridebr_length($observacoes) > 1000) {
-            throw new InvalidArgumentException('Observações de exercício devem ter no máximo 1.000 caracteres.');
+            throw new InvalidArgumentException(stridebr_t('planning.message.notes_long'));
         }
         $rows[] = [
             'nome' => $nome,
@@ -333,7 +333,7 @@ function treinadorPublicarPrescricao(PDO $pdo, string $idTreinador, string $idAg
         ':vinculo_treinador' => $idTreinador,
     ]);
     if ($stmt->rowCount() !== 1) {
-        throw new RuntimeException('Prescrição não encontrada, já publicada ou sem permissão ativa do atleta.');
+        throw new RuntimeException(stridebr_t('planning.message.publish_forbidden'));
     }
 }
 
@@ -342,7 +342,7 @@ function treinadorCancelarPrescricao(PDO $pdo, string $idAtual, string $idAgenda
     $stmt = $pdo->prepare("UPDATE treinos_agendados SET status = 'cancelado', data_atualizacao = NOW() WHERE idagendamento = :id AND (idcriador = :atual_criador OR idatleta = :atual_atleta) AND status IN ('rascunho', 'publicado')");
     $stmt->execute([':id' => $idAgendamento, ':atual_criador' => $idAtual, ':atual_atleta' => $idAtual]);
     if ($stmt->rowCount() !== 1) {
-        throw new RuntimeException('Treino agendado não encontrado ou não pode mais ser cancelado.');
+        throw new RuntimeException(stridebr_t('planning.message.cancel_forbidden'));
     }
 }
 
@@ -350,10 +350,10 @@ function treinadorSalvarFeedback(PDO $pdo, string $idAtleta, string $idAgendamen
 {
     $feedback = trim($feedback);
     if ($nota < 1 || $nota > 5) {
-        throw new InvalidArgumentException('Escolha uma nota entre 1 e 5.');
+        throw new InvalidArgumentException(stridebr_t('planning.message.invalid_rating'));
     }
     if (stridebr_length($feedback) > 2000) {
-        throw new InvalidArgumentException('O feedback deve ter no máximo 2.000 caracteres.');
+        throw new InvalidArgumentException(stridebr_t('planning.message.feedback_long'));
     }
     $stmt = $pdo->prepare("UPDATE treinos_agendados SET nota_atleta = :nota, feedback_atleta = :feedback, feedback_em = NOW(), data_atualizacao = NOW() WHERE idagendamento = :id AND idatleta = :atleta AND origem = 'treinador' AND status = 'concluido'");
     $stmt->execute([
@@ -363,6 +363,6 @@ function treinadorSalvarFeedback(PDO $pdo, string $idAtleta, string $idAgendamen
         ':atleta' => $idAtleta,
     ]);
     if ($stmt->rowCount() !== 1) {
-        throw new RuntimeException('Treino concluído não encontrado.');
+        throw new RuntimeException(stridebr_t('planning.message.completed_missing'));
     }
 }

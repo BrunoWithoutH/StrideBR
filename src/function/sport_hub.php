@@ -14,13 +14,15 @@ function sportHubBucket(string $category, string $slug, string $family = ''): st
     return sportCatalogFamilyKey($family, $category, $slug);
 }
 
-function sportHubResolvePeriod(string $view = 'month', string $anchor = ''): array
+function sportHubResolvePeriod(string $view = '12w', string $anchor = ''): array
 {
     $timezone = new DateTimeZone('America/Sao_Paulo');
     $now = new DateTimeImmutable('now', $timezone);
     $currentMonth = $now->modify('first day of this month')->setTime(0, 0);
-    $views = ['month' => 1, '3m' => 3, '6m' => 6, '12m' => 12];
-    $view = isset($views[$view]) ? $view : 'month';
+    $aliases = ['month' => '4w', '3m' => '12w', '12m' => '1y'];
+    $view = $aliases[$view] ?? $view;
+    $valid = ['4w', '12w', '6m', '1y'];
+    if (!in_array($view, $valid, true)) $view = '12w';
     $anchorStart = $currentMonth;
     if (preg_match('/^\d{4}-\d{2}$/', $anchor) === 1) {
         try {
@@ -29,21 +31,27 @@ function sportHubResolvePeriod(string $view = 'month', string $anchor = ''): arr
         } catch (Throwable) {
         }
     }
-    $months = $views[$view];
     $calendarEnd = $anchorStart->modify('+1 month');
-    $currentStart = $calendarEnd->modify('-' . $months . ' months');
     $currentEnd = $anchorStart == $currentMonth ? $now->modify('+1 second') : $calendarEnd;
+    $currentStart = match ($view) {
+        '4w' => $currentEnd->modify('-28 days'),
+        '12w' => $currentEnd->modify('-84 days'),
+        '6m' => $currentEnd->modify('-6 months'),
+        default => $currentEnd->modify('-1 year'),
+    };
+    $spanSeconds = max(1, $currentEnd->getTimestamp() - $currentStart->getTimestamp());
     $previousEnd = $currentStart;
-    $previousStart = $previousEnd->modify('-' . $months . ' months');
+    $previousStart = $previousEnd->modify('-' . $spanSeconds . ' seconds');
     return [
         'view' => $view,
-        'months' => $months,
+        'months' => $view === '6m' ? 6 : ($view === '1y' ? 12 : 0),
         'anchor' => $anchorStart->format('Y-m'),
         'anchor_start' => $anchorStart,
         'current_start' => $currentStart,
         'current_end' => $currentEnd,
         'previous_start' => $previousStart,
         'previous_end' => $previousEnd,
+        'span_seconds' => $spanSeconds,
     ];
 }
 
@@ -52,14 +60,23 @@ function sportHubActivityRows(PDO $pdo, string $userId, int $days = 370): array
     $days = max(30, min(1500, $days));
     $stmt = $pdo->prepare("SELECT ra.idregistro, ra.titulo, ra.data_inicio, ra.data_fim, ra.origem_provedor, ra.dispositivo_origem,
         m.nome AS modalidade_nome, m.slug AS modalidade_slug, m.categoria, m.familia_hub,
-        COALESCE(r.distancia_metros, 0) AS distancia_metros, COALESCE(r.ganho_elevacao_m, 0) AS ganho_elevacao_m,
+        COALESCE(NULLIF(r.distancia_metros, 0), metric.distancia_m, 0) AS distancia_metros, COALESCE(NULLIF(r.ganho_elevacao_m, 0), metric.elevacao_m, 0) AS ganho_elevacao_m,
         COALESCE(ra.calorias_externas, ra.calorias_ativas_estimadas, 0) AS calorias_kcal,
         perf.fc_media_bpm, perf.fc_maxima_bpm, perf.cadencia_media, perf.potencia_media_w, perf.vento_m_s, perf.tempo_reacao_s,
         perf.tipo_sessao, perf.formato_jogo, perf.resultado, perf.adversario, perf.placar, perf.placar_favor, perf.placar_contra, perf.posicao, perf.rounds, perf.pontuacao, perf.rodadas,
-        GREATEST(0, EXTRACT(EPOCH FROM (COALESCE(ra.data_fim, ra.data_inicio) - ra.data_inicio))) AS duration_db_s
+        COALESCE(NULLIF(GREATEST(0, EXTRACT(EPOCH FROM (COALESCE(ra.data_fim, ra.data_inicio) - ra.data_inicio))), 0), metric.duracao_s, 0) AS duration_db_s
         FROM registros_atividade ra
         JOIN modalidades m ON m.idmodalidade = ra.idmodalidade
         LEFT JOIN rotas_atividade r ON r.idregistro = ra.idregistro
+        LEFT JOIN LATERAL (
+            SELECT
+                SUM(va.valor_normalizado) FILTER (WHERE lower(c.slug) = 'distancia') AS distancia_m,
+                SUM(va.valor_normalizado) FILTER (WHERE lower(c.slug) = 'duracao') AS duracao_s,
+                SUM(va.valor_normalizado) FILTER (WHERE lower(c.slug) IN ('elevacao', 'desnivel')) AS elevacao_m
+            FROM valores_atividade va
+            JOIN campos_modelo c ON c.idcampo = va.idcampo
+            WHERE va.idregistro = ra.idregistro
+        ) metric ON TRUE
         LEFT JOIN LATERAL (
             SELECT
                 AVG(COALESCE(va.valor_decimal, va.valor_inteiro::numeric)) FILTER (WHERE lower(c.slug) IN ('fc-media','fc_media','frequencia-cardiaca-media')) AS fc_media_bpm,
@@ -95,6 +112,135 @@ function sportHubActivityRows(PDO $pdo, string $userId, int $days = 370): array
     }
     unset($row);
     return $rows;
+}
+
+function sportHubAvailableSports(array $activities): array
+{
+    $sports = [];
+    foreach ($activities as $row) {
+        $slug = stridebr_lower(trim((string) ($row['modalidade_slug'] ?? '')));
+        if ($slug === '') continue;
+        $sports[$slug] ??= [
+            'slug' => $slug,
+            'name' => (string) ($row['modalidade_nome'] ?? $slug),
+            'family' => (string) ($row['hub_bucket'] ?? 'other'),
+            'count' => 0,
+        ];
+        $sports[$slug]['count']++;
+    }
+    uasort($sports, static fn(array $a, array $b): int => [$b['count'], $a['name']] <=> [$a['count'], $b['name']]);
+    return array_values($sports);
+}
+
+function sportHubFilterSport(array $activities, string $sport = 'all'): array
+{
+    $sport = stridebr_lower(trim($sport));
+    if ($sport === '' || $sport === 'all') return array_values($activities);
+    return array_values(array_filter($activities, static fn(array $row): bool => stridebr_lower((string) ($row['modalidade_slug'] ?? '')) === $sport));
+}
+
+function sportHubActivitiesInWindow(array $activities, DateTimeImmutable $start, DateTimeImmutable $end): array
+{
+    return array_values(array_filter($activities, static function (array $row) use ($start, $end): bool {
+        try { $date = new DateTimeImmutable((string) ($row['data_inicio'] ?? '')); } catch (Throwable) { return false; }
+        return $date >= $start && $date < $end;
+    }));
+}
+
+function sportHubSummaryMetrics(array $activities): array
+{
+    $summary = ['activities' => 0, 'active_days' => 0, 'duration_s' => 0.0, 'distance_m' => 0.0, 'elevation_m' => 0.0];
+    $days = [];
+    foreach ($activities as $row) {
+        $summary['activities']++;
+        $summary['duration_s'] += max(0.0, (float) ($row['duration_s'] ?? 0));
+        $summary['distance_m'] += max(0.0, (float) ($row['distancia_metros'] ?? 0));
+        $summary['elevation_m'] += max(0.0, (float) ($row['ganho_elevacao_m'] ?? 0));
+        try { $days[(new DateTimeImmutable((string) ($row['data_inicio'] ?? '')))->format('Y-m-d')] = true; } catch (Throwable) {}
+    }
+    $summary['active_days'] = count($days);
+    return $summary;
+}
+
+function sportHubWeeklySeries(array $activities, DateTimeImmutable $start, DateTimeImmutable $end): array
+{
+    $span = max(1, $end->getTimestamp() - $start->getTimestamp());
+    $weeks = max(1, (int) ceil($span / 604800));
+    $series = [];
+    for ($index = 0; $index < $weeks; $index++) {
+        $bucketStart = $start->modify('+' . ($index * 7) . ' days');
+        if ($bucketStart >= $end) break;
+        $bucketEnd = $bucketStart->modify('+7 days');
+        if ($bucketEnd > $end) $bucketEnd = $end;
+        $series[$index] = [
+            'index' => $index,
+            'start' => $bucketStart,
+            'end' => $bucketEnd,
+            'activities' => 0,
+            'duration_s' => 0.0,
+            'distance_m' => 0.0,
+            'elevation_m' => 0.0,
+            'duration_known' => false,
+            'distance_known' => false,
+            'elevation_known' => false,
+            'sports' => [],
+        ];
+    }
+    foreach ($activities as $row) {
+        try { $date = new DateTimeImmutable((string) ($row['data_inicio'] ?? '')); } catch (Throwable) { continue; }
+        if ($date < $start || $date >= $end) continue;
+        $index = (int) floor(($date->getTimestamp() - $start->getTimestamp()) / 604800);
+        if (!isset($series[$index])) continue;
+        $duration = max(0.0, (float) ($row['duration_s'] ?? 0));
+        $distance = max(0.0, (float) ($row['distancia_metros'] ?? 0));
+        $elevation = max(0.0, (float) ($row['ganho_elevacao_m'] ?? 0));
+        $series[$index]['activities']++;
+        $series[$index]['duration_s'] += $duration;
+        $series[$index]['distance_m'] += $distance;
+        $series[$index]['elevation_m'] += $elevation;
+        if ($duration > 0) $series[$index]['duration_known'] = true;
+        if ($distance > 0) $series[$index]['distance_known'] = true;
+        if ($elevation > 0) $series[$index]['elevation_known'] = true;
+        $slug = stridebr_lower((string) ($row['modalidade_slug'] ?? ''));
+        if ($slug !== '') $series[$index]['sports'][$slug] = ($series[$index]['sports'][$slug] ?? 0) + 1;
+    }
+    return array_values($series);
+}
+
+function sportHubConsistencyDays(array $activities, DateTimeImmutable $start, DateTimeImmutable $end): array
+{
+    $days = [];
+    $cursor = $start->setTime(0, 0);
+    $last = $end->setTime(0, 0);
+    while ($cursor < $last) {
+        $key = $cursor->format('Y-m-d');
+        $days[$key] = ['date' => $cursor, 'count' => 0, 'sports' => []];
+        $cursor = $cursor->modify('+1 day');
+    }
+    foreach ($activities as $row) {
+        try { $date = (new DateTimeImmutable((string) ($row['data_inicio'] ?? '')))->setTimezone(new DateTimeZone('America/Sao_Paulo')); } catch (Throwable) { continue; }
+        $key = $date->format('Y-m-d');
+        if (!isset($days[$key])) continue;
+        $days[$key]['count']++;
+        $slug = stridebr_lower((string) ($row['modalidade_slug'] ?? ''));
+        if ($slug !== '') $days[$key]['sports'][$slug] = ($days[$key]['sports'][$slug] ?? 0) + 1;
+    }
+    return array_values($days);
+}
+
+function sportHubModalitiesBreakdown(array $activities): array
+{
+    $items = [];
+    foreach ($activities as $row) {
+        $slug = stridebr_lower((string) ($row['modalidade_slug'] ?? ''));
+        if ($slug === '') continue;
+        $items[$slug] ??= ['slug' => $slug, 'name' => (string) ($row['modalidade_nome'] ?? $slug), 'activities' => 0, 'duration_s' => 0.0, 'distance_m' => 0.0];
+        $items[$slug]['activities']++;
+        $items[$slug]['duration_s'] += max(0.0, (float) ($row['duration_s'] ?? 0));
+        $items[$slug]['distance_m'] += max(0.0, (float) ($row['distancia_metros'] ?? 0));
+    }
+    uasort($items, static fn(array $a, array $b): int => [$b['activities'], $b['duration_s'], $a['name']] <=> [$a['activities'], $a['duration_s'], $b['name']]);
+    return array_values($items);
 }
 
 function sportHubOverview(array $activities, ?array $periodWindow = null): array

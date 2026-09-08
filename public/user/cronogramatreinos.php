@@ -9,6 +9,7 @@ $idUsuario = stridebr_require_login();
 
 require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
 require_once dirname(__DIR__, 2) . '/src/function/cronograma.php';
+require_once dirname(__DIR__, 2) . '/src/function/planejamento.php';
 require_once dirname(__DIR__, 2) . '/src/function/cronograma_compartilhar.php';
 require_once dirname(__DIR__, 2) . '/src/function/product_analytics.php';
 require_once dirname(__DIR__, 2) . '/src/function/notificacoes.php';
@@ -165,7 +166,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare('UPDATE cronogramas SET visibilidade = :visibilidade, data_atualizacao = NOW() WHERE idcronograma = :id AND idusuario = :usuario');
             $stmt->execute([':visibilidade' => $visibility, ':id' => $id, ':usuario' => $idUsuario]);
             if ($stmt->rowCount() !== 1) throw new RuntimeException(stridebr_t('schedule.not_found'));
-            notificacaoCronogramaSincronizadoAlterado($pdo, $idUsuario, $id, 'A privacidade do cronograma foi atualizada.');
+            notificacaoCronogramaSincronizadoAlterado($pdo, $idUsuario, $id, stridebr_t('schedule.privacy_updated'));
             stridebr_flash('success', stridebr_t('schedule.privacy_updated'));
             header('Location: /user/cronogramatreinos.php?id=' . urlencode($id));
             exit;
@@ -180,7 +181,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 cronogramaSalvarTreino($pdo, $idUsuario, $_POST, $idTreino);
             }
             $idCronogramaAlterado = trim((string) ($_POST['idcronograma'] ?? ''));
-            notificacaoCronogramaSincronizadoAlterado($pdo, $idUsuario, $idCronogramaAlterado, $idTreino ? 'Um treino foi atualizado.' : 'Um treino foi adicionado.');
+            notificacaoCronogramaSincronizadoAlterado($pdo, $idUsuario, $idCronogramaAlterado, $idTreino ? stridebr_t('planning.message.workout_updated') : stridebr_t('planning.message.workout_added'));
             stridebr_flash('success', stridebr_t($idTreino ? 'schedule.workout_updated' : 'schedule.workout_added'));
             $fallback = '/user/cronogramatreinos.php?id=' . urlencode($idCronogramaAlterado);
             header('Location: ' . stridebr_safe_redirect((string) ($_POST['return_to'] ?? ''), $fallback));
@@ -191,12 +192,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $token = (string) ($_POST['undo_token'] ?? '');
             if ($undo === [] || (int) ($undo['expires'] ?? 0) < time() || !hash_equals((string) ($undo['token'] ?? ''), $token)) {
                 unset($_SESSION['schedule_undo_workout']);
-                throw new RuntimeException('O prazo para desfazer terminou.');
+                throw new RuntimeException(stridebr_t('planning.message.undo_expired'));
             }
             $idRestaurado = cronogramaRestaurarTreinoExcluido($pdo, $idUsuario, (array) ($undo['snapshot'] ?? []));
             $idCronograma = (string) (($undo['snapshot']['treino']['idcronograma'] ?? '') ?: ($_POST['idcronograma'] ?? ''));
             unset($_SESSION['schedule_undo_workout']);
-            notificacaoCronogramaSincronizadoAlterado($pdo, $idUsuario, $idCronograma, 'Um treino foi restaurado.');
+            notificacaoCronogramaSincronizadoAlterado($pdo, $idUsuario, $idCronograma, stridebr_t('planning.message.workout_restored'));
             stridebr_flash('success', stridebr_t('schedule.workout_restored'));
             $fallback = '/user/cronogramatreinos.php?id=' . urlencode($idCronograma);
             header('Location: ' . stridebr_safe_redirect((string) ($_POST['return_to'] ?? ''), $fallback));
@@ -214,7 +215,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'expires' => time() + 300,
                 'snapshot' => $snapshot,
             ];
-            notificacaoCronogramaSincronizadoAlterado($pdo, $idUsuario, $idCronograma, 'Um treino foi removido.');
+            notificacaoCronogramaSincronizadoAlterado($pdo, $idUsuario, $idCronograma, stridebr_t('planning.message.workout_removed'));
             stridebr_flash('success', stridebr_t('schedule.workout_removed_from_schedule'));
             $fallback = '/user/cronogramatreinos.php?id=' . urlencode($idCronograma);
             header('Location: ' . stridebr_safe_redirect((string) ($_POST['return_to'] ?? ''), $fallback));
@@ -224,7 +225,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $idCronograma = (string) ($_POST['idcronograma'] ?? '');
             $newWorkout = cronogramaDuplicarTreino($pdo, $idUsuario, (string) ($_POST['idtreino'] ?? ''));
             $mode = (string) ($_POST['duplicate_mode'] ?? 'stay');
-            notificacaoCronogramaSincronizadoAlterado($pdo, $idUsuario, $idCronograma, 'Um treino foi duplicado.');
+            notificacaoCronogramaSincronizadoAlterado($pdo, $idUsuario, $idCronograma, stridebr_t('planning.message.workout_duplicated'));
             stridebr_flash('success', stridebr_t($mode === 'edit' ? 'schedule.copy_created_edit' : 'schedule.copy_created'));
             $fallback = '/user/cronogramatreinos.php?id=' . urlencode($idCronograma);
             $location = stridebr_safe_redirect((string) ($_POST['return_to'] ?? ''), $fallback);
@@ -288,7 +289,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 trim((string) ($_POST['vigencia_inicio'] ?? date('Y-m-d'))),
                 trim((string) ($_POST['vigencia_fim'] ?? '')) ?: null
             );
-            notificacaoCronogramaSincronizadoAlterado($pdo, $idUsuario, $idCronograma, 'Um treino salvo foi adicionado ao cronograma.');
+            notificacaoCronogramaSincronizadoAlterado($pdo, $idUsuario, $idCronograma, stridebr_t('planning.message.library_added'));
             stridebr_flash('success', stridebr_t('schedule.workout_added_schedule'));
             header('Location: /user/cronogramatreinos.php?id=' . urlencode($idCronograma) . '&treino=' . urlencode($idTreino));
             exit;
@@ -417,6 +418,8 @@ $today = (new DateTimeImmutable('today'))->format('Y-m-d');
 
 $weekToday = new DateTimeImmutable('today');
 $weekStart = $weekToday->modify('-' . $weekToday->format('w') . ' days');
+$planningWeekOffset = max(-52, min(12, (int) ($_GET['planning_week'] ?? 0)));
+$weekStart = $weekStart->modify(($planningWeekOffset * 7) . ' days');
 $weekEnd = $weekStart->modify('+6 days');
 $weekDates = [];
 for ($dayIndex = 0; $dayIndex < 7; $dayIndex++) {
@@ -442,7 +445,6 @@ $weekOccurrenceByWorkout = [];
 $weekPlannedWorkoutIds = [];
 foreach ($weekOccurrences as &$weekOccurrence) {
     $weekWorkoutId = (string) ($weekOccurrence['idtreino'] ?? '');
-    $weekOccurrence['concluido'] = isset($weekCompletedWorkoutIds[$weekWorkoutId]);
     if ($weekWorkoutId !== '' && !isset($weekOccurrenceByWorkout[$weekWorkoutId])) {
         $weekOccurrenceByWorkout[$weekWorkoutId] = $weekOccurrence;
         $weekPlannedWorkoutIds[$weekWorkoutId] = true;
@@ -929,6 +931,14 @@ $initialView = in_array($requestedInitialView, $allowedInitialViews, true)
                         </section>
                     </aside>
                     <div class="schedule-view-main">
+                <?php
+                $planningStart = $weekStart->format('Y-m-d');
+                $planningSummary = planejamentoSemana($pdo, $idUsuario, $planningStart, $idSelecionado);
+                ?>
+                <nav class="planning-subnav" aria-label="<?php echo stridebr_e(stridebr_t('planning.week')); ?>">
+                    <?php foreach ([-1 => 'previous', 0 => 'week', 1 => 'next'] as $direction => $label): ?><a href="?id=<?php echo rawurlencode($idSelecionado); ?>&amp;planning_week=<?php echo $direction === 0 ? 0 : $planningWeekOffset + $direction; ?>"><?php echo stridebr_e(stridebr_t('planning.' . $label)); ?></a><?php endforeach; ?>
+                </nav>
+                <?php require dirname(__DIR__, 2) . '/src/layout/planning_week.php'; ?>
                 <section class="calendar-view" data-calendar-view="week" data-calendar-scroll<?php echo $initialView === 'week' ? '' : ' hidden'; ?>>
                     <div class="week-calendar" data-week-calendar>
                         <div class="time-column">
@@ -942,7 +952,7 @@ $initialView = in_array($requestedInitialView, $allowedInitialViews, true)
                         <?php foreach ($dias as $dayIndex => $dayName): ?>
                             <?php $weekDate = $weekDates[$dayIndex]; ?>
                             <div class="day-column">
-                                <div class="day-header<?php echo $weekDate->format('Y-m-d') === $today ? ' is-today' : ''; ?>"><span><?php echo stridebr_e($dayName); ?></span><small><?php echo stridebr_e($weekDate->format('d/m')); ?></small></div>
+                                <div class="day-header<?php echo $weekDate->format('Y-m-d') === $today ? ' is-today' : ''; ?>"><span><?php echo stridebr_e($dayName); ?></span><small><?php echo stridebr_e($weekDate->format(stridebr_locale() === 'en' ? 'm/d' : 'd/m')); ?></small></div>
                                 <div class="day-track" data-week-date="<?php echo stridebr_e($weekDate->format('Y-m-d')); ?>">
                                     <?php for ($hour = 0; $hour < 24; $hour++): ?><div class="hour-line" style="--hour: <?php echo $hour; ?>"></div><?php endfor; ?>
                                     <?php foreach ($segments[$dayIndex] ?? [] as $segment): ?>

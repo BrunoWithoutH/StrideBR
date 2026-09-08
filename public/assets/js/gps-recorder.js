@@ -8,6 +8,7 @@
     const formatNumber = (value, decimals = 0, trimZeros = false) => window.StrideBRI18n?.number?.(value, decimals, trimZeros) ?? Number(value || 0).toFixed(decimals)
     const localizedSport = (slug, fallback = '') => window.StrideBRI18n?.sport?.(slug, fallback) ?? fallback
     const localeDecimal = () => window.StrideBRI18n?.locale === 'en' ? '.' : ','
+    const sportContextEngine = window.StrideBRActivitySportContext || null
     const setup = $('[data-gps-setup]')
     const live = $('[data-gps-live]')
     const review = $('[data-gps-review]')
@@ -50,6 +51,7 @@
     const unlockButton = $('[data-gps-unlock]')
     const saveForm = $('[data-gps-save-form]')
     const saveState = $('[data-gps-save-state]')
+    const saveSubmit = saveForm?.querySelector('button[type="submit"]') || null
     const reviewTitle = $('[data-gps-review-title]')
     const reviewDistance = $('[data-gps-review-distance]')
     const reviewDuration = $('[data-gps-review-duration]')
@@ -114,6 +116,8 @@
         altitudeWindow: [],
         lastSmoothAltitude: null,
         elevationGainM: 0,
+        elevationSource: null,
+        terrainElevationAttempted: false,
         elevationMinM: null,
         elevationMaxM: null,
         segments: [],
@@ -133,9 +137,15 @@
         goalCandidateAtMs: 0,
         goalCandidatePointCount: 0,
         userAdjusted: false,
-        mapUnavailable: false
+        mapUnavailable: false,
+        pendingUpload: false,
+        saveRequestedAtMs: 0,
+        lastSaveFailureCode: '',
+        lastSaveFailureDetail: ''
     })
     let state = freshState()
+    const sportDistanceContext = (meters, slug = '') => sportContextEngine?.context?.({slug:slug || state.sportSlug || '', registered_m:Number(meters) || 0}) || {}
+    const formatSportDistance = (meters, slug = '') => sportContextEngine?.formatDistance?.(Number(meters) || 0, sportDistanceContext(meters, slug), window.StrideBRI18n?.locale === 'en' ? 'en' : 'pt-BR') || `${formatNumber((Number(meters) || 0) / 1000, 2)} km`
 
     const openDb = () => {
         if (!('indexedDB' in window)) return Promise.resolve(null)
@@ -349,11 +359,27 @@
         }
     }
 
+    const mapChunksFromPoints = points => {
+        const chunks = []
+        let current = []
+        ;(Array.isArray(points) ? points : []).forEach(point => {
+            if (point?.gap_before && current.length) {
+                chunks.push(current)
+                current = []
+            }
+            if (Number.isFinite(Number(point?.lat)) && Number.isFinite(Number(point?.lon))) current.push([Number(point.lat), Number(point.lon)])
+        })
+        if (current.length) chunks.push(current)
+        return chunks
+    }
+
     const redrawLiveMap = fit => {
         if (!liveMap || !liveLine || state.points.length === 0) return
-        const latlngs = state.points.map(point => [point.lat, point.lon])
-        liveLine.setLatLngs(latlngs)
+        const chunks = mapChunksFromPoints(state.points)
+        const latlngs = chunks.flat()
+        liveLine.setLatLngs(chunks.length > 1 ? chunks : (chunks[0] || []))
         const last = latlngs[latlngs.length - 1]
+        if (!last) return
         if (fit && latlngs.length > 1) liveMap.fitBounds(liveLine.getBounds(), {padding: [24, 24], maxZoom: 17})
         else if (fit) liveMap.setView(last, 17)
         else if (Date.now() - lastMapFollowAt > 3500) {
@@ -371,8 +397,9 @@
                 window.StrideBRBasemaps?.attach(reviewMapInstance, {initial: 'street', remember: false})
                 reviewLine = window.L.polyline([], {weight: 5, opacity: .9}).addTo(reviewMapInstance)
             }
-            const latlngs = state.points.map(point => [point.lat, point.lon])
-            reviewLine.setLatLngs(latlngs)
+            const chunks = mapChunksFromPoints(state.points)
+            const latlngs = chunks.flat()
+            reviewLine.setLatLngs(chunks.length > 1 ? chunks : (chunks[0] || []))
             reviewMapInstance.fitBounds(reviewLine.getBounds(), {padding: [20, 20], maxZoom: 16})
             window.setTimeout(() => reviewMapInstance?.invalidateSize(), 60)
         } catch (_) {
@@ -472,6 +499,7 @@
             if (delta >= 3) state.elevationGainM += delta
         }
         state.lastSmoothAltitude = smooth
+        state.elevationSource = 'device'
     }
 
     const acceptPosition = position => {
@@ -500,8 +528,14 @@
         }
         const point = {lat, lon, accuracy, t: timestamp, active_ms: activeElapsedMs(timestamp)}
         const last = state.points[state.points.length - 1]
+        if (last && document.visibilityState !== 'visible') {
+            schedulePersist(false)
+            updateLiveUi()
+            return
+        }
         let increment = 0
         if (last && state.needsPositionAnchor) {
+            point.gap_before = true
             state.points.push(point)
             state.needsPositionAnchor = false
             state.lastPointAtMs = timestamp
@@ -517,20 +551,6 @@
         }
         if (last) {
             const dt = Math.max(.001, (timestamp - last.t) / 1000)
-            if (dt > 15) {
-                state.visibilityGaps++
-                state.points.push(point)
-                state.lastPointAtMs = timestamp
-                state.lastGoodPointAtMs = Date.now()
-                state.altitudeWindow = []
-                state.lastSmoothAltitude = null
-                altitudeUpdate(coords)
-                schedulePersist(true)
-                updateLiveUi()
-                redrawLiveMap(false)
-                checkGoal()
-                return
-            }
             if (dt < .55) {
                 state.pointsRejected++
                 return
@@ -673,7 +693,7 @@
     const updateLiveUi = () => {
         const elapsedSeconds = activeElapsedMs() / 1000
         if (timeEl) timeEl.textContent = formatDuration(elapsedSeconds)
-        if (distanceEl) distanceEl.textContent = `${formatNumber(state.distanceM / 1000, 2)} km`
+        if (distanceEl) distanceEl.textContent = formatSportDistance(state.distanceM)
         if (paceEl) paceEl.textContent = formatPaceOrSpeed()
         if (paceLabel) paceLabel.textContent = state.metric === 'velocidade_kmh' || /cicl|bike|bmx|gravel/.test(state.sportSlug) ? t('gps.speed') : t('gps.pace')
         if (elevationEl) elevationEl.textContent = state.lastSmoothAltitude === null ? '— m' : `+${Math.round(state.elevationGainM)} m`
@@ -690,7 +710,7 @@
         if (currentLapEl) currentLapEl.textContent = String(currentLap)
         const lapDistance = Math.max(0, state.distanceM - state.segmentStartDistanceM)
         const lapDuration = Math.max(0, activeElapsedMs() - state.segmentStartActiveMs) / 1000
-        if (currentLapMetrics) currentLapMetrics.textContent = `${formatNumber(lapDistance / 1000, 2)} km · ${formatDuration(lapDuration).replace(/^00:/, '')}`
+        if (currentLapMetrics) currentLapMetrics.textContent = `${formatSportDistance(lapDistance)} · ${formatDuration(lapDuration).replace(/^00:/, '')}`
         updateGoalUi()
     }
 
@@ -835,6 +855,29 @@
         }
     }
 
+    const observedGeodesicDistance = () => {
+        let total = 0
+        for (let index = 1; index < state.points.length; index++) {
+            const point = state.points[index]
+            const previous = state.points[index - 1]
+            if (point?.gap_before) continue
+            const distance = haversine(previous, point)
+            if (Number.isFinite(distance) && distance >= 0) total += distance
+        }
+        return total
+    }
+
+    const applyDistanceSanityCheck = () => {
+        if (state.visibilityGaps > 0 || state.points.length < 2) return
+        const derived = observedGeodesicDistance()
+        if (!Number.isFinite(derived) || derived < 80) return
+        const measured = Math.max(0, Number(state.distanceM) || 0)
+        if (measured < Math.max(10, derived * .2)) {
+            state.distanceM = derived
+            state.userAdjusted = true
+        }
+    }
+
     const finishRecording = async endedByGoal => {
         if (!['recording', 'paused'].includes(state.status)) return
         if (state.status === 'paused' && state.pauseStartedMs) {
@@ -845,6 +888,7 @@
             window.alert(t('gps.not_enough_points'))
             return
         }
+        applyDistanceSanityCheck()
         finalizeCurrentSegment(true)
         state.status = 'review'
         state.endedAtMs = Date.now()
@@ -865,12 +909,56 @@
         return t('gps.quality_review')
     }
 
+    const routeGeoJsonFromState = () => {
+        const coordinates = state.points
+            .filter(point => Number.isFinite(Number(point?.lat)) && Number.isFinite(Number(point?.lon)))
+            .map(point => [Number(point.lon), Number(point.lat)])
+        return coordinates.length >= 2 ? {type: 'LineString', coordinates} : null
+    }
+
+    const estimateTerrainElevationForReview = async () => {
+        if (!reviewElevation || state.elevationSource === 'device' || state.terrainElevationAttempted) return
+        const route = routeGeoJsonFromState()
+        if (!route) return
+        state.terrainElevationAttempted = true
+        if (!navigator.onLine) {
+            schedulePersist(true)
+            return
+        }
+        const previousPlaceholder = reviewElevation.placeholder
+        reviewElevation.placeholder = t('gps.calculating_elevation')
+        try {
+            const body = new URLSearchParams()
+            body.set('csrf_token', root.dataset.csrfToken || '')
+            body.set('coordenadas', JSON.stringify(route))
+            const fetcher = window.StrideBRNet?.fetch || fetch
+            const response = await fetcher(root.dataset.elevationEndpoint || '/api/atividade-elevacao.php', {
+                method: 'POST',
+                headers: {'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'},
+                body
+            }, 6000)
+            const result = await response.json().catch(() => ({}))
+            const gain = Number(result?.elevation?.ganho_elevacao_m)
+            if (response.ok && result?.ok && Number.isFinite(gain) && gain >= 0 && state.elevationSource !== 'device') {
+                state.elevationGainM = gain
+                state.elevationMinM = Number.isFinite(Number(result.elevation.elevacao_min_m)) ? Number(result.elevation.elevacao_min_m) : state.elevationMinM
+                state.elevationMaxM = Number.isFinite(Number(result.elevation.elevacao_max_m)) ? Number(result.elevation.elevacao_max_m) : state.elevationMaxM
+                state.elevationSource = 'terrain'
+                reviewElevation.value = String(Math.round(gain))
+                schedulePersist(true)
+            }
+        } catch (_) {
+        } finally {
+            reviewElevation.placeholder = previousPlaceholder || ''
+        }
+    }
+
     const fillReview = () => {
         const durationS = Math.max(0.001, Math.round(activeElapsedMs(state.endedAtMs || Date.now())) / 1000)
         reviewTitle.value = localizedSport(state.sportSlug, state.sportName || t('gps.sport_fallback'))
         reviewDistance.value = formatNumber(state.distanceM / 1000, 2)
         reviewDuration.value = formatPreciseDuration(durationS)
-        reviewElevation.value = state.lastSmoothAltitude === null ? '' : String(Math.max(0, Math.round(state.elevationGainM)))
+        reviewElevation.value = state.elevationSource ? String(Math.max(0, Math.round(state.elevationGainM))) : ''
         reviewQuality.textContent = qualityText()
         const avg = state.accuracyCount ? state.accuracySum / state.accuracyCount : null
         qualitySummary.innerHTML = [
@@ -890,6 +978,12 @@
             reviewWarning.textContent = warnings.join(' ')
         }
         renderSegments()
+        if (!state.elevationSource) estimateTerrainElevationForReview()
+        if (state.pendingUpload && saveSubmit) {
+            saveSubmit.textContent = t('gps.retry_save')
+            saveState.textContent = t('gps.pending_upload')
+            saveState.className = 'gps-save-state is-pending'
+        }
     }
 
     const renderSegments = () => {
@@ -900,7 +994,7 @@
             row.className = 'gps-segment-row'
             row.innerHTML = `<strong>${index + 1}</strong><div><b></b><span></span></div><small></small>`
             row.querySelector('b').textContent = segment.label || t('gps.segment_number', {number: index + 1})
-            row.querySelector('span').textContent = `${formatNumber(Number(segment.distance_m || 0) / 1000, 2)} km · ${(window.StrideBRI18n?.duration?.(segment.duration_s || 0, true) || formatPreciseDuration(segment.duration_s || 0)).replace(/^0:/, '')}`
+            row.querySelector('span').textContent = `${formatSportDistance(Number(segment.distance_m || 0))} · ${(window.StrideBRI18n?.duration?.(segment.duration_s || 0, true) || formatPreciseDuration(segment.duration_s || 0)).replace(/^0:/, '')}`
             const pace = segment.distance_m > 0 ? segment.duration_s / (segment.distance_m / 1000) : null
             row.querySelector('small').textContent = Number.isFinite(pace) ? `${Math.floor(pace / 60)}:${String(Math.round(pace % 60)).padStart(2, '0')}/km` : '—'
             segmentsHost.appendChild(row)
@@ -935,6 +1029,13 @@
             points: indexes.map(index => ({lat: points[index].lat, lon: points[index].lon, accuracy: points[index].accuracy, t: points[index].t})),
             segments: state.segments.map(segment => ({...segment, start_index: nearestMapped(segment.start_index), end_index: nearestMapped(segment.end_index)}))
         }
+    }
+
+    const saveFailureIsRetryable = code => {
+        const normalized = String(code || '')
+        return normalized === ''
+            || ['offline', 'network', 'timeout', 'auth_required', 'server_error'].includes(normalized)
+            || normalized.startsWith('http_5')
     }
 
     const saveRecording = async event => {
@@ -983,30 +1084,62 @@
         const body = new URLSearchParams()
         body.set('csrf_token', root.dataset.csrfToken || '')
         body.set('recording', JSON.stringify(payload))
-        const submit = saveForm.querySelector('button[type="submit"]')
-        submit.disabled = true
-        saveState.textContent = navigator.onLine ? t('gps.saving') : t('gps.offline_saved')
-        saveState.className = navigator.onLine ? 'gps-save-state' : 'gps-save-state is-error'
+        const submit = saveSubmit || saveForm.querySelector('button[type="submit"]')
+        state.pendingUpload = true
+        state.saveRequestedAtMs = Date.now()
+        state.lastSaveFailureCode = ''
+        state.lastSaveFailureDetail = ''
+        pendingAutoSave = true
+        if (submit) submit.disabled = true
+        schedulePersist(true)
+        saveState.textContent = navigator.onLine ? t('gps.saving') : t('gps.offline_pending')
+        saveState.className = navigator.onLine ? 'gps-save-state' : 'gps-save-state is-pending'
         if (!navigator.onLine) {
-            pendingAutoSave = true
-            submit.disabled = false
-            schedulePersist(true)
+            if (submit) {
+                submit.disabled = false
+                submit.textContent = t('gps.retry_save')
+            }
             return
         }
         try {
             const fetcher = window.StrideBRNet?.fetch || fetch
             const response = await fetcher(root.dataset.saveEndpoint || '/api/gps-salvar.php', {method: 'POST', headers: {'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'}, body}, 20000)
-            const result = await response.json().catch(() => ({}))
-            if (!response.ok || !result.ok) throw new Error(result.error || t('gps.save_failed'))
+            const result = await response.json().catch(() => null)
+            if (!response.ok || !result?.ok || !result?.idregistro) {
+                const error = new Error(result?.error || result?.message || (response.status === 401 ? t('gps.auth_required') : t('gps.save_failed')))
+                error.code = result?.code || (response.status === 401 ? 'auth_required' : response.status >= 500 ? `http_${response.status}` : response.status ? `http_${response.status}` : 'invalid_response')
+                error.status = response.status
+                throw error
+            }
             pendingAutoSave = false
+            state.pendingUpload = false
+            state.lastSaveFailureCode = ''
+            state.lastSaveFailureDetail = ''
             saveState.textContent = result.reused ? t('gps.already_saved') : t('gps.saved')
             saveState.className = 'gps-save-state is-success'
             await idbDelete()
             window.location.href = `/user/atividades.php?saved=${encodeURIComponent(result.idregistro)}`
         } catch (error) {
-            saveState.textContent = t('gps.save_error_kept', {message: error?.message || t('gps.save_error')})
-            saveState.className = 'gps-save-state is-error'
-            submit.disabled = false
+            let code = String(error?.code || '')
+            if (!code) {
+                if (error?.name === 'AbortError' || /timeout/i.test(String(error?.message || ''))) code = 'timeout'
+                else if (!navigator.onLine) code = 'offline'
+                else if (error instanceof TypeError || /network|fetch/i.test(String(error?.message || ''))) code = 'network'
+                else code = 'save_failed'
+            }
+            state.pendingUpload = true
+            state.lastSaveFailureCode = code
+            state.lastSaveFailureDetail = code.startsWith('http_') ? code.toUpperCase().replace('_', ' ') : code
+            pendingAutoSave = saveFailureIsRetryable(code)
+            const authFailure = code === 'auth_required'
+            saveState.textContent = authFailure
+                ? t('gps.auth_recording_safe')
+                : t('gps.save_error_kept', {message: error?.message || t('gps.save_error')})
+            saveState.className = authFailure || ['offline', 'network', 'timeout'].includes(code) ? 'gps-save-state is-pending' : 'gps-save-state is-error'
+            if (submit) {
+                submit.disabled = false
+                submit.textContent = t('gps.retry_save')
+            }
             schedulePersist(true)
         }
     }
@@ -1014,6 +1147,7 @@
     const resumeSaved = async saved => {
         if (!saved || !['recording', 'paused', 'review'].includes(saved.status)) return
         state = {...freshState(), ...saved, points: Array.isArray(saved.points) ? saved.points : [], segments: Array.isArray(saved.segments) ? saved.segments : []}
+        pendingAutoSave = Boolean(state.pendingUpload)
         const option = [...sport.options].find(item => item.value === state.idmodalidade)
         if (option) {
             sport.value = state.idmodalidade
@@ -1147,7 +1281,7 @@
 
     window.addEventListener('online', () => {
         updateNetwork()
-        if (pendingAutoSave && state.status === 'review' && saveForm) {
+        if ((pendingAutoSave || (state.pendingUpload && saveFailureIsRetryable(state.lastSaveFailureCode))) && state.status === 'review' && saveForm) {
             pendingAutoSave = false
             saveForm.requestSubmit()
         }
@@ -1162,7 +1296,10 @@
         }
         if (state.hiddenSinceMs) {
             const hiddenFor = Date.now() - state.hiddenSinceMs
-            if (hiddenFor > 5000) state.visibilityGaps++
+            if (hiddenFor > 5000) {
+                state.visibilityGaps++
+                state.needsPositionAnchor = state.points.length > 0
+            }
             state.hiddenSinceMs = 0
             schedulePersist(true)
         }
@@ -1184,11 +1321,17 @@
     updateNetwork()
     idbGet().then(saved => {
         if (saved && ['recording', 'paused', 'review'].includes(saved.status)) {
-            restoreBox.hidden = false
             const elapsed = saved.status === 'review'
                 ? Math.max(0, ((saved.endedAtMs || Date.now()) - saved.startedAtMs - (saved.pausedTotalMs || 0)) / 1000)
                 : Math.max(0, (Date.now() - saved.startedAtMs - (saved.pausedTotalMs || 0)) / 1000)
-            restoreSummary.textContent = `${localizedSport(saved.sportSlug, saved.sportName || t('gps.sport_fallback'))} · ${formatDuration(elapsed)} · ${formatNumber((saved.distanceM || 0) / 1000, 2)} km`
+            if (restoreSummary) restoreSummary.textContent = saved.pendingUpload
+                ? t('gps.pending_upload_restore')
+                : `${localizedSport(saved.sportSlug, saved.sportName || t('gps.sport_fallback'))} · ${formatDuration(elapsed)} · ${formatSportDistance(saved.distanceM || 0, saved.sportSlug || '')}`
+            if (saved.status === 'review' && saved.pendingUpload) {
+                resumeSaved(saved).then(() => {
+                    if (navigator.onLine && saveForm && saveFailureIsRetryable(saved.lastSaveFailureCode)) window.setTimeout(() => saveForm.requestSubmit(), 350)
+                })
+            } else if (restoreBox) restoreBox.hidden = false
         } else if (root.dataset.autostart === '1') {
             window.setTimeout(() => startRecording(), 120)
         }

@@ -41,6 +41,9 @@ check(JSON.stringify(keys(metrics)) === JSON.stringify(['distance','duration','p
 metrics = api.availableShareMetrics({...runningBase, ganho_m:null, metricas:[...runningBase.metricas,{key:'calories',rotulo:'Calorias',valor:'410 kcal'}]})
 check(JSON.stringify(keys(metrics)) === JSON.stringify(['distance','duration','pace','calories']), 'sem elevação deve usar calorias como quarta métrica quando disponível')
 
+metrics = api.availableShareMetrics({...runningBase, ganho_m:0})
+check(!keys(metrics).includes('elevation') && keys(metrics).length === 3, 'elevação 0 m não deve ocupar slot automático do card')
+
 metrics = api.availableShareMetrics({...runningBase, ganho_m:null})
 check(keys(metrics).length === 3, 'sem quarta métrica válida deve manter apenas três')
 check(metrics.every(item => !['--','—','N/A',''].includes(String(item.valor).trim())), 'lista manual não deve conter placeholders vazios')

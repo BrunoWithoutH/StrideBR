@@ -10,6 +10,8 @@ require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
 require_once dirname(__DIR__, 2) . '/src/function/product_analytics.php';
 require_once dirname(__DIR__, 2) . '/src/function/integrations.php';
 
+require_once dirname(__DIR__, 2) . '/src/function/sport_catalog.php';
+require_once dirname(__DIR__, 2) . '/src/includes/sport_icons.php';
 $errors = [];
 $allowedGoals = ['organizar', 'condicionamento', 'prova', 'evolucao', 'rotina', 'lazer'];
 $allowedExperience = ['', 'comecando', 'pratico', 'regular'];
@@ -38,7 +40,7 @@ if (!$usuario) {
     stridebr_error_document(404);
 }
 
-$modalidadesStmt = $pdo->query("SELECT idmodalidade, nome FROM modalidades WHERE ativo = TRUE AND idusuario IS NULL ORDER BY nome");
+$modalidadesStmt = $pdo->query("SELECT idmodalidade, nome, slug, categoria, familia_hub FROM modalidades WHERE ativo = TRUE AND idusuario IS NULL ORDER BY nome");
 $modalidades = $modalidadesStmt->fetchAll();
 $modalidadeIds = array_column($modalidades, 'idmodalidade');
 
@@ -183,11 +185,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <section class="onboarding-step is-active" data-step="0">
                 <div class="onboarding-step-heading"><span><?php echo stridebr_e(stridebr_t('onboarding.optional')); ?></span><h2><?php echo stridebr_e(stridebr_t('onboarding.sports_question')); ?></h2></div>
-                <div class="onboarding-choice-grid">
-                    <?php foreach ($modalidades as $modalidade): ?>
-                        <label class="choice-card"><input type="checkbox" name="sports[]" value="<?php echo stridebr_e($modalidade['idmodalidade']); ?>"<?php echo in_array($modalidade['idmodalidade'], $selectedSports, true) ? ' checked' : ''; ?>><span><?php echo stridebr_e(stridebr_sport_name((string) $modalidade['idmodalidade'], (string) $modalidade['nome'])); ?></span></label>
-                    <?php endforeach; ?>
-                </div>
+                <?php $sportGroups = sportCatalogGroups($modalidades); require dirname(__DIR__, 2) . '/src/layout/sport_personalization.php'; ?>
             </section>
 
             <section class="onboarding-step" data-step="1" hidden>

@@ -183,12 +183,17 @@ function gpsWebValidateSegments(array $rawSegments, array $allCoordinates, float
     $durationScale = $durationTotal > 0 && $displayDurationS >= 0 ? $displayDurationS / $durationTotal : 1.0;
     $segmentElevationTotal = array_sum(array_map(static fn(array $segment): float => (float) ($segment['elevation_gain_m'] ?? 0), $segments));
     $elevationScale = $displayElevationM !== null && $segmentElevationTotal > 0 ? $displayElevationM / $segmentElevationTotal : 1.0;
+    $allocateElevation = $displayElevationM !== null && $segmentElevationTotal <= 0 && $segments !== [];
+    $allocationDistanceTotal = array_sum(array_map(static fn(array $segment): float => max(0.0, (float) ($segment['measured_distance_m'] ?? 0)), $segments));
 
     foreach ($segments as &$segment) {
         $segment['distance_m'] = max(0.0, $segment['measured_distance_m'] * $distanceScale);
         $segment['duration_s'] = max(0.0, round((float) $segment['duration_s'] * $durationScale, 3));
         if ($displayElevationM === null) {
             $segment['elevation_gain_m'] = null;
+        } elseif ($allocateElevation) {
+            $weight = $allocationDistanceTotal > 0 ? max(0.0, (float) ($segment['measured_distance_m'] ?? 0)) / $allocationDistanceTotal : 1.0 / max(1, count($segments));
+            $segment['elevation_gain_m'] = max(0.0, $displayElevationM * $weight);
         } elseif ($segment['elevation_gain_m'] !== null) {
             $segment['elevation_gain_m'] = max(0.0, $segment['elevation_gain_m'] * $elevationScale);
         }
@@ -213,6 +218,22 @@ function gpsWebBuildActivityPayload(PDO $pdo, string $idUsuario, array $recordin
     $displayDurationS = max(0.001, round((float) ($recording['duration_s'] ?? 0), 3));
     if ($displayDurationS > 604800) throw new InvalidArgumentException('A duração da atividade é inválida.');
     $displayElevationM = is_numeric($recording['elevation_gain_m'] ?? null) ? max(0.0, (float) $recording['elevation_gain_m']) : null;
+    $elevationMinM = is_numeric($recording['elevation_min_m'] ?? null) ? (float) $recording['elevation_min_m'] : null;
+    $elevationMaxM = is_numeric($recording['elevation_max_m'] ?? null) ? (float) $recording['elevation_max_m'] : null;
+    $elevationSource = $displayElevationM !== null ? 'gps_web_dispositivo' : null;
+    if ($displayElevationM === null) {
+        try {
+            $terrainElevation = atividadeConsultarElevacao($geojson, 3);
+            if (is_array($terrainElevation) && is_numeric($terrainElevation['ganho_elevacao_m'] ?? null)) {
+                $displayElevationM = max(0.0, (float) $terrainElevation['ganho_elevacao_m']);
+                $elevationMinM = is_numeric($terrainElevation['elevacao_min_m'] ?? null) ? (float) $terrainElevation['elevacao_min_m'] : null;
+                $elevationMaxM = is_numeric($terrainElevation['elevacao_max_m'] ?? null) ? (float) $terrainElevation['elevacao_max_m'] : null;
+                $elevationSource = 'open-meteo-copernicus';
+            }
+        } catch (Throwable $e) {
+            error_log('StrideBR GPS elevation fallback: ' . $e->getMessage());
+        }
+    }
 
     $startedAtMs = (int) ($recording['started_at_ms'] ?? 0);
     if ($startedAtMs <= 0) throw new InvalidArgumentException('O horário inicial da gravação é inválido.');
@@ -249,7 +270,7 @@ function gpsWebBuildActivityPayload(PDO $pdo, string $idUsuario, array $recordin
             $unit['rota_modo'] = 'gps';
             $unit['rota_metricas'] = [
                 'ganho_elevacao_m' => $segment['elevation_gain_m'] ?? null,
-                'fonte_elevacao' => 'gps_web_dispositivo',
+                'fonte_elevacao' => $elevationSource,
             ];
         }
         $units[] = $unit;
@@ -274,9 +295,9 @@ function gpsWebBuildActivityPayload(PDO $pdo, string $idUsuario, array $recordin
         'rota_metricas' => [
             'distancia_metros' => $displayDistanceM,
             'ganho_elevacao_m' => $displayElevationM,
-            'elevacao_min_m' => is_numeric($recording['elevation_min_m'] ?? null) ? (float) $recording['elevation_min_m'] : null,
-            'elevacao_max_m' => is_numeric($recording['elevation_max_m'] ?? null) ? (float) $recording['elevation_max_m'] : null,
-            'fonte_elevacao' => 'gps_web_dispositivo',
+            'elevacao_min_m' => $elevationMinM,
+            'elevacao_max_m' => $elevationMaxM,
+            'fonte_elevacao' => $elevationSource,
         ],
         '_gps_meta' => [
             'recording_key' => gpsWebRecordingKey($recording),

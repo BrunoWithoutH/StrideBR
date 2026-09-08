@@ -1,6 +1,22 @@
 <?php
 
+require_once dirname(__DIR__) . '/function/activity_sport_context.php';
 require_once __DIR__ . '/sport_picker.php';
+
+
+if (!function_exists('atividadeContextoModalidadeCatalogo')) {
+    function atividadeContextoModalidadeCatalogo(array $catalogo, string $idModalidade): array
+    {
+        foreach ($catalogo as $modalidade) {
+            if ((string) ($modalidade['idmodalidade'] ?? '') !== $idModalidade) continue;
+            return atividadeContextoEsportivo(
+                (string) ($modalidade['slug'] ?? ''),
+                function_exists('sportCatalogFamilyKey') ? sportCatalogFamilyKey((string) ($modalidade['familia_hub'] ?? ''), (string) ($modalidade['categoria'] ?? ''), (string) ($modalidade['slug'] ?? '')) : (string) ($modalidade['familia_hub'] ?? '')
+            );
+        }
+        return atividadeContextoEsportivo();
+    }
+}
 
 if (!function_exists('atividadeRenderizarSeletorModalidadeUnidade')) {
     function atividadeRenderizarSeletorModalidadeUnidade(string $name, array $catalogo, string $selected, string $fallback): string
@@ -35,7 +51,7 @@ if (!function_exists('atividadeMetricaDerivadaModalidadeCatalogo')) {
 }
 
 if (!function_exists('atividadeRenderizarMetricasCanonicasTrecho')) {
-    function atividadeRenderizarMetricasCanonicasTrecho(string $namePrefix, array $unitData, string $derivedType, array $unitFields = []): string
+    function atividadeRenderizarMetricasCanonicasTrecho(string $namePrefix, array $unitData, string $derivedType, array $unitFields = [], array $sportContext = []): string
     {
         $posted = is_array($unitData['metricas'] ?? null) ? $unitData['metricas'] : [];
         $legacyValues = is_array($unitData['values'] ?? null) ? $unitData['values'] : [];
@@ -52,8 +68,17 @@ if (!function_exists('atividadeRenderizarMetricasCanonicasTrecho')) {
                 }
             }
         }
-        $distanceUnit = (string) ($posted['distancia_unidade'] ?? ($derivedType === 'pace_100m' ? 'm' : 'km'));
-        if (!in_array($distanceUnit, ['m', 'km'], true)) $distanceUnit = $derivedType === 'pace_100m' ? 'm' : 'km';
+        $knownMeters = is_numeric($unitData['distancia_metros'] ?? null) ? max(0.0, (float) $unitData['distancia_metros']) : null;
+        $context = atividadeContextoEsportivo((string) ($sportContext['slug'] ?? ''), (string) ($sportContext['family'] ?? ''), [
+            'registered_m' => $knownMeters,
+            'segment' => true,
+            'structured_series' => !empty($sportContext['structured_series']),
+        ]);
+        $defaultDistanceUnit = $knownMeters !== null && $knownMeters > 0
+            ? atividadeContextoDistanciaUnidade($knownMeters, $context)
+            : (!empty($context['is_track']) ? 'm' : 'km');
+        $distanceUnit = (string) ($posted['distancia_unidade'] ?? $defaultDistanceUnit);
+        if (!in_array($distanceUnit, ['m', 'km'], true)) $distanceUnit = $defaultDistanceUnit;
         $distance = $posted['distancia'] ?? null;
         if (($distance === null || $distance === '') && is_numeric($unitData['distancia_metros'] ?? null)) {
             $distance = $distanceUnit === 'm' ? (float) $unitData['distancia_metros'] : (float) $unitData['distancia_metros'] / 1000;
@@ -74,8 +99,8 @@ if (!function_exists('atividadeRenderizarMetricasCanonicasTrecho')) {
         $distanceExibicao = atividadeFormatarValorDecimalEdicao($distance, $distanceUnit);
         $elevationExibicao = atividadeFormatarValorDecimalEdicao($elevation, 'm');
         $html = '<div class="activity-segment-core-metrics" data-segment-core-metrics>';
-        $html .= '<div class="input-field" data-segment-distance-field><label>' . stridebr_e(stridebr_t('activity.distance')) . ' <span class="field-unit" data-segment-distance-unit>' . stridebr_e($distanceUnit) . '</span></label><input type="number" step="any" inputmode="decimal" name="' . stridebr_e($namePrefix) . '[metricas][distancia]" value="' . stridebr_e($distanceExibicao) . '" data-segment-distance><input type="hidden" name="' . stridebr_e($namePrefix) . '[metricas][distancia_unidade]" value="' . stridebr_e($distanceUnit) . '" data-segment-distance-unit-value></div>';
-        $html .= '<div class="input-field" data-segment-duration-field><label>' . stridebr_e(stridebr_t('activity.duration')) . '</label><div class="duration-segments" data-duration-field><label><span>h</span><input type="text" inputmode="numeric" maxlength="3" value="' . stridebr_e($hours) . '" data-duration-hours aria-label="' . stridebr_e(stridebr_t('activity.hours')) . '" autocomplete="off"></label><span aria-hidden="true">:</span><label><span>min</span><input type="text" inputmode="numeric" maxlength="2" value="' . stridebr_e($minutes) . '" data-duration-minutes aria-label="' . stridebr_e(stridebr_t('activity.minutes')) . '" autocomplete="off"></label><span aria-hidden="true">:</span><label><span>s</span><input type="text" inputmode="numeric" maxlength="2" value="' . stridebr_e($secondsText) . '" data-duration-seconds aria-label="' . stridebr_e(stridebr_t('activity.seconds')) . '" autocomplete="off"></label><span class="duration-ms-separator" data-duration-ms-separator aria-hidden="true"' . ($milliseconds === '' ? ' hidden' : '') . '>.</span><label class="duration-ms-field" data-duration-ms-wrap' . ($milliseconds === '' ? ' hidden' : '') . '><span>ms</span><input type="text" inputmode="numeric" maxlength="3" value="' . stridebr_e($milliseconds) . '" data-duration-milliseconds aria-label="' . stridebr_e(stridebr_t('activity.milliseconds')) . '" autocomplete="off"></label><input type="hidden" name="' . stridebr_e($namePrefix) . '[metricas][duracao]" value="' . stridebr_e($duration) . '" data-duration-value data-segment-duration></div></div>';
+        $html .= '<div class="input-field" data-segment-distance-field><label>' . stridebr_e(stridebr_t('activity.distance')) . ' <select class="activity-distance-unit-select" data-segment-distance-unit-select aria-label="' . stridebr_e(stridebr_t('activity.distance_unit')) . '"><option value="m"' . ($distanceUnit === 'm' ? ' selected' : '') . '>m</option><option value="km"' . ($distanceUnit === 'km' ? ' selected' : '') . '>km</option></select><span class="field-unit" data-segment-distance-unit hidden>' . stridebr_e($distanceUnit) . '</span></label><input type="number" step="any" inputmode="decimal" name="' . stridebr_e($namePrefix) . '[metricas][distancia]" value="' . stridebr_e($distanceExibicao) . '" data-segment-distance><input type="hidden" name="' . stridebr_e($namePrefix) . '[metricas][distancia_unidade]" value="' . stridebr_e($distanceUnit) . '" data-segment-distance-unit-value></div>';
+        $html .= '<div class="input-field" data-segment-duration-field><label>' . stridebr_e(stridebr_t('activity.duration')) . '</label><div class="duration-segments" data-duration-field><label><span>h</span><input type="text" inputmode="numeric" maxlength="2" value="' . stridebr_e($hours) . '" data-duration-hours aria-label="' . stridebr_e(stridebr_t('activity.hours')) . '" autocomplete="off"></label><span aria-hidden="true">:</span><label><span>min</span><input type="text" inputmode="numeric" maxlength="2" value="' . stridebr_e($minutes) . '" data-duration-minutes aria-label="' . stridebr_e(stridebr_t('activity.minutes')) . '" autocomplete="off"></label><span aria-hidden="true">:</span><label><span>s</span><input type="text" inputmode="numeric" maxlength="2" value="' . stridebr_e($secondsText) . '" data-duration-seconds aria-label="' . stridebr_e(stridebr_t('activity.seconds')) . '" autocomplete="off"></label><span class="duration-ms-separator" data-duration-ms-separator aria-hidden="true"' . ($milliseconds === '' ? ' hidden' : '') . '>.</span><label class="duration-ms-field" data-duration-ms-wrap' . ($milliseconds === '' ? ' hidden' : '') . '><span>ms</span><input type="text" inputmode="numeric" maxlength="3" value="' . stridebr_e($milliseconds) . '" data-duration-milliseconds aria-label="' . stridebr_e(stridebr_t('activity.milliseconds')) . '" autocomplete="off"></label><input type="hidden" name="' . stridebr_e($namePrefix) . '[metricas][duracao]" value="' . stridebr_e($duration) . '" data-duration-value data-segment-duration></div></div>';
         $html .= '<div class="input-field" data-segment-elevation-field><label>' . stridebr_e(stridebr_t('activity.elevation')) . ' <span class="field-unit">m</span></label><input type="number" step="any" inputmode="decimal" name="' . stridebr_e($namePrefix) . '[metricas][elevacao]" value="' . stridebr_e($elevationExibicao) . '" data-segment-elevation></div>';
         $html .= atividadeRenderizarMetricaDerivadaUnidade();
         $html .= '</div>';

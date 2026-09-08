@@ -51,7 +51,7 @@ def start_with_points(page):
     page.wait_for_timeout(80)
 
 with sync_playwright() as p:
-    browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium',args=['--no-sandbox'])
+    browser=p.chromium.launch(headless=True,args=['--no-sandbox'])
     count=[0]
     def check(v,m):
         count[0]+=1

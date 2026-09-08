@@ -178,7 +178,7 @@ function stridebr_integrations_configured(array $provider): bool
         && trim((string) ($provider['client_secret'] ?? '')) !== ''
         && filter_var((string) ($provider['authorize_url'] ?? ''), FILTER_VALIDATE_URL) !== false
         && filter_var((string) ($provider['token_url'] ?? ''), FILTER_VALIDATE_URL) !== false;
-    if (!$base) return false;
+    if (!$base || parse_url((string) $provider['authorize_url'], PHP_URL_SCHEME) !== 'https' || parse_url((string) $provider['token_url'], PHP_URL_SCHEME) !== 'https') return false;
     if (($provider['id'] ?? '') === 'suunto' || ($provider['label'] ?? '') === 'Suunto') {
         return trim((string) ($provider['subscription_key'] ?? '')) !== '';
     }

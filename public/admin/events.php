@@ -254,6 +254,7 @@ $flashes = stridebr_take_flashes();
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/events.css')); ?>">
     <title>Eventos | StrideBR Admin</title>
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>">
+    <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/admin.css')); ?>">
 </head>
 <body class="admin-body">
 <div class="container-fluid">

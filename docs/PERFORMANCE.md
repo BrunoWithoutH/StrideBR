@@ -20,7 +20,7 @@ Run `src/database/migrations/20260903_v1_rc.sql` to add indexes used by activity
 
 ## Deploy
 
-`scripts/deploy_alwaysdata.sh` preserves `public/uploads/` so deploys with `--delete` do not remove user avatars.
+Immutable deployments preserve `public/uploads/` in a dedicated volume; see `DEPLOY_DOKPLOY.md`.
 
 ## Measuring
 
@@ -30,7 +30,7 @@ Use the browser Network tab to separate:
 - Content Download: response/image/asset size.
 - DOMContentLoaded / Load: browser parsing, CSS, JS and images.
 
-On alwaysdata, HTTP logs are under `/home/stridebr/admin/logs/http/` and PHP logs under the account admin logs directory.
+In containers, Apache and PHP logs go to stdout/stderr for the infrastructure log collector.
 
 ## Server timing
 
@@ -52,7 +52,7 @@ This pass reduces work on the PHP hot path, database round-trips and idle browse
 
 Apply `src/database/migrations/20260903_v1_rc.sql` after the activity-file-exchange migration. It adds focused indexes for activity units, completed workout history, exercise-history matching and imported-source lookups.
 
-On alwaysdata, `STRIDEBR_DB_PORT=5433` can be used when the account is configured to connect through its PgBouncer endpoint. Keep `5432` when connecting directly to PostgreSQL or in local development.
+Use STRIDEBR_DB_HOST/PORT/SSLMODE for the PostgreSQL endpoint selected by Infra; direct PostgreSQL normally uses port 5432.
 
 ## Reliability/performance pass 2026-08-29 v3
 
