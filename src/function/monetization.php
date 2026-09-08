@@ -189,9 +189,8 @@ function stridebr_ads_can_render(string $placement, ?string $path = null, ?bool 
 
 function stridebr_adsense_verification_meta(): string
 {
-    $client = stridebr_adsense_client_id();
-    if ($client === '') return '';
-    return '<meta name="google-adsense-account" content="' . htmlspecialchars($client, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '">';
+    // Site ownership only; independent of provider configuration and ad activation.
+    return '<meta name="google-adsense-account" content="ca-pub-3948145279411749">';
 }
 
 function stridebr_donation_enabled(): bool

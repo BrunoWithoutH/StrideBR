@@ -1628,15 +1628,15 @@ textarea {
     flex: 0 0 auto;
     padding: 6px 10px;
     border-radius: var(--radius-detail);
-    color: #56606d;
+    color: var(--ui-text-secondary);
     font-size: .75rem;
     font-weight: 750;
     text-decoration: none;
 }
 
 .monthly-planning-subnav a:hover {
-    background: #f1f3f5;
-    color: #242b33;
+    background: var(--ui-surface-hover);
+    color: var(--ui-text-strong);
 }
 
 .monthly-planning-subnav a.is-active {
@@ -2196,7 +2196,7 @@ input[type="submit"].is-submitting {
     border: 0;
     padding: 1px 0;
     background: transparent;
-    color: #52677f;
+    color: var(--ui-accent);
     font: inherit;
     font-size: .62rem;
     font-weight: 700;

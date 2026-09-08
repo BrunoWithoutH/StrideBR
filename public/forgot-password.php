@@ -57,20 +57,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <title>Recuperar senha | StrideBR</title>
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>">
 </head>
-<body class="auth-modern-body">
-    <div class="auth-modern-shell">
-        <a class="auth-modern-brand" href="/"><img src="<?php echo stridebr_e(stridebr_asset('/assets/img/logos/stridebr-logo.svg')); ?>" alt="StrideBR" width="110" height="43"></a>
-        <main class="auth-modern-card">
-            <h1>Recuperar senha</h1>
-            <?php foreach ($errors as $error): ?><div class="alert alert-danger"><?php echo stridebr_e($error); ?></div><?php endforeach; ?>
-            <?php if ($sentMessage): ?><div class="alert alert-success">Se o e-mail estiver em uma conta ativa, enviaremos um link de redefinição.</div><?php endif; ?>
+<body class="onboarding-body signup-onboarding-body auth-unified-body">
+    <div class="onboarding-shell signup-onboarding-shell auth-unified-shell">
+        <a class="onboarding-brand" href="/"><img src="<?php echo stridebr_e(stridebr_asset('/assets/img/logos/stridebr-logo.svg')); ?>" alt="StrideBR" width="110" height="43"></a>
+        <main class="onboarding-card auth-unified-card">
+            <div class="auth-unified-heading">
+                <h1>Recuperar senha</h1>
+                <p id="recovery-guidance">Informe seu e-mail para receber um link de redefinição de senha.</p>
+            </div>
+            <?php foreach ($errors as $error): ?><div class="alert alert-danger" role="alert"><?php echo stridebr_e($error); ?></div><?php endforeach; ?>
+            <?php if ($sentMessage): ?><div class="alert alert-success" role="status">Se o e-mail estiver em uma conta ativa, enviaremos um link de redefinição.</div><?php endif; ?>
             <?php if (!$enabled): ?>
                 <div class="alert alert-info">A recuperação de senha está indisponível no momento.</div>
             <?php else: ?>
                 <form method="POST" class="auth-modern-form">
                     <?php echo stridebr_csrf_field(); ?>
                     <label class="auth-modern-field">E-mail
-                        <input type="email" name="email" autocomplete="email" maxlength="255" required>
+                        <input type="email" name="email" aria-describedby="recovery-guidance" autocomplete="email" maxlength="255" required>
                     </label>
                     <button class="auth-modern-submit" type="submit">Enviar link</button>
                 </form>

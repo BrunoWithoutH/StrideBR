@@ -52,34 +52,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $token) {
     <title>Nova senha | StrideBR</title>
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>">
 </head>
-<body class="auth-modern-body">
-    <div class="auth-modern-shell">
-        <a class="auth-modern-brand" href="/"><img src="<?php echo stridebr_e(stridebr_asset('/assets/img/logos/stridebr-logo.svg')); ?>" alt="StrideBR" width="110" height="43"></a>
-        <main class="auth-modern-card">
-            <h1>Nova senha</h1>
-            <?php foreach ($errors as $error): ?><div class="alert alert-danger"><?php echo stridebr_e($error); ?></div><?php endforeach; ?>
+<body class="onboarding-body signup-onboarding-body auth-unified-body">
+    <div class="onboarding-shell signup-onboarding-shell auth-unified-shell">
+        <a class="onboarding-brand" href="/"><img src="<?php echo stridebr_e(stridebr_asset('/assets/img/logos/stridebr-logo.svg')); ?>" alt="StrideBR" width="110" height="43"></a>
+        <main class="onboarding-card auth-unified-card">
+            <div class="auth-unified-heading">
+                <h1>Nova senha</h1>
+            </div>
+            <?php foreach ($errors as $error): ?><div class="alert alert-danger" role="alert"><?php echo stridebr_e($error); ?></div><?php endforeach; ?>
             <?php if ($success): ?>
-                <div class="alert alert-success">Senha alterada. As sessões anteriores foram encerradas.</div>
+                <div class="alert alert-success" role="status">Senha alterada. As sessões anteriores foram encerradas.</div>
                 <div class="auth-modern-footer"><a href="/login.php">Entrar</a></div>
             <?php elseif (!$enabled): ?>
                 <div class="alert alert-info">A recuperação por e-mail está indisponível no momento.</div>
             <?php elseif (!$token): ?>
-                <div class="alert alert-danger">Esse link é inválido ou expirou.</div>
+                <div class="alert alert-danger" role="alert">Esse link é inválido ou expirou.</div>
                 <div class="auth-modern-footer"><a href="/forgot-password.php">Solicitar outro link</a></div>
             <?php else: ?>
                 <form method="POST" class="auth-modern-form">
                     <?php echo stridebr_csrf_field(); ?>
                     <input type="hidden" name="token" value="<?php echo stridebr_e($tokenRaw); ?>">
                     <label class="auth-modern-field">Nova senha
-                        <input type="password" name="senha" autocomplete="new-password" minlength="8" maxlength="128" required>
+                        <span class="auth-modern-field-wrap">
+                            <input type="password" id="reset-password" name="senha" class="password" autocomplete="new-password" minlength="8" maxlength="128" required>
+                            <button type="button" class="showHidePw" aria-controls="reset-password" aria-pressed="false" aria-label="<?php echo stridebr_e(stridebr_t('auth.password_visibility')); ?>" data-show-label="<?php echo stridebr_e(stridebr_t('auth.show_password')); ?>" data-hide-label="<?php echo stridebr_e(stridebr_t('auth.hide_password')); ?>"><?php echo stridebr_e(stridebr_t('auth.show_password')); ?></button>
+                        </span>
                     </label>
                     <label class="auth-modern-field">Confirmar senha
-                        <input type="password" name="confirmar" autocomplete="new-password" minlength="8" maxlength="128" required>
+                        <span class="auth-modern-field-wrap">
+                            <input type="password" id="reset-password-confirm" name="confirmar" class="password" autocomplete="new-password" minlength="8" maxlength="128" required>
+                            <button type="button" class="showHidePw" aria-controls="reset-password-confirm" aria-pressed="false" aria-label="<?php echo stridebr_e(stridebr_t('auth.password_visibility')); ?>" data-show-label="<?php echo stridebr_e(stridebr_t('auth.show_password')); ?>" data-hide-label="<?php echo stridebr_e(stridebr_t('auth.hide_password')); ?>"><?php echo stridebr_e(stridebr_t('auth.show_password')); ?></button>
+                        </span>
                     </label>
                     <button class="auth-modern-submit" type="submit">Salvar nova senha</button>
                 </form>
             <?php endif; ?>
         </main>
     </div>
+    <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/loginform.js')); ?>"></script>
 </body>
 </html>

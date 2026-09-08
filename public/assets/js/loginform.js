@@ -1,11 +1,11 @@
 document.querySelectorAll('.showHidePw').forEach(button => {
     button.addEventListener('click', () => {
-        const field = button.closest('.input-field')?.querySelector('.password')
+        const field = document.getElementById(button.getAttribute('aria-controls'))
         if (!field) return
         const show = field.type === 'password'
         field.type = show ? 'text' : 'password'
-        button.textContent = show ? 'Ocultar' : 'Mostrar'
-        button.setAttribute('aria-label', show ? 'Ocultar senha' : 'Mostrar senha')
+        button.textContent = show ? button.dataset.hideLabel : button.dataset.showLabel
+        button.setAttribute('aria-pressed', String(show))
     })
 })
 

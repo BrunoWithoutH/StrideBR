@@ -422,11 +422,13 @@ function stridebr_html_lang(): string
 
 function stridebr_ui_boot_script(): string
 {
+    require_once dirname(__DIR__) . '/function/monetization.php';
     $escape = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     $uiSrc = function_exists('stridebr_asset') ? stridebr_asset('/assets/js/ui-boot.js') : '/assets/js/ui-boot.js';
     $pwaSrc = function_exists('stridebr_asset') ? stridebr_asset('/assets/js/pwa.js') : '/assets/js/pwa.js';
     $touchIcon = function_exists('stridebr_asset') ? stridebr_asset('/assets/img/pwa/apple-touch-icon.png') : '/assets/img/pwa/apple-touch-icon.png';
-    return '<link rel="manifest" href="/manifest.webmanifest">'
+    return stridebr_adsense_verification_meta()
+        . '<link rel="manifest" href="/manifest.webmanifest">'
         . '<meta name="theme-color" content="#40507C">'
         . '<meta name="mobile-web-app-capable" content="yes">'
         . '<meta name="apple-mobile-web-app-capable" content="yes">'

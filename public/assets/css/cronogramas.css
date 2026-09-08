@@ -849,6 +849,10 @@
     background: var(--ui-panel);
 }
 
+.zoom-controls[hidden] {
+    display: none;
+}
+
 .zoom-controls .view-button {
     min-width: 38px;
     border: 0;
@@ -1799,15 +1803,15 @@ html.schedule-actions-open {
     align-items: center;
     padding: 7px 10px;
     border-radius: var(--radius-control);
-    color: #4f5965;
+    color: var(--ui-text-secondary);
     font-size: .76rem;
     font-weight: 700;
     text-decoration: none;
 }
 
 .planning-subnav a:hover {
-    background: #f2f4f6;
-    color: #20252b;
+    background: var(--ui-surface-hover);
+    color: var(--ui-text-strong);
 }
 
 .planning-subnav a.is-active {
@@ -2438,6 +2442,7 @@ html.calendar-quick-open .floating-utility-dock{display:none!important}
 
 /* Weekly facts use compact rows, preserving the existing planning surfaces. */
 .planning-week{margin-block:16px;padding-block:12px;border-block:1px solid var(--ui-border)}
+.planning-week .section-title-row>span{background:var(--ui-panel-soft)}
 .planning-week>p{display:flex;flex-wrap:wrap;gap:6px;font-size:.85rem}
 .planning-week .trainer-mini-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .planning-week article{padding:8px 0;border-bottom:1px solid var(--ui-border);min-width:0}

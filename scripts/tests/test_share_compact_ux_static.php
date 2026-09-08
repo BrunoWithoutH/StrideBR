@@ -52,7 +52,7 @@ $assert((str_contains($header, "stridebr_t('nav.progress')") || str_contains($he
 $assert((str_contains($footer, "stridebr_t('nav.progress')") || str_contains($footer, '<span>Progresso</span>')) && !str_contains($footer, '<span>Exercícios</span>'), 'mobile principal deve usar Progresso no lugar de Exercícios.');
 $assert(str_contains($footer, '/user/biblioteca.php?tab=treinos') && str_contains($footer, "stridebr_t('nav.library_exercises')"), 'Biblioteca e Exercícios devem pertencer à área de Treinos/Mais.');
 $assert(str_contains($libraryWorkouts, 'workout-library-tabs') && str_contains($libraryExercises, 'workout-library-tabs') && str_contains($libraryWorkouts, "stridebr_t('common.workouts')") && str_contains($libraryWorkouts, "stridebr_t('common.exercises')"), 'Biblioteca precisa manter tabs Treinos e Exercícios.');
-$assert(substr_count($authFiles, 'class="auth-modern-body"') === 4 && substr_count($authFiles, 'class="auth-modern-card"') === 4, 'fluxos secundários de autenticação devem usar o shell visual novo.');
+$assert(substr_count($authFiles, 'class="auth-modern-card"') === 2 && substr_count($authFiles, 'class="onboarding-card auth-unified-card"') === 2, 'fluxos secundários de autenticação devem usar o shell visual novo.');
 $assert(!str_contains($authFiles, 'class="auth-layout"') && !str_contains($authFiles, 'class="form verification-form"'), 'fluxos secundários não devem manter o layout antigo.');
 
 printf("✓ share compact/nav/auth static: %d assertions\n", $checks);

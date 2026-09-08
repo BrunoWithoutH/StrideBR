@@ -1547,7 +1547,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const occurrenceHistoryForm = occurrenceHistoryModal?.querySelector('[data-occurrence-history-form]');
     if (occurrenceModal && occurrenceModal.parentElement !== document.body) document.body.appendChild(occurrenceModal);
     if (occurrenceHistoryModal && occurrenceHistoryModal.parentElement !== document.body) document.body.appendChild(occurrenceHistoryModal);
-    const closeOccurrence = () => { if (occurrenceModal) occurrenceModal.hidden = true; };
+    let occurrenceReturnFocus = null;
+    const closeOccurrence = () => {
+        if (!occurrenceModal) return;
+        occurrenceModal.hidden = true;
+        if (occurrenceReturnFocus?.isConnected) occurrenceReturnFocus.focus({preventScroll: true});
+    };
     const openOccurrence = payload => {
         if (!occurrenceModal || !occurrenceForm) return;
         occurrenceForm.querySelector('[data-occurrence-id]').value = payload.id || '';
@@ -1558,9 +1563,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const title = occurrenceModal.querySelector('[data-occurrence-title]');
         if (title) title.textContent = payload.title ? tr('schedule.reschedule_named', {name: payload.title}) : tr('schedule.reschedule_short');
         occurrenceForm.querySelector('input[name="scope"][value="this"]').checked = true;
+        occurrenceReturnFocus = document.activeElement;
         occurrenceModal.hidden = false;
+        occurrenceForm.querySelector('[data-occurrence-new-date]')?.focus({preventScroll: true});
     };
     occurrenceModal?.querySelectorAll('[data-close-occurrence]').forEach(button => button.addEventListener('click', closeOccurrence));
+    occurrenceModal?.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && !occurrenceModal.querySelector('[data-time24-menu]:not([hidden])')) {
+            event.preventDefault();
+            closeOccurrence();
+        }
+    });
     const postOccurrence = async (payload, {refreshMonth = true} = {}) => {
         const body = new URLSearchParams({...payload, csrf_token:csrfToken});
         const response = await (window.StrideBRNet?.fetch || fetch)('/api/cronograma-ocorrencias.php', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8','Accept':'application/json'}, body:body}, 15000);

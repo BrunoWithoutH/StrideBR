@@ -12,6 +12,13 @@ $exchange = file_get_contents($root . '/public/user/importar-exportar.php');
 $scheduleExercises = file_get_contents($root . '/public/user/exercicioscronograma.php');
 $equipment = file_get_contents($root . '/public/user/equipamentos.php');
 $adminUser = file_get_contents($root . '/public/admin/user.php');
+$baseCss = file_get_contents($root . '/public/assets/css/style.css');
+$loginCss = file_get_contents($root . '/public/assets/css/loginsignup.css');
+$login = file_get_contents($root . '/public/login.php');
+$signup = file_get_contents($root . '/public/signup.php');
+$forgot = file_get_contents($root . '/public/forgot-password.php');
+$reset = file_get_contents($root . '/public/reset-password.php');
+$loginJs = file_get_contents($root . '/public/assets/js/loginform.js');
 
 $assertions = 0;
 $assert = static function (bool $condition, string $message) use (&$assertions): void {
@@ -46,5 +53,15 @@ $assert(str_contains($planning, '.library-exercise-card[hidden]') && preg_match(
 $assert(str_contains($ui, 'right: max(12px, env(safe-area-inset-right));'), 'picker mobile respeita safe area lateral');
 $assert(str_contains($ui, 'bottom: max(12px, env(safe-area-inset-bottom));'), 'picker mobile respeita safe area inferior');
 $assert(str_contains($ui, '.library-editor-dialog,.library-exercise-dialog{max-height:calc(100dvh - max(12px,env(safe-area-inset-top)));padding-bottom:max(15px,env(safe-area-inset-bottom))!important}'), 'modais da Library respeitam viewport e safe area');
+$assert(preg_match('/\.site-footer\s*\{([^}]*)\}/s', $baseCss, $footerMatch) === 1 && !str_contains($footerMatch[1], 'content-visibility') && !str_contains($footerMatch[1], 'contain-intrinsic-size'), 'footer não reserva altura intrínseca artificial fora da viewport');
+$assert(str_contains($ui, '.calendar-view[hidden]') && str_contains($ui, '.schedule-month-view[hidden]') && str_contains($ui, '.agenda-view[hidden]'), 'views ocultas de Cronogramas não participam do layout');
+$assert(str_contains($planning, '.zoom-controls[hidden]') && preg_match('/\.zoom-controls\[hidden\]\s*\{\s*display:\s*none;\s*\}/', $planning) === 1, 'zoom de Cronogramas desaparece fora da Semana');
+$assert(str_contains($login, 'type="button" class="showHidePw"') && str_contains($login, 'aria-controls="login-password"') && str_contains($login, 'autocomplete="current-password"'), 'login mantém toggle explícito sem alterar autocomplete');
+$assert(str_contains($loginJs, "document.getElementById(button.getAttribute('aria-controls'))") && !str_contains($loginJs, "closest('.input-field')"), 'toggle de senha aponta explicitamente para o input atual');
+$assert(str_contains($loginCss, '.auth-modern-field-wrap .showHidePw') && str_contains($loginCss, 'width: 72px;'), 'toggle de senha mantém largura estável');
+$assert(substr_count($reset, 'type="button" class="showHidePw"') === 2 && str_contains($reset, 'aria-controls="reset-password"') && str_contains($reset, 'aria-controls="reset-password-confirm"'), 'reset possui toggles independentes nas duas senhas');
+$assert(substr_count($reset, 'autocomplete="new-password"') === 2 && str_contains($reset, "/assets/js/loginform.js"), 'reset preserva new-password e reutiliza o toggle validado');
+$assert(str_contains($signup, 'signup-login-link') && str_contains($signup, "stridebr_t('auth.already_account')") && str_contains($signup, 'href="/login.php"'), 'cadastro mantém ação secundária para login');
+$assert(str_contains($forgot, 'auth-unified-card') && str_contains($forgot, 'aria-describedby="recovery-guidance"') && str_contains($forgot, 'role="status"'), 'recuperação mantém cartão unificado, orientação e feedback acessível');
 
 printf("✓ visual consistency static: %d assertions\n", $assertions);

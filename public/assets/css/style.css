@@ -479,8 +479,6 @@ body {
     background: var(--ui-header);
     color: #f8fafc;
     padding: 42px 24px 24px;
-    content-visibility: auto;
-    contain-intrinsic-size: auto 330px;
 }
 
 .footer-inner {
