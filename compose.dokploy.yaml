@@ -14,6 +14,8 @@ x-runtime: &runtime
 services:
   app:
     <<: *runtime
+    networks:
+      - dokploy-network
     build:
       context: .
       target: app
@@ -31,6 +33,8 @@ services:
         condition: service_completed_successfully
   migrate:
     <<: *runtime
+    networks:
+      - dokploy-network
     build:
       context: .
       target: migrations
@@ -38,3 +42,6 @@ services:
     command: ["apply"]
 volumes:
   stridebr_uploads:
+networks:
+  dokploy-network:
+    external: true
