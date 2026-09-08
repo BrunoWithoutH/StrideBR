@@ -56,7 +56,7 @@ $assert(str_contains($money, "'/user/atividades.php'") && str_contains($money, "
 $assert(str_contains($adsJs, "data-ad-status") && str_contains($adsJs, "unfilled") && str_contains($adsJs, 'stridebrAdInitialized'), 'runtime precisa tratar no-fill e impedir dupla inicialização.');
 $assert(!str_contains($adsJs, 'stridebr.ads.consent') && !str_contains($adsLayout, 'ad-consent'), 'consentimento local antigo precisa estar desacoplado do runtime.');
 $assert(str_contains($csp, 'pagead2.googlesyndication.com') && str_contains($csp, 'frame-src') && str_contains($csp, 'doubleclick.net'), 'CSP precisa estar preparada para o provider futuro.');
-$assert(str_contains($read('public/index.php'), 'stridebr_adsense_verification_meta()'), 'landing pública precisa suportar meta de verificação sem ligar ads.');
+$assert(str_contains($read('public/index.php'), 'stridebr_ui_boot_script()') && !str_contains($read('public/index.php'), 'stridebr_adsense_verification_meta()') && str_contains($read('src/includes/i18n.php'), 'return stridebr_adsense_verification_meta()'), 'landing pública precisa suportar meta de verificação sem ligar ads.');
 $assert(str_contains($read('public/ads.txt.example'), 'pub-XXXXXXXXXXXXXXXX'), 'ads.txt deve continuar apenas como exemplo sem publisher real.');
 $assert(str_contains($docs, 'crawler login') && str_contains($docs, 'CMP') && str_contains($docs, 'php scripts/ads_status.php'), 'documentação precisa cobrir ativação futura completa.');
 
@@ -112,5 +112,9 @@ $assert(stridebr_adsense_slot_id('footer') === '' && stridebr_adsense_slot_id('r
 
 $reset(); putenv('STRIDEBR_ADSENSE_CLIENT=ca-pub-1234567890123456');
 $assert(str_contains(stridebr_adsense_verification_meta(), 'google-adsense-account') && !stridebr_ads_enabled(), 'meta de verificação deve funcionar com master OFF.');
+
+$reset();
+$assert(stridebr_adsense_verification_meta() === '<meta name="google-adsense-account" content="ca-pub-3948145279411749">', 'verificação deve identificar o proprietário mesmo sem configurar o provider.');
+$assert(!stridebr_ads_enabled() && stridebr_adsense_client_id() === '' && $render('event-detail-end', '/evento.php', false) === '', 'verificação não pode configurar o provider nem ativar anúncios.');
 
 printf("✓ ads placements static: %d assertions\n", $checks);

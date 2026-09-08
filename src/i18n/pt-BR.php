@@ -51,6 +51,8 @@ return [
     'auth.login' => 'Entrar',
     'auth.email' => 'E-mail',
     'auth.password' => 'Senha',
+    'auth.password_visibility' => 'Mostrar senha',
+    'auth.sign_in_link' => 'Fazer login',
     'auth.show_password' => 'Mostrar',
     'auth.hide_password' => 'Ocultar',
     'auth.forgot_password' => 'Esqueceu sua senha?',

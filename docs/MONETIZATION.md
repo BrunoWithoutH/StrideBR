@@ -91,13 +91,13 @@ A CSP em `public/.htaccess` já reserva as origens principais necessárias ao pr
 
 ## Verificação do site sem ligar anúncios
 
-`public/index.php` pode emitir:
+`stridebr_ui_boot_script()` emite no head compartilhado, inclusive na home pública:
 
 ```html
-<meta name="google-adsense-account" content="ca-pub-...">
+<meta name="google-adsense-account" content="ca-pub-3948145279411749">
 ```
 
-quando `STRIDEBR_ADSENSE_CLIENT` é válido. Isso independe de `STRIDEBR_ADS_ENABLED` e não carrega o script Google. Assim é possível cadastrar/verificar o domínio mantendo publicidade desligada.
+A identificação de propriedade é fixa e independente de `STRIDEBR_ADSENSE_CLIENT` e das flags de anúncios. Não configura o provider nem carrega o script Google. Assim é possível cadastrar/verificar o domínio mantendo publicidade desligada.
 
 ## ads.txt
 

@@ -294,7 +294,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <label class="gps-field"><?php echo stridebr_e(stridebr_t('auth.confirm_password')); ?><input type="password" name="ConfirmarSenhaUsuario" autocomplete="new-password" minlength="8" maxlength="128" required></label>
                 </div>
                 <label class="signup-terms"><input type="checkbox" name="TermosUsuario" required><span><?php echo stridebr_e(stridebr_t('onboarding.accept_prefix')); ?> <a href="/pages/legal/terms.php" target="_blank" rel="noopener"><?php echo stridebr_e(stridebr_t('onboarding.terms')); ?></a> <?php echo stridebr_e(stridebr_t('onboarding.and_the')); ?> <a href="/pages/legal/privacy.php" target="_blank" rel="noopener"><?php echo stridebr_e(stridebr_t('onboarding.privacy')); ?></a>.</span></label>
-                <div class="login-signup signup-login-link"><span class="text"><?php echo stridebr_e(stridebr_t('auth.already_account')); ?> <a href="/login.php"><?php echo stridebr_e(stridebr_t('nav.sign_in')); ?></a></span></div>
             </section>
 
             <div class="onboarding-actions signup-onboarding-actions">
@@ -306,6 +305,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </form>
         <?php endif; ?>
+        <div class="auth-modern-footer signup-login-link"><span class="text"><?php echo stridebr_e(stridebr_t('auth.already_account')); ?> <a href="/login.php"><?php echo stridebr_e(stridebr_t('auth.sign_in_link')); ?></a></span></div>
     </main>
 </div>
 <?php echo stridebr_i18n_runtime_script(true); ?>

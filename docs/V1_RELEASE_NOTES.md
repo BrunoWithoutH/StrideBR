@@ -1,4 +1,10 @@
-# StrideBR 1.0.0 RC3
+# StrideBR 1.0.0 RC4
+
+Preparação local de `1.0.0-rc.4`: toggle de senha, caminho cadastro → login, consistência visual da recuperação/redefinição, correções pontuais de interface em Cronogramas e metatag de propriedade AdSense. Publicidade permanece desligada.
+
+A regressão de altura inferior foi reproduzida em Chromium com a estrutura de Cronogramas e o CSS real: o footer global podia reservar uma altura intrínseca maior enquanto estivesse fora da viewport, alterando o `scrollHeight` quando entrava na área renderizada. A reserva artificial foi removida e a matriz pós-correção manteve footer e `scrollHeight` estáveis, com 42 px entre a view ativa e o footer. A homologação no ambiente publicado continua sendo o smoke final. Evidências, limites dos testes e arquivos alterados estão no [relatório da RC4](reports/RC4_REVIEW_2026-09-08.md). Commit, push e tag dependem de revisão; nenhum deploy foi realizado.
+
+## Histórico da RC3
 
 A RC3 consolida a Web 1.0 para staging no Dokploy. O foco desta candidata é consolidar o editor de atividades, rotas, compartilhamento e a fundação PWA sem abrir novas áreas de produto.
 
@@ -66,4 +72,4 @@ A promoção para produção/1.0 final exige backup recente, restore em banco se
 
 ## Versão
 
-A candidata atual é `v1.0.0-rc.3`. A publicação desta RC exige os checks locais e a auditoria registrados no relatório final. Deploy real e homologação são etapas posteriores de Infra; não criar `v1.0.0` nesta rodada.
+A candidata em preparação é `v1.0.0-rc.4`. A publicação desta RC exige os checks locais e a auditoria registrados no relatório final. Deploy real e homologação são etapas posteriores de Infra; não criar `v1.0.0` nesta rodada.

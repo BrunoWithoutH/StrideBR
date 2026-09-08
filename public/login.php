@@ -53,8 +53,8 @@ $flashes = stridebr_take_flashes();
                 </label>
                 <label class="auth-modern-field"><?php echo stridebr_e(stridebr_t('auth.password')); ?>
                     <span class="auth-modern-field-wrap">
-                        <input type="password" name="USenha" class="password" autocomplete="current-password" maxlength="128" required>
-                        <button type="button" class="showHidePw" aria-label="<?php echo stridebr_e(stridebr_t('auth.show_password')); ?>"><?php echo stridebr_e(stridebr_t('auth.show_password')); ?></button>
+                        <input type="password" id="login-password" name="USenha" class="password" autocomplete="current-password" maxlength="128" required>
+                        <button type="button" class="showHidePw" aria-controls="login-password" aria-pressed="false" aria-label="<?php echo stridebr_e(stridebr_t('auth.password_visibility')); ?>" data-show-label="<?php echo stridebr_e(stridebr_t('auth.show_password')); ?>" data-hide-label="<?php echo stridebr_e(stridebr_t('auth.hide_password')); ?>"><?php echo stridebr_e(stridebr_t('auth.show_password')); ?></button>
                     </span>
                 </label>
                 <div class="auth-modern-links">

@@ -22,7 +22,6 @@ $pageDescription = 'Planeje treinos, registre atividades, acompanhe metas, rotas
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="author" content="Bruno Evaristo Pinheiro">
-    <?php echo stridebr_adsense_verification_meta(); ?>
     <meta name="description" content="<?php echo stridebr_e($pageDescription); ?>">
     <meta name="theme-color" content="#40507c">
     <meta property="og:type" content="website">
