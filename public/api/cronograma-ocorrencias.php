@@ -30,13 +30,13 @@ try {
         $dataOriginal = trim((string) ($_POST['data_original'] ?? ''));
         if ($action === 'move') {
             $result = cronogramaAlterarOcorrencia($pdo, $idUsuario, $idTreino, $dataOriginal, trim((string) ($_POST['data_treino'] ?? '')), trim((string) ($_POST['scope'] ?? 'this')), isset($_POST['hora_inicio']) ? trim((string) $_POST['hora_inicio']) : null);
-            $notifyWorkoutSchedule($pdo, $idUsuario, $idTreino, 'Uma ocorrência de treino foi reagendada.');
+            $notifyWorkoutSchedule($pdo, $idUsuario, $idTreino, stridebr_t('planning.message.occurrence_moved'));
             echo json_encode(['ok' => true, 'result' => $result], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             exit;
         }
         if ($action === 'cancel') {
             cronogramaCancelarOcorrencia($pdo, $idUsuario, $idTreino, $dataOriginal);
-            $notifyWorkoutSchedule($pdo, $idUsuario, $idTreino, 'Uma ocorrência de treino foi removida.');
+            $notifyWorkoutSchedule($pdo, $idUsuario, $idTreino, stridebr_t('planning.message.occurrence_removed'));
             echo json_encode(['ok' => true], JSON_UNESCAPED_UNICODE);
             exit;
         }
@@ -49,16 +49,16 @@ try {
                 trim((string) ($_POST['outro_idtreino'] ?? '')),
                 trim((string) ($_POST['outra_data_original'] ?? ''))
             );
-            $notifyWorkoutSchedule($pdo, $idUsuario, $idTreino, 'Duas ocorrências de treino foram reorganizadas.');
+            $notifyWorkoutSchedule($pdo, $idUsuario, $idTreino, stridebr_t('planning.message.occurrences_swapped'));
             $otherWorkoutId = trim((string) ($_POST['outro_idtreino'] ?? ''));
-            if ($otherWorkoutId !== '' && $otherWorkoutId !== $idTreino) $notifyWorkoutSchedule($pdo, $idUsuario, $otherWorkoutId, 'Duas ocorrências de treino foram reorganizadas.');
+            if ($otherWorkoutId !== '' && $otherWorkoutId !== $idTreino) $notifyWorkoutSchedule($pdo, $idUsuario, $otherWorkoutId, stridebr_t('planning.message.occurrences_swapped'));
             echo json_encode(['ok' => true, 'result' => $result], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             exit;
         }
         if ($action === 'edit_workout') {
             $scope = trim((string) ($_POST['scope'] ?? 'all'));
             $result = cronogramaEditarTreinoEscopo($pdo, $idUsuario, $idTreino, $dataOriginal, $scope, $_POST);
-            $notifyWorkoutSchedule($pdo, $idUsuario, $idTreino, 'Um treino foi atualizado.');
+            $notifyWorkoutSchedule($pdo, $idUsuario, $idTreino, stridebr_t('planning.message.workout_updated'));
             echo json_encode(['ok' => true, 'result' => $result], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             exit;
         }
@@ -100,14 +100,14 @@ try {
             $dataTreino = trim((string) ($_POST['data_treino'] ?? ''));
             $date = cronogramaValidarDataIso($dataTreino);
             $horaInicio = trim((string) ($_POST['hora_inicio'] ?? '18:00'));
-            if (!preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $horaInicio)) throw new InvalidArgumentException('Horário inválido.');
+            if (!preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $horaInicio)) throw new InvalidArgumentException(stridebr_t('planning.message.invalid_time'));
             $horaFim = (new DateTimeImmutable($dataTreino . ' ' . $horaInicio))->modify('+1 hour')->format('H:i');
             $idCriado = cronogramaAdicionarTreinoModeloAoCronograma($pdo, $idUsuario, $idModelo, $idCronograma, (int) $date->format('w'), $horaInicio, $horaFim, false, $dataTreino, null);
-            notificacaoCronogramaSincronizadoAlterado($pdo, $idUsuario, $idCronograma, 'Um treino salvo foi adicionado ao cronograma.');
+            notificacaoCronogramaSincronizadoAlterado($pdo, $idUsuario, $idCronograma, stridebr_t('planning.message.library_added'));
             echo json_encode(['ok' => true, 'result' => ['idtreino' => $idCriado]], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             exit;
         }
-        throw new InvalidArgumentException('Ação inválida.');
+        throw new InvalidArgumentException(stridebr_t('planning.message.invalid_action'));
     }
 
     $start = trim((string) ($_GET['start'] ?? ''));
@@ -116,12 +116,14 @@ try {
     $targetId = trim((string) ($_GET['atleta'] ?? $idUsuario));
     if ($targetId === '') $targetId = $idUsuario;
     if ($targetId !== $idUsuario) {
-        if (!stridebr_feature_enabled($pdo, 'trainer.enabled', false)) throw new RuntimeException('Agenda indisponível.');
+        if (!stridebr_feature_enabled($pdo, 'trainer.enabled', false)) throw new RuntimeException(stridebr_t('planning.message.agenda_unavailable'));
         $link = treinadorVinculoAceito($pdo, $idUsuario, $targetId);
-        if ($link === [] || !stridebr_db_bool($link['pode_ver_cronograma'] ?? false)) throw new RuntimeException('Sem permissão para ver esta agenda.');
+        if ($link === [] || !stridebr_db_bool($link['pode_ver_cronograma'] ?? false)) throw new RuntimeException(stridebr_t('planning.message.agenda_permission'));
     }
-    if ($schedule !== '' && cronogramaBuscar($pdo, $schedule, $targetId) === []) throw new RuntimeException('Cronograma não encontrado.');
-    $items = cronogramaListarOcorrenciasConciliadas($pdo, $targetId, $start, $end, $schedule !== '' ? $schedule : null);
+    if ($schedule !== '' && cronogramaBuscar($pdo, $schedule, $targetId) === []) throw new RuntimeException(stridebr_t('planning.message.schedule_missing'));
+    $canViewActivityFacts = $targetId === $idUsuario || stridebr_db_bool($link['pode_ver_atividades'] ?? false);
+    $occurrenceLoader = $canViewActivityFacts ? 'cronogramaListarOcorrenciasConciliadas' : 'cronogramaListarOcorrencias';
+    $items = $occurrenceLoader($pdo, $targetId, $start, $end, $schedule !== '' ? $schedule : null);
     $scheduled = [];
     if (stridebr_feature_enabled($pdo, 'monthly_calendar.enabled', false)) {
         $sql = "SELECT ta.idagendamento, ta.idcronograma_origem, ta.idtreino_origem, ta.data_treino, ta.hora_inicio, ta.titulo, ta.origem, ta.status,
@@ -140,14 +142,18 @@ try {
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
         $scheduled = $stmt->fetchAll();
+        if (!$canViewActivityFacts) foreach ($scheduled as &$appointment) {
+            if ($appointment['status'] === 'concluido') $appointment['status'] = 'publicado';
+        }
+        unset($appointment);
     }
-    $output = array_map(static function (array $item): array {
+    $output = array_map(static function (array $item) use ($canViewActivityFacts): array {
         return [
             'idtreino' => (string) $item['idtreino'], 'idcronograma' => (string) $item['idcronograma'], 'cronograma_nome' => (string) $item['cronograma_nome'],
             'titulo' => (string) $item['titulo'], 'codigo' => (string) ($item['codigo'] ?? ''), 'foco' => (string) ($item['foco'] ?? ''), 'idmodalidade' => (string) ($item['idmodalidade'] ?? ''),
             'data_original' => (string) $item['data_original'], 'data_treino' => (string) $item['data_treino'], 'hora_inicio' => substr((string) $item['hora_inicio'], 0, 5),
             'hora_fim' => substr((string) $item['hora_fim'], 0, 5), 'termina_dia_seguinte' => stridebr_db_bool($item['termina_dia_seguinte'] ?? false), 'excecao' => !empty($item['excecao']),
-            'concluido' => !empty($item['concluido']), 'idregistro' => (string) ($item['idregistro'] ?? ''),
+            'acompanhamento_disponivel' => $canViewActivityFacts, 'concluido' => !empty($item['concluido']), 'idregistro' => (string) ($item['idregistro'] ?? ''),
             'data_planejada' => (string) ($item['data_planejada'] ?? $item['data_treino']), 'hora_planejada' => (string) ($item['hora_planejada'] ?? substr((string) $item['hora_inicio'], 0, 5)),
             'data_realizada' => (string) ($item['data_realizada'] ?? ''), 'hora_realizada' => (string) ($item['hora_realizada'] ?? ''),
             'realizado_fora_planejado' => !empty($item['realizado_fora_planejado']),
@@ -161,5 +167,5 @@ try {
 } catch (Throwable $e) {
     http_response_code($e instanceof InvalidArgumentException ? 400 : ($e instanceof RuntimeException ? 404 : 500));
     if (!$e instanceof InvalidArgumentException && !$e instanceof RuntimeException) error_log('StrideBR schedule occurrence API: ' . $e->getMessage());
-    echo json_encode(['ok' => false, 'error' => $e instanceof InvalidArgumentException || $e instanceof RuntimeException ? $e->getMessage() : 'Não foi possível atualizar a agenda.'], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['ok' => false, 'error' => $e instanceof InvalidArgumentException || $e instanceof RuntimeException ? $e->getMessage() : stridebr_t('planning.message.agenda_error')], JSON_UNESCAPED_UNICODE);
 }

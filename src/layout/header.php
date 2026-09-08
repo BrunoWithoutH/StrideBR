@@ -7,11 +7,16 @@ require_once dirname(__DIR__) . '/includes/app.php';
 $headerLoggedIn = stridebr_is_logged_in();
 $headerUnreadNotifications = 0;
 $headerNotifications = [];
+$headerAdminUnreadFeedback = 0;
 if ($headerLoggedIn && isset($pdo) && $pdo instanceof PDO) {
     require_once dirname(__DIR__) . '/function/notificacoes.php';
     $headerUserId = (string) ($_SESSION['IdUsuario'] ?? '');
     $headerUnreadNotifications = notificacaoContarNaoLidas($pdo, $headerUserId);
     $headerNotifications = notificacaoListar($pdo, $headerUserId, 6);
+    if (stridebr_has_role('admin')) {
+        require_once dirname(__DIR__) . '/includes/admin.php';
+        $headerAdminUnreadFeedback = stridebr_admin_feedback_unread_count($pdo);
+    }
 }
 $headerPhoto = stridebr_profile_photo_url((string) ($_SESSION['FotoUsuario'] ?? ''), 96);
 $headerPath = (string) (parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH) ?: '/');
@@ -67,6 +72,15 @@ $headerActive = static function (array $paths) use ($headerPath): string {
                                 <?php endforeach; ?>
                             <?php endif; ?>
                         </div>
+                        <?php if ($headerAdminUnreadFeedback > 0): ?>
+                            <div class="header-notification-admin" aria-label="<?php echo stridebr_e(stridebr_t('admin.notifications.section')); ?>">
+                                <span class="header-notification-admin-label"><?php echo stridebr_e(stridebr_t('admin.notifications.section')); ?></span>
+                                <a href="/admin/feedback.php?state=unread">
+                                    <span><?php echo stridebr_e(stridebr_t('admin.notifications.feedback')); ?></span>
+                                    <strong><?php echo (int) $headerAdminUnreadFeedback; ?></strong>
+                                </a>
+                            </div>
+                        <?php endif; ?>
                         <a class="header-notification-all" href="/user/notificacoes.php"><?php echo stridebr_e(stridebr_t('notifications.view_all')); ?></a>
                     </div>
                 </details>

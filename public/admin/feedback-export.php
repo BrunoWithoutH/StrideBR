@@ -7,6 +7,9 @@ require_once dirname(__DIR__, 2) . '/src/includes/app.php';
 
 $idUsuario = stridebr_require_login();
 stridebr_require_role('moderator');
+header('Cache-Control: private, no-store, max-age=0');
+header('Pragma: no-cache');
+header('X-Robots-Tag: noindex, nofollow, noarchive');
 
 require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
 require_once dirname(__DIR__, 2) . '/src/includes/admin.php';

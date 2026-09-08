@@ -21,6 +21,8 @@ $segmentsSuggested = !empty($modelo['permite_multiplas_unidades']);
 $attemptMode = (string) ($modelo['tipo_unidade_padrao'] ?? '') === 'tentativa';
 $primarySport = trim((string) ($primaryUnitData['idmodalidade'] ?? '')) ?: (string) ($modelo['idmodalidade'] ?? '');
 $primaryDerivedType = atividadeMetricaDerivadaModalidadeCatalogo($catalogo, $primarySport, (string) ($modelo['metrica_derivada'] ?? 'nenhuma'));
+$primarySportContext = atividadeContextoModalidadeCatalogo($catalogo, $primarySport);
+$modelSportContext = atividadeContextoEsportivo((string) ($modelo['modalidade_slug'] ?? ''), (string) ($modelo['familia_hub'] ?? ''));
 $primaryUnitRoute = $primaryUnitData['rota_coordenadas'] ?? ($primaryUnitData['rota']['coordenadas'] ?? '');
 $optionalFields = [];
 foreach (array_merge($unitFields, $recordFields) as $field) {
@@ -54,6 +56,8 @@ $segmentModeName = $namePrefix === '' ? 'usa_trechos' : "{$namePrefix}[usa_trech
     data-derived-type="<?php echo stridebr_e((string) ($modelo['metrica_derivada'] ?? 'nenhuma')); ?>"
     data-distance-unit="<?php echo stridebr_e($distanceUnit); ?>"
     data-main-modality="<?php echo stridebr_e((string) ($modelo['idmodalidade'] ?? '')); ?>"
+    data-sport-slug="<?php echo stridebr_e((string) ($modelo['modalidade_slug'] ?? '')); ?>"
+    data-sport-family="<?php echo stridebr_e((string) ($modelo['familia_hub'] ?? '')); ?>"
     data-unit-kind="<?php echo stridebr_e((string) ($modelo['tipo_unidade_padrao'] ?? 'unidade')); ?>"
     data-segments-suggested="<?php echo $segmentsSuggested ? '1' : '0'; ?>"
     <?php echo $initiallyHidden ? 'hidden' : ''; ?>
@@ -71,7 +75,7 @@ $segmentModeName = $namePrefix === '' ? 'usa_trechos' : "{$namePrefix}[usa_trech
                 <div class="input-field"><label><?php echo stridebr_e(stridebr_t('activity.segment_name')); ?> <span class="field-hint"><?php echo stridebr_e(stridebr_t('common.optional')); ?></span></label><input type="text" name="<?php echo stridebr_e($unitName('0') . '[rotulo]'); ?>" maxlength="120" value="<?php echo stridebr_e((string) ($primaryUnitData['rotulo'] ?? '')); ?>" placeholder="<?php echo stridebr_e(stridebr_t('activity.segment_example_warmup')); ?>"></div>
             </div>
             <div data-primary-segment-core<?php echo $segmentsActive ? '' : ' hidden'; ?>>
-                <?php echo atividadeRenderizarMetricasCanonicasTrecho($unitName('0'), $primaryUnitData, $primaryDerivedType, $unitFields); ?>
+                <?php echo atividadeRenderizarMetricasCanonicasTrecho($unitName('0'), $primaryUnitData, $primaryDerivedType, $unitFields, $primarySportContext); ?>
             </div>
         <?php endif; ?>
         <div class="activity-metrics-strip" data-primary-unit data-model-unit-fields>
@@ -123,6 +127,7 @@ $segmentModeName = $namePrefix === '' ? 'usa_trechos' : "{$namePrefix}[usa_trech
                 $unitValues = is_array($unitData['values'] ?? null) ? $unitData['values'] : [];
                 $unitSport = trim((string) ($unitData['idmodalidade'] ?? '')) ?: (string) ($modelo['idmodalidade'] ?? '');
                 $unitDerivedType = atividadeMetricaDerivadaModalidadeCatalogo($catalogo, $unitSport, (string) ($modelo['metrica_derivada'] ?? 'nenhuma'));
+                $unitSportContext = atividadeContextoModalidadeCatalogo($catalogo, $unitSport);
                 ?>
                 <div class="activity-unit" data-unit-index="<?php echo $unitIndex; ?>">
                     <div class="activity-unit-header"><div><strong data-unit-title><?php echo stridebr_e((string) ($modelo['rotulo_unidade'] ?? stridebr_t('activity.segment'))); ?> <?php echo $unitIndex + 1; ?></strong><span><?php echo stridebr_e($attemptMode ? stridebr_t('activity.attempt_registered') : stridebr_t('activity.session_part')); ?></span></div><button type="button" class="activity-link-danger" data-remove-unit><?php echo stridebr_e(stridebr_t('common.remove')); ?></button></div>
@@ -131,7 +136,7 @@ $segmentModeName = $namePrefix === '' ? 'usa_trechos' : "{$namePrefix}[usa_trech
                             <?php echo atividadeRenderizarSeletorModalidadeUnidade($unitName((string) $unitIndex) . '[idmodalidade]', $catalogo, $unitSport, (string) ($modelo['idmodalidade'] ?? '')); ?>
                             <div class="input-field"><label><?php echo stridebr_e(stridebr_t('activity.segment_name')); ?> <span class="field-hint"><?php echo stridebr_e(stridebr_t('common.optional')); ?></span></label><input type="text" name="<?php echo stridebr_e($unitName((string) $unitIndex) . '[rotulo]'); ?>" maxlength="120" value="<?php echo stridebr_e((string) ($unitData['rotulo'] ?? '')); ?>" placeholder="<?php echo stridebr_e(stridebr_t('activity.segment_example', ['label' => stridebr_t('activity.segment'), 'number' => $unitIndex + 1])); ?>"></div>
                         </div>
-                        <?php echo atividadeRenderizarMetricasCanonicasTrecho($unitName((string) $unitIndex), $unitData, $unitDerivedType, $unitFields); ?>
+                        <?php echo atividadeRenderizarMetricasCanonicasTrecho($unitName((string) $unitIndex), $unitData, $unitDerivedType, $unitFields, $unitSportContext); ?>
                     <?php endif; ?>
                     <div class="activity-unit-grid" data-model-unit-fields>
                         <?php foreach ($unitFields as $campo): ?><?php echo atividadeRenderizarCampo($campo, $unitName((string) $unitIndex) . "[values][{$campo['idcampo']}]", $htmlIdPrefix . "_{$unitIndex}_{$campo['idcampo']}", $unitValues[$campo['idcampo']] ?? null, $enforceRequired); ?><?php endforeach; ?>
@@ -149,7 +154,7 @@ $segmentModeName = $namePrefix === '' ? 'usa_trechos' : "{$namePrefix}[usa_trech
                         <?php echo atividadeRenderizarSeletorModalidadeUnidade($unitName('__INDEX__') . '[idmodalidade]', $catalogo, (string) ($modelo['idmodalidade'] ?? ''), (string) ($modelo['idmodalidade'] ?? '')); ?>
                         <div class="input-field"><label><?php echo stridebr_e(stridebr_t('activity.segment_name')); ?> <span class="field-hint"><?php echo stridebr_e(stridebr_t('common.optional')); ?></span></label><input type="text" name="<?php echo stridebr_e($unitName('__INDEX__') . '[rotulo]'); ?>" maxlength="120" placeholder="<?php echo stridebr_e(stridebr_t('activity.segment_example', ['label' => (string) ($modelo['rotulo_unidade'] ?? stridebr_t('activity.segment')), 'number' => '__NUMBER__'])); ?>"></div>
                     </div>
-                    <?php echo atividadeRenderizarMetricasCanonicasTrecho($unitName('__INDEX__'), [], (string) ($modelo['metrica_derivada'] ?? 'nenhuma'), $unitFields); ?>
+                    <?php echo atividadeRenderizarMetricasCanonicasTrecho($unitName('__INDEX__'), [], (string) ($modelo['metrica_derivada'] ?? 'nenhuma'), $unitFields, $modelSportContext); ?>
                 <?php endif; ?>
                 <div class="activity-unit-grid" data-model-unit-fields>
                     <?php foreach ($unitFields as $campo): ?><?php echo atividadeRenderizarCampo($campo, $unitName('__INDEX__') . "[values][{$campo['idcampo']}]", $htmlIdPrefix . "___INDEX___{$campo['idcampo']}", null, $enforceRequired); ?><?php endforeach; ?>

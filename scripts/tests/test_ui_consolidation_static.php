@@ -34,12 +34,12 @@ $dashboardCss = $read('public/assets/css/dashboard.css');
 
 $assert(!str_contains($activities, '.activity-share-') && !str_contains($ui, '.activity-share-'), 'compartilhamento deve ter uma folha dedicada, sem versões concorrentes em atividades/ui-refresh.');
 $assert(str_contains($page, '/assets/css/activity-sharing.css'), 'Atividades precisa carregar a folha consolidada do compartilhamento.');
-$assert(!str_contains($sharing, '!important'), 'folha consolidada do compartilhamento não deve depender de !important.');
+$assert(substr_count($sharing, '!important') === 1 && str_contains($sharing, '.activity-share-modal [hidden]') && str_contains($sharing, 'display: none !important'), 'compartilhamento só pode usar !important no contrato estrutural de [hidden].');
 $assert(!preg_match('/(?:v3|v5|v8|v9|v10|final fix)/i', $sharing), 'folha consolidada não deve criar uma nova pilha de versões.');
 $assert(str_contains($sharing, 'grid-template-columns: repeat(3, minmax(0, 1fr))') && str_contains($sharing, 'grid-template-rows: minmax(0, 1fr) auto'), 'preview precisa reservar stage real e os três formatos em barra horizontal.');
 $assert(str_contains($sharing, 'height: 84px') && str_contains($sharing, 'height: 64px') && !preg_match('/font-size\s*:\s*\.5[0-9]*rem/i', $sharing), 'seletores visuais não podem ser comprimidos para 32px/texto microscópico.');
 $assert(str_contains($js, 'const availableHeight = Math.max(0, stageRect.height') && str_contains($js, 'shareCanvas.style.width = `${fitted.width}px`') && !str_contains($js, 'shareCanvas.style.setProperty(\'width\', `${fitted.width}px`, \'important\')'), 'JS da preview deve apenas dimensionar/centralizar dentro do stage CSS.');
-$assert(str_contains($js, "let activeShareCompositionId = 'standard'") && str_contains($js, "const isWide = format === 'square'") && !str_contains($js, "compactWide: {id: 'compactWide'"), 'Compacto deve ser composição e a versão em grade deve derivar do formato Quadrado.');
+$assert(str_contains($js, "let activeShareCompositionId = 'standard'") && str_contains($js, "const isWide = compactLayoutMode === 'grid'") && str_contains($js, "layoutByFormat: Object.freeze({story: 'vertical', portrait: 'vertical', square: 'grid'})") && !str_contains($js, "compactWide: {id: 'compactWide'"), 'Compacto deve ser composição e a versão em grade deve derivar do formato Quadrado.');
 $assert(str_contains($page, "stridebr_t('activity.share.composition_compact')") && str_contains($page, 'data-share-composition'), 'rótulo de Compacto precisa ficar no seletor de composição.');
 
 $semanticShareModifiers = [

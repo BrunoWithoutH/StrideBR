@@ -1,4 +1,5 @@
 (() => {
+    const build = document.currentScript?.dataset.build || 'rc'
     const media = window.matchMedia?.('(display-mode: standalone)') || null
     const isStandalone = () => Boolean(media?.matches || window.navigator.standalone === true)
     const applyDisplayMode = () => {
@@ -17,7 +18,7 @@
     window.addEventListener('pageshow', applyDisplayMode)
     if ('serviceWorker' in navigator && window.isSecureContext) {
         window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/sw.js', {scope: '/'}).catch(() => {})
+            navigator.serviceWorker.register(`/sw.js?build=${encodeURIComponent(build)}`, {scope: '/', updateViaCache: 'none'}).catch(() => {})
         }, {once: true})
     }
 })()

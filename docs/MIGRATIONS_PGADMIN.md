@@ -1,3 +1,5 @@
+> HISTÓRICO — procedimento da hospedagem anterior. Não usar para Web 1.0. Contrato atual: [DEPLOY_DOKPLOY.md](DEPLOY_DOKPLOY.md).
+
 # Migrations pelo pgAdmin do AlwaysData
 
 Quando a rede local bloquear a porta externa do PostgreSQL, as migrations podem ser aplicadas pelo Query Tool do pgAdmin disponibilizado pelo AlwaysData.

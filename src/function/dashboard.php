@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/activity_sport_context.php';
 
 function dashboardGerarId(int $length = 21): string
 {
@@ -632,53 +633,162 @@ function dashboardMetaPrazoLabel(array $meta): string
     return dashboardMetaPeriodo((string) ($meta['periodo'] ?? 'semanal'));
 }
 
-function dashboardVisaoAtividades(PDO $pdo, string $idUsuario): array
+function dashboardAtividadeSemanaApresentar(array $atividade, ?string $locale = null): array
+{
+    $slug = trim((string) ($atividade['modalidade_slug'] ?? ''));
+    $sportName = stridebr_sport_name($slug, (string) ($atividade['modalidade_nome'] ?? ''), $locale);
+    $storedTitle = trim((string) ($atividade['titulo'] ?? ''));
+    $title = stridebr_present_activity_title($storedTitle !== '' ? $storedTitle : $sportName, $slug, $locale);
+    $distanceM = is_numeric($atividade['distancia_m'] ?? null) ? max(0.0, (float) $atividade['distancia_m']) : 0.0;
+    $durationS = is_numeric($atividade['duracao_s'] ?? null) ? max(0.0, (float) $atividade['duracao_s']) : 0.0;
+    $context = atividadeContextoEsportivo($slug, (string) ($atividade['modalidade_familia_hub'] ?? ''), ['registered_m' => $distanceM]);
+    $distanceLabel = $distanceM > 0 ? atividadeContextoFormatarDistancia($distanceM, $context, $locale) : '';
+    $durationLabel = '';
+    if ($durationS > 0) {
+        $wholeMinute = abs(($durationS / 60.0) - round($durationS / 60.0)) < 0.000001;
+        $durationLabel = $distanceM <= 0 && empty($context['is_track']) && $wholeMinute
+            ? dashboardFormatarDuracao($durationS)
+            : atividadeContextoFormatarTempo($durationS, $locale, $durationS >= 60);
+    }
+    $startedAt = null;
+    try {
+        if (!empty($atividade['data_inicio'])) $startedAt = new DateTimeImmutable((string) $atividade['data_inicio']);
+    } catch (Throwable) {
+        $startedAt = null;
+    }
+    $timeLabel = $startedAt ? $startedAt->setTimezone(new DateTimeZone('America/Sao_Paulo'))->format('H:i') : '';
+    $metadata = array_values(array_filter([$timeLabel, $distanceLabel, $durationLabel], static fn(string $value): bool => $value !== ''));
+    $id = trim((string) ($atividade['idregistro'] ?? ''));
+    return [
+        'idregistro' => $id,
+        'titulo' => $title,
+        'modalidade_slug' => $slug,
+        'hora' => $timeLabel,
+        'distancia' => $distanceLabel,
+        'duracao' => $durationLabel,
+        'metadata' => implode(' · ', $metadata),
+        'aria_label' => implode(', ', array_values(array_filter([$title, ...$metadata], static fn(string $value): bool => $value !== ''))),
+        'href' => $id !== '' ? '/user/atividades.php#atividade-' . rawurlencode($id) : '/user/atividades.php',
+    ];
+}
+
+function dashboardMontarVisaoAtividades(array $dailyRows, ?DateTimeImmutable $today = null, int $weekOffset = 0): array
 {
     $tz = new DateTimeZone('America/Sao_Paulo');
-    $today = new DateTimeImmutable('today', $tz);
-    $start = $today->modify('-6 days');
-    $weekStart = $today->modify('-' . ((int) $today->format('N') - 1) . ' days');
-    $stmt = $pdo->prepare(
-        "SELECT (ra.data_inicio AT TIME ZONE 'America/Sao_Paulo')::date AS dia,
-                COUNT(DISTINCT ra.idregistro) AS atividades,
-                COALESCE(SUM(va.valor_normalizado) FILTER (WHERE lower(cm.slug) = 'distancia'), 0) AS distancia_m,
-                COALESCE(SUM(va.valor_normalizado) FILTER (WHERE lower(cm.slug) = 'duracao'), 0) AS duracao_s,
-                COALESCE(SUM(va.valor_normalizado) FILTER (WHERE lower(cm.slug) IN ('elevacao', 'desnivel')), 0) AS elevacao_m
-         FROM registros_atividade ra
-         LEFT JOIN valores_atividade va ON va.idregistro = ra.idregistro
-         LEFT JOIN campos_modelo cm ON cm.idcampo = va.idcampo
-         WHERE ra.idusuario = :usuario
-           AND ra.excluido_em IS NULL
-           AND ra.status = 'concluido'
-           AND ra.data_inicio >= :inicio
-         GROUP BY (ra.data_inicio AT TIME ZONE 'America/Sao_Paulo')::date
-         ORDER BY dia"
-    );
-    $stmt->execute([':usuario' => $idUsuario, ':inicio' => $start->format('Y-m-d 00:00:00P')]);
+    $today = ($today ?? new DateTimeImmutable('today', $tz))->setTimezone($tz)->setTime(0, 0);
+    $weekStart = $today->modify('-' . ((int) $today->format('N') - 1) . ' days')->modify(sprintf('%+d weeks', $weekOffset));
+    $weekEnd = $weekStart->modify('+7 days');
     $rows = [];
-    foreach ($stmt->fetchAll() as $row) $rows[(string) $row['dia']] = $row;
+    foreach ($dailyRows as $row) {
+        $key = trim((string) ($row['dia'] ?? ''));
+        if ($key !== '') $rows[$key] = $row;
+    }
 
-    $resumo = ['atividades' => 0, 'distancia_km' => 0.0, 'duracao_s' => 0.0, 'elevacao_m' => 0.0];
+    $resumo = ['atividades' => 0, 'distancia_km' => 0.0, 'duracao_s' => 0.0, 'elevacao_m' => 0.0, 'dias_ativos' => 0];
     $dias = [];
     for ($i = 0; $i < 7; $i++) {
-        $date = $start->modify('+' . $i . ' days');
+        $date = $weekStart->modify('+' . $i . ' days');
         $key = $date->format('Y-m-d');
         $row = $rows[$key] ?? [];
+        $rawActivities = [];
+        if (isset($row['atividades_itens']) && is_array($row['atividades_itens'])) {
+            $rawActivities = array_values($row['atividades_itens']);
+        } elseif (!empty($row['atividades_json'])) {
+            $decoded = json_decode((string) $row['atividades_json'], true);
+            if (is_array($decoded)) $rawActivities = array_values($decoded);
+        }
+        $activities = [];
+        foreach ($rawActivities as $activity) {
+            if (!is_array($activity)) continue;
+            $activities[] = dashboardAtividadeSemanaApresentar($activity);
+        }
+        $modalidades = array_values(array_filter(array_map(static fn(array $item): string => (string) ($item['modalidade_slug'] ?? ''), $activities)));
+        if ($modalidades === []) {
+            if (isset($row['modalidades']) && is_array($row['modalidades'])) {
+                $modalidades = array_values(array_filter(array_map('strval', $row['modalidades'])));
+            } elseif (!empty($row['modalidades_json'])) {
+                $decoded = json_decode((string) $row['modalidades_json'], true);
+                if (is_array($decoded)) $modalidades = array_values(array_filter(array_map('strval', $decoded)));
+            }
+        }
+        $activityCount = max(count($activities), max(0, (int) ($row['atividades'] ?? 0)));
         $dias[] = [
             'data' => $key,
             'rotulo' => stridebr_weekday_short($date),
-            'atividades' => (int) ($row['atividades'] ?? 0),
-            'duracao_s' => (float) ($row['duracao_s'] ?? 0),
+            'data_label' => stridebr_format_date_weekday($date),
+            'atividades' => $activityCount,
+            'atividades_itens' => $activities,
+            'modalidades' => $modalidades,
+            'duracao_s' => max(0.0, (float) ($row['duracao_s'] ?? 0)),
             'hoje' => $key === $today->format('Y-m-d'),
+            'futuro' => $date > $today,
         ];
-        if ($date >= $weekStart) {
-            $resumo['atividades'] += (int) ($row['atividades'] ?? 0);
-            $resumo['distancia_km'] += ((float) ($row['distancia_m'] ?? 0)) / 1000;
-            $resumo['duracao_s'] += (float) ($row['duracao_s'] ?? 0);
-            $resumo['elevacao_m'] += (float) ($row['elevacao_m'] ?? 0);
+        if ($date <= $today) {
+            $resumo['atividades'] += $activityCount;
+            $resumo['dias_ativos'] += $activityCount > 0 ? 1 : 0;
+            $resumo['distancia_km'] += max(0.0, (float) ($row['distancia_m'] ?? 0)) / 1000;
+            $resumo['duracao_s'] += max(0.0, (float) ($row['duracao_s'] ?? 0));
+            $resumo['elevacao_m'] += max(0.0, (float) ($row['elevacao_m'] ?? 0));
         }
     }
-    return ['resumo' => $resumo, 'dias' => $dias];
+    return ['resumo' => $resumo, 'dias' => $dias, 'inicio' => $weekStart, 'fim' => $weekEnd];
+}
+
+function dashboardVisaoAtividades(PDO $pdo, string $idUsuario, int $weekOffset = 0): array
+{
+    $tz = new DateTimeZone('America/Sao_Paulo');
+    $today = new DateTimeImmutable('today', $tz);
+    $weekStart = $today->modify('-' . ((int) $today->format('N') - 1) . ' days')->modify(sprintf('%+d weeks', $weekOffset));
+    $weekEnd = $weekStart->modify('+7 days');
+    $stmt = $pdo->prepare(
+        "WITH atividade_dia AS (
+            SELECT ra.idregistro,
+                   ra.titulo,
+                   ra.data_inicio,
+                   (ra.data_inicio AT TIME ZONE 'America/Sao_Paulo')::date AS dia,
+                   m.nome AS modalidade_nome,
+                   m.slug AS modalidade_slug,
+                   m.familia_hub AS modalidade_familia_hub,
+                   COALESCE(SUM(va.valor_normalizado) FILTER (WHERE lower(cm.slug) = 'distancia'), 0) AS distancia_m,
+                   COALESCE(NULLIF(GREATEST(0, EXTRACT(EPOCH FROM (COALESCE(MAX(ra.data_fim), MAX(ra.data_inicio)) - MAX(ra.data_inicio)))), 0), COALESCE(SUM(va.valor_normalizado) FILTER (WHERE lower(cm.slug) = 'duracao'), 0), 0) AS duracao_s,
+                   COALESCE(SUM(va.valor_normalizado) FILTER (WHERE lower(cm.slug) IN ('elevacao', 'desnivel')), 0) AS elevacao_m
+            FROM registros_atividade ra
+            JOIN modalidades m ON m.idmodalidade = ra.idmodalidade
+            LEFT JOIN valores_atividade va ON va.idregistro = ra.idregistro
+            LEFT JOIN campos_modelo cm ON cm.idcampo = va.idcampo
+            WHERE ra.idusuario = :usuario
+              AND ra.excluido_em IS NULL
+              AND ra.status = 'concluido'
+              AND ra.data_inicio >= :inicio
+              AND ra.data_inicio < :fim
+            GROUP BY ra.idregistro, ra.titulo, ra.data_inicio, (ra.data_inicio AT TIME ZONE 'America/Sao_Paulo')::date, m.nome, m.slug, m.familia_hub
+        )
+        SELECT dia,
+               COUNT(*) AS atividades,
+               COALESCE(SUM(distancia_m), 0) AS distancia_m,
+               COALESCE(SUM(duracao_s), 0) AS duracao_s,
+               COALESCE(SUM(elevacao_m), 0) AS elevacao_m,
+               json_agg(modalidade_slug ORDER BY data_inicio, idregistro) AS modalidades_json,
+               json_agg(json_build_object(
+                   'idregistro', idregistro,
+                   'titulo', titulo,
+                   'data_inicio', data_inicio,
+                   'modalidade_nome', modalidade_nome,
+                   'modalidade_slug', modalidade_slug,
+                   'modalidade_familia_hub', modalidade_familia_hub,
+                   'distancia_m', distancia_m,
+                   'duracao_s', duracao_s
+               ) ORDER BY data_inicio, idregistro) AS atividades_json
+        FROM atividade_dia
+        GROUP BY dia
+        ORDER BY dia"
+    );
+    $stmt->execute([
+        ':usuario' => $idUsuario,
+        ':inicio' => $weekStart->format('Y-m-d 00:00:00P'),
+        ':fim' => $weekEnd->format('Y-m-d 00:00:00P'),
+    ]);
+    return dashboardMontarVisaoAtividades($stmt->fetchAll(), $today, $weekOffset);
 }
 
 function dashboardResumoSemana(PDO $pdo, string $idUsuario): array

@@ -24,6 +24,15 @@ $ok($ptKeys === $enKeys, 'dicionários possuem as mesmas chaves');
 $ok(array_filter($pt, static fn(mixed $value): bool => trim((string) $value) === '') === [], 'PT-BR não possui valores vazios');
 $ok(array_filter($en, static fn(mixed $value): bool => trim((string) $value) === '') === [], 'English não possui valores vazios');
 
+$ok(stridebr_supported_locale_modes() === ['auto', 'pt-BR', 'en'], 'modos derivam do registry');
+$ok(array_column(stridebr_locale_registry(), 'autonym') === ['Português (Brasil)', 'English'], 'autônimos estáveis');
+foreach ($pt as $key => $value) {
+    preg_match_all('/\{[a-zA-Z_][a-zA-Z0-9_]*\}/', $value, $ptSlots);
+    preg_match_all('/\{[a-zA-Z_][a-zA-Z0-9_]*\}/', $en[$key], $enSlots);
+    sort($ptSlots[0]); sort($enSlots[0]);
+    $ok($ptSlots[0] === $enSlots[0], "placeholders equivalentes: {$key}");
+}
+
 $ok(stridebr_weekday_name('2026-09-03', 'pt-BR') === 'quinta-feira', 'weekday completo PT-BR');
 $ok(stridebr_weekday_name('2026-09-03', 'en') === 'Thursday', 'weekday completo English');
 $ok(stridebr_weekday_short('2026-09-04', 'pt-BR') === 'sex', 'weekday curto PT-BR');
@@ -53,7 +62,7 @@ $ok(stridebr_present_activity_title('Corrida de madrugada', 'corrida', 'en') ===
 $ok(stridebr_present_activity_title('Corrida com o Boligon', 'corrida', 'en') === 'Corrida com o Boligon', 'título manual preservado');
 
 $pages = [
-    'public/home.php' => ['home.page_title', 'home.open_schedule', 'home.recent_activities'],
+    'public/home.php' => ['home.page_title', 'home.view_agenda', 'home.recent_activities'],
     'public/user/cronogramatreinos.php' => ['schedule.page_title', 'schedule.library', 'schedule.open_month'],
     'public/user/agenda-mensal.php' => ['agenda.page_title'],
     'public/user/biblioteca.php' => ['library.page_title'],

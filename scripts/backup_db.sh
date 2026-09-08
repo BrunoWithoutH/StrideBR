@@ -15,6 +15,7 @@ port=${STRIDEBR_DB_PORT:-5432}
 output=${1:-"backups/stridebr-$(date +%Y%m%d-%H%M%S).dump"}
 mkdir -p "$(dirname -- "$output")"
 export PGPASSWORD="$STRIDEBR_DB_PASSWORD"
+export PGSSLMODE="${STRIDEBR_DB_SSLMODE:-prefer}"
 
 pg_dump \
   -h "$STRIDEBR_DB_HOST" \

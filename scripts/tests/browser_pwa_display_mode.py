@@ -17,7 +17,7 @@ def boot(page, media, ios):
     page.wait_for_timeout(20)
 
 with sync_playwright() as p:
-    browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium',args=['--no-sandbox'])
+    browser=p.chromium.launch(headless=True,args=['--no-sandbox'])
     count=0
     def check(value, message):
         nonlocal_holder=None

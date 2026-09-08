@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/env.php';
+require_once __DIR__ . '/environment.php';
 
 date_default_timezone_set('America/Sao_Paulo');
 
@@ -41,17 +41,12 @@ function stridebr_send_server_timing(): void
     }
     if ($total >= 2000) {
         $method = (string) ($_SERVER['REQUEST_METHOD'] ?? 'GET');
-        $uri = (string) ($_SERVER['REQUEST_URI'] ?? '/');
+        $uri = (string) (parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH) ?: '/');
         error_log(sprintf('[StrideBR slow request] %s %s %.0fms', $method, $uri, $total));
     }
 }
 
 register_shutdown_function('stridebr_send_server_timing');
-
-function stridebr_is_production(): bool
-{
-    return stridebr_lower(trim((string) (getenv('STRIDEBR_APP_ENV') ?: ''))) === 'production';
-}
 
 function stridebr_start_session(): void
 {
@@ -59,8 +54,7 @@ function stridebr_start_session(): void
         return;
     }
 
-    $httpsRequest = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
-    $secureCookie = stridebr_is_production() || $httpsRequest;
+    $secureCookie = stridebr_secure_cookie();
 
     ini_set('session.use_strict_mode', '1');
     ini_set('session.use_only_cookies', '1');
@@ -248,22 +242,6 @@ function stridebr_take_flashes(): array
     return is_array($flashes) ? $flashes : [];
 }
 
-function stridebr_client_ip(): ?string
-{
-    if (stridebr_is_production()) {
-        $realIp = $_SERVER['HTTP_X_REAL_IP'] ?? null;
-        if (is_string($realIp) && filter_var($realIp, FILTER_VALIDATE_IP) !== false) {
-            return $realIp;
-        }
-    }
-
-    $ip = $_SERVER['REMOTE_ADDR'] ?? null;
-    if (!is_string($ip) || filter_var($ip, FILTER_VALIDATE_IP) === false) {
-        return null;
-    }
-    return $ip;
-}
-
 function stridebr_slug(string $value): string
 {
     $value = trim($value);
@@ -276,6 +254,8 @@ function stridebr_slug(string $value): string
     return trim($value, '-');
 }
 
+require_once __DIR__ . '/http_headers.php';
+stridebr_send_security_headers();
 stridebr_start_session();
 require_once __DIR__ . '/i18n.php';
 
@@ -660,7 +640,7 @@ function stridebr_maps_runtime_script(): string
 
 function stridebr_version(): string
 {
-    return trim((string) (getenv('STRIDEBR_VERSION') ?: '1.0.0-rc.2'));
+    return trim((string) (getenv('STRIDEBR_VERSION') ?: '1.0.0-rc.3'));
 }
 
 function stridebr_build(): string
@@ -817,6 +797,7 @@ function stridebr_support_email(): string
     if ($configured !== '' && filter_var($configured, FILTER_VALIDATE_EMAIL)) {
         return $configured;
     }
+    if (!stridebr_is_development()) throw new RuntimeException('Missing or invalid STRIDEBR_SUPPORT_EMAIL');
     return 'pinheirobrunoevaristo@gmail.com';
 }
 
@@ -829,52 +810,9 @@ function stridebr_support_mailto(string $subject = ''): string
     return $url;
 }
 
-function stridebr_public_url(): string
-{
-    $configured = rtrim(trim((string) (getenv('STRIDEBR_APP_URL') ?: '')), '/');
-    if ($configured !== '' && filter_var($configured, FILTER_VALIDATE_URL)) {
-        $scheme = stridebr_lower((string) parse_url($configured, PHP_URL_SCHEME));
-        if (in_array($scheme, ['http', 'https'], true) && (!stridebr_is_production() || $scheme === 'https')) {
-            return $configured;
-        }
-    }
-
-    $host = (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
-    if (!preg_match('/^[a-z0-9.-]+(?::\d{1,5})?$/i', $host)) {
-        $host = 'localhost';
-    }
-    $secure = stridebr_is_production() || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || stridebr_lower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
-    return ($secure ? 'https://' : 'http://') . $host;
-}
-
 function stridebr_social_image_url(): string
 {
     return stridebr_public_url() . '/assets/img/branding/stridebr-og.png';
-}
-
-function stridebr_app_url(): string
-{
-    $configured = rtrim(trim((string) (getenv('STRIDEBR_APP_URL') ?: '')), '/');
-    if ($configured !== '' && filter_var($configured, FILTER_VALIDATE_URL)) {
-        $scheme = stridebr_lower((string) parse_url($configured, PHP_URL_SCHEME));
-        if (in_array($scheme, ['http', 'https'], true)) {
-            if (stridebr_is_production() && $scheme !== 'https') {
-                throw new RuntimeException('STRIDEBR_APP_URL precisa usar HTTPS em produção.');
-            }
-            return $configured;
-        }
-    }
-
-    if (stridebr_is_production()) {
-        throw new RuntimeException('STRIDEBR_APP_URL precisa estar configurada com uma URL HTTPS válida em produção.');
-    }
-
-    $host = (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
-    if (!preg_match('/^[a-z0-9.-]+(?::\d{1,5})?$/i', $host)) {
-        $host = 'localhost';
-    }
-    $secure = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
-    return ($secure ? 'https://' : 'http://') . $host;
 }
 
 function stridebr_password_is_valid_length(string $password, int $min = 8, int $max = 128): bool

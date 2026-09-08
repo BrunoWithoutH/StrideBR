@@ -98,7 +98,7 @@ function renderExtraInput(array $campo, mixed $valor, string $name): string
         <div class="exercise-shell">
             <div class="exercise-heading">
                 <div>
-                    <a class="back-link" href="/user/cronogramatreinos.php?id=<?php echo urlencode($treino['idcronograma']); ?>">← <?php echo stridebr_e($treino['cronograma_nome']); ?></a>
+                    <a class="back-link context-back-button" data-safe-back href="/user/cronogramatreinos.php?id=<?php echo urlencode($treino['idcronograma']); ?>">← <?php echo stridebr_e($treino['cronograma_nome']); ?></a>
                     <h1><?php echo stridebr_e($treino['titulo']); ?></h1>
                     <p><?php echo stridebr_e(substr($treino['hora_inicio'], 0, 5)); ?>–<?php echo stridebr_e(substr($treino['hora_fim'], 0, 5)); ?><?php echo stridebr_db_bool($treino['termina_dia_seguinte']) ? ' · ' . stridebr_t('exercise.ends_next_day') : ''; ?></p>
                 </div>

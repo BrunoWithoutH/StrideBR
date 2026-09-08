@@ -61,6 +61,17 @@ return function (PDO $pdo): void {
     $historyRow = $historyStmt->fetch();
     AlphaTest::same('2026-08-14', (new DateTimeImmutable((string) $historyRow['data_ocorrencia_planejada']))->format('Y-m-d'), 'Data planejada histórica não foi salva');
     AlphaTest::same(3600, (new DateTimeImmutable((string) $historyRow['data_fim']))->getTimestamp() - (new DateTimeImmutable((string) $historyRow['data_inicio']))->getTimestamp(), 'Corrigir a realização alterou a duração da atividade');
+    require_once dirname(__DIR__, 2) . '/src/function/planejamento.php';
+    $facts = planejamentoSemana($pdo, $a, '2026-08-24', $schedule);
+    AlphaTest::assert($facts['completed'] >= 1, 'Resumo semanal perdeu realização vinculada');
+    $allFacts = planejamentoSemana($pdo, $a, '2026-08-24');
+    AlphaTest::assert($allFacts['planned'] >= $facts['planned'], 'Resumo com agendamentos perdeu cronograma');
+    $pdo->prepare("UPDATE registros_atividade SET data_inicio='2026-06-01 14:00', data_fim='2026-06-01 15:00' WHERE idregistro=:id")->execute([':id'=>$historyActivity]);
+    $distantFacts = planejamentoSemana($pdo, $a, '2026-08-10', $schedule);
+    AlphaTest::same(1, $distantFacts['completed'], 'Realização distante com vínculo explícito virou falta');
+    cronogramaCancelarOcorrencia($pdo, $a, $workoutB, '2026-09-05');
+    $cancelledFacts = planejamentoSemana($pdo, $a, '2026-08-31', $schedule);
+    AlphaTest::assert(count(array_filter($cancelledFacts['items'], fn($item) => $item['planning_state'] === 'cancelled')) === 1, 'Cancelamento não apareceu no resumo');
     $rescheduleWorkout = cronogramaSalvarTreino($pdo, $a, ['idcronograma' => $schedule, 'titulo' => 'Reagendamento', 'dia_semana' => '3', 'hora_inicio' => '07:00', 'hora_fim' => '08:30', 'vigencia_inicio' => '2026-09-01']);
     cronogramaAlterarOcorrencia($pdo, $a, $rescheduleWorkout, '2026-09-02', '2026-09-03', 'all', '15:30');
     $rescheduled = cronogramaBuscarTreino($pdo, $rescheduleWorkout, $a);

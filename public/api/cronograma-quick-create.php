@@ -17,16 +17,16 @@ function quickCreateExercises(string $raw): array
 {
     if (trim($raw) === '') return [];
     $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
-    if (!is_array($decoded)) throw new InvalidArgumentException('Lista de exercícios inválida.');
-    if (count($decoded) > 200) throw new InvalidArgumentException('Um treino pode ter no máximo 200 exercícios.');
+    if (!is_array($decoded)) throw new InvalidArgumentException(stridebr_t('schedule.validation.exercise_list_invalid'));
+    if (count($decoded) > 200) throw new InvalidArgumentException(stridebr_t('schedule.validation.exercise_limit'));
     return array_values(array_filter($decoded, 'is_array'));
 }
 
 try {
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') throw new InvalidArgumentException('Método inválido.');
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') throw new InvalidArgumentException(stridebr_t('schedule.validation.method_invalid'));
     stridebr_verify_csrf();
     stridebr_session_release();
-    if (!cronogramaBibliotecaDisponivel($pdo)) throw new RuntimeException('A biblioteca de treinos ainda precisa da migration de planejamento.');
+    if (!cronogramaBibliotecaDisponivel($pdo)) throw new RuntimeException(stridebr_t('schedule.validation.library_unavailable'));
 
     $action = trim((string) ($_POST['action'] ?? ''));
     $titulo = trim((string) ($_POST['titulo'] ?? ''));
@@ -59,21 +59,21 @@ try {
         exit;
     }
 
-    if ($action !== 'create_schedule') throw new InvalidArgumentException('Ação inválida.');
+    if ($action !== 'create_schedule') throw new InvalidArgumentException(stridebr_t('planning.message.invalid_action'));
 
     $idCronograma = trim((string) ($_POST['idcronograma'] ?? ''));
     $dataTreino = trim((string) ($_POST['data_treino'] ?? ''));
     $date = cronogramaValidarDataIso($dataTreino);
-    if (cronogramaBuscar($pdo, $idCronograma, $idUsuario) === []) throw new RuntimeException('Cronograma não encontrado.');
+    if (cronogramaBuscar($pdo, $idCronograma, $idUsuario) === []) throw new RuntimeException(stridebr_t('planning.message.schedule_missing'));
 
     $horaInicio = trim((string) ($_POST['hora_inicio'] ?? '18:00'));
     $horaFim = trim((string) ($_POST['hora_fim'] ?? '19:00'));
     if (!preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $horaInicio) || !preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $horaFim)) {
-        throw new InvalidArgumentException('Horário inválido.');
+        throw new InvalidArgumentException(stridebr_t('planning.message.invalid_time'));
     }
     $terminaDiaSeguinte = !empty($_POST['termina_dia_seguinte']);
     $recorrencia = trim((string) ($_POST['recorrencia'] ?? 'once'));
-    if (!in_array($recorrencia, ['once', 'weekly'], true)) throw new InvalidArgumentException('Recorrência inválida.');
+    if (!in_array($recorrencia, ['once', 'weekly'], true)) throw new InvalidArgumentException(stridebr_t('schedule.validation.recurrence_invalid'));
     $vigenciaFim = $recorrencia === 'once' ? $dataTreino : (trim((string) ($_POST['vigencia_fim'] ?? '')) ?: null);
     if ($vigenciaFim !== null) cronogramaValidarDataIso($vigenciaFim);
     $sourceModel = trim((string) ($_POST['idtreino_modelo'] ?? ''));
@@ -95,7 +95,7 @@ try {
                 $vigenciaFim
             );
             $modelo = cronogramaBuscarTreinoModelo($pdo, $idUsuario, $sourceModel);
-            if ($modelo === []) throw new RuntimeException('Treino salvo não encontrado.');
+            if ($modelo === []) throw new RuntimeException(stridebr_t('library.workout_not_found'));
             $tituloFinal = $titulo !== '' ? $titulo : (string) $modelo['titulo'];
             cronogramaSalvarTreino($pdo, $idUsuario, [
                 'idcronograma' => $idCronograma,

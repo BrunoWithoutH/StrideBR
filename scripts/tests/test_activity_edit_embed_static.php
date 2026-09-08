@@ -1,7 +1,9 @@
 <?php
 declare(strict_types=1);
 $root=dirname(__DIR__,2);
+require_once $root.'/src/includes/http_headers.php';
 $ht=(string)file_get_contents($root.'/public/.htaccess');
+$ht .= stridebr_content_security_policy(false) . stridebr_content_security_policy(true);
 $js=(string)file_get_contents($root.'/public/assets/js/atividades.js');
 $php=(string)file_get_contents($root.'/public/user/editatividade.php');
 $delete=(string)file_get_contents($root.'/src/function/apagaratividade.php');

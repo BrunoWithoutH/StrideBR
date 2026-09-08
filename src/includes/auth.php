@@ -3,12 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/app.php';
-
-function stridebr_mail_is_configured(): bool
-{
-    $from = trim((string) (getenv('STRIDEBR_MAIL_FROM') ?: ''));
-    return function_exists('mail') && $from !== '' && filter_var($from, FILTER_VALIDATE_EMAIL) !== false;
-}
+require_once __DIR__ . '/mail.php';
 
 function stridebr_auth_email_verification_enabled(PDO $pdo): bool
 {
@@ -168,27 +163,6 @@ function stridebr_auth_load_user(PDO $pdo, string $userId): ?array
     return $user ?: null;
 }
 
-function stridebr_send_mail(string $to, string $subject, string $body): bool
-{
-    if (!filter_var($to, FILTER_VALIDATE_EMAIL) || !stridebr_mail_is_configured()) {
-        return false;
-    }
-    $from = trim((string) getenv('STRIDEBR_MAIL_FROM'));
-    $fromName = trim((string) (getenv('STRIDEBR_MAIL_FROM_NAME') ?: 'StrideBR'));
-    $fromName = preg_replace('/[\r\n]+/', ' ', $fromName) ?? 'StrideBR';
-    $headers = [
-        'MIME-Version: 1.0',
-        'Content-Type: text/plain; charset=UTF-8',
-        'Content-Transfer-Encoding: 8bit',
-        'From: ' . $fromName . ' <' . $from . '>',
-        'Reply-To: ' . $from,
-        'Sender: ' . $from,
-        'X-Mailer: StrideBR',
-    ];
-    if (function_exists('mb_encode_mimeheader')) { $subject = mb_encode_mimeheader($subject, 'UTF-8'); }
-    return mail($to, $subject, $body, implode("\r\n", $headers));
-}
-
 function stridebr_send_verification_email(PDO $pdo, string $userId, string $email, string $name): bool
 {
     if (!stridebr_mail_is_configured()) {
@@ -255,8 +229,6 @@ function stridebr_auth_google_enabled(): bool
 
 function stridebr_auth_google_redirect_uri(): string
 {
-    $configured = trim((string) (getenv('GOOGLE_OAUTH_REDIRECT_URI') ?: ''));
-    if ($configured !== '' && filter_var($configured, FILTER_VALIDATE_URL)) return $configured;
     return stridebr_app_url() . '/auth/google-callback.php';
 }
 

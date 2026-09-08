@@ -7,6 +7,8 @@ cd "$project_root"
 full=0
 if [ "${1:-}" = "--full" ]; then full=1; fi
 
+php scripts/config_check.php
+
 printf '%s\n' '[release] verificações estáticas'
 ./scripts/test_static.sh
 
@@ -25,7 +27,10 @@ if [ "$full" -eq 1 ]; then
   ./scripts/test_all.sh
 fi
 
-env_file="${STRIDEBR_ENV_FILE:-$HOME/.config/stridebr/db.env}"
+env_file="${STRIDEBR_ENV_FILE:-.env}"
+require_database=0
+app_environment=$(php -r 'require "src/includes/environment.php"; echo stridebr_app_env();')
+case "$app_environment" in staging|production) require_database=1; php scripts/config_check.php --database ;; esac
 if [ -f "$env_file" ] || { [ -n "${STRIDEBR_DB_HOST:-}" ] && [ -n "${STRIDEBR_DB_NAME:-}" ] && [ -n "${STRIDEBR_DB_USER:-}" ] && [ -n "${STRIDEBR_DB_PASSWORD:-}" ]; }; then
   if command -v psql >/dev/null 2>&1; then
     printf '%s\n' '[release] status das migrations'
@@ -37,9 +42,11 @@ if [ -f "$env_file" ] || { [ -n "${STRIDEBR_DB_HOST:-}" ] && [ -n "${STRIDEBR_DB
     fi
     printf '%s\n' '✓ migrations sem pendências'
   else
+    [ "$require_database" -eq 0 ] || { echo 'Required migration status unavailable: psql missing' >&2; exit 1; }
     printf '%s\n' '○ migrations: psql não encontrado'
   fi
 else
+  [ "$require_database" -eq 0 ] || { echo "Required migration status unavailable" >&2; exit 1; }
   printf '%s\n' "○ migrations: credenciais locais não encontradas em $env_file"
 fi
 

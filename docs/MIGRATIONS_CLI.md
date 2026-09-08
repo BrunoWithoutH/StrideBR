@@ -1,72 +1,15 @@
-# Migrations pelo terminal
+# Migrations — contrato atual
 
-O runner oficial é `scripts/migrate_product.sh`. Ele aplica somente arquivos ainda não registrados em `public.stridebr_schema_migrations` e registra cada migration automaticamente depois que o SQL termina sem erro.
+O runner é `sh scripts/migrate_product.sh apply`. Requer `psql` e `STRIDEBR_DB_HOST`, `STRIDEBR_DB_PORT`, `STRIDEBR_DB_NAME`, `STRIDEBR_DB_USER`, `STRIDEBR_DB_PASSWORD`; SSL via `STRIDEBR_DB_SSLMODE`. Credenciais vêm do ambiente ou de arquivo privado explícito. Não usar banco remoto nos testes locais.
 
-## Credenciais fora do repositório
+- `status`: lista aplicada/PENDENTE.
+- `apply`: inicializa schema base se necessário e aplica somente arquivos pendentes.
+- `mark ARQUIVO.sql`: ferramenta excepcional de reconciliação; não substitui execução normal.
 
-Crie `~/.config/stridebr/db.env` e restrinja a leitura:
+A imagem `migrations` do Dockerfile contém o runner e SQL, sem bind mount. `compose.dokploy.yaml` só inicia o app após o job terminar com sucesso. O runner mantém advisory lock no banco durante execução para serializar jobs/replicas; falha SQL retorna erro e interrompe a cadeia. Os nomes e o histórico das seis migrations atuais permanecem intactos, inclusive tratamento de blocos consolidados legados.
 
-```bash
-mkdir -p ~/.config/stridebr
-chmod 700 ~/.config/stridebr
-cat > ~/.config/stridebr/db.env <<'EOF'
-STRIDEBR_DB_HOST=postgresql-SUA_CONTA.alwaysdata.net
-STRIDEBR_DB_PORT=5432
-STRIDEBR_DB_NAME=SEU_BANCO
-STRIDEBR_DB_USER=SEU_USUARIO
-STRIDEBR_DB_PASSWORD=SUA_SENHA
-EOF
-chmod 600 ~/.config/stridebr/db.env
-```
+A semântica histórica dos SQL é preservada: nem toda sequência antiga é uma única transação. Se houver falha/interrupção, investigar antes de retomar; testar restore/rollback na cópia do banco real com Infra. Não editar arquivos já aplicados.
 
-O arquivo fica no diretório pessoal e não deve ser colocado no Git.
+Local: `./scripts/test_all.sh` testa fresh/idempotência em banco descartável; `sh scripts/tests/test_migrations_upgrade.sh` testa upgrade sem alterar timestamps anteriores. Release publicada exige configuração válida e migrations sem pendências; `php scripts/config_check.php --database` também verifica readiness.
 
-## Uso normal
-
-```bash
-./scripts/migrate_product.sh status
-./scripts/migrate_product.sh
-./scripts/migrate_product.sh status
-```
-
-`status` mostra cada arquivo como `aplicada` ou `PENDENTE`. O comando sem argumentos aplica todas as pendentes em ordem e registra as versões automaticamente.
-
-## Migration aplicada manualmente
-
-Quando uma migration já foi executada pelo pgAdmin e falta apenas registrar o histórico:
-
-```bash
-./scripts/migrate_product.sh mark 20260903_v1_rc.sql
-```
-
-O comando pede confirmação e só aceita nomes de arquivos que realmente existem em `src/database/migrations/`.
-
-Use `mark` somente depois de confirmar que o SQL correspondente foi aplicado com sucesso.
-
-## Outro arquivo de ambiente
-
-Para usar outro local:
-
-```bash
-STRIDEBR_ENV_FILE=/caminho/seguro/db.env ./scripts/migrate_product.sh status
-```
-
-## Deploy com migration automática
-
-O `scripts/deploy_alwaysdata.sh` executa o runner antes do `rsync`. Se uma migration falhar, o deploy para e os arquivos novos não são publicados.
-
-```bash
-./scripts/deploy_alwaysdata.sh
-```
-
-Em uma rede que bloqueie a porta PostgreSQL, aplique as migrations pelo pgAdmin e publique sem executar o runner local:
-
-```bash
-STRIDEBR_SKIP_MIGRATIONS=1 ./scripts/deploy_alwaysdata.sh
-```
-
-## Política de migrations por release
-
-Migrations já publicadas em commits compartilhados são imutáveis. Durante desenvolvimento local, migrations intermediárias podem existir livremente; antes de um commit de release, migrations ainda não publicadas podem ser consolidadas em uma única migration que represente o salto entre o último commit compartilhado e a nova versão.
-
-Para a StrideBR 1.0 RC, todas as migrations criadas após o commit `b0bab77` foram consolidadas em `20260903_v1_rc.sql`. As migrations de 15/08 que já faziam parte daquele commit permanecem separadas por compatibilidade histórica.
+Procedimento operacional completo: [DEPLOY_DOKPLOY.md](DEPLOY_DOKPLOY.md). Nenhuma migration é executada por request HTTP.

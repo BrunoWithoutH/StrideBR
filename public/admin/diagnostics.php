@@ -50,7 +50,7 @@ try {
     error_log('StrideBR diagnostics database info failed: ' . $e->getMessage());
 }
 
-$https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || stridebr_lower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
+$https = stridebr_request_is_https();
 $appUrl = stridebr_app_url();
 $appUrlHttps = str_starts_with(stridebr_lower($appUrl), 'https://');
 $environment = trim((string) (getenv('STRIDEBR_APP_ENV') ?: 'development'));
@@ -125,6 +125,7 @@ $flashes = stridebr_take_flashes();
 
     <title>Diagnóstico | StrideBR Admin</title>
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>">
+    <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/admin.css')); ?>">
 </head>
 <body class="admin-body">
 <div class="container-fluid">

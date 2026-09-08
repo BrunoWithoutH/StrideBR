@@ -1,5 +1,6 @@
 {
     "require": {
-        "hidehalo/nanoid-php": "^2.0"
+        "hidehalo/nanoid-php": "^2.0",
+        "phpmailer/phpmailer": "^7.0"
     }
 }

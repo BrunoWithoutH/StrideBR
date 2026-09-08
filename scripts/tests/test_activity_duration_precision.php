@@ -91,8 +91,8 @@ $js = file_get_contents(dirname(__DIR__, 2) . '/public/assets/js/atividades.js')
 $ok(str_contains($js, 'Math.round(totalSeconds * 1000)'), 'JS estabiliza precisão em 1 ms');
 $ok(str_contains($js, 'sec * 1000 + ms) / 1000'), 'JS inclui ms no valor canônico');
 $ok(!preg_match('/Math\.round\(\s*durationToSeconds/', $js), 'JS não arredonda durationToSeconds para segundo inteiro');
-$ok(str_contains($js, 'const totalMilliseconds = Math.max(0, Math.round((Number(seconds) || 0) * 1000))'), 'share card não arredonda duração para segundo inteiro');
-$ok(str_contains($js, "const decimal = i18n.locale === 'pt-BR' ? ',' : '.'"), 'share card respeita separador decimal do locale');
+$ok(str_contains($js, 'const totalMilliseconds = Math.max(0, Math.round(value * 1000))'), 'share card preserva precisão em milissegundos');
+$ok(str_contains($js, "shareLocaleTag() === 'pt-BR' ? ',' : '.'"), 'share card respeita separador decimal do locale');
 $edit = file_get_contents(dirname(__DIR__, 2) . '/public/user/editatividade.php');
 $ok(str_contains($edit, 'name="duration_source" value="preserve"'), 'edição começa preservando a duração existente');
 $ok(str_contains($edit, '$durationSource !== \'end\' && $postedDurationSeconds !== null'), 'edição só recalcula duração pelo horário final quando o usuário escolhe essa fonte');

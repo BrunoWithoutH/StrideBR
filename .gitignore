@@ -32,3 +32,9 @@ docs/archive/
 AGENTS.md
 CLAUDE.md
 .github/copilot-instructions.md
+*.pem
+*.key
+backups/
+*.zip
+*.tmp
+*.bak

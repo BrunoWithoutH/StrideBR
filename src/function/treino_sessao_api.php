@@ -10,6 +10,7 @@ require_once dirname(__DIR__) . '/config/pg_config.php';
 require_once __DIR__ . '/atividade_modelo.php';
 require_once __DIR__ . '/cronograma.php';
 require_once __DIR__ . '/product_analytics.php';
+require_once __DIR__ . '/workout_load.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -187,6 +188,16 @@ function sessaoCarregar(PDO $pdo, string $idUsuario, bool $includeHistory = true
     $stmt->execute([':usuario' => $idUsuario]);
     $session = $stmt->fetch();
     if (!$session) return [];
+
+    // PostgreSQL TIMESTAMPTZ is serialized explicitly for Safari and restored PWAs.
+    try {
+        if (trim((string) ($session['data_inicio'] ?? '')) === '') throw new UnexpectedValueException('Missing session start');
+        $started = new DateTimeImmutable((string) $session['data_inicio']);
+        $session['started_at_ms'] = $started->getTimestamp() * 1000;
+        $session['data_inicio'] = $started->format(DateTimeInterface::ATOM);
+    } catch (Throwable $e) {
+        $session['started_at_ms'] = null;
+    }
 
     $exerciseStmt = $pdo->prepare('SELECT * FROM sessoes_treino_exercicios WHERE idsessao = :sessao ORDER BY ordem');
     $exerciseStmt->execute([':sessao' => $session['idsessao']]);
@@ -610,19 +621,47 @@ try {
         if ($idSerie === '') throw new InvalidArgumentException('Série inválida.');
         $reps = sessaoSerieRepeticoes($_POST['repeticoes'] ?? '');
         $load = sessaoSerieCarga($_POST['carga'] ?? '');
-        $stmt = $pdo->prepare("UPDATE sessoes_treino_series st
-            SET repeticoes_realizadas = :reps, carga_realizada = :carga
-            FROM sessoes_treino_exercicios se
-            JOIN sessoes_treino s ON s.idsessao = se.idsessao
-            WHERE st.idsessao_exercicio = se.idsessao_exercicio
-              AND st.idserie = :serie AND s.idusuario = :usuario AND s.status = 'ativo'");
-        $stmt->execute([
-            ':reps' => $reps,
-            ':carga' => $load,
-            ':serie' => $idSerie,
-            ':usuario' => $idUsuario,
-        ]);
-        if ($stmt->rowCount() !== 1) throw new RuntimeException('Série não encontrada.');
+        $propagate = ($_POST['propagate_load'] ?? '0') === '1';
+        $pdo->beginTransaction();
+        try {
+            // Lock the parent first, serializing edits from separate tabs/devices.
+            $lock = $pdo->prepare("SELECT s.idsessao FROM sessoes_treino s
+                JOIN sessoes_treino_exercicios se ON se.idsessao = s.idsessao
+                JOIN sessoes_treino_series st ON st.idsessao_exercicio = se.idsessao_exercicio
+                WHERE st.idserie = :serie AND s.idusuario = :usuario AND s.status = 'ativo' FOR UPDATE OF s");
+            $lock->execute([':serie' => $idSerie, ':usuario' => $idUsuario]);
+            $sessionId = $lock->fetchColumn();
+            if (!$sessionId) throw new RuntimeException('Série não encontrada.');
+            $setsQuery = $pdo->prepare('SELECT * FROM sessoes_treino_series WHERE idsessao_exercicio =
+                (SELECT idsessao_exercicio FROM sessoes_treino_series WHERE idserie = :serie) ORDER BY numero FOR UPDATE');
+            $setsQuery->execute([':serie' => $idSerie]);
+            $sets = $setsQuery->fetchAll();
+            foreach ($sets as &$set) $set['concluida'] = stridebr_db_bool($set['concluida']);
+            unset($set);
+            $inherited = $_SESSION['workout_load_defaults'][$sessionId] ?? [];
+            $targets = $propagate ? stridebr_workout_load_targets($sets, $idSerie, $inherited) : [];
+            // A queued load edit must not revert a concurrent reps edit, and vice versa.
+            foreach ($sets as $set) {
+                if ((string) $set['idserie'] !== $idSerie) continue;
+                if (($_POST['edited_field'] ?? '') === 'load') $reps = $set['repeticoes_realizadas'];
+                if (($_POST['edited_field'] ?? '') === 'reps') $load = $set['carga_realizada'];
+            }
+            $stmt = $pdo->prepare('UPDATE sessoes_treino_series SET repeticoes_realizadas = :reps, carga_realizada = :carga WHERE idserie = :serie');
+            $stmt->execute([':reps' => $reps, ':carga' => $load, ':serie' => $idSerie]);
+            if ($propagate) {
+                $inherited[$idSerie] = null; // Even an explicit empty value creates a boundary.
+                $update = $pdo->prepare('UPDATE sessoes_treino_series SET carga_realizada = :carga WHERE idserie = :serie AND concluida = FALSE');
+                foreach ($targets as $target) {
+                    $update->execute([':carga' => $load, ':serie' => $target]);
+                    $inherited[$target] = (string) $load;
+                }
+            }
+            $pdo->commit();
+            $_SESSION['workout_load_defaults'] = [$sessionId => $inherited];
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            throw $e;
+        }
         sessaoJson(['ok' => true, 'session' => sessaoCarregar($pdo, $idUsuario, false)]);
     }
 

@@ -215,7 +215,7 @@ foreach ($unitFields as $field) {
     <main class="main-content activities-page">
         <header class="activities-toolbar">
             <div class="activities-toolbar-title activity-edit-toolbar-title">
-                <a class="activity-back-link" href="/user/atividades.php">← <?php echo stridebr_e(stridebr_t('activity.back_activities')); ?></a>
+                <a class="activity-back-link context-back-button" href="/user/atividades.php" data-safe-back>← <?php echo stridebr_e(stridebr_t('activity.back_activities')); ?></a>
                 <h1><?php echo stridebr_e(stridebr_t('activity.edit_page_title')); ?></h1>
             </div>
             <div class="activities-toolbar-actions">
@@ -383,6 +383,8 @@ foreach ($unitFields as $field) {
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/time24.js')); ?>"></script>
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/activity-route-utils.js')); ?>"></script>
 <?php echo stridebr_maps_runtime_script(); ?>
+<?php echo atividadeContextoJsConfigScript(); ?>
+<script src="<?php echo stridebr_e(stridebr_asset('/assets/js/activity-sport-context.js')); ?>"></script>
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/atividades.js')); ?>"></script>
 <?php if ($embedded): ?>
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/activity-edit-bridge.js')); ?>"></script>

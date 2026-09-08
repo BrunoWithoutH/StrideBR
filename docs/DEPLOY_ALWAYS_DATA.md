@@ -1,3 +1,5 @@
+> HISTÓRICO — procedimento da hospedagem anterior. Não usar para Web 1.0. Contrato atual: [DEPLOY_DOKPLOY.md](DEPLOY_DOKPLOY.md).
+
 # Deploy no AlwaysData
 
 O StrideBR usa a mesma base de código no Docker e em produção. A conexão com PostgreSQL é definida pelas variáveis de ambiente e nenhuma credencial de produção deve ser salva no repositório.

@@ -72,7 +72,7 @@ $registros = $recordsStmt->fetchAll();
     <main class="main-content exchange-page" data-exchange-page data-csrf-token="<?php echo stridebr_e(stridebr_csrf_token()); ?>">
         <header class="exchange-heading">
             <div>
-                <a href="/user/atividades.php" class="exchange-back"><span aria-hidden="true">←</span><span><?php echo stridebr_e(stridebr_t('activity.summary.activities')); ?></span></a>
+                <a href="/user/atividades.php" class="exchange-back context-back-button" data-safe-back><span aria-hidden="true">←</span><span><?php echo stridebr_e(stridebr_t('activity.summary.activities')); ?></span></a>
                 <h1><?php echo stridebr_e(stridebr_t('activity.import_export')); ?></h1>
             </div>
         </header>

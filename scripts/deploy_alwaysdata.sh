@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -eu
+echo "Legacy deployment disabled. See docs/DEPLOY_DOKPLOY.md." >&2
+exit 2
+# Historical implementation below; never used by the current release.
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"

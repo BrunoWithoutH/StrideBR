@@ -56,7 +56,7 @@ $globalCsrf = stridebr_csrf_token();
     </div>
 
     <div class="workout-session-modal" data-workout-session-modal hidden>
-        <button type="button" class="workout-session-backdrop" data-close-workout-session aria-label="Fechar treino"></button>
+        <button type="button" class="workout-session-backdrop" data-close-workout-session aria-label="<?php echo stridebr_e(stridebr_t('workout_session.minimize')); ?>"></button>
         <section class="workout-session-panel" role="dialog" aria-modal="true" aria-labelledby="active-session-title">
             <header class="workout-session-header">
                 <div><span class="eyebrow"><?php echo stridebr_e(stridebr_t('workout_session.active')); ?></span><h2 id="active-session-title" data-session-title><?php echo stridebr_e(stridebr_t('nav.workout')); ?></h2><p data-session-progress><?php echo stridebr_e(stridebr_t('workout_session.loading')); ?></p></div>

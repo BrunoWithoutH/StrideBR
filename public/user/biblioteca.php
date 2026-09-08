@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/src/includes/errors.php';
 require_once dirname(__DIR__, 2) . '/src/includes/app.php';
+require_once dirname(__DIR__, 2) . '/src/layout/ads.php';
 
 $idUsuario = stridebr_require_login();
 require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
@@ -182,7 +183,6 @@ $exerciseUndo = is_array($_SESSION['exercise_library_undo'] ?? null) && (int) ($
                 <div>
                     <span class="eyebrow"><?php echo stridebr_e(stridebr_t('schedule.planning')); ?></span>
                     <h1><?php echo stridebr_e(stridebr_t('library.page_title')); ?></h1>
-                    <p><?php echo stridebr_e(stridebr_t('library.subtitle')); ?></p>
                 </div>
                 <div class="library-heading-actions" data-library-heading-actions="treinos"<?php echo $tab !== 'treinos' ? ' hidden' : ''; ?>><button type="button" class="primary-button" data-new-workout-library>+ <?php echo stridebr_e(stridebr_t('library.new_workout')); ?></button></div>
                 <div class="library-heading-actions" data-library-heading-actions="exercicios"<?php echo $tab !== 'exercicios' ? ' hidden' : ''; ?>><button type="button" class="secondary-button" data-new-category><?php echo stridebr_e(stridebr_t('library.new_category')); ?></button><button type="button" class="primary-button" data-new-exercise>+ <?php echo stridebr_e(stridebr_t('library.new_exercise')); ?></button></div>
@@ -241,6 +241,7 @@ $exerciseUndo = is_array($_SESSION['exercise_library_undo'] ?? null) && (int) ($
                     <?php endif; ?>
                 </section>
             </div>
+            <?php stridebr_render_ad_slot('library-end', '/user/biblioteca.php', true); ?>
         </div>
     </main>
 </div>

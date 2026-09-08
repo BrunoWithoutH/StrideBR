@@ -74,7 +74,7 @@
         const minutes = Math.floor((seconds % 3600) / 60);
         finishDurationPreview.textContent = t('workout_session.duration_registered', {duration: `${hours > 0 ? `${hours}h ` : ''}${minutes}min`}, `Recorded duration: ${hours > 0 ? `${hours}h ` : ''}${minutes}min`);
     };
-    const post = async payload => {
+    const postRequest = async payload => {
         const body = new FormData();
         body.set('csrf_token', csrf);
         Object.entries(payload).forEach(([key, value]) => body.set(key, String(value)));
@@ -82,6 +82,12 @@
         const data = await response.json().catch(() => ({ok: false, message: t('workout_session.invalid_server_response', {}, 'Invalid server response.')}));
         if (!response.ok && !data.session) throw new Error(data.message || t('workout_session.update_error', {}, 'Could not update the workout.'));
         return data;
+    };
+    let mutationQueue = Promise.resolve();
+    const post = payload => {
+        const request = mutationQueue.then(() => postRequest(payload));
+        mutationQueue = request.catch(() => {});
+        return request;
     };
     const fetchCurrent = async ({force = false, includeHistory = false} = {}) => {
         if (!force && recentlyKnownAbsent()) {
@@ -93,8 +99,8 @@
         try {
             const response = await (window.StrideBRNet?.fetch || fetch)(`/function/treino_sessao.php?action=current&history=${includeHistory ? '1' : '0'}`, {credentials: 'same-origin', headers: {'Accept': 'application/json'}}, includeHistory ? 15000 : 8000);
             const data = await response.json();
-            session = data.session || null;
-            historyLoaded = Boolean(session && includeHistory);
+            session = preserveHistory(data.session || null);
+            historyLoaded = Boolean(session && (includeHistory || historyLoaded));
             rememberPresence(Boolean(session));
             render();
         } catch (_) {
@@ -105,8 +111,8 @@
     };
 
     const elapsedText = () => {
-        if (!session?.data_inicio) return '00:00';
-        const start = new Date(session.data_inicio).getTime();
+        const start = session?.started_at_ms;
+        if (typeof start !== 'number' || !Number.isFinite(start) || start <= 0) return '00:00';
         const seconds = Math.max(0, Math.floor((Date.now() - start) / 1000));
         const hours = Math.floor(seconds / 3600);
         const minutes = Math.floor((seconds % 3600) / 60);
@@ -161,7 +167,7 @@
     };
 
     const formatDuration = value => {
-        const seconds = Math.max(0, Number(value || 0));
+        const seconds = Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : 0;
         const hours = Math.floor(seconds / 3600);
         const minutes = Math.floor((seconds % 3600) / 60);
         const secs = Math.floor(seconds % 60);
@@ -220,7 +226,7 @@
                 const repsPlaceholder = previous.repeticoes || String(exercise.repeticoes_snapshot || '').replace(/\D.*$/, '') || 'reps';
                 return `<div class="session-set-row${set.concluida ? ' is-done' : ''}" data-session-set-row="${escapeHtml(set.idserie)}">
                     <span class="session-set-number">${set.numero}</span>
-                    <label><span>${escapeHtml(t('workout_session.load', {}, 'Load'))}</span><input type="number" min="0" max="9999.999" step="0.5" inputmode="decimal" data-session-set-load="${escapeHtml(set.idserie)}" value="${escapeHtml(set.carga_realizada || '')}" placeholder="${escapeHtml(loadPlaceholder)}"></label>
+                    <label><span>${escapeHtml(t('workout_session.load', {}, 'Load'))}</span><input type="text" inputmode="decimal" pattern="[0-9]+([.,][0-9]{1,3})?" data-session-set-load="${escapeHtml(set.idserie)}" value="${escapeHtml(set.carga_realizada || '')}" placeholder="${escapeHtml(loadPlaceholder)}"></label>
                     <label><span>${escapeHtml(t('workout_session.repetitions', {}, 'Reps'))}</span><input type="number" min="0" max="999" step="1" inputmode="numeric" data-session-set-reps="${escapeHtml(set.idserie)}" value="${escapeHtml(set.repeticoes_realizadas || '')}" placeholder="${escapeHtml(repsPlaceholder)}"></label>
                     <button type="button" class="session-set-check" data-toggle-session-set="${escapeHtml(set.idserie)}" data-next-value="${set.concluida ? '0' : '1'}" aria-label="${escapeHtml(set.concluida ? t('workout_session.reopen_set', {number:set.numero}, `Reopen set ${set.numero}`) : t('workout_session.complete_set', {number:set.numero}, `Complete set ${set.numero}`))}">${set.concluida ? '✓' : '○'}</button>
                 </div>`;
@@ -351,6 +357,9 @@
         if (restButton && window.StrideBRQuickTools) window.StrideBRQuickTools.setTimer(Number(restButton.dataset.sessionRest || 0));
     });
 
+    exercisesContainer?.addEventListener('input', event => {
+        if (event.target.matches('[data-session-set-load], [data-session-set-reps]')) event.target.dataset.pendingEdit = '1';
+    });
     exercisesContainer?.addEventListener('change', async event => {
         const input = event.target.closest('[data-session-set-load], [data-session-set-reps]');
         if (!input) return;
@@ -361,8 +370,15 @@
         const reps = row.querySelector('[data-session-set-reps]')?.value || '';
         row.classList.add('is-saving');
         try {
-            const data = await post({action: 'update_set', idserie: id, carga: load, repeticoes: reps});
+            const data = await post({action: 'update_set', idserie: id, carga: load, repeticoes: reps, propagate_load: input.hasAttribute('data-session-set-load') ? '1' : '0', edited_field: input.hasAttribute('data-session-set-load') ? 'load' : 'reps'});
             session = preserveHistory(data.session);
+            delete input.dataset.pendingEdit;
+            for (const exercise of session?.exercicios || []) {
+                for (const set of exercise.series || []) {
+                    const field = exercisesContainer.querySelector(`[data-session-set-load="${CSS.escape(String(set.idserie))}"]`);
+                    if (field && field !== document.activeElement && !field.dataset.pendingEdit) field.value = set.carga_realizada ?? '';
+                }
+            }
             row.classList.remove('has-save-error');
         } catch (error) {
             row.classList.add('has-save-error');
@@ -450,6 +466,31 @@
         }
         if (modal && !modal.hidden) close();
     });
+    // iOS keeps the layout viewport tall when its keyboard reduces the visual viewport.
+    // Resize only this modal; the footer stays in flex flow above the keyboard.
+    let viewportFrame = null;
+    const syncKeyboardViewport = () => {
+        if (viewportFrame !== null) cancelAnimationFrame(viewportFrame);
+        viewportFrame = requestAnimationFrame(() => {
+            viewportFrame = null;
+            const viewport = window.visualViewport;
+            const keyboard = viewport && viewport.scale === 1 && window.innerWidth <= 560
+                && viewport.height < window.innerHeight * .8 && modal && !modal.hidden;
+            modal?.classList.toggle('is-keyboard-open', Boolean(keyboard));
+            if (!keyboard) return;
+            modal.style.setProperty('--workout-keyboard-height', `${viewport.height}px`);
+            modal.style.setProperty('--workout-keyboard-top', `${viewport.offsetTop}px`);
+            const input = document.activeElement;
+            if (!exercisesContainer?.contains(input) || input.tagName !== 'INPUT') return;
+            const field = input.getBoundingClientRect();
+            const area = exercisesContainer.getBoundingClientRect();
+            if (field.bottom > area.bottom - 8) exercisesContainer.scrollTop += field.bottom - area.bottom + 8;
+            else if (field.top < area.top + 8) exercisesContainer.scrollTop -= area.top - field.top + 8;
+        });
+    };
+    window.visualViewport?.addEventListener('resize', syncKeyboardViewport);
+    window.visualViewport?.addEventListener('scroll', syncKeyboardViewport);
+    exercisesContainer?.addEventListener('focusin', syncKeyboardViewport);
     window.StrideBRWorkout = {start, startScheduled, quickRegister, open, refresh: () => fetchCurrent({force: true, includeHistory: Boolean(modal && !modal.hidden)})};
     const hydrateCurrent = () => fetchCurrent();
     if ('requestIdleCallback' in window) window.requestIdleCallback(hydrateCurrent, {timeout: 1400});

@@ -1,4 +1,6 @@
 (() => {
+    const t = (key, values = {}, fallback = key) => window.StrideBRI18n?.t(key, values, fallback) ?? fallback;
+    let prescriptionTrigger = null;
     const prescriptionModal = document.querySelector('[data-prescription-modal]');
     const openPrescriptionButtons = document.querySelectorAll('[data-open-prescription]');
     const closePrescriptionButtons = prescriptionModal?.querySelectorAll('[data-close-prescription]') || [];
@@ -7,11 +9,18 @@
         if (!prescriptionModal) return;
         prescriptionModal.hidden = !open;
         document.documentElement.classList.toggle('trainer-prescription-open', open);
+        if (!open) prescriptionTrigger?.focus();
         if (open) requestAnimationFrame(() => prescriptionModal.querySelector('input[name="titulo"]')?.focus());
     };
-    openPrescriptionButtons.forEach(button => button.addEventListener('click', () => setPrescriptionOpen(true)));
+    openPrescriptionButtons.forEach(button => button.addEventListener('click', () => { prescriptionTrigger = button; setPrescriptionOpen(true); }));
     closePrescriptionButtons.forEach(button => button.addEventListener('click', () => setPrescriptionOpen(false)));
     document.addEventListener('keydown', event => {
+        if (event.key === 'Tab' && prescriptionModal && !prescriptionModal.hidden) {
+            const fields = [...prescriptionModal.querySelector('[role=dialog]').querySelectorAll('button, input, select, textarea, a[href]')].filter(el => !el.disabled && el.getClientRects().length);
+            const first = fields[0], last = fields[fields.length - 1];
+            if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+            else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+        }
         if (event.key === 'Escape' && prescriptionModal && !prescriptionModal.hidden) setPrescriptionOpen(false);
     });
 

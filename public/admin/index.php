@@ -177,28 +177,20 @@ $metricQueries = [
     'active24' => "SELECT count(*) FROM usuarios WHERE ultimologin >= NOW() - INTERVAL '24 hours'",
     'new7' => "SELECT count(*) FROM usuarios WHERE dataregistrousuario >= NOW() - INTERVAL '7 days'",
     'activities7' => "SELECT count(*) FROM registros_atividade WHERE excluido_em IS NULL AND data_criacao >= NOW() - INTERVAL '7 days'",
-    'schedules' => 'SELECT count(*) FROM cronogramas WHERE ativo = TRUE',
-    'workouts' => 'SELECT count(*) FROM treinos_cronograma',
-    'exercises' => 'SELECT count(*) FROM exercicios WHERE ativo = TRUE',
     'feedbackNew' => "SELECT count(*) FROM feedbacks WHERE status = 'novo'",
+    'feedbackPending' => "SELECT count(*) FROM feedbacks WHERE status <> 'resolvido'",
 ];
-if ($isAdmin) {
-    $metricQueries['activeSessions'] = "SELECT count(*) FROM sessoes_treino WHERE status = 'ativo'";
-    $metricQueries['accesses30'] = "SELECT count(*) FROM acessos_usuario WHERE data_acesso >= NOW() - INTERVAL '30 days'";
-}
-if ($isOwner) {
-    $metricQueries['uniqueIps30'] = "SELECT count(DISTINCT ip) FROM acessos_usuario WHERE data_acesso >= NOW() - INTERVAL '30 days' AND ip IS NOT NULL";
-}
+if ($isAdmin) $metricQueries['activeSessions'] = "SELECT count(*) FROM sessoes_treino WHERE status = 'ativo'";
 
 $metrics = [];
 foreach ($metricQueries as $key => $sql) $metrics[$key] = (int) $pdo->query($sql)->fetchColumn();
 
-$dbSize = $isAdmin ? (int) $pdo->query('SELECT pg_database_size(current_database())')->fetchColumn() : 0;
 $authFlagKeys = ['auth.email_verification.enabled', 'auth.email_verification.required', 'auth.password_reset.enabled'];
 $flags = $isAdmin ? $pdo->query("SELECT chave, ativo, descricao, data_atualizacao FROM feature_flags WHERE chave NOT IN ('auth.email_verification.enabled','auth.email_verification.required','auth.password_reset.enabled') ORDER BY chave")->fetchAll() : [];
 $mailReady = $isAdmin && stridebr_mail_is_configured();
 $emailVerificationOn = $isAdmin && stridebr_feature_enabled($pdo, 'auth.email_verification.enabled', false) && stridebr_feature_enabled($pdo, 'auth.email_verification.required', false);
 $passwordResetOn = $isAdmin && stridebr_feature_enabled($pdo, 'auth.password_reset.enabled', false);
+$systemHasAttention = $isAdmin && !$mailReady && ($emailVerificationOn || $passwordResetOn);
 $recentUsers = $isAdmin ? $pdo->query("SELECT idusuario, COALESCE(NULLIF(nome_exibicao,''), nomeusuario) AS nome_exibicao, username, papelusuario, statususuario, ultimologin, ipultimologin, dataregistrousuario FROM usuarios ORDER BY COALESCE(ultimologin, dataregistrousuario) DESC LIMIT 15")->fetchAll() : [];
 $audit = $isAdmin ? $pdo->query("SELECT l.acao, l.alvo_tipo, l.alvo_id, l.detalhes, l.ip, l.data_criacao, COALESCE(NULLIF(u.nome_exibicao,''), u.nomeusuario, 'Sistema') AS ator FROM admin_audit_log l LEFT JOIN usuarios u ON u.idusuario = l.idator ORDER BY l.data_criacao DESC LIMIT 20")->fetchAll() : [];
 $recentAccess = $isOwner ? $pdo->query("SELECT a.ip, a.user_agent, a.data_acesso, COALESCE(NULLIF(u.nome_exibicao,''), u.nomeusuario, 'Usuário removido') AS nome_exibicao, u.username FROM acessos_usuario a LEFT JOIN usuarios u ON u.idusuario = a.idusuario ORDER BY a.data_acesso DESC LIMIT 30")->fetchAll() : [];
@@ -233,6 +225,7 @@ function adminBytes(int $bytes): string
 
     <title><?php echo $isAdmin ? 'Administração' : 'Moderação'; ?> | StrideBR</title>
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>">
+    <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/admin.css')); ?>">
 </head>
 <body class="admin-body">
 <div class="container-fluid">
@@ -246,17 +239,25 @@ function adminBytes(int $bytes): string
     <?php foreach ($flashes as $flash): ?><div class="alert alert-<?php echo stridebr_e($flash['type'] ?? 'info'); ?>"><?php echo stridebr_e($flash['message'] ?? ''); ?></div><?php endforeach; ?>
     <?php foreach ($errors as $error): ?><div class="alert alert-danger"><?php echo stridebr_e($error); ?></div><?php endforeach; ?>
 
+    <section class="admin-operation-strip" aria-label="<?php echo stridebr_e(stridebr_t('admin.overview.attention')); ?>">
+        <article class="admin-operation-item<?php echo $metrics['feedbackNew'] > 0 ? ' has-attention' : ''; ?>">
+            <div class="admin-operation-copy"><strong><?php echo stridebr_e($metrics['feedbackNew'] > 0 ? stridebr_t('admin.overview.feedback_unread') : stridebr_t('admin.overview.feedback_clear')); ?></strong><span><?php echo stridebr_e(stridebr_tn('admin.feedback.results.one', 'admin.feedback.results.other', $metrics['feedbackPending'], ['count' => $metrics['feedbackPending']])); ?> <?php echo stridebr_e(stridebr_t('admin.overview.feedback_open_suffix')); ?></span></div>
+            <div class="admin-operation-count"><?php echo $metrics['feedbackNew']; ?></div>
+            <a class="secondary-action compact" href="/admin/feedback.php?state=unread"><?php echo stridebr_e(stridebr_t('admin.overview.open_feedback')); ?></a>
+        </article>
+        <?php if ($isAdmin): ?><article class="admin-operation-item">
+            <div class="admin-operation-copy"><strong><?php echo stridebr_e(stridebr_t('admin.overview.system')); ?></strong><span class="admin-system-status<?php echo $systemHasAttention ? ' has-problem' : ''; ?>"><?php echo stridebr_e($systemHasAttention ? stridebr_t('admin.overview.system_attention') : stridebr_t('admin.overview.system_ok')); ?></span></div>
+            <a class="secondary-action compact" href="/admin/diagnostics.php"><?php echo stridebr_e(stridebr_t('admin.overview.open_diagnostics')); ?></a>
+        </article><?php endif; ?>
+    </section>
+
     <?php if ($isOwner): ?><section class="admin-preview-bar"><div class="admin-preview-heading"><strong>Visualizar como outro papel</strong><span>Entre temporariamente em uma conta de nível inferior. Você volta à sua conta pelo aviso no topo.</span><?php if ($previewFavorites !== []): ?><div class="admin-preview-favorites"><?php foreach ($previewFavorites as $favorite): ?><form method="POST"><input type="hidden" name="action" value="impersonate_user"><input type="hidden" name="idusuario" value="<?php echo stridebr_e($favorite['idusuario']); ?>"><?php echo stridebr_csrf_field(); ?><button type="submit"><span>★</span><?php echo stridebr_e(stridebr_person_name_for_display((string) $favorite['nome_exibicao'], (string) ($favorite['username'] ?? ''), 'Usuário', 40)); ?></button></form><?php endforeach; ?></div><?php endif; ?></div><form method="POST" class="admin-preview-picker"><?php echo stridebr_csrf_field(); ?><select name="idusuario" required><option value="">Escolha uma conta…</option><?php foreach ($previewUsers as $previewUser): ?><option value="<?php echo stridebr_e($previewUser['idusuario']); ?>"><?php echo stridebr_e(stridebr_role_label((string) $previewUser['papelusuario']) . ' · ' . stridebr_person_name_for_display((string) $previewUser['nome_exibicao'], (string) ($previewUser['username'] ?? ''), 'Usuário', 60)); ?><?php echo $previewUser['username'] ? ' (@' . stridebr_e($previewUser['username']) . ')' : ''; ?></option><?php endforeach; ?></select><button type="submit" name="action" value="toggle_preview_favorite" class="admin-preview-star">☆ Fixar</button><button type="submit" name="action" value="impersonate_user">Visualizar</button></form></section><?php endif; ?>
 
     <section class="admin-metrics">
         <article><strong><?php echo $metrics['users']; ?></strong><span>Usuários</span><small><?php echo $metrics['new7']; ?> novos em 7 dias</small></article>
         <article><strong><?php echo $metrics['active24']; ?></strong><span>Ativos em 24h</span><small>por último login</small></article>
         <article><strong><?php echo $metrics['activities7']; ?></strong><span>Atividades / 7 dias</span><?php if ($isAdmin): ?><small><?php echo $metrics['activeSessions']; ?> treino(s) em andamento</small><?php endif; ?></article>
-        <article><strong><?php echo $metrics['schedules']; ?></strong><span>Cronogramas</span><small><?php echo $metrics['workouts']; ?> treinos planejados</small></article>
-        <article><strong><?php echo $metrics['exercises']; ?></strong><span>Exercícios ativos</span><small>base + usuários</small></article>
-        <article><strong><?php echo $metrics['feedbackNew']; ?></strong><span>Feedback novo</span><small><a href="/admin/feedback.php">abrir fila</a></small></article>
-        <?php if ($isAdmin): ?><article><strong><?php echo $metrics['accesses30']; ?></strong><span>Acessos / 30 dias</span><small><?php echo $isOwner ? $metrics['uniqueIps30'] . ' IPs únicos' : 'sem dados de IP'; ?></small></article><?php endif; ?>
-        <?php if ($isAdmin): ?><article><strong><?php echo stridebr_e(adminBytes($dbSize)); ?></strong><span>Banco</span><small><?php echo stridebr_e((string) $pdo->getAttribute(PDO::ATTR_SERVER_VERSION)); ?></small></article><?php endif; ?>
+        <article><strong><?php echo $metrics['feedbackPending']; ?></strong><span>Feedback em aberto</span><small><a href="/admin/feedback.php?state=all">consultar histórico</a></small></article>
     </section>
 
     <?php if (!$isAdmin): ?>
@@ -268,7 +269,7 @@ function adminBytes(int $bytes): string
     <div class="admin-grid">
         <section class="admin-card"><div class="admin-card-heading"><div><h2>Autenticação por e-mail</h2><p>Controles principais para novas contas e recuperação.</p></div></div><div class="flag-list auth-flag-list"><article><div><strong>Verificação de e-mail</strong><small>Quando ligada, novas contas recebem um código de 6 dígitos e precisam confirmar o endereço antes de entrar.</small></div><form method="POST"><?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="set_email_verification"><input type="hidden" name="ativo" value="<?php echo $emailVerificationOn ? '0' : '1'; ?>"><button type="submit" class="flag-toggle<?php echo $emailVerificationOn ? ' is-on' : ''; ?>" aria-label="<?php echo $emailVerificationOn ? 'Desativar' : 'Ativar'; ?> verificação de e-mail"<?php echo !$mailReady ? ' disabled title="Configure STRIDEBR_MAIL_FROM primeiro"' : ''; ?>><span></span></button></form></article><article><div><strong>Recuperação de senha</strong><small>Permite solicitar um link de redefinição por e-mail.</small></div><form method="POST"><?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="set_password_reset"><input type="hidden" name="ativo" value="<?php echo $passwordResetOn ? '0' : '1'; ?>"><button type="submit" class="flag-toggle<?php echo $passwordResetOn ? ' is-on' : ''; ?>" aria-label="<?php echo $passwordResetOn ? 'Desativar' : 'Ativar'; ?> recuperação de senha"<?php echo !$mailReady ? ' disabled title="Configure STRIDEBR_MAIL_FROM primeiro"' : ''; ?>><span></span></button></form></article></div><p class="admin-note"><?php echo $mailReady ? 'Remetente configurado: ' . stridebr_e((string) getenv('STRIDEBR_MAIL_FROM')) : 'Configure STRIDEBR_MAIL_FROM para liberar estes controles.'; ?></p><?php if ($mailReady): ?><form method="POST" class="admin-mail-test-form"><?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="send_test_email"><button type="submit" class="secondary-action">Enviar e-mail de teste para mim</button></form><?php endif; ?></section>
         <section class="admin-card"><div class="admin-card-heading"><div><h2>Feature flags</h2><p>Ligue recursos gradualmente sem novo deploy.</p></div></div><div class="flag-list"><?php foreach ($flags as $flag): ?><article><div><strong><?php echo stridebr_e($flag['chave']); ?></strong><small><?php echo stridebr_e($flag['descricao'] ?? ''); ?></small></div><form method="POST"><?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="toggle_flag"><input type="hidden" name="chave" value="<?php echo stridebr_e($flag['chave']); ?>"><input type="hidden" name="ativo" value="<?php echo stridebr_db_bool($flag['ativo']) ? '0' : '1'; ?>"><button type="submit" class="flag-toggle<?php echo stridebr_db_bool($flag['ativo']) ? ' is-on' : ''; ?>" aria-label="Alternar <?php echo stridebr_e($flag['chave']); ?>"><span></span></button></form></article><?php endforeach; ?></div></section>
-        <section class="admin-card"><div class="admin-card-heading"><div><h2>Saúde</h2><p>Indicadores básicos do aplicativo.</p></div></div><div class="health-list"><div><span class="health-dot ok"></span><strong>Aplicação</strong><span>Online</span></div><div><span class="health-dot ok"></span><strong>PostgreSQL</strong><span>Conectado</span></div><div><span class="health-dot ok"></span><strong>Schema</strong><span>stridebr</span></div><div><span class="health-dot <?php echo $mailReady ? 'ok' : ''; ?>"></span><strong>E-mail transacional</strong><span><?php echo $mailReady ? 'Configurado' : 'Pendente'; ?></span></div></div><a class="secondary-action" href="/admin/diagnostics.php">Abrir diagnóstico completo</a></section>
+        <?php if ($systemHasAttention): ?><section class="admin-card"><div class="admin-card-heading"><div><h2><?php echo stridebr_e(stridebr_t('admin.overview.system_attention')); ?></h2><p><?php echo stridebr_e(stridebr_t('admin.overview.mail_configuration_problem')); ?></p></div></div><a class="secondary-action" href="/admin/diagnostics.php"><?php echo stridebr_e(stridebr_t('admin.overview.open_diagnostics')); ?></a></section><?php endif; ?>
     </div>
 
     <section class="admin-card admin-table-card"><div class="admin-card-heading"><div><h2>Usuários recentes</h2><p>Admins veem dados de conta; IP continua exclusivo do proprietário.</p></div></div><div class="admin-table-wrap"><table><thead><tr><th>Usuário</th><th>Papel</th><th>Último login</th><?php if ($isOwner): ?><th>IP</th><th>Acesso</th><?php endif; ?></tr></thead><tbody><?php foreach ($recentUsers as $user): ?><tr><td><strong><?php echo stridebr_e(stridebr_person_name_for_display((string) $user['nome_exibicao'], (string) ($user['username'] ?? ''), 'Usuário', 60)); ?></strong><small><?php echo $user['username'] ? '@' . stridebr_e($user['username']) : 'sem username'; ?></small></td><td><?php echo stridebr_e(stridebr_role_label((string) $user['papelusuario'])); ?><small><?php echo stridebr_e($user['statususuario']); ?></small></td><td><?php echo stridebr_e($user['ultimologin'] ?? '—'); ?></td><?php if ($isOwner): ?><td><code><?php echo stridebr_e($user['ipultimologin'] ?? '—'); ?></code></td><td><?php echo stridebr_e($user['dataregistrousuario']); ?><div class="admin-user-actions"><a href="/admin/user.php?id=<?php echo rawurlencode($user['idusuario']); ?>">Gerenciar</a><?php if ((string) $user['papelusuario'] !== 'owner' && (string) $user['statususuario'] === 'Ativo'): ?><form method="POST"><?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="impersonate_user"><input type="hidden" name="idusuario" value="<?php echo stridebr_e($user['idusuario']); ?>"><button type="submit" class="admin-impersonate-button">Entrar como</button></form><?php endif; ?></div></td><?php endif; ?></tr><?php endforeach; ?></tbody></table></div></section>

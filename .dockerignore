@@ -9,3 +9,18 @@ vendor
 
 stridebr.sql
 *.dump
+public/uploads
+backups
+.ai
+.agents
+.codex
+.claude
+.cursor
+docs
+scripts/tests
+*.pem
+*.key
+*.zip
+*.sql.gz
+*.tmp
+*.bak

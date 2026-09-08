@@ -74,7 +74,7 @@ try {
     $segmentMetricMap = [];
     foreach ($segmentMetrics as $metric) $segmentMetricMap[(string) $metric['rotulo']] = (string) $metric['valor'];
     $assert(($segmentMetricMap[stridebr_t('activity.distance')] ?? '') === stridebr_format_number(1.5, 1, true) . ' km', 'Distância agregada dos trechos não foi exibida');
-    $assert(($segmentMetricMap[stridebr_t('activity.duration')] ?? '') === '00:07:30', 'Duração agregada dos trechos não foi exibida');
+    $assert(($segmentMetricMap[stridebr_t('activity.duration')] ?? '') === '7:30', 'Duração agregada dos trechos não foi exibida com a política temporal atual');
     $assert(($segmentMetricMap[stridebr_t('activity.pace')] ?? '') === '5:00/km', 'Ritmo agregado dos trechos não foi calculado pelos totais');
     $mixedSegments = $segmentDetails;
     $mixedSegments['unidades'][1]['modalidade_metrica_derivada'] = 'velocidade_kmh';

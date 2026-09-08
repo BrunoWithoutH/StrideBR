@@ -2,16 +2,27 @@
 
 declare(strict_types=1);
 
-function atividadeCardFormatarValor(array $campo, mixed $valor): string
+require_once __DIR__ . '/activity_sport_context.php';
+
+function atividadeCardFormatarValor(array $campo, mixed $valor, array $sportContext = []): string
 {
     if ($valor === null || $valor === '') return '';
+    $slug = stridebr_lower((string) ($campo['slug'] ?? ''));
+    if ($slug === 'distancia' && is_numeric($valor)) {
+        $unit = stridebr_lower(trim((string) ($campo['unidade_simbolo'] ?? 'km')));
+        $meters = $unit === 'm' ? (float) $valor : (float) $valor * 1000;
+        return atividadeContextoFormatarDistancia($meters, $sportContext);
+    }
     if (($campo['tipo_campo'] ?? '') === 'booleano') return stridebr_db_bool($valor) ? stridebr_t('common.yes') : stridebr_t('common.no');
     if (($campo['tipo_campo'] ?? '') === 'selecao') {
         foreach ($campo['opcoes'] ?? [] as $opcao) {
             if ((string) $opcao['idopcao'] === (string) $valor) return (string) $opcao['rotulo'];
         }
     }
-    if (($campo['tipo_campo'] ?? '') === 'intervalo') return atividadeFormatarIntervalo($valor);
+    if (($campo['tipo_campo'] ?? '') === 'intervalo') {
+        $seconds = atividadeIntervaloParaSegundos(atividadeFormatarIntervalo($valor));
+        return $seconds !== null ? atividadeContextoFormatarTempo($seconds, null, $seconds >= 60) : atividadeFormatarIntervalo($valor);
+    }
     $texto = (string) $valor;
     if (($campo['tipo_campo'] ?? '') === 'decimal' && is_numeric($texto)) $texto = stridebr_format_number((float) $texto, 3, true);
     $unidade = trim((string) ($campo['unidade_simbolo'] ?? ''));
@@ -164,15 +175,11 @@ function atividadeCardMetricaDerivada(array $detalhes): ?array
     }
     $km = $metros / 1000;
     if ($metros <= 0 || $km <= 0) return null;
-    $formatarPace = static function (float $segundos): string {
-        $total = (int) round($segundos);
-        return intdiv($total, 60) . ':' . str_pad((string) ($total % 60), 2, '0', STR_PAD_LEFT);
-    };
     return match ($tipo) {
-        'pace_km' => ['rotulo' => stridebr_t('activity.pace'), 'valor' => $formatarPace($duracaoSegundos / $km) . '/km', 'prioridade' => 2],
+        'pace_km' => ['rotulo' => stridebr_t('activity.pace'), 'valor' => atividadeContextoFormatarRitmo($duracaoSegundos / $km, '/km'), 'prioridade' => 2],
         'velocidade_kmh' => ['rotulo' => stridebr_t('activity.speed'), 'valor' => stridebr_format_number($km / ($duracaoSegundos / 3600), 1) . ' km/h', 'prioridade' => 2],
-        'pace_100m' => ['rotulo' => stridebr_t('activity.pace'), 'valor' => $formatarPace($duracaoSegundos / ($metros / 100)) . '/100 m', 'prioridade' => 2],
-        'split_500m' => ['rotulo' => stridebr_t('activity.split'), 'valor' => $formatarPace($duracaoSegundos / ($metros / 500)) . '/500 m', 'prioridade' => 2],
+        'pace_100m' => ['rotulo' => stridebr_t('activity.pace'), 'valor' => atividadeContextoFormatarRitmo($duracaoSegundos / ($metros / 100), '/100 m'), 'prioridade' => 2],
+        'split_500m' => ['rotulo' => stridebr_t('activity.split'), 'valor' => atividadeContextoFormatarRitmo($duracaoSegundos / ($metros / 500), '/500 m'), 'prioridade' => 2],
         default => null,
     };
 }
@@ -182,6 +189,11 @@ function atividadeCardMetricas(array $detalhes, int $limite = 4): array
     $camposPorId = [];
     foreach ($detalhes['campos'] ?? [] as $campo) $camposPorId[(string) $campo['idcampo']] = $campo;
     $candidatos = [];
+    $sportContext = atividadeContextoEsportivo(
+        (string) ($detalhes['modalidade_slug'] ?? ''),
+        (string) ($detalhes['modalidade_familia_hub'] ?? $detalhes['familia_hub'] ?? ''),
+        ['segment' => !empty($detalhes['usa_trechos'])]
+    );
     $strength = in_array(stridebr_lower((string) ($detalhes['modalidade_slug'] ?? '')), ['musculacao', 'calistenia', 'crossfit'], true);
     if ($strength) {
         $hasCodeValue = false;
@@ -201,10 +213,10 @@ function atividadeCardMetricas(array $detalhes, int $limite = 4): array
         if (!$hasCodeValue && $codigo !== '') $candidatos[] = ['rotulo' => stridebr_t('activity.code'), 'valor' => $codigo, 'prioridade' => -20, 'ordem' => 0];
         if (!$hasFocusValue && $foco !== '') $candidatos[] = ['rotulo' => stridebr_t('activity.focus'), 'valor' => $foco, 'prioridade' => -19, 'ordem' => 0];
     }
-    $adicionar = static function (string $idCampo, mixed $valor) use (&$candidatos, $camposPorId, $strength): void {
+    $adicionar = static function (string $idCampo, mixed $valor) use (&$candidatos, $camposPorId, $strength, $sportContext): void {
         $campo = $camposPorId[$idCampo] ?? null;
         if (!$campo) return;
-        $texto = atividadeCardFormatarValor($campo, $valor);
+        $texto = atividadeCardFormatarValor($campo, $valor, $sportContext);
         if ($texto === '') return;
         $chave = stridebr_lower(trim((string) (($campo['slug'] ?? '') . ' ' . ($campo['rotulo'] ?? ''))));
         foreach (['intensidade', 'feeling', 'sensacao', 'sensação', 'esforco', 'esforço', 'observa', 'nota'] as $ocultar) if (str_contains($chave, $ocultar)) return;
@@ -237,7 +249,7 @@ function atividadeCardMetricas(array $detalhes, int $limite = 4): array
             $endedAt = new DateTimeImmutable((string) $detalhes['data_fim']);
             $seconds = max(0, $endedAt->getTimestamp() - $startedAt->getTimestamp());
             if ($seconds > 0) {
-                $candidatos[] = ['rotulo' => stridebr_t('activity.duration'), 'valor' => stridebr_format_sport_duration((float) $seconds, true), 'prioridade' => 1, 'ordem' => 0];
+                $candidatos[] = ['rotulo' => stridebr_t('activity.duration'), 'valor' => atividadeContextoFormatarTempo((float) $seconds, null, $seconds >= 60), 'prioridade' => 1, 'ordem' => 0];
             }
         } catch (Throwable) {}
     }
@@ -576,12 +588,13 @@ function atividadeDetalheApi(PDO $pdo, string $idRegistro, string $idUsuario): a
     if ($registro === []) return [];
     $camposPorId = [];
     foreach ($registro['campos'] ?? [] as $campo) $camposPorId[(string) $campo['idcampo']] = $campo;
-    $formatValues = static function (array $values) use ($camposPorId): array {
+    $mainSportContext = atividadeContextoEsportivo((string) ($registro['modalidade_slug'] ?? ''), (string) ($registro['modalidade_familia_hub'] ?? ''));
+    $formatValues = static function (array $values, array $sportContext = []) use ($camposPorId): array {
         $out = [];
         foreach ($values as $idCampo => $valor) {
             $campo = $camposPorId[(string) $idCampo] ?? null;
             if (!$campo) continue;
-            $formatted = atividadeCardFormatarValor($campo, $valor);
+            $formatted = atividadeCardFormatarValor($campo, $valor, $sportContext);
             if ($formatted === '') continue;
             $out[] = ['rotulo' => stridebr_activity_field_label((string) ($campo['slug'] ?? ''), (string) ($campo['rotulo'] ?? '')), 'valor' => $formatted];
         }
@@ -613,7 +626,12 @@ function atividadeDetalheApi(PDO $pdo, string $idRegistro, string $idUsuario): a
         $unitDetails['record_values'] = [];
         $unitDetails['usa_trechos'] = false;
         $unitDetails['modalidade_slug'] = (string) ($unit['modalidade_slug'] ?? $registro['modalidade_slug'] ?? '');
+        $unitDetails['modalidade_familia_hub'] = (string) ($unit['modalidade_familia_hub'] ?? $registro['modalidade_familia_hub'] ?? '');
         $unitDetails['metrica_derivada'] = (string) ($unit['modalidade_metrica_derivada'] ?? $registro['metrica_derivada'] ?? 'nenhuma');
+        $unitSportContext = atividadeContextoEsportivo($unitDetails['modalidade_slug'], $unitDetails['modalidade_familia_hub'], [
+            'registered_m' => is_numeric($unit['distancia_metros'] ?? null) ? (float) $unit['distancia_metros'] : null,
+            'segment' => true,
+        ]);
         $unitValuesForShare = is_array($unit['values'] ?? null) ? $unit['values'] : [];
         foreach ($registro['campos'] ?? [] as $campo) {
             if (($campo['escopo'] ?? '') !== 'unidade') continue;
@@ -641,15 +659,21 @@ function atividadeDetalheApi(PDO $pdo, string $idRegistro, string $idUsuario): a
             'rotulo' => (string) ($unit['rotulo'] ?: (($registro['rotulo_unidade'] ?? 'Unidade') . ' ' . ($index + 1))),
             'modalidade' => (string) ($unit['modalidade_nome'] ?? $registro['modalidade_nome'] ?? 'Atividade'),
             'modalidade_slug' => $unitSlug,
+            'modalidade_familia_hub' => (string) ($unit['modalidade_familia_hub'] ?? $registro['modalidade_familia_hub'] ?? ''),
             'modalidade_icone' => function_exists('stridebr_sport_icon_id') ? stridebr_sport_icon_id($unitSlug) : 'track_and_field',
             'metrica_derivada' => (string) ($unit['modalidade_metrica_derivada'] ?? $registro['metrica_derivada'] ?? 'nenhuma'),
             'distancia_metros' => is_numeric($unit['distancia_metros'] ?? null) ? (float) $unit['distancia_metros'] : (is_numeric($unitRoute['distancia_m'] ?? null) ? (float) $unitRoute['distancia_m'] : null),
             'duracao_segundos' => is_numeric($unit['duracao_segundos'] ?? null) ? round((float) $unit['duracao_segundos'], 3) : null,
             'elevacao_m' => is_numeric($unit['elevacao_m'] ?? null) ? (float) $unit['elevacao_m'] : (is_numeric($unitRoute['ganho_m'] ?? null) ? (float) $unitRoute['ganho_m'] : null),
-            'valores' => $formatValues($unitValuesForShare),
+            'valores' => $formatValues($unitValuesForShare, $unitSportContext),
             'metricas_compartilhamento' => $unitMetrics,
             'rota' => $unitRoute,
         ];
+    }
+    $seriesContext = atividadeContextoEsportivo((string) ($registro['modalidade_slug'] ?? ''), (string) ($registro['modalidade_familia_hub'] ?? ''), ['segment' => true]);
+    $seriesEquivalent = atividadeContextoSerieEquivalente(array_map(static fn(array $unit): mixed => $unit['distancia_metros'] ?? null, $units), $seriesContext);
+    if ($seriesEquivalent !== null) {
+        $seriesEquivalent['label'] = $seriesEquivalent['count'] . ' × ' . atividadeContextoFormatarDistancia((float) $seriesEquivalent['distance_m'], $seriesContext + ['structured_series' => true, 'series_unit' => $seriesEquivalent['unit']], null, (string) $seriesEquivalent['unit']);
     }
     $route = null;
     if (empty($registro['usa_trechos']) && is_array($registro['rota'] ?? null)) {
@@ -789,10 +813,10 @@ function atividadeDetalheApi(PDO $pdo, string $idRegistro, string $idUsuario): a
         ];
     }
     return [
-        'id' => $idRegistro, 'titulo' => stridebr_present_activity_title((string) ($registro['titulo'] ?: $registro['modalidade_nome']), (string) $registro['modalidade_slug']), 'modalidade' => stridebr_sport_name((string) $registro['modalidade_slug'], (string) $registro['modalidade_nome']), 'modalidade_slug' => (string) $registro['modalidade_slug'], 'modalidade_icone' => function_exists('stridebr_sport_icon_id') ? stridebr_sport_icon_id((string) $registro['modalidade_slug']) : 'track_and_field', 'origem' => (string) ($registro['origem'] ?? ''),
+        'id' => $idRegistro, 'titulo' => stridebr_present_activity_title((string) ($registro['titulo'] ?: $registro['modalidade_nome']), (string) $registro['modalidade_slug']), 'modalidade' => stridebr_sport_name((string) $registro['modalidade_slug'], (string) $registro['modalidade_nome']), 'modalidade_slug' => (string) $registro['modalidade_slug'], 'modalidade_familia_hub' => (string) ($registro['modalidade_familia_hub'] ?? ''), 'modalidade_icone' => function_exists('stridebr_sport_icon_id') ? stridebr_sport_icon_id((string) $registro['modalidade_slug']) : 'track_and_field', 'origem' => (string) ($registro['origem'] ?? ''),
         'data' => stridebr_format_date($date), 'hora' => $date->format('H:i'), 'visibilidade' => (string) $registro['visibilidade'], 'esforco' => $registro['esforco_percebido'] !== null ? (int) $registro['esforco_percebido'] : null,
         'observacoes' => (string) ($registro['observacoes'] ?? ''), 'usa_trechos' => !empty($registro['usa_trechos']), 'metricas' => atividadeCardMetricas($registro), 'metricas_compartilhamento' => $shareMetrics, 'energia' => $energy,
-        'dados' => $formatValues($registro['record_values'] ?? []), 'unidades' => $units, 'equipamentos' => array_map(static fn(array $e): array => ['id' => (string) $e['idequipamento'], 'nome' => (string) $e['nome']], $registro['equipamentos'] ?? []),
+        'dados' => $formatValues($registro['record_values'] ?? [], $mainSportContext), 'unidades' => $units, 'serie_equivalente' => $seriesEquivalent, 'equipamentos' => array_map(static fn(array $e): array => ['id' => (string) $e['idequipamento'], 'nome' => (string) $e['nome']], $registro['equipamentos'] ?? []),
         'treino' => (!empty($registro['treino_codigo']) || !empty($registro['treino_foco']) || !empty($registro['treino_titulo'])) ? [
             'codigo' => (string) ($registro['treino_codigo'] ?? ''),
             'foco' => (string) ($registro['treino_foco'] ?? ''),

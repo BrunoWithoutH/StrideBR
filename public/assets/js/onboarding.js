@@ -61,11 +61,14 @@
     const signupFlow = root.classList.contains('signup-onboarding-card')
 
     const syncPrimaryAction = () => {
+        if (signupFlow && finish) finish.disabled = !root.querySelector('form')?.checkValidity()
         if (!next) return
         const hasSportSelection = !!root.querySelector('input[name="sports[]"]:checked')
         const key = signupFlow && index === 0 && !hasSportSelection ? 'onboarding.skip_step' : 'common.continue'
         next.textContent = tr(key)
     }
+
+    root.addEventListener('input', syncPrimaryAction)
 
     const escapeHtml = value => String(value ?? '')
         .replaceAll('&', '&amp;')
@@ -205,11 +208,16 @@
         if (family) {
             activeSportFamily = family.dataset.signupSportFamilyOpen || ''
             renderSportFamilies()
+            const panel = sportFamilyPanels.find(panel => !panel.hidden)
+            panel?.querySelector('button')?.focus({preventScroll:true})
+            panel?.scrollIntoView({block:'nearest'})
             return
         }
         if (event.target.closest('[data-signup-sport-family-back]')) {
+            const previousFamily = activeSportFamily
             activeSportFamily = ''
             renderSportFamilies()
+            sportFamilies?.querySelector(`[data-signup-sport-family-open="${previousFamily}"]`)?.focus()
             return
         }
         const more = event.target.closest('[data-signup-sport-more]')

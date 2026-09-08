@@ -23,9 +23,7 @@ $navActive = static function (array $prefixes) use ($currentPath): string {
 ?>
 <div class="network-status-banner" data-network-status role="status" aria-live="polite" hidden><?php echo stridebr_e(stridebr_t('common.offline_forms_warning')); ?></div>
 
-<?php if (stridebr_ads_enabled() || stridebr_ads_placeholders_enabled()): ?>
-<?php require __DIR__ . '/ads.php'; ?>
-<?php endif; ?>
+<?php require_once __DIR__ . '/ads.php'; stridebr_render_ads_runtime(); ?>
 <footer class="site-footer">
     <div class="footer-inner">
         <div class="footer-top">

@@ -19,7 +19,7 @@ function sportPickerRenderSportRow(array $sport, string $familyLabel, string $se
     $html .= '<button type="button" class="sport-option" role="option" data-sport-option data-sport-id="' . stridebr_e($id) . '" data-sport-name="' . stridebr_e($name) . '" data-sport-slug="' . stridebr_e($slug) . '" data-sport-family="' . stridebr_e($family) . '" data-sport-icon-id="' . stridebr_e(stridebr_sport_icon_id($slug)) . '" data-sport-favorite="' . ($favorite ? '1' : '0') . '" aria-selected="' . ($selectedId === $id ? 'true' : 'false') . '">';
     $html .= '<span class="sport-option-icon">' . stridebr_sport_icon_html($slug) . '</span><span>' . stridebr_e($name) . '</span></button>';
     if ($favoriteControls) {
-        $html .= '<button type="button" class="sport-favorite-button' . ($favorite ? ' is-favorite' : '') . '" data-toggle-sport-favorite data-sport-id="' . stridebr_e($id) . '" aria-label="' . stridebr_e(stridebr_t('sport_picker.favorite', ['sport' => $name])) . '">★</button>';
+        $html .= '<button type="button" class="sport-favorite-button' . ($favorite ? ' is-favorite' : '') . '" data-toggle-sport-favorite data-sport-id="' . stridebr_e($id) . '" aria-pressed="' . ($favorite ? 'true' : 'false') . '" aria-label="' . stridebr_e(stridebr_t('sport_picker.favorite', ['sport' => $name])) . '">★</button>';
     }
     return $html . '</div>';
 }
@@ -41,7 +41,7 @@ function sportPickerRenderFamilyBrowser(array $sports, string $selectedId = '', 
         $key = (string) $group['key'];
         $label = (string) $group['label'];
         $html .= '<section class="sport-family-panel" data-sport-family-panel="' . stridebr_e($key) . '" hidden>';
-        $html .= '<div class="sport-family-panel-head"><button type="button" class="sport-family-back" data-sport-family-back>' . stridebr_e('← ' . stridebr_t('sport_picker.categories')) . '</button><div><strong>' . stridebr_e($label) . '</strong><small>' . stridebr_e((string) $group['description']) . '</small></div></div>';
+        $html .= '<div class="sport-family-panel-head"><button type="button" class="sport-family-back context-back-button" data-sport-family-back>' . stridebr_e('← ' . stridebr_t('sport_picker.categories')) . '</button><div><strong>' . stridebr_e($label) . '</strong><small>' . stridebr_e((string) $group['description']) . '</small></div></div>';
         $html .= '<div class="sport-family-section"><div class="sport-family-section-title">' . stridebr_e(stridebr_t('sport_picker.common')) . '</div>';
         foreach ($group['popular'] as $sport) $html .= sportPickerRenderSportRow($sport, $label, $selectedId, $favoriteControls);
         $html .= '</div>';
@@ -111,7 +111,7 @@ function sportPickerRenderSelect(array $sports, array $options = []): string
         $key = (string) $group['key'];
         $label = (string) $group['label'];
         $html .= '<section class="sport-family-panel" data-generic-sport-family-panel="' . stridebr_e($key) . '" hidden>';
-        $html .= '<div class="sport-family-panel-head"><button type="button" class="sport-family-back" data-generic-sport-family-back>' . stridebr_e('← ' . stridebr_t('sport_picker.categories')) . '</button><div><strong>' . stridebr_e($label) . '</strong><small>' . stridebr_e((string) $group['description']) . '</small></div></div>';
+        $html .= '<div class="sport-family-panel-head"><button type="button" class="sport-family-back context-back-button" data-generic-sport-family-back>' . stridebr_e('← ' . stridebr_t('sport_picker.categories')) . '</button><div><strong>' . stridebr_e($label) . '</strong><small>' . stridebr_e((string) $group['description']) . '</small></div></div>';
         $html .= '<div class="sport-family-section"><div class="sport-family-section-title">' . stridebr_e(stridebr_t('sport_picker.common')) . '</div>';
         foreach ($group['popular'] as $sport) $html .= sportPickerRenderGenericOption($sport, $label, $selectedId, $valueKey);
         $html .= '</div>';

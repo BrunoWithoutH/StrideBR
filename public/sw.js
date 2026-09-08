@@ -1,7 +1,8 @@
-const STATIC_CACHE = 'stridebr-static-v1'
+const STATIC_CACHE = 'stridebr-static-v3-' + (new URL(self.location.href).searchParams.get('build') || 'rc')
 const OFFLINE_URL = '/offline.html'
 const STATIC_ASSETS = [
     OFFLINE_URL,
+    '/assets/js/offline.js',
     '/assets/css/style.css',
     '/assets/css/ui-refresh.css',
     '/assets/js/ui-boot.js',

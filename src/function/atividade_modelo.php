@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/activity_sport_context.php';
+
 
 function atividadeGerarId(int $length = 21): string
 {
@@ -995,6 +997,9 @@ function atividadeRenderizarCampo(array $campo, string $name, string $id, mixed 
     if ($slug === 'potencia') $unitSymbol = 'W';
     $contextualUnit = in_array($slug, ['cadencia', 'potencia'], true);
     $unit = ($unitSymbol !== '' || $contextualUnit) ? ' <span class="field-unit"' . ($contextualUnit ? ' data-contextual-field-unit' : '') . '>' . stridebr_e($unitSymbol) . '</span>' : '';
+    if ($slug === 'distancia' && in_array(stridebr_lower($unitSymbol), ['m', 'km'], true)) {
+        $unit = ' <select class="activity-distance-unit-select" data-distance-unit-select data-canonical-unit="' . stridebr_e(stridebr_lower($unitSymbol)) . '" aria-label="' . stridebr_e(stridebr_t('activity.distance_unit')) . '"><option value="m"' . (stridebr_lower($unitSymbol) === 'm' ? ' selected' : '') . '>m</option><option value="km"' . (stridebr_lower($unitSymbol) === 'km' ? ' selected' : '') . '>km</option></select><span class="field-unit" data-distance-unit-label hidden>' . stridebr_e(stridebr_lower($unitSymbol)) . '</span>';
+    }
     $type = $campo['tipo_campo'] ?? 'texto';
     $slug = (string) ($campo['slug'] ?? 'campo');
     $group = (string) ($campo['grupo_ui'] ?? 'detalhes');
@@ -1003,7 +1008,8 @@ function atividadeRenderizarCampo(array $campo, string $name, string $id, mixed 
     $defaultVisible = !array_key_exists('exibicao_padrao', $campo) || stridebr_db_bool($campo['exibicao_padrao']);
     $visible = !empty($campo['obrigatorio']) || $defaultVisible || $hasValue;
     $classes = 'input-field dynamic-field' . ($type === 'texto_longo' ? ' is-long-field' : '') . ($visible ? '' : ' is-optional-hidden');
-    $html = '<div class="' . $classes . '" data-dynamic-field data-field-slug="' . stridebr_e($slug) . '" data-field-label="' . stridebr_e($fieldLabel) . '" data-field-group="' . stridebr_e($group) . '" data-default-visible="' . ($defaultVisible ? '1' : '0') . '"' . ($visible ? '' : ' hidden') . '>';
+    $distanceAttrs = $slug === 'distancia' && in_array(stridebr_lower($unitSymbol), ['m', 'km'], true) ? ' data-distance-canonical-unit="' . stridebr_e(stridebr_lower($unitSymbol)) . '" data-distance-display-unit="' . stridebr_e(stridebr_lower($unitSymbol)) . '"' : '';
+    $html = '<div class="' . $classes . '" data-dynamic-field data-field-slug="' . stridebr_e($slug) . '" data-field-label="' . stridebr_e($fieldLabel) . '" data-field-group="' . stridebr_e($group) . '" data-default-visible="' . ($defaultVisible ? '1' : '0') . '"' . $distanceAttrs . ($visible ? '' : ' hidden') . '>';
     $html .= '<label for="' . stridebr_e($id) . '"><span data-field-label-text>' . $label . '</span>' . $unit . '</label>';
 
     if ($type === 'texto_longo') {
@@ -1037,7 +1043,7 @@ function atividadeRenderizarCampo(array $campo, string $name, string $id, mixed 
             $milliseconds = isset($parts[4]) ? $parts[4] : '';
         }
         $html .= '<div class="duration-segments" data-duration-field>';
-        $html .= '<label><span>h</span><input type="text" inputmode="numeric" maxlength="3" value="' . stridebr_e($hours) . '" data-duration-hours aria-label="' . stridebr_e(stridebr_t('activity.hours')) . '" autocomplete="off"></label>';
+        $html .= '<label><span>h</span><input type="text" inputmode="numeric" maxlength="2" value="' . stridebr_e($hours) . '" data-duration-hours aria-label="' . stridebr_e(stridebr_t('activity.hours')) . '" autocomplete="off"></label>';
         $html .= '<span aria-hidden="true">:</span>';
         $html .= '<label><span>min</span><input type="text" inputmode="numeric" maxlength="2" value="' . stridebr_e($minutes) . '" data-duration-minutes aria-label="' . stridebr_e(stridebr_t('activity.minutes')) . '" autocomplete="off"></label>';
         $html .= '<span aria-hidden="true">:</span>';
@@ -1770,7 +1776,7 @@ function atividadeCarregarRegistro(PDO $pdo, string $idRegistro, string $idUsuar
         $registro['record_values'][$row['idcampo']] = atividadeValorLinha($row);
     }
 
-    $unitStmt = $pdo->prepare('SELECT ua.*, um.nome AS modalidade_nome, um.slug AS modalidade_slug, um.metrica_derivada AS modalidade_metrica_derivada, um.permite_rota AS modalidade_permite_rota FROM unidades_atividade ua LEFT JOIN modalidades um ON um.idmodalidade = ua.idmodalidade WHERE ua.idregistro = :registro ORDER BY ua.ordem');
+    $unitStmt = $pdo->prepare('SELECT ua.*, um.nome AS modalidade_nome, um.slug AS modalidade_slug, um.familia_hub AS modalidade_familia_hub, um.metrica_derivada AS modalidade_metrica_derivada, um.permite_rota AS modalidade_permite_rota FROM unidades_atividade ua LEFT JOIN modalidades um ON um.idmodalidade = ua.idmodalidade WHERE ua.idregistro = :registro ORDER BY ua.ordem');
     $unitStmt->execute([':registro' => $idRegistro]);
     $units = $unitStmt->fetchAll();
     $valuesByUnit = [];
@@ -1796,6 +1802,7 @@ function atividadeCarregarRegistro(PDO $pdo, string $idRegistro, string $idUsuar
         $unit['idmodalidade'] = trim((string) ($unit['idmodalidade'] ?? '')) ?: (string) $registro['idmodalidade'];
         $unit['modalidade_nome'] = trim((string) ($unit['modalidade_nome'] ?? '')) ?: (string) $registro['modalidade_nome'];
         $unit['modalidade_slug'] = trim((string) ($unit['modalidade_slug'] ?? '')) ?: (string) $registro['modalidade_slug'];
+        $unit['modalidade_familia_hub'] = trim((string) ($unit['modalidade_familia_hub'] ?? '')) ?: (string) ($registro['modalidade_familia_hub'] ?? '');
         $unit['modalidade_metrica_derivada'] = trim((string) ($unit['modalidade_metrica_derivada'] ?? '')) ?: (string) $registro['metrica_derivada'];
         $unit['modalidade_permite_rota'] = $unit['modalidade_permite_rota'] === null ? $registro['permite_rota'] : stridebr_db_bool($unit['modalidade_permite_rota']);
         $unit['values'] = $valuesByUnit[$unitId] ?? [];
@@ -1864,7 +1871,7 @@ function atividadeCarregarRegistrosDetalhados(PDO $pdo, array $registros, string
     }
     unset($detail);
 
-    $unitStmt = $pdo->prepare("SELECT ua.*, um.nome AS modalidade_nome, um.slug AS modalidade_slug, um.metrica_derivada AS modalidade_metrica_derivada, um.permite_rota AS modalidade_permite_rota FROM unidades_atividade ua LEFT JOIN modalidades um ON um.idmodalidade = ua.idmodalidade WHERE ua.idregistro IN ({$in}) ORDER BY ua.idregistro, ua.ordem");
+    $unitStmt = $pdo->prepare("SELECT ua.*, um.nome AS modalidade_nome, um.slug AS modalidade_slug, um.familia_hub AS modalidade_familia_hub, um.metrica_derivada AS modalidade_metrica_derivada, um.permite_rota AS modalidade_permite_rota FROM unidades_atividade ua LEFT JOIN modalidades um ON um.idmodalidade = ua.idmodalidade WHERE ua.idregistro IN ({$in}) ORDER BY ua.idregistro, ua.ordem");
     $unitParams = $params;
     unset($unitParams[':usuario']);
     $unitStmt->execute($unitParams);
@@ -1877,6 +1884,7 @@ function atividadeCarregarRegistrosDetalhados(PDO $pdo, array $registros, string
         $unit['idmodalidade'] = trim((string) ($unit['idmodalidade'] ?? '')) ?: (string) ($record['idmodalidade'] ?? '');
         $unit['modalidade_nome'] = trim((string) ($unit['modalidade_nome'] ?? '')) ?: (string) ($record['modalidade_nome'] ?? '');
         $unit['modalidade_slug'] = trim((string) ($unit['modalidade_slug'] ?? '')) ?: (string) ($record['modalidade_slug'] ?? '');
+        $unit['modalidade_familia_hub'] = trim((string) ($unit['modalidade_familia_hub'] ?? '')) ?: (string) ($record['modalidade_familia_hub'] ?? '');
         $unit['modalidade_metrica_derivada'] = trim((string) ($unit['modalidade_metrica_derivada'] ?? '')) ?: (string) ($record['metrica_derivada'] ?? 'nenhuma');
         $unit['modalidade_permite_rota'] = $unit['modalidade_permite_rota'] === null ? !empty($record['permite_rota']) : stridebr_db_bool($unit['modalidade_permite_rota']);
         $unit['values'] = [];

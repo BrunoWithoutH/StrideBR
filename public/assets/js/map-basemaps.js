@@ -39,17 +39,20 @@
     const shareDefinitions = () => ({
         street: {
             id: 'street',
-            available: arcgisKey !== '',
-            worldTileSize: 512,
-            zoomOffset: -1,
-            maxZoom: 23,
-            maxRequestZoom: 22,
-            template: `https://static-map-tiles-api.arcgis.com/arcgis/rest/services/static-basemap-tiles-service/v1/arcgis/streets/static/tile/{z}/{y}/{x}?token=${encodeURIComponent(arcgisKey)}`,
-            attribution: 'Map layer © Esri · Sources: TomTom, Garmin, FAO, NOAA, USGS, © OpenStreetMap contributors, GIS User Community'
+            available: true,
+            renderer: 'geometry',
+            fallbackRenderer: 'raster',
+            worldTileSize: 256,
+            zoomOffset: 0,
+            maxZoom: 19,
+            maxRequestZoom: 19,
+            template: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            attribution: 'Map data © OpenStreetMap contributors'
         },
         satellite: {
             id: 'satellite',
             available: arcgisKey !== '',
+            renderer: 'raster',
             worldTileSize: 256,
             zoomOffset: 0,
             maxZoom: 23,

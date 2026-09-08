@@ -1,15 +1,14 @@
 Options -Indexes
 
 RewriteEngine On
-RewriteCond %{HTTP_HOST} ^stridebr\.alwaysdata\.net$ [NC]
-RewriteCond %{HTTPS} !=on
-RewriteCond %{HTTP:X-Forwarded-Proto} !https [NC]
-RewriteRule ^ https://stridebr.alwaysdata.net%{REQUEST_URI} [R=301,L,NE]
+RewriteRule ^robots\.txt$ robots.php [L]
+# Dynamic Content-Security-Policy and X-Frame-Options: src/includes/http_headers.php.
+# Strict-Transport-Security: TLS edge only, never on local HTTP.
 RewriteRule ^u/([a-z0-9._-]{3,40})/?$ user/perfil.php?username=$1 [L,QSA,NC]
 
 <IfModule mod_headers.c>
     <FilesMatch "\.(css|js|svg|png|jpg|jpeg|webp|gif|ico|mp3|woff2?)$">
-        Header set Cache-Control "public, max-age=31536000, immutable"
+        Header set Cache-Control "public, max-age=0, must-revalidate"
     </FilesMatch>
     <FilesMatch "\.php$">
         Header set Cache-Control "no-store, no-cache, must-revalidate"
@@ -21,12 +20,14 @@ RewriteRule ^u/([a-z0-9._-]{3,40})/?$ user/perfil.php?username=$1 [L,QSA,NC]
 </IfModule>
 
 <IfModule mod_headers.c>
-    Header always set X-Content-Type-Options "nosniff"
+    Header onsuccess unset X-Frame-Options
     Header always set X-Frame-Options "DENY"
+    Header onsuccess unset X-Content-Type-Options
+    Header always set X-Content-Type-Options "nosniff"
+    Header onsuccess unset Referrer-Policy
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header onsuccess unset Permissions-Policy
     Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(self)"
-    Header always set Strict-Transport-Security "max-age=31536000"
-    Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: https:; media-src 'self'; connect-src 'self'"
 </IfModule>
 
 <IfModule mod_brotli.c>
@@ -47,8 +48,5 @@ ErrorDocument 500 /errors/500.php
     SetEnvIfExpr "(%{REQUEST_URI} == '/user/editatividade.php' || %{REQUEST_URI} == '/function/apagaratividade.php') && %{QUERY_STRING} =~ /(^|&)embed=1(&|$)/" STRIDEBR_ACTIVITY_EDIT_EMBED=1
 </IfModule>
 <IfModule mod_headers.c>
-    Header always unset X-Frame-Options env=STRIDEBR_ACTIVITY_EDIT_EMBED
-    Header always unset Content-Security-Policy env=STRIDEBR_ACTIVITY_EDIT_EMBED
     Header always set X-Frame-Options "SAMEORIGIN" env=STRIDEBR_ACTIVITY_EDIT_EMBED
-    Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: https:; media-src 'self'; connect-src 'self'" env=STRIDEBR_ACTIVITY_EDIT_EMBED
 </IfModule>

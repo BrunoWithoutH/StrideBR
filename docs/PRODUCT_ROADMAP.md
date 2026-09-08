@@ -1,87 +1,698 @@
-# StrideBR — direção de produto
+# StrideBR — roadmap de produto
 
-A sequência central do produto é:
+Última organização: 2026-09-08.
+
+Este documento concentra o backlog de produto e a direção das próximas versões. Nem todo item possui versão fechada. A prioridade é publicar e estabilizar a Web 1.0 antes de abrir frentes grandes em paralelo.
+
+A visão de longo prazo está em `PRODUCT_VISION.md`.
+
+## Legenda
+
+- **NOW** — prioridade de release atual.
+- **NEXT** — candidato às primeiras versões após a 1.0.
+- **PLANNED** — planejado, sem versão fechada.
+- **2027** — frente estratégica com alvo de trabalho em 2027.
+- **LAB** — ideia de longo prazo ou que exige validação técnica/dados.
+
+## Ciclo central
 
 ```text
-planejar → executar → registrar → acompanhar → compartilhar
+planejar → executar → registrar → analisar → evoluir
 ```
 
-## Base atual
+Com treinador/equipe:
 
-- Navegação adaptativa: navbar no desktop e barra inferior no mobile.
-- Página de cronogramas com scroll normal do documento, toolbar contextual sticky e calendário com scroll próprio.
-- Preview de treino sem sair da agenda, edição separada e exclusão do treino.
-- Ferramentas rápidas globais: cronômetro, timer e contador de sets, com favoritos fixáveis.
-- Sessão de treino iniciada pelo cronograma, acompanhamento de séries/exercícios e finalização em atividade.
-- Cards de atividades com métricas principais automáticas e detalhes secundários em modal.
-- Rotas v1 com desenho manual, distância validada no backend, elevação estimada e card compartilhável com identidade do StrideBR.
-- Perfil com nome de exibição, username, privacidade e onboarding curto.
-- Amigos com solicitação mútua, compartilhamento por snapshot e cronogramas sincronizados em modo leitura.
-- Exercícios com imagem principal e vídeo demonstrativo por URL.
-- Papéis `user`, `moderator`, `admin` e `owner`, feature flags, métricas, logs e auditoria.
-- Agenda mensal que projeta cronogramas semanais e aceita treinos por data específica.
-- Modo treinador separado de papéis administrativos, com vínculo aceito, permissões do atleta, prescrição, execução, feedback e resumo do atleta respeitando os acessos concedidos.
-- Home contextual, Progresso sem PBL, comparação A/B de atividades e notificações internas.
-- Atividades com exclusão reversível e privacidade opcional do início/fim da rota compartilhada.
+```text
+treinador planeja → atleta executa → StrideBR registra → treinador acompanha → próximo treino
+```
 
-## Próximas etapas prioritárias
+# 1. Web 1.0 — fechar antes de expandir
 
-### Núcleo e confiabilidade
+## NOW — release e confiabilidade
 
-- Expandir continuamente a suíte de integração PostgreSQL e manter o checklist de release da alpha como gate antes de novas rodadas.
-- Refinar edição durante uma sessão: reps/carga reais por série, descanso e notas por exercício.
-- Recuperação de sessão após fechamento da página e tratamento explícito de sessão abandonada.
-- Histórico detalhado de sessões e comparação entre planejado e realizado.
+- Concluir smoke real e checklist da Web 1.0.
+- Corrigir apenas bugs bloqueadores, regressões e problemas de publicação.
+- Manter migrations, autenticação, permissões, importações e integrações estáveis.
+- Validar rotas, GPS Web, compartilhamento, atividades, cronogramas, metas, eventos e equipamentos em ambiente real.
+- Não puxar Teams, analytics avançado ou novas áreas grandes para dentro da 1.0.
 
-### Evolução do planejamento e treinador
+## Pós-release imediato
 
-- Editor estruturado de treinos de corrida com aquecimento, bloco principal, recuperação, repetição, desaquecimento e alvos por tempo, distância ou ritmo.
-- Comparação planejado × realizado usando a sessão executada e a prescrição original.
-- Painel do treinador com tendências simples por atleta sem transformar dados esportivos em acesso administrativo à conta.
-- Evolução posterior para equipes/assessorias e verificação profissional quando houver necessidade de exposição pública ou recursos comerciais.
-- Verificação profissional deve ser separada do modo treinador e só coletar os dados estritamente necessários.
+- Corrigir problemas observados com usuários reais.
+- Melhorar desempenho de páginas lentas e estados de loading.
+- Refinar edição de sessões e recuperação após fechamento/reload.
+- Fechar diferenças entre planejado e realizado que já possam ser resolvidas com a estrutura atual.
 
-### Cronogramas compartilhados
+# 2. Activity Analytics V2
 
-- Validar em produção o fluxo atual de convite, aceite, leitura sincronizada, notificações e revogação.
-- Manter o participante em modo leitura enquanto não houver uma política robusta de conflitos para edição compartilhada.
-- Evoluir depois para papéis `owner/editor/viewer`, planejamento colaborativo e histórico de alterações importantes.
-- Manter a execução individual para cada membro e evitar transformar o produto numa rede social de ranking.
+## NEXT — Timeline da atividade
 
-### Perfis e biblioteca
+Criar uma timeline temporal/distância que represente a atividade inteira e permita combinar streams.
 
-- Refinar avatar/storage e política de limpeza de arquivos órfãos conforme a alpha crescer.
-- Página pública de cronogramas que o usuário escolheu publicar.
-- Busca unificada de exercícios, amigos e cronogramas.
-- Melhorar a biblioteca com instruções, categorias, imagem principal e referência de vídeo.
+Streams candidatos:
 
-### Administração
+- ritmo;
+- velocidade;
+- frequência cardíaca;
+- cadência;
+- potência;
+- elevação;
+- temperatura;
+- pausas;
+- voltas;
+- trechos;
+- equipamento;
+- eventos/marcadores;
+- música quando disponível.
 
-- Dashboard por períodos e séries temporais.
-- Métricas agregadas por país/região sem transformar analytics em armazenamento permanente de IPs.
-- Filtros e busca de audit log.
-- Moderação de conteúdo público e denúncias quando publicação pública crescer.
-- Controles de manutenção e feature flags por ambiente.
+A timeline deve poder alternar eixo por tempo ou distância.
 
-### Produto e distribuição
+## NEXT — análise por janelas
 
-- Validar a nova landing e a Home contextual com uso real antes de novas mudanças grandes.
-- Prototipar a experiência do app mobile separadamente do responsivo web.
-- PWA instalável e cache offline seletivo quando trouxerem benefício real ao web.
-- App dedicado com GPS confiável, persistência offline e gravação em segundo plano como prioridade mobile.
-- Importação/exportação XLSX depois dos formatos esportivos e JSON estabilizarem.
+Permitir agregação por:
 
-## Princípios
+- 1 min;
+- 5 min;
+- 10 min;
+- 1 km;
+- volta;
+- trecho;
+- intervalo personalizado.
 
-- Social é utilitário: amigos, treino e compartilhamento; não feed infinito.
-- O cronograma é o plano; a sessão é o que aconteceu; o histórico nunca depende do template atual.
-- Conteúdo secundário sai dos cards e vai para preview/detalhes.
-- Mobile não é desktop encolhido: usa navegação inferior, sheets e alvos de toque grandes.
-- Dados e permissões devem ter defaults privados e papéis administrativos com privilégio mínimo.
-- Vídeo de exercício é referência por URL; o StrideBR não vira hospedagem de vídeo sem necessidade.
+## PLANNED — eficiência e deriva
 
-## GPS Web e gravação de atividades
+- Relação entre performance e esforço ao longo da atividade.
+- Evolução de pace/velocidade para frequência cardíaca semelhante.
+- Comparação início × meio × fim.
+- Cardiac drift/decoupling quando os dados suportarem.
+- Métricas devem explicar o cálculo e evitar interpretações clínicas.
 
-Planejamento detalhado em `docs/GPS_WEB_V1.md`.
+## NEXT — comparação de atividades
 
-Prioridades: início rápido, gravação local-first sem depender de internet, recuperação após reload, filtro de qualidade do GPS, tela focada em distância/pace/tempo/elevação, metas opcionais com encerramento automático seguro, trechos/tiros com rota própria e integração direta com o Compartilhamento v2. A gravação confiável em segundo plano continua sendo responsabilidade do app mobile.
+- A/B com gráficos sobrepostos.
+- Comparar ritmo, FC, elevação, cadência, potência e zonas.
+- Destacar mesma rota ou percurso semelhante.
+- Comparar voltas e trechos equivalentes.
+
+## PLANNED — comparação de períodos
+
+Exemplos:
+
+- últimas 4 semanas × 4 anteriores;
+- mês atual × anterior;
+- temporada atual × passada.
+
+Métricas:
+
+- volume;
+- duração;
+- número de atividades;
+- intensidade;
+- pace/velocidade;
+- FC;
+- eficiência;
+- elevação;
+- esporte.
+
+# 3. Activity Data V2 e importação enriquecida
+
+## NEXT — preservar streams
+
+A importação FIT/TCX/GPX e integrações futuras devem preservar, quando disponíveis:
+
+- timestamps;
+- latitude/longitude;
+- elevação;
+- velocidade;
+- frequência cardíaca;
+- cadência;
+- potência;
+- temperatura;
+- laps/voltas;
+- pausas;
+- eventos;
+- sensores;
+- dispositivo de origem;
+- campos específicos do formato.
+
+Evitar reduzir arquivos ricos a apenas distância, duração e geometria.
+
+## PLANNED — Smart Activity Merge
+
+### Mesclar gravações interrompidas
+
+Unir duas ou mais atividades que pertencem à mesma sessão sem perder o original/histórico de edição.
+
+### Separar e corrigir
+
+- dividir uma atividade;
+- ajustar começo/fim;
+- corrigir associação de trechos;
+- desfazer merge quando possível.
+
+### Jornadas/sessões compostas
+
+Agrupar atividades relacionadas de vários dias ou modalidades sem obrigatoriamente apagar os registros individuais.
+
+### Multi-device merge
+
+Combinar streams sincronizados por timestamp de dispositivos diferentes.
+
+Exemplo:
+
+```text
+Dispositivo A → GPS + cadência + potência
+Dispositivo B → frequência cardíaca
+StrideBR → atividade combinada
+```
+
+Permitir escolher qual fonte tem prioridade para cada stream quando houver conflito.
+
+# 4. Voltas, Trechos e Segmentos
+
+## NEXT — Voltas
+
+Volta é uma marcação sequencial instantânea durante a atividade. Ao marcar uma volta, a anterior termina e a próxima começa imediatamente.
+
+No app mobile, deve existir um controle rápido de `Volta`.
+
+## PLANNED — Trechos editáveis
+
+Trecho é um intervalo arbitrário dentro de uma atividade.
+
+O usuário poderá:
+
+- iniciar trecho;
+- finalizar trecho;
+- nomear;
+- mover começo/fim;
+- dividir;
+- juntar;
+- excluir;
+- classificar.
+
+Trechos continuam dentro da mesma atividade.
+
+## PLANNED — detecção automática de trechos/intervalos
+
+Analisar a atividade e sugerir blocos como:
+
+- aquecimento;
+- tiros;
+- recuperação;
+- subida;
+- desaquecimento.
+
+A sugestão nunca deve alterar o registro sem confirmação.
+
+## LAB — Segmentos geográficos
+
+Segmento é um percurso geográfico persistente reutilizado entre atividades.
+
+Se implementado, evitar a poluição comum em plataformas com excesso de segmentos:
+
+- distância mínima configurável;
+- ocultar;
+- favoritos;
+- relevância;
+- filtros;
+- segmentos privados/pessoais antes de ranking público.
+
+Não é prioridade de curto prazo.
+
+# 5. Treinos estruturados
+
+## NEXT
+
+Criar editor estruturado para corrida e esportes compatíveis com blocos como:
+
+- aquecimento;
+- esforço;
+- recuperação;
+- repetição;
+- desaquecimento;
+- alvo por tempo;
+- alvo por distância;
+- alvo por ritmo/velocidade;
+- alvo por FC/potência quando aplicável.
+
+## PLANNED — planejado × realizado
+
+Comparar cada bloco da prescrição com o resultado executado.
+
+Essa frente deve reutilizar Activity Timeline, voltas e trechos, em vez de criar um modelo paralelo.
+
+# 6. Mobile
+
+## PLANNED — aplicativo dedicado
+
+Prioridades do app nativo:
+
+- GPS confiável;
+- gravação em segundo plano;
+- funcionamento offline;
+- persistência local;
+- recuperação de atividade;
+- tela focada durante exercício;
+- sincronização posterior com o servidor.
+
+## Controles durante a atividade
+
+- Volta;
+- Iniciar trecho;
+- Finalizar trecho;
+- Pausar/retomar;
+- marcadores rápidos configuráveis.
+
+Marcadores futuros podem representar água, terreno, desconforto, troca de equipamento ou observação rápida.
+
+# 7. Gear V2
+
+## NEXT — equipamentos com análise real
+
+Por equipamento:
+
+- distância;
+- duração;
+- atividades;
+- primeiro e último uso;
+- terreno;
+- elevação;
+- modalidades;
+- histórico;
+- tendência de uso;
+- recordes/contextos associados.
+
+## PLANNED — filtros por equipamento
+
+Filtrar atividades por tênis, bicicleta ou outro equipamento e permitir comparação entre equipamentos.
+
+Comparações devem considerar contexto para não concluir que um equipamento é melhor apenas porque foi usado em treinos mais rápidos.
+
+## PLANNED — equipamento por trecho
+
+Permitir associar equipamentos diferentes a trechos da mesma atividade.
+
+Exemplo:
+
+```text
+Aquecimento → tênis A
+Tiros → tênis B
+Desaquecimento → tênis A
+```
+
+A quilometragem de cada equipamento deve ser calculada automaticamente.
+
+# 8. Music & Performance
+
+## PLANNED — trilha sonora da atividade
+
+Registrar metadados do que estava tocando ao longo da atividade, sem hospedar arquivos de áudio.
+
+Dados possíveis:
+
+- timestamp;
+- faixa;
+- artista;
+- álbum;
+- serviço;
+- identificador externo.
+
+## Integrações futuras
+
+- Spotify;
+- Apple Music;
+- YouTube Music;
+- Last.fm;
+- metadados locais do dispositivo quando tecnicamente possível.
+
+## Analytics
+
+Relacionar música com a timeline:
+
+- música durante melhor km;
+- pace/velocidade média por faixa;
+- FC média;
+- músicas recorrentes em PRs;
+- playlist da atividade;
+- trilha sonora de prova;
+- share card com música.
+
+Esta frente é considerada um possível diferencial de identidade do StrideBR.
+
+# 9. Routes V2
+
+## PLANNED — mapa de atividades e rotas
+
+- visualizar atividades/rotas em um mapa agregado;
+- filtros por esporte, período e tipo;
+- rotas salvas;
+- sobreposição de percursos;
+- identificar caminhos já percorridos.
+
+Exploração/gamification é secundária e não deve dirigir o produto.
+
+## PLANNED — comparar repetições de rota
+
+Quando o usuário repete um percurso:
+
+- comparar tempo;
+- pace/velocidade;
+- FC;
+- elevação;
+- eficiência;
+- condições disponíveis.
+
+## PLANNED — gerador inteligente de rotas
+
+Entrada possível:
+
+- ponto de partida;
+- distância-alvo e tolerância;
+- ganho de elevação desejado;
+- superfície;
+- circuito / ida-e-volta / A→B;
+- inclinação máxima;
+- passar por determinado local;
+- evitar determinada área;
+- evitar vias principais;
+- priorizar áreas ainda não percorridas.
+
+O StrideBR deverá gerar múltiplos candidatos e pontuar as opções por aderência ao pedido.
+
+Dados de segurança/iluminação só devem ser usados quando houver fonte confiável. Não inferir segurança sem base suficiente.
+
+# 10. Histórico, filtros e estatísticas
+
+## NEXT — filtros avançados
+
+Histórico por:
+
+- esporte;
+- período;
+- distância;
+- duração;
+- equipamento;
+- rota;
+- treino;
+- PR;
+- origem/fonte;
+- com GPS;
+- com FC;
+- com música;
+- outras propriedades relevantes.
+
+## NEXT — excluir atividade de estatísticas
+
+Permitir manter uma atividade no histórico sem deixá-la afetar:
+
+- recordes;
+- PRs;
+- médias;
+- progressão;
+- resumos e tendências.
+
+A ação deve ser reversível e claramente indicada.
+
+# 11. Events V2
+
+## NEXT/PLANNED
+
+Evoluir o módulo existente para:
+
+- próximos eventos no perfil;
+- countdown;
+- participação do usuário;
+- prova/modalidade;
+- resultado;
+- tempo/marca;
+- colocação;
+- recorde pessoal;
+- histórico de eventos;
+- comparação entre participações.
+
+Events deve conversar diretamente com Teams quando houver equipes e delegações.
+
+# 12. Visões específicas por esporte
+
+## PLANNED
+
+Evitar uma única tela de analytics para todos os esportes.
+
+Exemplos:
+
+### Corrida
+
+- pace;
+- FC;
+- cadência;
+- splits;
+- elevação.
+
+### Ciclismo
+
+- velocidade;
+- potência;
+- cadência;
+- elevação.
+
+### Musculação
+
+- exercício;
+- carga;
+- reps;
+- volume;
+- progressão.
+
+### Esportes de equipe/racquete/combate
+
+Usar métricas e estruturas compatíveis com cada modalidade, sem forçar distância/pace onde não fazem sentido.
+
+# 13. Colaboração entre usuários
+
+## PLANNED — programas e cronogramas compartilhados
+
+Evoluir o compartilhamento atual para permissões explícitas:
+
+- `owner`;
+- `editor`;
+- `viewer`.
+
+Possibilidades:
+
+- um usuário cria e outro visualiza;
+- um usuário cria e ambos editam;
+- múltiplos editores;
+- histórico de alterações importantes;
+- revogação de acesso;
+- execução individual por participante.
+
+## PLANNED — atividades realizadas em conjunto
+
+Permitir associar dois ou mais usuários à mesma sessão/atividade social sem obrigar que exista uma equipe formal.
+
+A colaboração entre amigos deve continuar útil mesmo fora do StrideBR Teams.
+
+# 14. Personalização da interface
+
+## PLANNED
+
+À medida que o produto crescer:
+
+- ocultar módulos não utilizados;
+- fixar módulos importantes;
+- ordenar áreas do dashboard/home;
+- manter navegação principal previsível.
+
+Evitar transformar a interface em um construtor de dashboard complexo.
+
+# 15. StrideBR Teams
+
+## 2027 — novo pilar estratégico
+
+O Teams é uma das principais frentes planejadas para 2027.
+
+Primeiro piloto: **IFFar — Campus Frederico Westphalen**.
+
+A arquitetura deve ser multi-organização, mas o lançamento pode ser controlado e fechado.
+
+Documento completo: `STRIDEBR_TEAMS.md`.
+
+## Fundação
+
+- organizações;
+- unidades/campi;
+- temporadas;
+- delegações;
+- equipes/modalidades;
+- subgrupos;
+- atletas;
+- treinadores;
+- responsáveis;
+- convites;
+- permissões hierárquicas.
+
+## Teams Training
+
+- atribuir treinos;
+- planejamento coletivo;
+- presença/conclusão;
+- associação atividade ↔ treino;
+- elementos trabalhados;
+- volume;
+- intensidade;
+- planejado × realizado;
+- visão individual e da equipe.
+
+## Teams Performance
+
+- tendências;
+- evolução;
+- resultados;
+- competições;
+- comparação entre temporadas;
+- preparação para JEIF/JIF Sul/JIF Nacional e demais eventos.
+
+## Teams Athlete Health — fase posterior
+
+- RPE;
+- fadiga;
+- recuperação;
+- sono;
+- desconfortos;
+- histórico de interrupções/lesões;
+- retorno ao treinamento.
+
+Dados desta área exigem proteção adicional, especialmente por poder envolver menores de idade.
+
+## LAB — Teams Research / Insights
+
+Somente após existir base suficiente e governança adequada:
+
+- análises longitudinais;
+- padrões de carga;
+- relações entre treinamento e desempenho;
+- correlações entre treinamento, fortalecimento, recuperação e ocorrências;
+- dados agregados para pesquisa esportiva.
+
+Não apresentar correlação como causalidade nem transformar o produto em ferramenta de diagnóstico.
+
+## Possível apresentação
+
+`teams.stridebr.com.br` pode ser usado futuramente como entrada para a área Teams sem separar necessariamente backend, banco ou autenticação.
+
+# 16. Administração, infraestrutura de produto e API
+
+## PLANNED
+
+- analytics administrativos por período;
+- audit log com filtros;
+- moderação quando conteúdo público crescer;
+- feature flags por ambiente;
+- API pública/para clientes oficiais quando o domínio estiver estabilizado;
+- clientes mobile consumindo o mesmo domínio de negócio;
+- PWA/offline seletivo onde fizer sentido.
+
+# 17. Discovery e social — baixa prioridade
+
+## PLANNED/LAB
+
+- páginas públicas escolhidas pelo usuário;
+- busca de pessoas/planos/conteúdo público;
+- descoberta de rotas;
+- exploração de novos lugares;
+- recursos sociais utilitários.
+
+Não priorizar:
+
+- feed infinito;
+- ranking social como centro do produto;
+- gamification que desvie do treinamento;
+- mecanismos de engajamento sem utilidade esportiva.
+
+# 18. Diferenciais de identidade
+
+Marcar como frentes estratégicas, não necessariamente como próximas entregas:
+
+- **Activity Timeline rica**;
+- **Smart Activity Merge**;
+- **Gear Intelligence e equipamento por trecho**;
+- **Music & Performance**;
+- **Smart Routes**;
+- **StrideBR Teams**.
+
+# 19. Sequência sugerida
+
+Sem amarrar números de versão antes da 1.0 estabilizar:
+
+## Fase A — publicar e estabilizar
+
+- Web 1.0;
+- bugs;
+- performance;
+- confiabilidade.
+
+## Fase B — dados e analytics
+
+- importação enriquecida;
+- timeline;
+- filtros;
+- comparação;
+- Gear V2;
+- treinos estruturados.
+
+## Fase C — atividade avançada
+
+- trechos;
+- merge;
+- multi-device;
+- planejado × realizado aprofundado.
+
+## Fase D — rotas e mobile
+
+- Routes V2;
+- gerador inteligente;
+- app dedicado;
+- controles de volta/trecho.
+
+## Fase E — diferenciais
+
+- Music & Performance;
+- analytics mais profundos;
+- mapas agregados;
+- recursos de descoberta opcionais.
+
+## Fase Teams — em paralelo controlado durante 2027
+
+- validação com treinadores no fim de 2026;
+- protótipo;
+- fundação organizacional;
+- MVP com IFFar FW;
+- Teams Training;
+- Teams Performance;
+- módulos de saúde apenas posteriormente.
+
+# 20. Princípios de priorização
+
+Antes de puxar uma ideia para desenvolvimento, perguntar:
+
+1. Resolve um problema real observado?
+2. Depende de uma fundação de dados que ainda não existe?
+3. Pode ser implementada sem comprometer privacidade e confiabilidade?
+4. É melhor como recurso geral ou específico de esporte?
+5. O usuário entenderá o que a métrica significa?
+6. Estamos adicionando utilidade ou apenas complexidade visual?
+7. Esta feature ajuda o ciclo `planejar → executar → registrar → analisar → evoluir`?
+8. Precisa entrar agora ou ficará melhor depois de estabilizarmos outra camada?
+
+# 21. Ideias deliberadamente não priorizadas agora
+
+- previsão automatizada de lesões;
+- diagnósticos clínicos;
+- marketplace aberto de treinadores;
+- cadastro irrestrito de instituições;
+- feed social infinito;
+- ranking como mecanismo principal;
+- hospedagem de música/vídeo sem necessidade;
+- gamification como foco central;
+- IA adicionada apenas por marketing.

@@ -26,13 +26,13 @@ function cronogramaCriar(PDO $pdo, string $idUsuario, string $nome, ?string $des
 {
     $nome = trim($nome);
     if ($nome === '' || stridebr_length($nome) > 120) {
-        throw new InvalidArgumentException('Informe um nome válido para o cronograma.');
+        throw new InvalidArgumentException(stridebr_t('schedule.validation.schedule_name'));
     }
 
     $stmt = $pdo->prepare('SELECT 1 FROM cronogramas WHERE idusuario = :usuario AND lower(nome) = lower(:nome) LIMIT 1');
     $stmt->execute([':usuario' => $idUsuario, ':nome' => $nome]);
     if ($stmt->fetchColumn()) {
-        throw new InvalidArgumentException('Você já possui um cronograma com esse nome.');
+        throw new InvalidArgumentException(stridebr_t('schedule.validation.schedule_duplicate'));
     }
 
     $id = cronogramaGerarId();
@@ -78,7 +78,7 @@ function cronogramaSalvarTreino(PDO $pdo, string $idUsuario, array $payload, ?st
 {
     $idCronograma = (string) ($payload['idcronograma'] ?? '');
     if (cronogramaBuscar($pdo, $idCronograma, $idUsuario) === []) {
-        throw new RuntimeException('Cronograma não encontrado.');
+        throw new RuntimeException(stridebr_t('planning.message.schedule_missing'));
     }
 
     $titulo = trim((string) ($payload['titulo'] ?? ''));
@@ -94,41 +94,41 @@ function cronogramaSalvarTreino(PDO $pdo, string $idUsuario, array $payload, ?st
     $vigenciaInicio = $vigenciaInicioRaw !== '' ? DateTimeImmutable::createFromFormat('!Y-m-d', $vigenciaInicioRaw) : new DateTimeImmutable('today');
     $vigenciaFim = $vigenciaFimRaw !== '' ? DateTimeImmutable::createFromFormat('!Y-m-d', $vigenciaFimRaw) : null;
     if (!$vigenciaInicio || ($vigenciaInicioRaw !== '' && $vigenciaInicio->format('Y-m-d') !== $vigenciaInicioRaw)) {
-        throw new InvalidArgumentException('Data de início da vigência inválida.');
+        throw new InvalidArgumentException(stridebr_t('schedule.validation.start_invalid'));
     }
     if ($vigenciaFimRaw !== '' && (!$vigenciaFim || $vigenciaFim->format('Y-m-d') !== $vigenciaFimRaw)) {
-        throw new InvalidArgumentException('Data final da vigência inválida.');
+        throw new InvalidArgumentException(stridebr_t('schedule.validation.end_invalid'));
     }
     if ($vigenciaFim && $vigenciaFim < $vigenciaInicio) {
-        throw new InvalidArgumentException('A vigência final precisa ser igual ou posterior à inicial.');
+        throw new InvalidArgumentException(stridebr_t('schedule.validation.end_before_start'));
     }
 
     if ($titulo === '' || stridebr_length($titulo) > 120) {
-        throw new InvalidArgumentException('Informe um título válido para o treino.');
+        throw new InvalidArgumentException(stridebr_t('schedule.validation.workout_title'));
     }
     if (stridebr_length($codigo) > 24) {
-        throw new InvalidArgumentException('O código do treino é muito longo.');
+        throw new InvalidArgumentException(stridebr_t('schedule.validation.code_long'));
     }
     if (stridebr_length($foco) > 80) {
-        throw new InvalidArgumentException('O foco do treino é muito longo.');
+        throw new InvalidArgumentException(stridebr_t('schedule.validation.focus_long'));
     }
     if ($dia === false || $dia < 0 || $dia > 6) {
-        throw new InvalidArgumentException('Dia da semana inválido.');
+        throw new InvalidArgumentException(stridebr_t('schedule.invalid_weekday'));
     }
     if (!preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $inicio) || !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $fim)) {
-        throw new InvalidArgumentException('Horário inválido.');
+        throw new InvalidArgumentException(stridebr_t('planning.message.invalid_time'));
     }
     if (!$nextDay && $fim <= $inicio) {
-        throw new InvalidArgumentException('O horário final precisa ser maior que o inicial, ou marque que o treino termina no dia seguinte.');
+        throw new InvalidArgumentException(stridebr_t('schedule.validation.end_time'));
     }
     if ($nextDay && $fim > $inicio) {
-        throw new InvalidArgumentException('Se o treino termina no dia seguinte, o horário final deve ser menor ou igual ao inicial.');
+        throw new InvalidArgumentException(stridebr_t('schedule.validation.overnight_time'));
     }
 
     if ($idTreino !== null) {
         $existing = cronogramaBuscarTreino($pdo, $idTreino, $idUsuario);
         if ($existing === [] || $existing['idcronograma'] !== $idCronograma) {
-            throw new RuntimeException('Treino não encontrado.');
+            throw new RuntimeException(stridebr_t('schedule.workout_not_found'));
         }
         $stmt = $pdo->prepare('UPDATE treinos_cronograma SET titulo = :titulo, codigo = :codigo, foco = :foco, idmodalidade = :modalidade, descricao = :descricao, dia_semana = :dia, hora_inicio = :inicio, hora_fim = :fim, termina_dia_seguinte = :seguinte, vigencia_inicio = :vigencia_inicio, vigencia_fim = :vigencia_fim, data_atualizacao = NOW() WHERE idtreino = :id');
         $stmt->bindValue(':titulo', $titulo, PDO::PARAM_STR);
@@ -214,13 +214,13 @@ function cronogramaRestaurarTreinoExcluido(PDO $pdo, string $idUsuario, array $s
     $idTreino = trim((string) ($treino['idtreino'] ?? ''));
     $idCronograma = trim((string) ($treino['idcronograma'] ?? ''));
     if ($idTreino === '' || $idCronograma === '' || cronogramaBuscar($pdo, $idCronograma, $idUsuario) === []) {
-        throw new RuntimeException('Não foi possível restaurar este treino.');
+        throw new RuntimeException(stridebr_t('schedule.validation.restore_error'));
     }
     if (cronogramaBuscarTreino($pdo, $idTreino, $idUsuario) !== []) return $idTreino;
     $insertRow = static function (PDO $pdo, string $table, array $row): void {
         if ($row === []) return;
         foreach (array_keys($row) as $column) {
-            if (!preg_match('/^[a-z_][a-z0-9_]*$/i', (string) $column)) throw new RuntimeException('Estrutura inválida para restauração.');
+            if (!preg_match('/^[a-z_][a-z0-9_]*$/i', (string) $column)) throw new RuntimeException(stridebr_t('schedule.validation.restore_invalid'));
         }
         $columns = array_keys($row);
         $placeholders = array_map(static fn(string $column): string => ':' . $column, $columns);
@@ -272,7 +272,7 @@ function cronogramaDuplicarTreino(PDO $pdo, string $idUsuario, string $idTreino)
 {
     $source = cronogramaBuscarTreino($pdo, $idTreino, $idUsuario);
     if ($source === []) {
-        throw new RuntimeException('Treino não encontrado.');
+        throw new RuntimeException(stridebr_t('schedule.workout_not_found'));
     }
 
     $ownsTransaction = !$pdo->inTransaction();
@@ -428,7 +428,7 @@ function cronogramaCriarCategoria(PDO $pdo, string $idUsuario, string $nome): st
     $nome = trim($nome);
     $slug = stridebr_slug($nome);
     if ($nome === '' || stridebr_length($nome) > 80 || $slug === '') {
-        throw new InvalidArgumentException('Informe um nome válido para a categoria.');
+        throw new InvalidArgumentException(stridebr_t('schedule.validation.category_name'));
     }
     $stmt = $pdo->prepare('SELECT idcategoria, ativo FROM categorias_exercicio WHERE idusuario = :usuario AND lower(slug) = lower(:slug) LIMIT 1');
     $stmt->execute([':usuario' => $idUsuario, ':slug' => $slug]);
@@ -458,11 +458,11 @@ function cronogramaNormalizarUrlMidia(?string $url): ?string
     $url = trim((string) $url);
     if ($url === '') return null;
     if (strlen($url) > 2000 || filter_var($url, FILTER_VALIDATE_URL) === false) {
-        throw new InvalidArgumentException('Informe uma URL de mídia válida.');
+        throw new InvalidArgumentException(stridebr_t('schedule.validation.media_invalid'));
     }
     $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
     if (!in_array($scheme, ['http', 'https'], true)) {
-        throw new InvalidArgumentException('A URL de mídia precisa usar http ou https.');
+        throw new InvalidArgumentException(stridebr_t('schedule.validation.media_protocol'));
     }
     return $url;
 }
@@ -474,7 +474,7 @@ function cronogramaCriarExercicio(PDO $pdo, string $idUsuario, string $nome, ?st
     $imagemUrl = cronogramaNormalizarUrlMidia($imagemUrl);
     $videoUrl = cronogramaNormalizarUrlMidia($videoUrl);
     if ($nome === '' || stridebr_length($nome) > 120 || $slug === '') {
-        throw new InvalidArgumentException('Informe um nome válido para o exercício.');
+        throw new InvalidArgumentException(stridebr_t('schedule.validation.exercise_name'));
     }
     $stmt = $pdo->prepare('SELECT idexercicio, ativo FROM exercicios WHERE idusuario = :usuario AND lower(slug) = lower(:slug) LIMIT 1');
     $stmt->execute([':usuario' => $idUsuario, ':slug' => $slug]);
@@ -585,7 +585,7 @@ function cronogramaCarregarValoresExtras(PDO $pdo, array $exercicios): array
 function cronogramaSalvarExercicios(PDO $pdo, string $idTreino, string $idUsuario, array $rows, array $camposExtras): void
 {
     if (cronogramaBuscarTreino($pdo, $idTreino, $idUsuario) === []) {
-        throw new RuntimeException('Treino não encontrado.');
+        throw new RuntimeException(stridebr_t('schedule.workout_not_found'));
     }
 
     $existingRows = cronogramaListarTreinoExercicios($pdo, $idTreino, $idUsuario);
@@ -618,7 +618,7 @@ function cronogramaSalvarExercicios(PDO $pdo, string $idTreino, string $idUsuari
 
             if ($name === '') continue;
             if (stridebr_length($name) > 120) {
-                throw new InvalidArgumentException('O nome do exercício é muito longo.');
+                throw new InvalidArgumentException(stridebr_t('schedule.validation.exercise_name_long'));
             }
             $repeticoes = trim((string) ($row['repeticoes'] ?? ''));
             $carga = trim((string) ($row['carga'] ?? ''));
@@ -635,15 +635,15 @@ function cronogramaSalvarExercicios(PDO $pdo, string $idTreino, string $idUsuari
             $rpe = $rpeRaw !== '' && is_numeric($rpeRaw) ? (float) $rpeRaw : null;
             $rir = $rirRaw !== '' && is_numeric($rirRaw) ? (float) $rirRaw : null;
             if (($rpe !== null && ($rpe < 0 || $rpe > 10)) || ($rir !== null && ($rir < 0 || $rir > 10))) {
-                throw new InvalidArgumentException('RPE e RIR precisam estar entre 0 e 10.');
+                throw new InvalidArgumentException(stridebr_t('schedule.validation.rpe_range'));
             }
             if (stridebr_length($repeticoes) > 40 || stridebr_length($carga) > 40 || stridebr_length($bloco) > 40 || stridebr_length($cluster) > 80 || stridebr_length($descanso) > 40 || stridebr_length($duracao) > 40 || stridebr_length($distancia) > 40 || stridebr_length($intensidade) > 80 || stridebr_length($tempoExecucao) > 40 || stridebr_length($cadencia) > 40) {
-                throw new InvalidArgumentException('Uma das informações do exercício ultrapassa o limite permitido.');
+                throw new InvalidArgumentException(stridebr_t('schedule.validation.exercise_field_long'));
             }
             $seriesRaw = trim((string) ($row['series'] ?? ''));
             $series = $seriesRaw === '' ? null : filter_var($seriesRaw, FILTER_VALIDATE_INT);
             if ($seriesRaw !== '' && ($series === false || $series <= 0)) {
-                throw new InvalidArgumentException('Séries precisa ser um número inteiro positivo.');
+                throw new InvalidArgumentException(stridebr_t('schedule.validation.sets_positive'));
             }
 
             if ($idOccurrence !== '' && isset($existing[$idOccurrence])) {
@@ -750,22 +750,22 @@ function cronogramaSalvarExercicios(PDO $pdo, string $idTreino, string $idUsuari
 function cronogramaAdicionarCampoExtra(PDO $pdo, string $idTreino, string $idUsuario, string $nome, string $tipo): string
 {
     if (cronogramaBuscarTreino($pdo, $idTreino, $idUsuario) === []) {
-        throw new RuntimeException('Treino não encontrado.');
+        throw new RuntimeException(stridebr_t('schedule.workout_not_found'));
     }
     $nome = trim($nome);
     $slug = stridebr_slug($nome);
     if ($nome === '' || stridebr_length($nome) > 80 || $slug === '' || !in_array($tipo, ['texto', 'inteiro', 'decimal', 'booleano'], true)) {
-        throw new InvalidArgumentException('Campo extra inválido.');
+        throw new InvalidArgumentException(stridebr_t('schedule.validation.extra_field_invalid'));
     }
     $duplicateStmt = $pdo->prepare('SELECT idcampo, tipo, ativo FROM campos_treino_exercicio WHERE idtreino = :treino AND lower(slug) = lower(:slug) LIMIT 1');
     $duplicateStmt->execute([':treino' => $idTreino, ':slug' => $slug]);
     $existing = $duplicateStmt->fetch();
     if ($existing) {
         if (stridebr_db_bool($existing['ativo'])) {
-            throw new InvalidArgumentException('Já existe uma coluna com esse nome neste treino.');
+            throw new InvalidArgumentException(stridebr_t('schedule.validation.column_duplicate'));
         }
         if ($existing['tipo'] !== $tipo) {
-            throw new InvalidArgumentException('Uma coluna arquivada com esse nome usa outro tipo de dado.');
+            throw new InvalidArgumentException(stridebr_t('schedule.validation.archived_column'));
         }
         $pdo->prepare('UPDATE campos_treino_exercicio SET ativo = TRUE, nome = :nome WHERE idcampo = :id AND idtreino = :treino')->execute([
             ':nome' => $nome,
@@ -893,7 +893,7 @@ function cronogramaAssociarExercicio(PDO $pdo, string $idExercicio, string $idUs
     $stmt = $pdo->prepare('SELECT idexercicio FROM exercicios WHERE idexercicio = :id AND idusuario = :usuario LIMIT 1');
     $stmt->execute([':id' => $idExercicio, ':usuario' => $idUsuario]);
     if (!$stmt->fetchColumn()) {
-        throw new RuntimeException('Exercício pessoal não encontrado.');
+        throw new RuntimeException(stridebr_t('library.personal_exercise_not_found'));
     }
 
     $pdo->beginTransaction();
@@ -939,7 +939,7 @@ function cronogramaDuplicarExercicioSistema(PDO $pdo, string $idUsuario, string 
     $stmt->execute([':id' => $idExercicio]);
     $source = $stmt->fetch();
     if (!$source) {
-        throw new RuntimeException('Exercício do StrideBR não encontrado.');
+        throw new RuntimeException(stridebr_t('schedule.validation.system_exercise_missing'));
     }
 
     $baseName = $source['nome'];
@@ -995,13 +995,13 @@ function cronogramaAtualizarExercicioPessoal(PDO $pdo, string $idUsuario, string
     $imagemUrl = cronogramaNormalizarUrlMidia($imagemUrl);
     $videoUrl = cronogramaNormalizarUrlMidia($videoUrl);
     if ($nome === '' || stridebr_length($nome) > 120 || $slug === '') {
-        throw new InvalidArgumentException('Informe um nome válido para o exercício.');
+        throw new InvalidArgumentException(stridebr_t('schedule.validation.exercise_name'));
     }
 
     $check = $pdo->prepare('SELECT 1 FROM exercicios WHERE idusuario = :usuario AND lower(slug) = lower(:slug) AND idexercicio <> :id LIMIT 1');
     $check->execute([':usuario' => $idUsuario, ':slug' => $slug, ':id' => $idExercicio]);
     if ($check->fetchColumn()) {
-        throw new InvalidArgumentException('Já existe outro exercício pessoal com esse nome.');
+        throw new InvalidArgumentException(stridebr_t('schedule.validation.exercise_duplicate'));
     }
 
     $stmt = $pdo->prepare('UPDATE exercicios SET nome = :nome, slug = :slug, descricao = :descricao, imagem_url = :imagem, video_url = :video, data_atualizacao = NOW() WHERE idexercicio = :id AND idusuario = :usuario');
@@ -1056,7 +1056,7 @@ function cronogramaValidarModalidadeTreino(PDO $pdo, string $idUsuario, ?string 
          LIMIT 1'
     );
     $stmt->execute([':modalidade' => $idModalidade, ':usuario' => $idUsuario]);
-    if (!$stmt->fetchColumn()) throw new InvalidArgumentException('Tipo de atividade inválido para este treino.');
+    if (!$stmt->fetchColumn()) throw new InvalidArgumentException(stridebr_t('schedule.validation.workout_sport'));
     return $idModalidade;
 }
 
@@ -1136,20 +1136,20 @@ function cronogramaBuscarTreinoModelo(PDO $pdo, string $idUsuario, string $idTre
 function cronogramaSalvarTreinoModelo(PDO $pdo, string $idUsuario, array $payload, ?string $idTreinoModelo = null, bool $propagarVinculados = false): string
 {
     if (!cronogramaBibliotecaDisponivel($pdo)) {
-        throw new RuntimeException('A biblioteca de treinos ainda precisa da migration de planejamento.');
+        throw new RuntimeException(stridebr_t('schedule.validation.library_unavailable'));
     }
     $titulo = trim((string) ($payload['titulo'] ?? ''));
     $codigo = trim((string) ($payload['codigo'] ?? ''));
     $foco = trim((string) ($payload['foco'] ?? ''));
     $descricao = trim((string) ($payload['descricao'] ?? ''));
-    if ($titulo === '' || stridebr_length($titulo) > 120) throw new InvalidArgumentException('Informe um título de até 120 caracteres.');
-    if (stridebr_length($codigo) > 24) throw new InvalidArgumentException('O código do treino é muito longo.');
-    if (stridebr_length($foco) > 80) throw new InvalidArgumentException('O foco do treino é muito longo.');
+    if ($titulo === '' || stridebr_length($titulo) > 120) throw new InvalidArgumentException(stridebr_t('planning.message.invalid_title'));
+    if (stridebr_length($codigo) > 24) throw new InvalidArgumentException(stridebr_t('schedule.validation.code_long'));
+    if (stridebr_length($foco) > 80) throw new InvalidArgumentException(stridebr_t('schedule.validation.focus_long'));
 
     $existing = [];
     if ($idTreinoModelo !== null) {
         $existing = cronogramaBuscarTreinoModelo($pdo, $idUsuario, $idTreinoModelo);
-        if ($existing === []) throw new RuntimeException('Treino salvo não encontrado.');
+        if ($existing === []) throw new RuntimeException(stridebr_t('library.workout_not_found'));
     }
     $idModalidade = array_key_exists('idmodalidade', $payload)
         ? cronogramaValidarModalidadeTreino($pdo, $idUsuario, $payload['idmodalidade'])
@@ -1221,8 +1221,8 @@ function cronogramaArquivarTreinoModelo(PDO $pdo, string $idUsuario, string $idT
 function cronogramaSalvarExerciciosTreinoModelo(PDO $pdo, string $idUsuario, string $idTreinoModelo, array $rows): void
 {
     $modelo = cronogramaBuscarTreinoModelo($pdo, $idUsuario, $idTreinoModelo);
-    if ($modelo === []) throw new RuntimeException('Treino salvo não encontrado.');
-    if (count($rows) > 200) throw new InvalidArgumentException('Um treino pode ter no máximo 200 exercícios.');
+    if ($modelo === []) throw new RuntimeException(stridebr_t('library.workout_not_found'));
+    if (count($rows) > 200) throw new InvalidArgumentException(stridebr_t('schedule.validation.exercise_limit'));
     $biblioteca = cronogramaListarExerciciosBiblioteca($pdo, $idUsuario);
     $bibliotecaIds = array_column($biblioteca, null, 'idexercicio');
     $ownsTransaction = !$pdo->inTransaction();
@@ -1277,7 +1277,7 @@ function cronogramaSalvarExerciciosTreinoModelo(PDO $pdo, string $idUsuario, str
 function cronogramaSalvarTreinoAtualNaBiblioteca(PDO $pdo, string $idUsuario, string $idTreino): string
 {
     $source = cronogramaBuscarTreino($pdo, $idTreino, $idUsuario);
-    if ($source === []) throw new RuntimeException('Treino não encontrado.');
+    if ($source === []) throw new RuntimeException(stridebr_t('schedule.workout_not_found'));
     $id = cronogramaSalvarTreinoModelo($pdo, $idUsuario, [
         'titulo' => $source['titulo'], 'codigo' => $source['codigo'] ?? '', 'foco' => $source['foco'] ?? '', 'descricao' => $source['descricao'] ?? '',
         'idmodalidade' => cronogramaInferirModalidadeTreino($pdo, $idUsuario, $idTreino) ?? '',
@@ -1291,7 +1291,7 @@ function cronogramaSalvarTreinoAtualNaBiblioteca(PDO $pdo, string $idUsuario, st
 function cronogramaAtualizarTreinoModeloDoTreino(PDO $pdo, string $idUsuario, string $idTreino): string
 {
     $source = cronogramaBuscarTreino($pdo, $idTreino, $idUsuario);
-    if ($source === []) throw new RuntimeException('Treino não encontrado.');
+    if ($source === []) throw new RuntimeException(stridebr_t('schedule.workout_not_found'));
     $idModelo = trim((string) ($source['idtreino_modelo'] ?? ''));
     if ($idModelo === '') return cronogramaSalvarTreinoAtualNaBiblioteca($pdo, $idUsuario, $idTreino);
     cronogramaSalvarTreinoModelo($pdo, $idUsuario, [
@@ -1305,7 +1305,7 @@ function cronogramaAtualizarTreinoModeloDoTreino(PDO $pdo, string $idUsuario, st
 function cronogramaAdicionarTreinoModeloAoCronograma(PDO $pdo, string $idUsuario, string $idTreinoModelo, string $idCronograma, int $diaSemana, string $horaInicio, string $horaFim, bool $terminaDiaSeguinte, string $vigenciaInicio, ?string $vigenciaFim = null): string
 {
     $modelo = cronogramaBuscarTreinoModelo($pdo, $idUsuario, $idTreinoModelo);
-    if ($modelo === []) throw new RuntimeException('Treino salvo não encontrado.');
+    if ($modelo === []) throw new RuntimeException(stridebr_t('library.workout_not_found'));
     $ownsTransaction = !$pdo->inTransaction();
     if ($ownsTransaction) $pdo->beginTransaction();
     try {
@@ -1340,7 +1340,7 @@ function cronogramaAdicionarTreinoModeloAoCronograma(PDO $pdo, string $idUsuario
 function cronogramaValidarDataIso(string $date): DateTimeImmutable
 {
     $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
-    if (!$parsed || $parsed->format('Y-m-d') !== $date) throw new InvalidArgumentException('Data inválida.');
+    if (!$parsed || $parsed->format('Y-m-d') !== $date) throw new InvalidArgumentException(stridebr_t('schedule.validation.date_invalid'));
     return $parsed;
 }
 
@@ -1356,11 +1356,11 @@ function cronogramaExcecaoTemMudanca(array $workout, ?array $exception, string $
     return false;
 }
 
-function cronogramaListarOcorrencias(PDO $pdo, string $idUsuario, string $dataInicio, string $dataFim, ?string $idCronograma = null): array
+function cronogramaListarOcorrencias(PDO $pdo, string $idUsuario, string $dataInicio, string $dataFim, ?string $idCronograma = null, bool $includeCancelled = false): array
 {
     $inicio = cronogramaValidarDataIso($dataInicio);
     $fim = cronogramaValidarDataIso($dataFim);
-    if ($fim < $inicio || $fim->diff($inicio)->days > 93) throw new InvalidArgumentException('Intervalo de agenda inválido.');
+    if ($fim < $inicio || $fim->diff($inicio)->days > 93) throw new InvalidArgumentException(stridebr_t('schedule.validation.agenda_range'));
     $sql = "SELECT t.*, c.nome AS cronograma_nome FROM treinos_cronograma t JOIN cronogramas c ON c.idcronograma = t.idcronograma WHERE c.idusuario = :usuario AND c.ativo = TRUE AND ((t.vigencia_inicio <= :fim AND (t.vigencia_fim IS NULL OR t.vigencia_fim >= :inicio)) OR EXISTS (SELECT 1 FROM treinos_cronograma_excecoes te WHERE te.idtreino = t.idtreino AND te.tipo = 'alterar' AND te.data_treino BETWEEN :inicio_ex AND :fim_ex))";
     $params = [':usuario' => $idUsuario, ':inicio' => $dataInicio, ':fim' => $dataFim, ':inicio_ex' => $dataInicio, ':fim_ex' => $dataFim];
     if ($idCronograma !== null && $idCronograma !== '') {
@@ -1389,9 +1389,10 @@ function cronogramaListarOcorrencias(PDO $pdo, string $idUsuario, string $dataIn
         while ($cursor->getTimestamp() <= $seriesEnd) {
             $original = $cursor->format('Y-m-d');
             $exception = $exceptions[(string) $workout['idtreino']][$original] ?? null;
-            if (!$exception || $exception['tipo'] !== 'cancelar') {
+            if (!$exception || $exception['tipo'] !== 'cancelar' || $includeCancelled) {
                 $item = $workout;
                 $item['data_original'] = $original;
+                if (($exception['tipo'] ?? '') === 'cancelar') $item['status'] = 'cancelado';
                 $item['data_treino'] = $exception && $exception['tipo'] === 'alterar' ? (string) $exception['data_treino'] : $original;
                 $item['titulo'] = $exception['titulo'] ?? $workout['titulo'];
                 $item['codigo'] = $exception['codigo'] ?? $workout['codigo'];
@@ -1438,15 +1439,15 @@ function cronogramaListarOcorrencias(PDO $pdo, string $idUsuario, string $dataIn
 function cronogramaAlterarOcorrencia(PDO $pdo, string $idUsuario, string $idTreino, string $dataOriginal, string $novaData, string $scope = 'this', ?string $novaHoraInicio = null): array
 {
     $workout = cronogramaBuscarTreino($pdo, $idTreino, $idUsuario);
-    if ($workout === []) throw new RuntimeException('Treino não encontrado.');
+    if ($workout === []) throw new RuntimeException(stridebr_t('schedule.workout_not_found'));
     $original = cronogramaValidarDataIso($dataOriginal);
     $target = cronogramaValidarDataIso($novaData);
-    if (!in_array($scope, ['this', 'future', 'all'], true)) throw new InvalidArgumentException('Escopo de alteração inválido.');
+    if (!in_array($scope, ['this', 'future', 'all'], true)) throw new InvalidArgumentException(stridebr_t('schedule.validation.move_scope'));
 
     $timePatch = null;
     $novaHoraInicio = $novaHoraInicio !== null ? trim($novaHoraInicio) : null;
     if ($novaHoraInicio !== null && $novaHoraInicio !== '') {
-        if (!preg_match('/^(?:[01]\\d|2[0-3]):[0-5]\\d$/', $novaHoraInicio)) throw new InvalidArgumentException('Horário inválido.');
+        if (!preg_match('/^(?:[01]\\d|2[0-3]):[0-5]\\d$/', $novaHoraInicio)) throw new InvalidArgumentException(stridebr_t('planning.message.invalid_time'));
         $baseStart = ((int) substr((string) $workout['hora_inicio'], 0, 2)) * 60 + (int) substr((string) $workout['hora_inicio'], 3, 2);
         $baseEnd = ((int) substr((string) $workout['hora_fim'], 0, 2)) * 60 + (int) substr((string) $workout['hora_fim'], 3, 2);
         $duration = stridebr_db_bool($workout['termina_dia_seguinte'] ?? false)
@@ -1568,7 +1569,7 @@ function cronogramaAlterarOcorrencia(PDO $pdo, string $idUsuario, string $idTrei
 
 function cronogramaDataNaMesmaSemana(DateTimeImmutable $referencia, int $diaSemana): DateTimeImmutable
 {
-    if ($diaSemana < 0 || $diaSemana > 6) throw new InvalidArgumentException('Dia da semana inválido.');
+    if ($diaSemana < 0 || $diaSemana > 6) throw new InvalidArgumentException(stridebr_t('schedule.invalid_weekday'));
     $domingo = $referencia->modify('-' . $referencia->format('w') . ' days');
     return $domingo->modify('+' . $diaSemana . ' days');
 }
@@ -1576,8 +1577,8 @@ function cronogramaDataNaMesmaSemana(DateTimeImmutable $referencia, int $diaSema
 function cronogramaEditarTreinoEscopo(PDO $pdo, string $idUsuario, string $idTreino, string $dataOriginal, string $scope, array $payload): array
 {
     $workout = cronogramaBuscarTreino($pdo, $idTreino, $idUsuario);
-    if ($workout === []) throw new RuntimeException('Treino não encontrado.');
-    if (!in_array($scope, ['this', 'future', 'all'], true)) throw new InvalidArgumentException('Escopo de edição inválido.');
+    if ($workout === []) throw new RuntimeException(stridebr_t('schedule.workout_not_found'));
+    if (!in_array($scope, ['this', 'future', 'all'], true)) throw new InvalidArgumentException(stridebr_t('schedule.validation.edit_scope'));
     $payload['idcronograma'] = (string) $workout['idcronograma'];
     if ($scope === 'all' || trim($dataOriginal) === '') {
         return ['idtreino' => cronogramaSalvarTreino($pdo, $idUsuario, $payload, $idTreino), 'scope' => 'all'];
@@ -1585,7 +1586,7 @@ function cronogramaEditarTreinoEscopo(PDO $pdo, string $idUsuario, string $idTre
     $occurrence = cronogramaBuscarOcorrenciaOriginal($pdo, $idUsuario, $idTreino, $dataOriginal);
     $referenceDate = cronogramaValidarDataIso((string) $occurrence['data_treino']);
     $day = filter_var($payload['dia_semana'] ?? null, FILTER_VALIDATE_INT);
-    if ($day === false || $day < 0 || $day > 6) throw new InvalidArgumentException('Dia da semana inválido.');
+    if ($day === false || $day < 0 || $day > 6) throw new InvalidArgumentException(stridebr_t('schedule.invalid_weekday'));
     $targetDate = cronogramaDataNaMesmaSemana($referenceDate, (int) $day);
     $titulo = trim((string) ($payload['titulo'] ?? ''));
     $codigo = trim((string) ($payload['codigo'] ?? ''));
@@ -1595,12 +1596,12 @@ function cronogramaEditarTreinoEscopo(PDO $pdo, string $idUsuario, string $idTre
     $fim = trim((string) ($payload['hora_fim'] ?? ''));
     $nextDay = !empty($payload['termina_dia_seguinte']);
     $idModalidade = cronogramaValidarModalidadeTreino($pdo, $idUsuario, $payload['idmodalidade'] ?? null);
-    if ($titulo === '' || stridebr_length($titulo) > 120) throw new InvalidArgumentException('Informe um título válido para o treino.');
-    if (stridebr_length($codigo) > 24) throw new InvalidArgumentException('O código do treino é muito longo.');
-    if (stridebr_length($foco) > 80) throw new InvalidArgumentException('O foco do treino é muito longo.');
-    if (!preg_match('/^(?:[01]\\d|2[0-3]):[0-5]\\d$/', $inicio) || !preg_match('/^(?:[01]\\d|2[0-3]):[0-5]\\d$/', $fim)) throw new InvalidArgumentException('Horário inválido.');
-    if (!$nextDay && $fim <= $inicio) throw new InvalidArgumentException('O horário final precisa ser maior que o inicial, ou marque que o treino termina no dia seguinte.');
-    if ($nextDay && $fim > $inicio) throw new InvalidArgumentException('Se o treino termina no dia seguinte, o horário final deve ser menor ou igual ao inicial.');
+    if ($titulo === '' || stridebr_length($titulo) > 120) throw new InvalidArgumentException(stridebr_t('schedule.validation.workout_title'));
+    if (stridebr_length($codigo) > 24) throw new InvalidArgumentException(stridebr_t('schedule.validation.code_long'));
+    if (stridebr_length($foco) > 80) throw new InvalidArgumentException(stridebr_t('schedule.validation.focus_long'));
+    if (!preg_match('/^(?:[01]\\d|2[0-3]):[0-5]\\d$/', $inicio) || !preg_match('/^(?:[01]\\d|2[0-3]):[0-5]\\d$/', $fim)) throw new InvalidArgumentException(stridebr_t('planning.message.invalid_time'));
+    if (!$nextDay && $fim <= $inicio) throw new InvalidArgumentException(stridebr_t('schedule.validation.end_time'));
+    if ($nextDay && $fim > $inicio) throw new InvalidArgumentException(stridebr_t('schedule.validation.overnight_time'));
     if ($scope === 'this') {
         $baseModality = trim((string) ($workout['idmodalidade'] ?? ''));
         $normalizedModality = trim((string) ($idModalidade ?? ''));
@@ -1633,7 +1634,7 @@ function cronogramaEditarTreinoEscopo(PDO $pdo, string $idUsuario, string $idTre
     try {
         $moved = cronogramaAlterarOcorrencia($pdo, $idUsuario, $idTreino, $dataOriginal, $targetDate->format('Y-m-d'), 'future', $inicio);
         $targetWorkout = cronogramaBuscarTreino($pdo, (string)$moved['idtreino'], $idUsuario);
-        if ($targetWorkout === []) throw new RuntimeException('Não foi possível criar a nova fase do cronograma.');
+        if ($targetWorkout === []) throw new RuntimeException(stridebr_t('schedule.validation.phase_error'));
         $payload['vigencia_inicio'] = (string)$targetWorkout['vigencia_inicio'];
         $payload['vigencia_fim'] = (string)($targetWorkout['vigencia_fim'] ?? '');
         $saved = cronogramaSalvarTreino($pdo, $idUsuario, $payload, (string)$moved['idtreino']);
@@ -1644,7 +1645,7 @@ function cronogramaEditarTreinoEscopo(PDO $pdo, string $idUsuario, string $idTre
 
 function cronogramaCancelarOcorrencia(PDO $pdo, string $idUsuario, string $idTreino, string $dataOriginal): void
 {
-    if (cronogramaBuscarTreino($pdo, $idTreino, $idUsuario) === []) throw new RuntimeException('Treino não encontrado.');
+    if (cronogramaBuscarTreino($pdo, $idTreino, $idUsuario) === []) throw new RuntimeException(stridebr_t('schedule.workout_not_found'));
     cronogramaValidarDataIso($dataOriginal);
     $stmt = $pdo->prepare(
         "INSERT INTO treinos_cronograma_excecoes (idexcecao, idtreino, data_original, tipo, data_treino)
@@ -1657,21 +1658,21 @@ function cronogramaCancelarOcorrencia(PDO $pdo, string $idUsuario, string $idTre
 function cronogramaBuscarOcorrenciaOriginal(PDO $pdo, string $idUsuario, string $idTreino, string $dataOriginal): array
 {
     $workout = cronogramaBuscarTreino($pdo, $idTreino, $idUsuario);
-    if ($workout === []) throw new RuntimeException('Treino não encontrado.');
+    if ($workout === []) throw new RuntimeException(stridebr_t('schedule.workout_not_found'));
     $original = cronogramaValidarDataIso($dataOriginal);
 
     $stmt = $pdo->prepare('SELECT * FROM treinos_cronograma_excecoes WHERE idtreino = :treino AND data_original = :original LIMIT 1');
     $stmt->execute([':treino' => $idTreino, ':original' => $dataOriginal]);
     $exception = $stmt->fetch() ?: null;
     if ($exception && (string) $exception['tipo'] === 'cancelar') {
-        throw new RuntimeException('Este treino foi pulado nesta ocorrência.');
+        throw new RuntimeException(stridebr_t('schedule.validation.skipped'));
     }
 
     if (!$exception) {
         $start = new DateTimeImmutable((string) $workout['vigencia_inicio']);
         $end = !empty($workout['vigencia_fim']) ? new DateTimeImmutable((string) $workout['vigencia_fim']) : null;
         if ($original < $start || ($end !== null && $original > $end) || (int) $original->format('w') !== (int) $workout['dia_semana']) {
-            throw new RuntimeException('Ocorrência não encontrada.');
+            throw new RuntimeException(stridebr_t('schedule.validation.occurrence_missing'));
         }
     }
 
@@ -1693,12 +1694,12 @@ function cronogramaBuscarOcorrenciaOriginal(PDO $pdo, string $idUsuario, string 
 function cronogramaTrocarOcorrencias(PDO $pdo, string $idUsuario, string $idTreinoA, string $dataOriginalA, string $idTreinoB, string $dataOriginalB): array
 {
     if ($idTreinoA === $idTreinoB && $dataOriginalA === $dataOriginalB) {
-        throw new InvalidArgumentException('Escolha dois treinos diferentes para trocar.');
+        throw new InvalidArgumentException(stridebr_t('schedule.validation.swap_different'));
     }
     $a = cronogramaBuscarOcorrenciaOriginal($pdo, $idUsuario, $idTreinoA, $dataOriginalA);
     $b = cronogramaBuscarOcorrenciaOriginal($pdo, $idUsuario, $idTreinoB, $dataOriginalB);
     if ((string) $a['idcronograma'] !== (string) $b['idcronograma']) {
-        throw new InvalidArgumentException('Os treinos precisam pertencer ao mesmo cronograma.');
+        throw new InvalidArgumentException(stridebr_t('schedule.validation.same_schedule'));
     }
 
     $ownsTransaction = !$pdo->inTransaction();
@@ -1742,11 +1743,11 @@ function cronogramaPreferenciaSemanalBuscar(PDO $pdo, string $idUsuario, string 
 function cronogramaPreferenciaSemanalSalvar(PDO $pdo, string $idUsuario, string $idCronograma, string $semanaInicio, ?string $idTreino): void
 {
     cronogramaValidarDataIso($semanaInicio);
-    if (cronogramaBuscar($pdo, $idCronograma, $idUsuario) === []) throw new RuntimeException('Cronograma não encontrado.');
+    if (cronogramaBuscar($pdo, $idCronograma, $idUsuario) === []) throw new RuntimeException(stridebr_t('planning.message.schedule_missing'));
     if ($idTreino !== null && $idTreino !== '') {
         $workout = cronogramaBuscarTreino($pdo, $idTreino, $idUsuario);
         if ($workout === [] || (string) $workout['idcronograma'] !== $idCronograma) {
-            throw new InvalidArgumentException('Treino inválido para este cronograma.');
+            throw new InvalidArgumentException(stridebr_t('schedule.validation.workout_invalid'));
         }
     }
     $stmt = $pdo->prepare(
@@ -1790,12 +1791,15 @@ function cronogramaConciliarOcorrenciasComRegistros(PDO $pdo, string $idUsuario,
               AND excluido_em IS NULL
               AND idtreino_cronograma IS NOT NULL
               AND status = 'concluido'
-              AND data_inicio >= :inicio
-              AND data_inicio < :fim";
+              AND ((data_inicio >= :inicio AND data_inicio < :fim)
+                   OR data_ocorrencia_planejada BETWEEN :plano_inicio AND :plano_fim
+                   OR data_ocorrencia_origem BETWEEN :origem_inicio AND :origem_fim)";
     $params = [
         ':usuario' => $idUsuario,
         ':inicio' => $start->setTime(0, 0)->format(DateTimeInterface::ATOM),
         ':fim' => $end->modify('+1 day')->setTime(0, 0)->format(DateTimeInterface::ATOM),
+        ':plano_inicio' => $dataInicio, ':plano_fim' => $dataFim,
+        ':origem_inicio' => $dataInicio, ':origem_fim' => $dataFim,
     ];
     if ($idCronograma !== null && $idCronograma !== '') {
         $sql .= ' AND idcronograma = :cronograma';
@@ -1817,25 +1821,18 @@ function cronogramaConciliarOcorrenciasComRegistros(PDO $pdo, string $idUsuario,
 
     $used = [];
     $workoutTemplates = [];
+    foreach ($byWorkout as $workoutId => $indices) $workoutTemplates[$workoutId] = $ocorrencias[$indices[0]];
+    $missingIds = array_values(array_diff(array_unique(array_column($activities, 'idtreino_cronograma')), array_keys($workoutTemplates)));
+    if ($missingIds) {
+        $placeholders = implode(',', array_fill(0, count($missingIds), '?'));
+        $templatesStmt = $pdo->prepare("SELECT t.*, c.nome AS cronograma_nome FROM treinos_cronograma t JOIN cronogramas c ON c.idcronograma = t.idcronograma WHERE c.idusuario = ? AND t.idtreino IN ({$placeholders})");
+        $templatesStmt->execute([$idUsuario, ...$missingIds]);
+        foreach ($templatesStmt->fetchAll() as $workout) $workoutTemplates[$workout['idtreino']] = $workout + ['data_original' => '', 'data_treino' => '', 'excecao' => false];
+    }
     foreach ($activities as $activity) {
         $workoutId = (string) ($activity['idtreino_cronograma'] ?? '');
-        if ($workoutId === '') continue;
+        if ($workoutId === '' || !isset($workoutTemplates[$workoutId])) continue;
 
-        if (!isset($workoutTemplates[$workoutId])) {
-            if (!empty($byWorkout[$workoutId])) {
-                $workoutTemplates[$workoutId] = $ocorrencias[$byWorkout[$workoutId][0]];
-            } else {
-                $workout = cronogramaBuscarTreino($pdo, $workoutId, $idUsuario);
-                if ($workout === []) {
-                    $workoutTemplates[$workoutId] = [];
-                } else {
-                    $workout['data_original'] = '';
-                    $workout['data_treino'] = '';
-                    $workout['excecao'] = false;
-                    $workoutTemplates[$workoutId] = $workout;
-                }
-            }
-        }
         $template = $workoutTemplates[$workoutId];
         if ($template === []) continue;
 
@@ -1867,15 +1864,13 @@ function cronogramaConciliarOcorrenciasComRegistros(PDO $pdo, string $idUsuario,
             }
         }
 
-        if ($candidate === null && !$planWasCorrectedAwayFromOrigin && !empty($byWorkout[$workoutId])) {
+        if ($candidate === null && $originalHint === '' && $plannedHint === '' && !empty($byWorkout[$workoutId])) {
             $activityDateObj = new DateTimeImmutable($activityDate);
-            $activityWeek = $activityDateObj->modify('-' . $activityDateObj->format('w') . ' days')->format('Y-m-d');
             $bestDistance = PHP_INT_MAX;
             foreach ($byWorkout[$workoutId] as $index) {
                 if (isset($used[$index])) continue;
                 $planned = new DateTimeImmutable((string) $ocorrencias[$index]['data_planejada']);
-                $plannedWeek = $planned->modify('-' . $planned->format('w') . ' days')->format('Y-m-d');
-                if ($plannedWeek !== $activityWeek) continue;
+                if ($planned->format('Y-m-d') !== $activityDate) continue;
                 $distance = abs($planned->diff($activityDateObj)->days ?? 0);
                 if ($distance < $bestDistance) {
                     $bestDistance = $distance;
@@ -1933,22 +1928,6 @@ function cronogramaConciliarOcorrenciasComRegistros(PDO $pdo, string $idUsuario,
         }
     }
 
-    $completedByWeek = [];
-    foreach ($ocorrencias as $item) {
-        if (empty($item['concluido'])) continue;
-        $date = new DateTimeImmutable((string) $item['data_treino']);
-        $week = $date->modify('-' . $date->format('w') . ' days')->format('Y-m-d');
-        $completedByWeek[(string) $item['idtreino'] . ':' . $week] = true;
-    }
-    foreach ($ocorrencias as $index => $item) {
-        if (!empty($item['concluido'])) continue;
-        $planned = new DateTimeImmutable((string) $item['data_planejada']);
-        $week = $planned->modify('-' . $planned->format('w') . ' days')->format('Y-m-d');
-        if (isset($completedByWeek[(string) $item['idtreino'] . ':' . $week])) {
-            $ocorrencias[$index]['suprimido_por_realizacao_semana'] = true;
-        }
-    }
-
     usort($ocorrencias, static fn(array $a, array $b): int => [$a['data_treino'], $a['hora_inicio'], $a['ordem']] <=> [$b['data_treino'], $b['hora_inicio'], $b['ordem']]);
     return $ocorrencias;
 }
@@ -1956,15 +1935,15 @@ function cronogramaConciliarOcorrenciasComRegistros(PDO $pdo, string $idUsuario,
 function cronogramaAjustarHistoricoRegistro(PDO $pdo, string $idUsuario, string $idRegistro, string $dataPlanejada, ?string $horaPlanejada = null, ?string $dataRealizada = null, ?string $horaRealizada = null): array
 {
     $idRegistro = trim($idRegistro);
-    if ($idRegistro === '') throw new InvalidArgumentException('Atividade inválida.');
+    if ($idRegistro === '') throw new InvalidArgumentException(stridebr_t('schedule.validation.activity_invalid'));
     $planned = cronogramaValidarDataIso(trim($dataPlanejada));
     $horaPlanejada = trim((string) $horaPlanejada);
-    if ($horaPlanejada !== '' && !preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $horaPlanejada)) throw new InvalidArgumentException('Hora planejada inválida.');
+    if ($horaPlanejada !== '' && !preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $horaPlanejada)) throw new InvalidArgumentException(stridebr_t('schedule.validation.planned_time_invalid'));
 
     $stmt = $pdo->prepare("SELECT idregistro, idtreino_cronograma, data_ocorrencia_origem, data_inicio, data_fim FROM registros_atividade WHERE idregistro = :registro AND idusuario = :usuario AND excluido_em IS NULL AND idtreino_cronograma IS NOT NULL LIMIT 1");
     $stmt->execute([':registro' => $idRegistro, ':usuario' => $idUsuario]);
     $activity = $stmt->fetch();
-    if (!$activity) throw new RuntimeException('Atividade vinculada ao cronograma não encontrada.');
+    if (!$activity) throw new RuntimeException(stridebr_t('schedule.validation.linked_activity_missing'));
 
     $currentStart = new DateTimeImmutable((string) $activity['data_inicio']);
     $currentEnd = !empty($activity['data_fim']) ? new DateTimeImmutable((string) $activity['data_fim']) : null;
@@ -1975,7 +1954,7 @@ function cronogramaAjustarHistoricoRegistro(PDO $pdo, string $idUsuario, string 
     if ($realizedDate === '') $realizedDate = $currentStart->format('Y-m-d');
     if ($realizedTime === '') $realizedTime = $currentStart->format('H:i');
     $realized = cronogramaValidarDataIso($realizedDate);
-    if (!preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $realizedTime)) throw new InvalidArgumentException('Hora realizada inválida.');
+    if (!preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $realizedTime)) throw new InvalidArgumentException(stridebr_t('schedule.validation.actual_time_invalid'));
     $realizedAt = new DateTimeImmutable($realized->format('Y-m-d') . ' ' . $realizedTime, $currentStart->getTimezone());
     $newEnd = $durationSeconds !== null ? $realizedAt->modify('+' . $durationSeconds . ' seconds') : null;
 
@@ -2020,7 +1999,7 @@ function cronogramaCorrigirPlanejamentoRegistro(PDO $pdo, string $idUsuario, str
     $stmt = $pdo->prepare('SELECT data_inicio FROM registros_atividade WHERE idregistro = :registro AND idusuario = :usuario AND excluido_em IS NULL LIMIT 1');
     $stmt->execute([':registro' => trim($idRegistro), ':usuario' => $idUsuario]);
     $start = $stmt->fetchColumn();
-    if ($start === false) throw new RuntimeException('Atividade não encontrada.');
+    if ($start === false) throw new RuntimeException(stridebr_t('schedule.validation.activity_missing'));
     $performed = new DateTimeImmutable((string) $start);
     return cronogramaAjustarHistoricoRegistro($pdo, $idUsuario, $idRegistro, $dataPlanejada, $horaPlanejada, $performed->format('Y-m-d'), $performed->format('H:i'));
 }

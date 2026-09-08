@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/src/includes/errors.php';
 require_once dirname(__DIR__, 2) . '/src/includes/app.php';
+require_once dirname(__DIR__, 2) . '/src/layout/ads.php';
 
 $idUsuario = stridebr_require_login();
 require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
@@ -73,8 +74,8 @@ $flashes = stridebr_take_flashes();
     <?php require dirname(__DIR__, 2) . '/src/layout/header.php'; ?>
     <main class="main-content activities-page equipment-page">
         <header class="activities-toolbar">
-            <div class="activities-toolbar-title"><h1><?php echo stridebr_e(stridebr_t('activity.equipment')); ?></h1><span><?php echo stridebr_e(stridebr_t('equipment.subtitle')); ?></span></div>
-            <div class="activities-toolbar-actions"><a class="activity-toolbar-link" href="/user/atividades.php">← <?php echo stridebr_e(stridebr_t('equipment.back_activities')); ?></a></div>
+            <div class="activities-toolbar-title"><h1><?php echo stridebr_e(stridebr_t('activity.equipment')); ?></h1></div>
+            <div class="activities-toolbar-actions"><a class="activity-toolbar-link" data-safe-back href="/user/atividades.php">← <?php echo stridebr_e(stridebr_t('equipment.back_activities')); ?></a></div>
         </header>
 
         <?php foreach ($flashes as $flash): ?><div class="alert alert-<?php echo stridebr_e($flash['type'] ?? 'info'); ?> activity-alert"><?php echo stridebr_e($flash['message'] ?? ''); ?></div><?php endforeach; ?>
@@ -131,6 +132,7 @@ $flashes = stridebr_take_flashes();
                     </div>
                 <?php endif; ?>
             </section>
+            <?php stridebr_render_ad_slot('equipment-end', '/user/equipamentos.php', true); ?>
         </div>
     </main>
 </div>
