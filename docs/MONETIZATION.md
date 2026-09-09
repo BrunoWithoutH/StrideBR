@@ -101,13 +101,13 @@ A identificação de propriedade é fixa e independente de `STRIDEBR_ADSENSE_CLI
 
 ## ads.txt
 
-`public/ads.txt.example` contém somente o formato de exemplo:
+`public/ads.txt` é publicado diretamente na raiz pública com a declaração oficial da conta do StrideBR:
 
 ```text
-google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0
+google.com, pub-3948145279411749, DIRECT, f08c47fec0942fa0
 ```
 
-Na ativação real, crie `public/ads.txt` com a linha fornecida pelo próprio AdSense. Não use o placeholder do exemplo.
+O arquivo deve responder como texto simples em `https://stridebr.com.br/ads.txt`, sem autenticação. Um teste estático verifica o conteúdo exato.
 
 ## Consentimento/CMP
 
@@ -124,7 +124,7 @@ O placement conhece apenas sua posição visual. Não recebe `idusuario`, userna
 Depois de VPS, domínio, HTTPS, aprovação e consentimento/CMP:
 
 1. configure `STRIDEBR_ADSENSE_CLIENT`;
-2. publique `public/ads.txt` real;
+2. confirme que `https://stridebr.com.br/ads.txt` responde com a linha oficial;
 3. preencha somente os slots públicos desejados (`EVENTS_LIST_END`, `EVENT_DETAIL_END`, `PUBLIC_CONTENT_END`);
 4. mantenha `STRIDEBR_ADS_AUTHENTICATED_ENABLED=0`;
 5. valide CSP, no-fill e layout;
@@ -161,7 +161,7 @@ O comando mostra flags, presença do client, readiness do meta, configuração d
 - [ ] domínio cadastrado/aprovado no AdSense
 - [ ] `STRIDEBR_ADSENSE_CLIENT` configurado
 - [ ] meta de verificação conferido
-- [ ] `public/ads.txt` criado com a linha oficial
+- [ ] `https://stridebr.com.br/ads.txt` responde com a linha oficial
 - [ ] CMP/consentimento aplicável configurado e revisado
 - [ ] CSP validada com a documentação vigente do provider
 - [ ] slots públicos desejados preenchidos

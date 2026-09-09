@@ -12,7 +12,7 @@ foreach (['development'=>'http://localhost:8080','staging'=>'https://staging.str
     $check(stridebr_app_env()===$env,'env');
     $check(stridebr_app_url()===$origin && stridebr_public_url()===$origin,'origin injection');
     $check(stridebr_auth_google_redirect_uri()===$origin.'/auth/google-callback.php','google callback');
-    foreach(['strava','polar','fitbit','suunto','garmin'] as $provider) $check(stridebr_integrations_callback_uri($provider)===$origin.'/auth/integration-callback.php?provider='.$provider,'integration callback');
+    foreach(['strava','polar','google_health','coros','suunto','garmin'] as $provider) $check(stridebr_integrations_callback_uri($provider)===$origin.'/auth/integration-callback.php?provider='.$provider,'integration callback');
     $check(stridebr_client_ip()==='203.0.113.9','untrusted IP');
     $check(!stridebr_request_is_https(),'untrusted HTTPS');
     $check(stridebr_secure_cookie()===($env!=='development'),'cookie');
@@ -59,7 +59,8 @@ putenv('STRIDEBR_MAIL_TRANSPORT=mail');$check(!stridebr_mail_is_configured(),'no
 putenv('STRIDEBR_ADS_ENABLED=0');$check(!str_contains(stridebr_content_security_policy(),'doubleclick'),'ads origins disabled');
 putenv('STRIDEBR_ADS_ENABLED=1');putenv('STRIDEBR_ADSENSE_CLIENT=ca-pub-1234567890123456');$check(str_contains(stridebr_content_security_policy(),'doubleclick'),'ads origins configured');
 $check(str_contains(stridebr_content_security_policy(true),"frame-ancestors 'self'"),'embed CSP');
-foreach(['STRAVA','POLAR','FITBIT','SUUNTO'] as $provider){putenv($provider.'_CLIENT_ID=');putenv($provider.'_CLIENT_SECRET=');}
+foreach(['STRAVA','POLAR','GOOGLE_HEALTH','SUUNTO'] as $provider){putenv($provider.'_CLIENT_ID=');putenv($provider.'_CLIENT_SECRET=');}
+putenv('STRIDEBR_INTEGRATIONS_SECRET=');
 foreach(stridebr_integrations_registry() as $provider)$check(!stridebr_integrations_configured($provider),'optional fails closed');
 putenv('STRIDEBR_APP_ENV=staging');putenv('STRIDEBR_APP_URL=http://staging.example.invalid');
 try{stridebr_app_url();$check(false,'HTTP staging accepted');}catch(RuntimeException){$check(true,'HTTP rejected');}

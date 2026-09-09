@@ -9,7 +9,6 @@ $idUsuario = stridebr_require_login();
 
 require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
 require_once dirname(__DIR__, 2) . '/src/function/cronograma.php';
-require_once dirname(__DIR__, 2) . '/src/function/planejamento.php';
 require_once dirname(__DIR__, 2) . '/src/function/cronograma_compartilhar.php';
 require_once dirname(__DIR__, 2) . '/src/function/product_analytics.php';
 require_once dirname(__DIR__, 2) . '/src/function/notificacoes.php';
@@ -421,6 +420,7 @@ $weekStart = $weekToday->modify('-' . $weekToday->format('w') . ' days');
 $planningWeekOffset = max(-52, min(12, (int) ($_GET['planning_week'] ?? 0)));
 $weekStart = $weekStart->modify(($planningWeekOffset * 7) . ' days');
 $weekEnd = $weekStart->modify('+6 days');
+$weekRangeLabel = stridebr_format_date_short($weekStart) . ' – ' . stridebr_format_date_short($weekEnd);
 $weekDates = [];
 for ($dayIndex = 0; $dayIndex < 7; $dayIndex++) {
     $weekDates[$dayIndex] = $weekStart->modify('+' . $dayIndex . ' days');
@@ -481,6 +481,7 @@ foreach (array_keys($weekPlannedWorkoutIds) as $weekWorkoutId) {
     }
 }
 $weekProgress = $weekPlannedCount > 0 ? min(100, (int) round(($weekCompletedCount / $weekPlannedCount) * 100)) : 0;
+$weekPendingCount = max(0, $weekPlannedCount - $weekCompletedCount);
 $weekDone = $weekPlannedCount > 0 && $weekCompletedCount >= $weekPlannedCount;
 
 $weekNextWorkoutId = null;
@@ -563,7 +564,7 @@ $initialView = in_array($requestedInitialView, $allowedInitialViews, true)
     <title><?php echo stridebr_e(stridebr_t('schedule.page_html_title')); ?></title>
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>">
 </head>
-<body class="schedule-body">
+<body class="schedule-body" data-schedule-view="<?php echo stridebr_e($initialView); ?>">
 <div class="container-fluid">
     <?php require dirname(__DIR__, 2) . '/src/layout/header.php'; ?>
     <main class="main-content cronograma-page">
@@ -699,9 +700,9 @@ $initialView = in_array($requestedInitialView, $allowedInitialViews, true)
                         </select>
                     </label>
                     <div class="view-switch" role="group" aria-label="<?php echo stridebr_e(stridebr_t('schedule.view')); ?>">
-                        <button type="button" class="view-button<?php echo $initialView === 'week' ? ' is-active' : ''; ?>" data-view="week"><?php echo stridebr_e(stridebr_t('common.week')); ?></button>
-                        <button type="button" class="view-button<?php echo $initialView === 'month' ? ' is-active' : ''; ?>" data-view="month"><?php echo stridebr_e(stridebr_t('common.month')); ?></button>
-                        <button type="button" class="view-button<?php echo $initialView === 'agenda' ? ' is-active' : ''; ?>" data-view="agenda"><?php echo stridebr_e(stridebr_t('common.list')); ?></button>
+                        <button type="button" class="view-button<?php echo $initialView === 'week' ? ' is-active' : ''; ?>" data-view="week" aria-pressed="<?php echo $initialView === 'week' ? 'true' : 'false'; ?>"><?php echo stridebr_e(stridebr_t('common.week')); ?></button>
+                        <button type="button" class="view-button<?php echo $initialView === 'month' ? ' is-active' : ''; ?>" data-view="month" aria-pressed="<?php echo $initialView === 'month' ? 'true' : 'false'; ?>"><?php echo stridebr_e(stridebr_t('common.month')); ?></button>
+                        <button type="button" class="view-button<?php echo $initialView === 'agenda' ? ' is-active' : ''; ?>" data-view="agenda" aria-pressed="<?php echo $initialView === 'agenda' ? 'true' : 'false'; ?>"><?php echo stridebr_e(stridebr_t('common.list')); ?></button>
                     </div>
                     <button type="button" class="primary-button schedule-new-workout" data-new-workout><?php echo stridebr_e(stridebr_t('schedule.add_workout')); ?></button>
                     <div class="schedule-toolbar-spacer"></div>
@@ -931,14 +932,38 @@ $initialView = in_array($requestedInitialView, $allowedInitialViews, true)
                         </section>
                     </aside>
                     <div class="schedule-view-main">
-                <?php
-                $planningStart = $weekStart->format('Y-m-d');
-                $planningSummary = planejamentoSemana($pdo, $idUsuario, $planningStart, $idSelecionado);
-                ?>
-                <nav class="planning-subnav" aria-label="<?php echo stridebr_e(stridebr_t('planning.week')); ?>">
-                    <?php foreach ([-1 => 'previous', 0 => 'week', 1 => 'next'] as $direction => $label): ?><a href="?id=<?php echo rawurlencode($idSelecionado); ?>&amp;planning_week=<?php echo $direction === 0 ? 0 : $planningWeekOffset + $direction; ?>"><?php echo stridebr_e(stridebr_t('planning.' . $label)); ?></a><?php endforeach; ?>
-                </nav>
-                <?php require dirname(__DIR__, 2) . '/src/layout/planning_week.php'; ?>
+                <section class="schedule-compact-week-summary<?php echo $weekDone ? ' is-complete' : ''; ?>" data-week-summary-compact aria-label="<?php echo stridebr_e(stridebr_t('home.week_summary')); ?>">
+                    <div class="schedule-compact-week-status">
+                        <span><?php echo stridebr_e(stridebr_t('schedule.this_week')); ?></span>
+                        <strong data-week-compact-progress><?php echo stridebr_e($weekPlannedCount === 0 ? stridebr_t('schedule.week_no_workouts') : stridebr_t('schedule.week_progress_compact', ['done' => $weekCompletedCount, 'total' => $weekPlannedCount])); ?></strong>
+                    </div>
+                    <?php if ($weekPlannedCount > 0): ?><span class="schedule-compact-week-percent" data-week-compact-percent><?php echo $weekProgress; ?>%</span><?php endif; ?>
+                    <?php if (!$weekDone && $weekNextOccurrence !== null): ?>
+                        <button type="button" class="schedule-compact-week-next" data-week-compact-next data-preview-workout="<?php echo stridebr_e((string) $weekNextOccurrence['idtreino']); ?>" data-workout-date="<?php echo stridebr_e($today); ?>" data-occurrence-original="<?php echo stridebr_e((string) $weekNextOccurrence['data_original']); ?>" data-planned-date="<?php echo stridebr_e((string) ($weekNextOccurrence['data_planejada'] ?? $weekNextOccurrence['data_treino'])); ?>" data-planned-time="<?php echo stridebr_e((string) ($weekNextOccurrence['hora_planejada'] ?? substr((string) $weekNextOccurrence['hora_inicio'], 0, 5))); ?>">
+                            <span><?php echo stridebr_e(stridebr_t('schedule.next_workout_short')); ?></span>
+                            <strong data-week-compact-next-title><?php echo stridebr_e(implode(' · ', array_filter([(string) ($weekNextOccurrence['codigo'] ?? ''), (string) ($weekNextOccurrence['titulo'] ?? stridebr_t('schedule.workout_fallback'))]))); ?></strong>
+                        </button>
+                    <?php endif; ?>
+                </section>
+
+                <section class="schedule-week-context" data-view-context="week"<?php echo $initialView === 'week' ? '' : ' hidden'; ?>>
+                    <div class="schedule-period-toolbar">
+                        <nav class="schedule-period-nav" aria-label="<?php echo stridebr_e(stridebr_t('schedule.week_navigation')); ?>">
+                            <a class="schedule-period-arrow" href="/user/cronogramatreinos.php?id=<?php echo rawurlencode($idSelecionado); ?>&amp;view=week&amp;planning_week=<?php echo max(-52, $planningWeekOffset - 1); ?>" aria-label="<?php echo stridebr_e(stridebr_t('schedule.previous_week')); ?>">←</a>
+                            <strong><?php echo stridebr_e($weekRangeLabel); ?></strong>
+                            <a class="schedule-period-arrow" href="/user/cronogramatreinos.php?id=<?php echo rawurlencode($idSelecionado); ?>&amp;view=week&amp;planning_week=<?php echo min(12, $planningWeekOffset + 1); ?>" aria-label="<?php echo stridebr_e(stridebr_t('schedule.next_week')); ?>">→</a>
+                        </nav>
+                        <a class="secondary-button schedule-period-current" href="/user/cronogramatreinos.php?id=<?php echo rawurlencode($idSelecionado); ?>&amp;view=week&amp;planning_week=0"><?php echo stridebr_e(stridebr_t('schedule.this_week')); ?></a>
+                    </div>
+                    <div class="schedule-week-context-summary" data-week-context-summary>
+                        <span data-week-compact-progress><?php echo stridebr_e($weekPlannedCount === 0 ? stridebr_t('schedule.week_no_workouts') : stridebr_t('schedule.week_progress_compact', ['done' => $weekCompletedCount, 'total' => $weekPlannedCount])); ?></span>
+                        <?php if ($weekPlannedCount > 0 && !$weekDone): ?><span data-week-compact-pending><?php echo stridebr_e(stridebr_tn('schedule.week_pending_compact.one', 'schedule.week_pending_compact.other', $weekPendingCount)); ?></span><?php endif; ?>
+                        <?php if (!$weekDone && $weekNextOccurrence !== null): ?>
+                            <button type="button" data-week-compact-next data-preview-workout="<?php echo stridebr_e((string) $weekNextOccurrence['idtreino']); ?>" data-workout-date="<?php echo stridebr_e($today); ?>" data-occurrence-original="<?php echo stridebr_e((string) $weekNextOccurrence['data_original']); ?>" data-planned-date="<?php echo stridebr_e((string) ($weekNextOccurrence['data_planejada'] ?? $weekNextOccurrence['data_treino'])); ?>" data-planned-time="<?php echo stridebr_e((string) ($weekNextOccurrence['hora_planejada'] ?? substr((string) $weekNextOccurrence['hora_inicio'], 0, 5))); ?>"><span><?php echo stridebr_e(stridebr_t('schedule.next_workout_short')); ?>:</span> <strong data-week-compact-next-title><?php echo stridebr_e(implode(' · ', array_filter([(string) ($weekNextOccurrence['codigo'] ?? ''), (string) ($weekNextOccurrence['titulo'] ?? stridebr_t('schedule.workout_fallback'))]))); ?></strong></button>
+                        <?php endif; ?>
+                    </div>
+                </section>
+
                 <section class="calendar-view" data-calendar-view="week" data-calendar-scroll<?php echo $initialView === 'week' ? '' : ' hidden'; ?>>
                     <div class="week-calendar" data-week-calendar>
                         <div class="time-column">
@@ -970,7 +995,7 @@ $initialView = in_array($requestedInitialView, $allowedInitialViews, true)
                                             <?php if (!empty($item['codigo']) || !empty($item['foco'])): ?><small class="workout-card-kicker"><?php echo stridebr_e(implode(' · ', array_filter([(string) ($item['codigo'] ?? ''), (string) ($item['foco'] ?? '')]))); ?></small><?php endif; ?>
                                             <strong><?php echo stridebr_e($item['titulo']); ?></strong>
                                             <span data-card-time><?php echo $segment['continuidade'] ? stridebr_e(stridebr_t('schedule.continuation')) . ' · ' : ''; ?><?php echo stridebr_e(substr((string) $item['hora_inicio'], 0, 5)); ?>–<?php echo stridebr_e(substr((string) $item['hora_fim'], 0, 5)); ?><?php echo stridebr_db_bool($item['termina_dia_seguinte']) ? ' +1' : ''; ?></span>
-                                            <?php if ($completed): ?><small class="workout-card-status"><?php echo stridebr_e(stridebr_t('schedule.completed_badge')); ?></small><?php elseif ($exerciseCount > 0): ?><small><?php echo stridebr_e(stridebr_tn('schedule.exercise_count.one', 'schedule.exercise_count.other', $exerciseCount)); ?></small><?php endif; ?>
+                                            <?php if ($completed): ?><small class="workout-card-status"><?php echo stridebr_e(stridebr_t(!empty($item['realizado_fora_planejado']) ? 'planning.status.shifted' : 'schedule.completed_badge')); ?></small><?php elseif ($exerciseCount > 0): ?><small><?php echo stridebr_e(stridebr_tn('schedule.exercise_count.one', 'schedule.exercise_count.other', $exerciseCount)); ?></small><?php endif; ?>
                                         </button>
                                     <?php endforeach; ?>
                                     <?php foreach ($weekPlanGhosts[$dayIndex] ?? [] as $ghost): ?>
@@ -993,18 +1018,17 @@ $initialView = in_array($requestedInitialView, $allowedInitialViews, true)
                 </section>
 
                 <section class="schedule-month-view" data-calendar-view="month" data-month-calendar-shell data-schedule-id="<?php echo stridebr_e($idSelecionado); ?>" data-current-month="<?php echo stridebr_e($monthKey); ?>"<?php echo $initialView === 'month' ? '' : ' hidden'; ?>>
-                    <div class="schedule-month-toolbar">
-                        <div class="schedule-month-nav" aria-label="<?php echo stridebr_e(stridebr_t('schedule.month_navigation')); ?>">
-                            <a class="view-button" href="/user/cronogramatreinos.php?id=<?php echo rawurlencode($idSelecionado); ?>&view=month&month=<?php echo rawurlencode($prevMonth); ?>" data-month-nav="<?php echo stridebr_e($prevMonth); ?>" data-no-page-loading aria-label="<?php echo stridebr_e(stridebr_t('schedule.previous_month')); ?>">←</a>
+                    <div class="schedule-month-toolbar schedule-period-toolbar">
+                        <div class="schedule-month-nav schedule-period-nav" aria-label="<?php echo stridebr_e(stridebr_t('schedule.month_navigation')); ?>">
+                            <a class="schedule-period-arrow" href="/user/cronogramatreinos.php?id=<?php echo rawurlencode($idSelecionado); ?>&view=month&month=<?php echo rawurlencode($prevMonth); ?>" data-month-nav="<?php echo stridebr_e($prevMonth); ?>" data-no-page-loading aria-label="<?php echo stridebr_e(stridebr_t('schedule.previous_month')); ?>">←</a>
                             <strong data-month-title><?php echo stridebr_e($monthTitle); ?></strong>
-                            <a class="view-button" href="/user/cronogramatreinos.php?id=<?php echo rawurlencode($idSelecionado); ?>&view=month&month=<?php echo rawurlencode($nextMonth); ?>" data-month-nav="<?php echo stridebr_e($nextMonth); ?>" data-no-page-loading aria-label="<?php echo stridebr_e(stridebr_t('schedule.next_month')); ?>">→</a>
+                            <a class="schedule-period-arrow" href="/user/cronogramatreinos.php?id=<?php echo rawurlencode($idSelecionado); ?>&view=month&month=<?php echo rawurlencode($nextMonth); ?>" data-month-nav="<?php echo stridebr_e($nextMonth); ?>" data-no-page-loading aria-label="<?php echo stridebr_e(stridebr_t('schedule.next_month')); ?>">→</a>
                         </div>
                         <div class="schedule-month-actions">
-                            <a class="secondary-button" href="/user/cronogramatreinos.php?id=<?php echo rawurlencode($idSelecionado); ?>&view=month&month=<?php echo rawurlencode((new DateTimeImmutable('first day of this month'))->format('Y-m')); ?>#schedule-today" data-month-nav="<?php echo stridebr_e((new DateTimeImmutable('first day of this month'))->format('Y-m')); ?>" data-no-page-loading><?php echo stridebr_e(stridebr_t('schedule.go_today')); ?></a>
+                            <a class="secondary-button" href="/user/cronogramatreinos.php?id=<?php echo rawurlencode($idSelecionado); ?>&view=month&month=<?php echo rawurlencode((new DateTimeImmutable('first day of this month'))->format('Y-m')); ?>#schedule-today" data-month-nav="<?php echo stridebr_e((new DateTimeImmutable('first day of this month'))->format('Y-m')); ?>" data-no-page-loading><?php echo stridebr_e(stridebr_t('common.today')); ?></a>
                             <?php if ($monthlyOverlayEnabled): ?><a class="secondary-button" href="/user/agenda-mensal.php?cronograma=<?php echo rawurlencode($idSelecionado); ?>&month=<?php echo rawurlencode($monthKey); ?>"><?php echo stridebr_e(stridebr_t('schedule.full_agenda')); ?></a><?php endif; ?>
                         </div>
                     </div>
-                    <p class="schedule-month-hint"><?php echo stridebr_e(stridebr_t('schedule.month_projection_help')); ?><?php echo $monthlyOverlayEnabled ? ' ' . stridebr_e(stridebr_t('schedule.month_overlay_help')) : ''; ?></p>
                     <div class="schedule-month-calendar-wrap">
                         <div class="monthly-calendar schedule-month-calendar is-loading" data-month-grid aria-label="<?php echo stridebr_e($monthTitle); ?>">
                             <?php foreach ($monthDayNames as $monthDayName): ?><div class="monthly-weekday"><?php echo stridebr_e($monthDayName); ?></div><?php endforeach; ?>

@@ -507,7 +507,7 @@ if (stridebr_db_table_exists($pdo, 'historico_peso_usuario')) {
 }
 $integrationRegistry = stridebr_integrations_registry();
 $integrationConnections = stridebr_integrations_list($pdo, $idUsuario);
-$integrationSyncReady = ['strava' => true, 'polar' => true, 'fitbit' => true, 'suunto' => true];
+$integrationSyncReady = ['strava' => true, 'polar' => true, 'google_health' => true, 'coros' => true, 'suunto' => true];
 $profilePhoto = stridebr_profile_photo_url((string) ($usuario['fotousuario'] ?? ''));
 $profileBackUrl = trim((string) ($usuario['username'] ?? '')) !== '' ? '/u/' . rawurlencode((string) $usuario['username']) : '/';
 $roleLabel = stridebr_role_label((string) ($usuario['papelusuario'] ?? 'user'));
@@ -752,11 +752,13 @@ $flashes = stridebr_take_flashes();
                                 <div class="integration-card-main">
                                     <span class="integration-provider-mark" aria-hidden="true"><?php echo stridebr_e(strtoupper(substr((string) $provider['short'], 0, 1))); ?></span>
                                     <div>
-                                        <div class="integration-card-title"><h3><?php echo stridebr_e($provider['label']); ?></h3><?php if ($connected): ?><span class="integration-status<?php echo (string) ($connection['status'] ?? '') === 'erro' ? ' has-error' : ' is-connected'; ?>"><?php echo (string) ($connection['status'] ?? '') === 'erro' ? stridebr_t('common.attention') : stridebr_t('common.connected'); ?></span><?php elseif ($kind !== 'cloud'): ?><span class="integration-status"><?php echo stridebr_e(stridebr_t('settings.app')); ?></span><?php elseif ($configured): ?><span class="integration-status"><?php echo stridebr_e(stridebr_t('settings.available')); ?></span><?php else: ?><span class="integration-status"><?php echo stridebr_e(stridebr_t('settings.prepared')); ?></span><?php endif; ?></div>
+                                        <div class="integration-card-title"><h3><?php echo stridebr_e($provider['label']); ?></h3><?php if ($connected): ?><span class="integration-status<?php echo (string) ($connection['status'] ?? '') === 'erro' ? ' has-error' : ' is-connected'; ?>"><?php echo stridebr_e(stridebr_t((string) ($connection['status'] ?? '') === 'erro' ? 'settings.connection_error' : 'common.connected')); ?></span><?php elseif ($kind === 'future'): ?><span class="integration-status"><?php echo stridebr_e(stridebr_t('settings.awaiting_availability')); ?></span><?php elseif (in_array($kind, ['mobile', 'bridge'], true)): ?><span class="integration-status"><?php echo stridebr_e(stridebr_t('settings.requires_mobile_app')); ?></span><?php elseif ($configured): ?><span class="integration-status"><?php echo stridebr_e(stridebr_t('settings.available')); ?></span><?php else: ?><span class="integration-status"><?php echo stridebr_e(stridebr_t('settings.unavailable')); ?></span><?php endif; ?></div>
                                         <p><?php echo stridebr_e($provider['description']); ?></p>
                                         <?php if ($connected): ?>
                                             <small><?php echo $lastSync ? stridebr_e(stridebr_t('settings.last_sync', ['date' => stridebr_format_datetime_short($lastSync)])) : stridebr_e(stridebr_t('settings.awaiting_first_sync')); ?></small>
                                             <?php if (trim((string) ($connection['ultimo_erro'] ?? '')) !== ''): ?><small class="integration-error-text"><?php echo stridebr_e((string) $connection['ultimo_erro']); ?></small><?php endif; ?>
+                                        <?php elseif ($kind === 'future'): ?>
+                                            <small><?php echo stridebr_e(stridebr_t('settings.awaiting_availability')); ?></small>
                                         <?php elseif ($kind === 'mobile'): ?>
                                             <small><?php echo stridebr_e(stridebr_t($providerId === 'health_connect' ? 'settings.android_activation' : 'settings.ios_activation')); ?></small>
                                         <?php elseif ($kind === 'bridge'): ?>
@@ -773,6 +775,9 @@ $flashes = stridebr_take_flashes();
                                                 <?php echo stridebr_csrf_field(); ?><input type="hidden" name="provider" value="<?php echo stridebr_e($providerId); ?>"><input type="hidden" name="action" value="sync"><input type="hidden" name="return" value="<?php echo stridebr_e($returnTo); ?>">
                                                 <button type="submit" class="secondary-button"><?php echo stridebr_e(stridebr_t('settings.sync_now')); ?></button>
                                             </form>
+                                        <?php endif; ?>
+                                        <?php if ((string) ($connection['status'] ?? '') === 'erro' && $configured): ?>
+                                            <a class="secondary-button" href="/auth/integration.php?provider=<?php echo rawurlencode($providerId); ?>&amp;reauthorize=1&amp;return=<?php echo rawurlencode($returnTo); ?>"><?php echo stridebr_e(stridebr_t('settings.reauthorize')); ?></a>
                                         <?php endif; ?>
                                         <details class="integration-preferences">
                                             <summary><?php echo stridebr_e(stridebr_t('settings.preferences')); ?></summary>
@@ -791,7 +796,9 @@ $flashes = stridebr_take_flashes();
                                     <?php elseif ($kind === 'cloud' && $configured): ?>
                                         <a class="primary-button" href="/auth/integration.php?provider=<?php echo rawurlencode($providerId); ?>&amp;return=<?php echo rawurlencode($returnTo); ?>"><?php echo stridebr_e(stridebr_t('settings.connect')); ?></a>
                                     <?php elseif ($kind === 'cloud'): ?>
-                                        <span class="integration-disabled-action"><?php echo stridebr_e(stridebr_t('settings.server_pending')); ?></span>
+                                        <span class="integration-disabled-action"><?php echo stridebr_e(stridebr_t('settings.unavailable')); ?></span>
+                                    <?php elseif ($kind === 'future'): ?>
+                                        <span class="integration-disabled-action"><?php echo stridebr_e(stridebr_t('settings.awaiting_availability')); ?></span>
                                     <?php elseif ($providerId === 'health_connect'): ?>
                                         <span class="integration-disabled-action"><?php echo stridebr_e(stridebr_t('settings.requires_android')); ?></span>
                                     <?php elseif ($providerId === 'apple_health'): ?>

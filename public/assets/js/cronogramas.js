@@ -178,8 +178,14 @@ document.addEventListener('DOMContentLoaded', () => {
         views.forEach(view => {
             view.hidden = view.dataset.calendarView !== name;
         });
+        document.querySelectorAll('[data-view-context]').forEach(context => {
+            context.hidden = context.dataset.viewContext !== name;
+        });
+        document.body.dataset.scheduleView = name;
         viewButtons.forEach(button => {
-            button.classList.toggle('is-active', button.dataset.view === name);
+            const active = button.dataset.view === name;
+            button.classList.toggle('is-active', active);
+            button.setAttribute('aria-pressed', active ? 'true' : 'false');
         });
         document.querySelector('[data-zoom-controls]')?.toggleAttribute('hidden', name !== 'week');
         if (updateUrl) {
@@ -325,6 +331,49 @@ document.addEventListener('DOMContentLoaded', () => {
     let editorWorkouts = [];
     try { editorWorkouts = JSON.parse(editorDataNode?.textContent || '[]'); } catch (_) { editorWorkouts = []; }
     const editorWorkoutMap = new Map(editorWorkouts.map(item => [String(item.idtreino || ''), item]));
+    const weekStatsFromCards = () => {
+        const planned = new Set([...document.querySelectorAll('[data-week-card]:not(.is-plan-ghost):not(.is-continuation)')].map(card => card.dataset.occurrenceWorkout).filter(Boolean));
+        const completed = new Set([...document.querySelectorAll('[data-week-card][data-completed="1"]:not(.is-plan-ghost):not(.is-continuation)')].map(card => card.dataset.occurrenceWorkout).filter(Boolean));
+        const done = [...planned].filter(id => completed.has(id)).length;
+        return {planned, completed, total: planned.size, done};
+    };
+    const syncCompactWeekSummaries = (stats = weekStatsFromCards(), preferredNextId = '') => {
+        const {planned, completed, total, done} = stats;
+        const percent = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+        const pending = Math.max(0, total - done);
+        document.querySelectorAll('[data-week-compact-progress]').forEach(node => {
+            node.textContent = total === 0 ? tr('schedule.no_workouts') : tr('schedule.week_progress_compact', {done, total});
+        });
+        document.querySelectorAll('[data-week-compact-percent]').forEach(node => { node.textContent = `${percent}%`; });
+        document.querySelectorAll('[data-week-compact-pending]').forEach(node => {
+            node.textContent = trn('schedule.week_pending_compact.one', 'schedule.week_pending_compact.other', pending);
+            node.hidden = pending === 0;
+        });
+        document.querySelectorAll('[data-week-summary-compact]').forEach(node => node.classList.toggle('is-complete', total > 0 && done >= total));
+
+        let nextId = String(preferredNextId || '');
+        if (!nextId || !planned.has(nextId) || completed.has(nextId)) {
+            const sidebarNext = document.querySelector('.schedule-week-next-main[data-preview-workout]');
+            const sidebarId = String(sidebarNext?.dataset.previewWorkout || '');
+            nextId = sidebarId && planned.has(sidebarId) && !completed.has(sidebarId)
+                ? sidebarId
+                : editorWorkouts.map(item => String(item.idtreino || '')).find(id => planned.has(id) && !completed.has(id)) || '';
+        }
+        const nextItem = nextId ? editorWorkoutMap.get(nextId) : null;
+        const selectorId = nextId && typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(nextId) : nextId;
+        const occurrence = nextId ? document.querySelector(`[data-week-card][data-occurrence-workout="${selectorId}"]:not(.is-plan-ghost):not(.is-continuation)`) : null;
+        document.querySelectorAll('[data-week-compact-next]').forEach(button => {
+            const visible = total > 0 && done < total && !!nextItem && !!occurrence;
+            button.hidden = !visible;
+            if (!visible) return;
+            button.dataset.previewWorkout = nextId;
+            button.dataset.occurrenceOriginal = occurrence.dataset.occurrenceOriginal || '';
+            button.dataset.plannedDate = occurrence.dataset.plannedDate || occurrence.dataset.occurrenceDate || '';
+            button.dataset.plannedTime = occurrence.dataset.plannedTime || '';
+            const title = button.querySelector('[data-week-compact-next-title]');
+            if (title) title.textContent = [nextItem.codigo, nextItem.titulo || tr('schedule.workout_fallback')].filter(Boolean).join(' · ');
+        });
+    };
     const refreshScheduleView = async () => {
         if (currentView === 'month' && monthShell?.dataset.currentMonth) {
             await fetchMonth(monthShell.dataset.currentMonth, {force:true, showSkeleton:false});
@@ -356,6 +405,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const currentSummary = document.querySelector('[data-week-summary]');
             const incomingSummary = doc.querySelector('[data-week-summary]');
             if (currentSummary && incomingSummary) currentSummary.replaceWith(incomingSummary);
+            const currentCompact = document.querySelector('[data-week-summary-compact]');
+            const incomingCompact = doc.querySelector('[data-week-summary-compact]');
+            if (currentCompact && incomingCompact) currentCompact.replaceWith(incomingCompact);
+            const currentWeekContext = document.querySelector('[data-view-context="week"]');
+            const incomingWeekContext = doc.querySelector('[data-view-context="week"]');
+            if (currentWeekContext && incomingWeekContext) currentWeekContext.replaceWith(incomingWeekContext);
             if (fitMode) fitCalendar(); else applyZoom(zoom);
             return;
         }
@@ -734,16 +789,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         mainCard.querySelectorAll('.workout-card-status').forEach(node => node.remove());
                         const status = document.createElement('small');
                         status.className = 'workout-card-status';
-                        status.textContent = tr('schedule.completed_badge');
+                        status.textContent = tr(mainCard.dataset.plannedDate !== realizedDate ? 'planning.status.shifted' : 'schedule.completed_badge');
                         mainCard.appendChild(status);
                     }
                 }
                 const summary = document.querySelector('[data-week-summary]');
                 if (summary) {
-                    const planned = new Set([...document.querySelectorAll('[data-week-card]:not(.is-plan-ghost):not(.is-continuation)')].map(card => card.dataset.occurrenceWorkout).filter(Boolean));
-                    const completed = new Set([...document.querySelectorAll('[data-week-card][data-completed="1"]:not(.is-plan-ghost):not(.is-continuation)')].map(card => card.dataset.occurrenceWorkout).filter(Boolean));
-                    const total = planned.size;
-                    const done = [...planned].filter(id => completed.has(id)).length;
+                    const stats = weekStatsFromCards();
+                    const {planned, completed, total, done} = stats;
                     const percent = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
                     const heading = summary.querySelector('.schedule-week-progress-heading strong');
                     const counter = summary.querySelector('.schedule-week-progress-count');
@@ -768,6 +821,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             summary.querySelector('.schedule-week-next')?.remove();
                         }
                     }
+                    syncCompactWeekSummaries(stats);
                 }
                 monthCache.clear();
                 if (currentView === 'month' && monthShell?.dataset.currentMonth) await fetchMonth(monthShell.dataset.currentMonth, {force:true});
@@ -1787,7 +1841,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (occurrence) {
                 main.dataset.occurrenceOriginal = occurrence.dataset.occurrenceOriginal || '';
                 main.dataset.plannedDate = occurrence.dataset.occurrenceDate || '';
-                main.dataset.plannedTime = occurrence.querySelector('[data-week-card-time]')?.textContent?.trim()?.slice(0,5) || '';
+                main.dataset.plannedTime = occurrence.querySelector('[data-card-time]')?.textContent?.trim()?.slice(0,5) || '';
             }
             renderMain(selected);
             if (previousId && previous) {
@@ -1802,6 +1856,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 toggle.textContent = tr('schedule.swap');
                 toggle.setAttribute('aria-expanded', 'false');
             }
+            syncCompactWeekSummaries(weekStatsFromCards(), selectedId);
             showScheduleToast(tr('schedule.next_updated'));
         } catch (error) {
             choice.disabled = false;

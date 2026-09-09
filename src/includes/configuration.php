@@ -36,13 +36,14 @@ function stridebr_configuration_check(bool $filesystem = true): array
         if (!stridebr_ip_in_cidr(explode('/', $cidr)[0], $cidr) || preg_match('#/0+$#', $cidr)) { $errors[] = 'TRUSTED_PROXIES'; $status['TRUSTED_PROXIES'] = 'invalid'; }
     }
     $status['MAPS'] = getenv('STRIDEBR_MAPS_ARCGIS_KEY') ? 'configured' : 'optional/not configured';
-    foreach (['GOOGLE_OAUTH','STRAVA','POLAR','FITBIT','SUUNTO'] as $provider) {
+    foreach (['GOOGLE_OAUTH','STRAVA','POLAR','GOOGLE_HEALTH','SUUNTO'] as $provider) {
         $configured = getenv($provider . '_CLIENT_ID') && getenv($provider . '_CLIENT_SECRET');
         if ($provider === 'GOOGLE_OAUTH') $configured = $configured && stridebr_env_enabled('GOOGLE_OAUTH_ENABLED');
         else $configured = $configured && strlen((string) getenv('STRIDEBR_INTEGRATIONS_SECRET')) >= 32;
         if ($provider === 'SUUNTO') $configured = $configured && getenv('SUUNTO_SUBSCRIPTION_KEY');
         $status[$provider] = $configured ? 'configured' : 'optional/not configured';
     }
+    $status['COROS'] = strlen((string) getenv('STRIDEBR_INTEGRATIONS_SECRET')) >= 32 && filter_var((string) (getenv('COROS_MCP_URL') ?: 'https://mcp.coros.com/mcp'), FILTER_VALIDATE_URL) ? 'configured' : 'optional/not configured';
     $googleRedirect = trim((string) getenv('GOOGLE_OAUTH_REDIRECT_URI'));
     if ($googleRedirect !== '') {
         try { if ($googleRedirect !== stridebr_app_url() . '/auth/google-callback.php') $errors[] = 'GOOGLE_CALLBACK'; }

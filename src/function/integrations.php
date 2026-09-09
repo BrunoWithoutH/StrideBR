@@ -23,10 +23,11 @@ function stridebr_integrations_registry(): array
         'garmin' => [
             'label' => 'Garmin Connect',
             'short' => 'Garmin',
-            'description' => (function_exists('stridebr_t') ? stridebr_t('integrations.provider.garmin.description') : 'Sincronize atividades e, quando habilitado pela Garmin, envie treinos e percursos para dispositivos compatíveis.'),
+            'description' => (function_exists('stridebr_t') ? stridebr_t('integrations.provider.garmin.description') : 'Integração preparada para as APIs oficiais da Garmin quando o acesso ao programa for liberado.'),
             'kind' => 'cloud',
             'oauth' => true,
             'implementation_ready' => false,
+            'availability' => 'external_blocked',
             'client_id' => trim((string) (getenv('GARMIN_OAUTH_CLIENT_ID') ?: '')),
             'client_secret' => trim((string) (getenv('GARMIN_OAUTH_CLIENT_SECRET') ?: '')),
             'authorize_url' => $garminAuthorize,
@@ -46,6 +47,7 @@ function stridebr_integrations_registry(): array
             'client_secret' => trim((string) (getenv('STRAVA_CLIENT_SECRET') ?: '')),
             'authorize_url' => 'https://www.strava.com/oauth/authorize',
             'token_url' => 'https://www.strava.com/api/v3/oauth/token',
+            'api_base_url' => 'https://www.strava.com/api/v3',
             'scope' => 'read,activity:read_all',
             'token_auth' => 'body',
             'capabilities' => ['activities_in'],
@@ -54,22 +56,50 @@ function stridebr_integrations_registry(): array
         'polar' => [
             'label' => 'Polar Flow',
             'short' => 'Polar',
-            'description' => (function_exists('stridebr_t') ? stridebr_t('integrations.provider.polar.description') : 'Receba exercícios do Polar Flow, incluindo dados do dispositivo e rota quando disponíveis.'),
+            'description' => (function_exists('stridebr_t') ? stridebr_t('integrations.provider.polar.description') : 'Receba sessões do Polar Flow pela AccessLink API v4, com rota e métricas quando disponíveis.'),
             'kind' => 'cloud',
             'oauth' => true,
             'client_id' => trim((string) (getenv('POLAR_CLIENT_ID') ?: '')),
             'client_secret' => trim((string) (getenv('POLAR_CLIENT_SECRET') ?: '')),
-            'authorize_url' => trim((string) (getenv('POLAR_OAUTH_AUTHORIZE_URL') ?: 'https://flow.polar.com/oauth2/authorization')),
-            'token_url' => trim((string) (getenv('POLAR_OAUTH_TOKEN_URL') ?: 'https://polarremote.com/v2/oauth2/token')),
-            'scope' => trim((string) (getenv('POLAR_OAUTH_SCOPE') ?: 'accesslink.read_all')),
+            'authorize_url' => trim((string) (getenv('POLAR_OAUTH_AUTHORIZE_URL') ?: 'https://auth.polar.com/oauth/authorize')),
+            'token_url' => trim((string) (getenv('POLAR_OAUTH_TOKEN_URL') ?: 'https://auth.polar.com/oauth/token')),
+            'api_base_url' => 'https://www.polaraccesslink.com/v4/data',
+            'scope' => trim((string) (getenv('POLAR_OAUTH_SCOPE') ?: 'training_sessions:read activity:read profile:read')),
             'token_auth' => 'basic',
             'capabilities' => ['activities_in'],
             'profile_link' => true,
         ],
+        'google_health' => [
+            'label' => 'Google Health',
+            'short' => 'Google Health',
+            'description' => (function_exists('stridebr_t') ? stridebr_t('integrations.provider.google_health.description') : 'Importe atividades do Fitbit e de dispositivos compatíveis pela Google Health API.'),
+            'kind' => 'cloud',
+            'oauth' => true,
+            'client_id' => trim((string) (getenv('GOOGLE_HEALTH_CLIENT_ID') ?: '')),
+            'client_secret' => trim((string) (getenv('GOOGLE_HEALTH_CLIENT_SECRET') ?: '')),
+            'authorize_url' => trim((string) (getenv('GOOGLE_HEALTH_OAUTH_AUTHORIZE_URL') ?: 'https://accounts.google.com/o/oauth2/v2/auth')),
+            'token_url' => trim((string) (getenv('GOOGLE_HEALTH_OAUTH_TOKEN_URL') ?: 'https://oauth2.googleapis.com/token')),
+            'api_base_url' => 'https://health.googleapis.com/v4',
+            'scope' => trim((string) (getenv('GOOGLE_HEALTH_OAUTH_SCOPE') ?: 'https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly https://www.googleapis.com/auth/googlehealth.location.readonly https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly')),
+            'token_auth' => 'body',
+            'capabilities' => ['activities_in', 'health_in'],
+            'profile_link' => false,
+        ],
+        'coros' => [
+            'label' => 'COROS',
+            'short' => 'COROS',
+            'description' => (function_exists('stridebr_t') ? stridebr_t('integrations.provider.coros.description') : 'Importe atividades da sua conta COROS pelo MCP oficial, com FIT quando disponível.'),
+            'kind' => 'cloud',
+            'oauth' => true,
+            'oauth_discovery' => 'mcp',
+            'mcp_url' => trim((string) (getenv('COROS_MCP_URL') ?: 'https://mcp.coros.com/mcp')),
+            'capabilities' => ['activities_in'],
+            'profile_link' => false,
+        ],
         'suunto' => [
             'label' => 'Suunto',
             'short' => 'Suunto',
-            'description' => (function_exists('stridebr_t') ? stridebr_t('integrations.provider.suunto.description') : 'Importe automaticamente os treinos da Suunto App pela Suunto Cloud API.'),
+            'description' => (function_exists('stridebr_t') ? stridebr_t('integrations.provider.suunto.description') : 'Importe treinos da Suunto App pela Suunto Cloud API quando a integração estiver aprovada e configurada.'),
             'kind' => 'cloud',
             'oauth' => true,
             'client_id' => trim((string) (getenv('SUUNTO_CLIENT_ID') ?: '')),
@@ -83,20 +113,15 @@ function stridebr_integrations_registry(): array
             'capabilities' => ['activities_in'],
             'profile_link' => true,
         ],
-        'fitbit' => [
-            'label' => 'Fitbit',
-            'short' => 'Fitbit',
-            'description' => (function_exists('stridebr_t') ? stridebr_t('integrations.provider.fitbit.description') : 'Importe exercícios do Fitbit automaticamente, com rota e detalhes quando o registro disponibilizar TCX.'),
-            'kind' => 'cloud',
-            'oauth' => true,
-            'client_id' => trim((string) (getenv('FITBIT_CLIENT_ID') ?: '')),
-            'client_secret' => trim((string) (getenv('FITBIT_CLIENT_SECRET') ?: '')),
-            'authorize_url' => trim((string) (getenv('FITBIT_OAUTH_AUTHORIZE_URL') ?: 'https://www.fitbit.com/oauth2/authorize')),
-            'token_url' => trim((string) (getenv('FITBIT_OAUTH_TOKEN_URL') ?: 'https://api.fitbit.com/oauth2/token')),
-            'scope' => trim((string) (getenv('FITBIT_OAUTH_SCOPE') ?: 'activity profile heartrate location')),
-            'token_auth' => 'basic',
-            'capabilities' => ['activities_in'],
-            'profile_link' => true,
+        'halo' => [
+            'label' => 'HALO',
+            'short' => 'HALO',
+            'description' => (function_exists('stridebr_t') ? stridebr_t('integrations.provider.halo.description') : 'Integração direta aguardando disponibilidade ou parceria; no mobile poderá usar Health Connect ou Apple Health.'),
+            'kind' => 'future',
+            'oauth' => false,
+            'availability' => 'waiting',
+            'capabilities' => [],
+            'profile_link' => false,
         ],
         'health_connect' => [
             'label' => 'Health Connect',
@@ -169,19 +194,52 @@ function stridebr_integrations_decrypt(?string $value): ?string
     return is_string($plain) ? $plain : null;
 }
 
+function stridebr_integrations_https_url(string $url): bool
+{
+    return filter_var($url, FILTER_VALIDATE_URL) !== false && strtolower((string) parse_url($url, PHP_URL_SCHEME)) === 'https';
+}
+
+function stridebr_integrations_metadata(array $connection): array
+{
+    $meta = $connection['metadados'] ?? [];
+    if (is_array($meta)) return $meta;
+    if (!is_string($meta) || trim($meta) === '') return [];
+    $decoded = json_decode($meta, true);
+    return is_array($decoded) ? $decoded : [];
+}
+
+function stridebr_integrations_scope_set(string|array|null $scope): array
+{
+    $items = is_array($scope) ? $scope : (preg_split('/[\s,]+/', trim((string) $scope)) ?: []);
+    $result = [];
+    foreach ($items as $item) {
+        $item = trim((string) $item);
+        if ($item !== '') $result[$item] = true;
+    }
+    return array_keys($result);
+}
+
+function stridebr_integrations_scopes_cover(string|array|null $granted, string|array|null $requested): bool
+{
+    $have = array_fill_keys(stridebr_integrations_scope_set($granted), true);
+    foreach (stridebr_integrations_scope_set($requested) as $scope) if (!isset($have[$scope])) return false;
+    return true;
+}
+
 function stridebr_integrations_configured(array $provider): bool
 {
     if (($provider['kind'] ?? '') !== 'cloud') return false;
     if (array_key_exists('implementation_ready', $provider) && !$provider['implementation_ready']) return false;
     if (stridebr_integrations_secret() === null) return false;
+    if (($provider['id'] ?? '') === 'coros' || ($provider['oauth_discovery'] ?? '') === 'mcp') {
+        return stridebr_integrations_https_url((string) ($provider['mcp_url'] ?? ''));
+    }
     $base = trim((string) ($provider['client_id'] ?? '')) !== ''
         && trim((string) ($provider['client_secret'] ?? '')) !== ''
-        && filter_var((string) ($provider['authorize_url'] ?? ''), FILTER_VALIDATE_URL) !== false
-        && filter_var((string) ($provider['token_url'] ?? ''), FILTER_VALIDATE_URL) !== false;
-    if (!$base || parse_url((string) $provider['authorize_url'], PHP_URL_SCHEME) !== 'https' || parse_url((string) $provider['token_url'], PHP_URL_SCHEME) !== 'https') return false;
-    if (($provider['id'] ?? '') === 'suunto' || ($provider['label'] ?? '') === 'Suunto') {
-        return trim((string) ($provider['subscription_key'] ?? '')) !== '';
-    }
+        && stridebr_integrations_https_url((string) ($provider['authorize_url'] ?? ''))
+        && stridebr_integrations_https_url((string) ($provider['token_url'] ?? ''));
+    if (!$base) return false;
+    if (($provider['id'] ?? '') === 'suunto' || ($provider['label'] ?? '') === 'Suunto') return trim((string) ($provider['subscription_key'] ?? '')) !== '';
     return true;
 }
 
@@ -216,40 +274,44 @@ function stridebr_integrations_get(PDO $pdo, string $userId, string $provider): 
     }
 }
 
-function stridebr_integrations_start(string $providerId, string $returnTo = '/user/edit-profile.php#conexoes'): string
-{
-    $provider = stridebr_integrations_provider($providerId);
-    if (!stridebr_integrations_configured($provider)) throw new RuntimeException($provider['label'] . ' ainda não está configurado no servidor.');
-    $state = bin2hex(random_bytes(24));
-    $_SESSION['StrideBRIntegrationOAuth'][$state] = [
-        'provider' => $providerId,
-        'return' => stridebr_safe_redirect($returnTo, '/user/edit-profile.php#conexoes'),
-        'created_at' => time(),
-    ];
-    $params = [
-        'client_id' => $provider['client_id'],
-        'redirect_uri' => stridebr_integrations_callback_uri($providerId),
-        'response_type' => 'code',
-        'state' => $state,
-    ];
-    if (trim((string) ($provider['scope'] ?? '')) !== '') $params['scope'] = $provider['scope'];
-    if ($providerId === 'strava') $params['approval_prompt'] = 'auto';
-    return $provider['authorize_url'] . (str_contains($provider['authorize_url'], '?') ? '&' : '?') . http_build_query($params, '', '&', PHP_QUERY_RFC3986);
-}
-
 function stridebr_integrations_http(string $method, string $url, array $options = []): array
 {
+    if (!empty($GLOBALS['stridebr_integrations_http_mock']) && is_callable($GLOBALS['stridebr_integrations_http_mock'])) {
+        $mocked = ($GLOBALS['stridebr_integrations_http_mock'])($method, $url, $options);
+        if (!is_array($mocked)) throw new RuntimeException('Mock HTTP inválido.');
+        $mocked += ['status' => 200, 'body' => '', 'json' => null, 'headers' => []];
+        if (($mocked['status'] < 200 || $mocked['status'] >= 300) && empty($options['allow_error'])) {
+            $message = is_array($mocked['json']) ? trim((string) ($mocked['json']['message'] ?? $mocked['json']['error_description'] ?? $mocked['json']['error'] ?? '')) : '';
+            throw new RuntimeException($message !== '' ? $message : 'O serviço externo recusou a solicitação.');
+        }
+        return $mocked;
+    }
+    if (!stridebr_integrations_https_url($url)) throw new RuntimeException('Endpoint externo inválido.');
     $headers = array_values(array_filter(array_map('strval', $options['headers'] ?? [])));
     $body = $options['body'] ?? null;
-    if (is_array($body)) $body = http_build_query($body, '', '&', PHP_QUERY_RFC3986);
+    if (isset($options['json'])) {
+        $body = json_encode($options['json'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        $headers[] = 'Content-Type: application/json';
+    } elseif (is_array($body)) {
+        $body = http_build_query($body, '', '&', PHP_QUERY_RFC3986);
+    }
+    $responseHeaders = [];
     if (function_exists('curl_init')) {
         $ch = curl_init($url);
         $curlOptions = [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 20,
+            CURLOPT_TIMEOUT => (int) ($options['timeout'] ?? 20),
             CURLOPT_CONNECTTIMEOUT => 7,
             CURLOPT_CUSTOMREQUEST => strtoupper($method),
             CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_FOLLOWLOCATION => !empty($options['follow_redirects']),
+            CURLOPT_MAXREDIRS => 3,
+            CURLOPT_HEADERFUNCTION => static function ($ch, string $line) use (&$responseHeaders): int {
+                $length = strlen($line);
+                $parts = explode(':', trim($line), 2);
+                if (count($parts) === 2) $responseHeaders[strtolower(trim($parts[0]))][] = trim($parts[1]);
+                return $length;
+            },
         ];
         if ($body !== null) $curlOptions[CURLOPT_POSTFIELDS] = (string) $body;
         curl_setopt_array($ch, $curlOptions);
@@ -260,45 +322,210 @@ function stridebr_integrations_http(string $method, string $url, array $options 
         if (!is_string($response)) throw new RuntimeException('Não foi possível falar com o serviço externo.' . ($error !== '' ? ' ' . $error : ''));
     } else {
         $context = stream_context_create(['http' => [
-            'method' => strtoupper($method),
-            'header' => implode("\r\n", $headers) . "\r\n",
-            'content' => $body !== null ? (string) $body : '',
-            'timeout' => 20,
-            'ignore_errors' => true,
+            'method' => strtoupper($method), 'header' => implode("\\r\\n", $headers) . "\\r\\n",
+            'content' => $body !== null ? (string) $body : '', 'timeout' => (int) ($options['timeout'] ?? 20), 'ignore_errors' => true,
+            'follow_location' => !empty($options['follow_redirects']) ? 1 : 0, 'max_redirects' => 3,
         ]]);
         $response = @file_get_contents($url, false, $context);
         if (!is_string($response)) throw new RuntimeException('Não foi possível falar com o serviço externo.');
         $status = 200;
         foreach ($http_response_header ?? [] as $header) {
-            if (preg_match('#^HTTP/\S+\s+(\d{3})#', $header, $match)) $status = (int) $match[1];
+            if (preg_match('#^HTTP/\\S+\\s+(\\d{3})#', $header, $match)) $status = (int) $match[1];
+            elseif (str_contains($header, ':')) {
+                [$name, $value] = explode(':', $header, 2);
+                $responseHeaders[strtolower(trim($name))][] = trim($value);
+            }
         }
     }
-    if ($status < 200 || $status >= 300) {
-        $message = '';
-        $decoded = json_decode($response, true);
-        if (is_array($decoded)) $message = trim((string) ($decoded['message'] ?? $decoded['error_description'] ?? $decoded['error'] ?? ''));
+    $decoded = json_decode($response, true);
+    if (($status < 200 || $status >= 300) && empty($options['allow_error'])) {
+        $message = is_array($decoded) ? trim((string) ($decoded['message'] ?? $decoded['error_description'] ?? $decoded['error'] ?? '')) : '';
         throw new RuntimeException($message !== '' ? $message : 'O serviço externo recusou a solicitação.');
     }
-    $decoded = json_decode($response, true);
-    return ['status' => $status, 'body' => $response, 'json' => is_array($decoded) ? $decoded : null];
+    return ['status' => $status, 'body' => $response, 'json' => is_array($decoded) ? $decoded : null, 'headers' => $responseHeaders];
 }
 
-function stridebr_integrations_exchange(string $providerId, string $code): array
+function stridebr_integrations_header_first(array $response, string $name): ?string
+{
+    $values = $response['headers'][strtolower($name)] ?? [];
+    if (!is_array($values)) $values = [$values];
+    foreach ($values as $value) if (trim((string) $value) !== '') return trim((string) $value);
+    return null;
+}
+
+function stridebr_integrations_coros_resource_metadata_candidates(string $mcpUrl): array
+{
+    $parts = parse_url($mcpUrl);
+    if (!is_array($parts) || empty($parts['host'])) throw new RuntimeException('Não foi possível descobrir a autorização da COROS.');
+    $origin = 'https://' . $parts['host'] . (isset($parts['port']) ? ':' . (int) $parts['port'] : '');
+    $path = trim((string) ($parts['path'] ?? ''), '/');
+    $candidates = [];
+    if ($path !== '') $candidates[] = $origin . '/.well-known/oauth-protected-resource/' . $path;
+    $candidates[] = $origin . '/.well-known/oauth-protected-resource';
+    return array_values(array_unique($candidates));
+}
+
+function stridebr_integrations_coros_discovery(string $mcpUrl): array
+{
+    $meta = [
+        'io.modelcontextprotocol/protocolVersion' => '2026-07-28',
+        'io.modelcontextprotocol/clientInfo' => ['name' => 'StrideBR', 'version' => '1.0.0-rc.4'],
+        'io.modelcontextprotocol/clientCapabilities' => [],
+    ];
+    $probe = stridebr_integrations_http('POST', $mcpUrl, [
+        'headers' => [
+            'Accept: application/json, text/event-stream',
+            'Content-Type: application/json',
+            'MCP-Protocol-Version: 2026-07-28',
+            'Mcp-Method: server/discover',
+        ],
+        'json' => ['jsonrpc' => '2.0', 'id' => 'stridebr-auth-discovery', 'method' => 'server/discover', 'params' => ['_meta' => $meta]],
+        'allow_error' => true,
+        'follow_redirects' => true,
+    ]);
+    $authenticate = stridebr_integrations_header_first($probe, 'www-authenticate') ?? '';
+    $resourceMetadataUrl = null;
+    $scope = '';
+    if (preg_match('/resource_metadata="([^"]+)"/i', $authenticate, $match) && stridebr_integrations_https_url($match[1])) $resourceMetadataUrl = $match[1];
+    if (preg_match('/(?:^|[,\s])scope="([^"]+)"/i', $authenticate, $match)) $scope = trim($match[1]);
+
+    $candidates = $resourceMetadataUrl !== null ? [$resourceMetadataUrl] : stridebr_integrations_coros_resource_metadata_candidates($mcpUrl);
+    foreach ($candidates as $candidate) {
+        try {
+            $response = stridebr_integrations_http('GET', $candidate, ['headers' => ['Accept: application/json'], 'allow_error' => true, 'follow_redirects' => true]);
+            if ($response['status'] >= 200 && $response['status'] < 300 && is_array($response['json'])) {
+                return ['resource_metadata_url' => $candidate, 'resource' => $response['json'], 'challenge_scope' => $scope];
+            }
+        } catch (Throwable) {
+        }
+    }
+    throw new RuntimeException('A COROS não publicou metadados OAuth de recurso utilizáveis.');
+}
+
+function stridebr_integrations_coros_auth_metadata(string $mcpUrl): array
+{
+    $discovery = stridebr_integrations_coros_discovery($mcpUrl);
+    $resourceUrl = (string) $discovery['resource_metadata_url'];
+    $resource = $discovery['resource'];
+    if (!is_array($resource)) throw new RuntimeException('A COROS não retornou metadados OAuth válidos.');
+    $canonicalResource = trim((string) ($resource['resource'] ?? $mcpUrl));
+    if (!stridebr_integrations_https_url($canonicalResource)) throw new RuntimeException('A COROS publicou um identificador de recurso inválido.');
+    $servers = is_array($resource['authorization_servers'] ?? null) ? $resource['authorization_servers'] : [];
+    $issuer = trim((string) ($servers[0] ?? ''));
+    if (!stridebr_integrations_https_url($issuer)) throw new RuntimeException('A COROS não anunciou um servidor OAuth seguro.');
+    $issuerParts = parse_url($issuer);
+    $origin = 'https://' . (string) $issuerParts['host'] . (isset($issuerParts['port']) ? ':' . (int) $issuerParts['port'] : '');
+    $path = rtrim((string) ($issuerParts['path'] ?? ''), '/');
+    $candidates = [];
+    if ($path !== '') {
+        $candidates[] = $origin . '/.well-known/oauth-authorization-server' . $path;
+        $candidates[] = $origin . '/.well-known/openid-configuration' . $path;
+        $candidates[] = rtrim($issuer, '/') . '/.well-known/openid-configuration';
+    } else {
+        $candidates[] = $origin . '/.well-known/oauth-authorization-server';
+        $candidates[] = $origin . '/.well-known/openid-configuration';
+    }
+    $metadata = null;
+    foreach (array_values(array_unique($candidates)) as $candidate) {
+        try {
+            $response = stridebr_integrations_http('GET', $candidate, ['headers' => ['Accept: application/json'], 'allow_error' => true]);
+            if ($response['status'] >= 200 && $response['status'] < 300 && is_array($response['json']) && hash_equals($issuer, trim((string) ($response['json']['issuer'] ?? '')))) { $metadata = $response['json']; break; }
+        } catch (Throwable) {
+        }
+    }
+    if (!is_array($metadata)) throw new RuntimeException('Não foi possível descobrir os endpoints OAuth da COROS.');
+    $authorize = trim((string) ($metadata['authorization_endpoint'] ?? ''));
+    $token = trim((string) ($metadata['token_endpoint'] ?? ''));
+    if (!stridebr_integrations_https_url($authorize) || !stridebr_integrations_https_url($token)) throw new RuntimeException('A COROS anunciou endpoints OAuth inválidos.');
+    $pkce = is_array($metadata['code_challenge_methods_supported'] ?? null) ? $metadata['code_challenge_methods_supported'] : [];
+    if (!in_array('S256', $pkce, true)) throw new RuntimeException('O servidor OAuth da COROS não anunciou PKCE S256.');
+    $scope = trim((string) ($discovery['challenge_scope'] ?? ''));
+    if ($scope === '') {
+        $supported = is_array($resource['scopes_supported'] ?? null) ? array_values(array_filter(array_map('strval', $resource['scopes_supported']))) : [];
+        $scope = implode(' ', $supported);
+    }
+    return ['resource' => $resource, 'authorization' => $metadata, 'resource_metadata_url' => $resourceUrl, 'issuer' => $issuer, 'authorize_url' => $authorize, 'token_url' => $token, 'scope' => $scope, 'mcp_url' => $canonicalResource];
+}
+
+function stridebr_integrations_coros_client(array $metadata): array
+{
+    $auth = $metadata['authorization'];
+    $redirect = stridebr_integrations_callback_uri('coros');
+    $clientMetadataUrl = stridebr_app_url() . '/auth/mcp-client-metadata.php';
+    if (!empty($auth['client_id_metadata_document_supported'])) return ['client_id' => $clientMetadataUrl, 'token_auth' => 'none'];
+    $registration = trim((string) ($auth['registration_endpoint'] ?? ''));
+    if (!stridebr_integrations_https_url($registration)) throw new RuntimeException('O servidor OAuth da COROS não oferece registro dinâmico compatível.');
+    $response = stridebr_integrations_http('POST', $registration, ['headers' => ['Accept: application/json'], 'json' => [
+        'client_name' => 'StrideBR', 'client_uri' => stridebr_app_url(), 'redirect_uris' => [$redirect],
+        'grant_types' => ['authorization_code', 'refresh_token'], 'response_types' => ['code'], 'token_endpoint_auth_method' => 'none',
+    ]]);
+    $data = $response['json'];
+    $clientId = is_array($data) ? trim((string) ($data['client_id'] ?? '')) : '';
+    if ($clientId === '') throw new RuntimeException('A COROS não retornou um identificador OAuth válido.');
+    return ['client_id' => $clientId, 'client_secret' => is_array($data) ? trim((string) ($data['client_secret'] ?? '')) : '', 'token_auth' => is_array($data) ? trim((string) ($data['token_endpoint_auth_method'] ?? 'none')) : 'none'];
+}
+
+function stridebr_integrations_start(string $providerId, string $returnTo = '/user/edit-profile.php#conexoes', bool $forceConsent = false): string
+{
+    $provider = stridebr_integrations_provider($providerId);
+    if (!stridebr_integrations_configured($provider)) throw new RuntimeException($provider['label'] . ' ainda não está configurado no servidor.');
+    $state = bin2hex(random_bytes(24));
+    $pending = ['provider' => $providerId, 'return' => stridebr_safe_redirect($returnTo, '/user/edit-profile.php#conexoes'), 'created_at' => time()];
+    if ($providerId === 'coros') {
+        $metadata = stridebr_integrations_coros_auth_metadata((string) $provider['mcp_url']);
+        $client = stridebr_integrations_coros_client($metadata);
+        $verifier = rtrim(strtr(base64_encode(random_bytes(48)), '+/', '-_'), '=');
+        $challenge = rtrim(strtr(base64_encode(hash('sha256', $verifier, true)), '+/', '-_'), '=');
+        $pending['pkce_verifier'] = $verifier;
+        $pending['token_url'] = $metadata['token_url'];
+        $pending['issuer'] = $metadata['issuer'];
+        $pending['mcp_url'] = $metadata['mcp_url'];
+        $pending['client_id'] = $client['client_id'];
+        $pending['token_auth'] = $client['token_auth'] ?? 'none';
+        if (trim((string) ($client['client_secret'] ?? '')) !== '') $pending['client_secret_enc'] = stridebr_integrations_encrypt((string) $client['client_secret']);
+        $_SESSION['StrideBRIntegrationOAuth'][$state] = $pending;
+        $params = ['client_id' => $client['client_id'], 'redirect_uri' => stridebr_integrations_callback_uri('coros'), 'response_type' => 'code', 'state' => $state, 'code_challenge' => $challenge, 'code_challenge_method' => 'S256', 'resource' => $metadata['mcp_url']];
+        if (trim((string) ($metadata['scope'] ?? '')) !== '') $params['scope'] = trim((string) $metadata['scope']);
+        return $metadata['authorize_url'] . '?' . http_build_query($params, '', '&', PHP_QUERY_RFC3986);
+    }
+    $_SESSION['StrideBRIntegrationOAuth'][$state] = $pending;
+    $params = ['client_id' => $provider['client_id'], 'redirect_uri' => stridebr_integrations_callback_uri($providerId), 'response_type' => 'code', 'state' => $state];
+    if (trim((string) ($provider['scope'] ?? '')) !== '') $params['scope'] = $provider['scope'];
+    if ($providerId === 'strava') $params['approval_prompt'] = $forceConsent ? 'force' : 'auto';
+    if ($providerId === 'google_health') {
+        $params['access_type'] = 'offline';
+        $params['include_granted_scopes'] = 'true';
+        if ($forceConsent) $params['prompt'] = 'consent';
+    }
+    return $provider['authorize_url'] . (str_contains($provider['authorize_url'], '?') ? '&' : '?') . http_build_query($params, '', '&', PHP_QUERY_RFC3986);
+}
+
+function stridebr_integrations_exchange(string $providerId, string $code, array $pending = []): array
 {
     $provider = stridebr_integrations_provider($providerId);
     if (!stridebr_integrations_configured($provider)) throw new RuntimeException($provider['label'] . ' não está configurado.');
-    $fields = [
-        'grant_type' => 'authorization_code',
-        'code' => $code,
-        'redirect_uri' => stridebr_integrations_callback_uri($providerId),
-    ];
+    if ($providerId === 'coros') {
+        $tokenUrl = trim((string) ($pending['token_url'] ?? ''));
+        $clientId = trim((string) ($pending['client_id'] ?? ''));
+        $verifier = trim((string) ($pending['pkce_verifier'] ?? ''));
+        if (!stridebr_integrations_https_url($tokenUrl) || $clientId === '' || $verifier === '') throw new RuntimeException('A autorização COROS expirou.');
+        $fields = ['grant_type' => 'authorization_code', 'code' => $code, 'redirect_uri' => stridebr_integrations_callback_uri('coros'), 'client_id' => $clientId, 'code_verifier' => $verifier, 'resource' => (string) ($pending['mcp_url'] ?? $provider['mcp_url'])];
+        $headers = ['Accept: application/json', 'Content-Type: application/x-www-form-urlencoded'];
+        $secret = stridebr_integrations_decrypt((string) ($pending['client_secret_enc'] ?? ''));
+        if ($secret && in_array((string) ($pending['token_auth'] ?? ''), ['client_secret_basic', 'basic'], true)) $headers[] = 'Authorization: Basic ' . base64_encode($clientId . ':' . $secret);
+        elseif ($secret) $fields['client_secret'] = $secret;
+        $response = stridebr_integrations_http('POST', $tokenUrl, ['headers' => $headers, 'body' => $fields]);
+        $token = $response['json'];
+        if (!is_array($token) || trim((string) ($token['access_token'] ?? '')) === '') throw new RuntimeException('A COROS não retornou uma credencial válida.');
+        $token['_stridebr_meta'] = ['token_url' => $tokenUrl, 'issuer' => (string) ($pending['issuer'] ?? ''), 'mcp_url' => (string) ($pending['mcp_url'] ?? $provider['mcp_url']), 'client_id' => $clientId, 'token_auth' => (string) ($pending['token_auth'] ?? 'none'), 'client_secret_enc' => (string) ($pending['client_secret_enc'] ?? '')];
+        return $token;
+    }
+    $fields = ['grant_type' => 'authorization_code', 'code' => $code, 'redirect_uri' => stridebr_integrations_callback_uri($providerId)];
     $headers = ['Accept: application/json', 'Content-Type: application/x-www-form-urlencoded'];
     if (($provider['token_auth'] ?? 'basic') === 'body') {
-        $fields['client_id'] = $provider['client_id'];
-        $fields['client_secret'] = $provider['client_secret'];
+        $fields['client_id'] = $provider['client_id']; $fields['client_secret'] = $provider['client_secret'];
     } else {
         $headers[] = 'Authorization: Basic ' . base64_encode($provider['client_id'] . ':' . $provider['client_secret']);
-        if ($providerId === 'garmin' && trim((string) (getenv('GARMIN_OAUTH_INCLUDE_CLIENT_ID') ?: '')) === '1') $fields['client_id'] = $provider['client_id'];
     }
     $response = stridebr_integrations_http('POST', $provider['token_url'], ['headers' => $headers, 'body' => $fields]);
     $token = $response['json'];
@@ -321,6 +548,7 @@ function stridebr_integrations_jwt_claim(string $token, string $claim): mixed
 
 function stridebr_integrations_save_token(PDO $pdo, string $userId, string $providerId, array $token): array
 {
+    $provider = stridebr_integrations_provider($providerId);
     $externalId = null;
     $externalName = null;
     $metadata = [];
@@ -331,9 +559,6 @@ function stridebr_integrations_save_token(PDO $pdo, string $userId, string $prov
         $metadata['athlete'] = array_intersect_key($athlete, array_flip(['id', 'username', 'firstname', 'lastname', 'profile_medium']));
     } elseif ($providerId === 'polar') {
         $externalId = isset($token['x_user_id']) ? (string) $token['x_user_id'] : null;
-    } elseif ($providerId === 'fitbit') {
-        $externalId = isset($token['user_id']) ? (string) $token['user_id'] : null;
-        if ($externalId !== null && $externalId !== '') $metadata['fitbit_user_id'] = $externalId;
     } elseif ($providerId === 'suunto') {
         $claim = stridebr_integrations_jwt_claim((string) ($token['access_token'] ?? ''), 'user');
         if (is_scalar($claim) && trim((string) $claim) !== '') {
@@ -342,9 +567,17 @@ function stridebr_integrations_save_token(PDO $pdo, string $userId, string $prov
             $metadata['suunto_user'] = $externalId;
         }
     }
+    if ($providerId === 'google_health' && is_numeric($token['refresh_token_expires_in'] ?? null)) {
+        $metadata['refresh_token_expires_at'] = (new DateTimeImmutable('now'))->modify('+' . max(0, (int) $token['refresh_token_expires_in']) . ' seconds')->format('c');
+    }
+    if ($providerId === 'coros' && is_array($token['_stridebr_meta'] ?? null)) {
+        $metadata['oauth'] = array_intersect_key($token['_stridebr_meta'], array_flip(['token_url', 'issuer', 'mcp_url', 'client_id', 'token_auth', 'client_secret_enc']));
+    }
     $expiresAt = null;
     if (is_numeric($token['expires_at'] ?? null)) $expiresAt = (new DateTimeImmutable('@' . (int) $token['expires_at']))->format('c');
     elseif (is_numeric($token['expires_in'] ?? null)) $expiresAt = (new DateTimeImmutable('now'))->modify('+' . max(0, (int) $token['expires_in']) . ' seconds')->format('c');
+    $scope = is_array($token['scope'] ?? null) ? implode(' ', $token['scope']) : trim((string) ($token['scope'] ?? ''));
+    if ($scope === '') $scope = trim((string) ($provider['scope'] ?? ''));
     $stmt = $pdo->prepare(
         "INSERT INTO integracoes_usuario
         (idintegracao, idusuario, provedor, status, usuario_externo_id, usuario_externo_nome, access_token_enc, refresh_token_enc, token_expira_em, escopos, metadados, ultima_sincronizacao_em, ultimo_erro, atualizado_em)
@@ -354,47 +587,36 @@ function stridebr_integrations_save_token(PDO $pdo, string $userId, string $prov
             usuario_externo_nome = COALESCE(EXCLUDED.usuario_externo_nome, integracoes_usuario.usuario_externo_nome),
             access_token_enc = EXCLUDED.access_token_enc,
             refresh_token_enc = COALESCE(EXCLUDED.refresh_token_enc, integracoes_usuario.refresh_token_enc),
-            token_expira_em = EXCLUDED.token_expira_em, escopos = EXCLUDED.escopos,
+            token_expira_em = EXCLUDED.token_expira_em, escopos = CASE WHEN EXCLUDED.escopos <> '' THEN EXCLUDED.escopos ELSE integracoes_usuario.escopos END,
             metadados = integracoes_usuario.metadados || EXCLUDED.metadados, ultimo_erro = NULL, atualizado_em = NOW()
         RETURNING *"
     );
     $stmt->execute([
-        ':id' => stridebr_integrations_id(),
-        ':usuario' => $userId,
-        ':provedor' => $providerId,
-        ':externo' => $externalId,
-        ':nome' => $externalName,
+        ':id' => stridebr_integrations_id(), ':usuario' => $userId, ':provedor' => $providerId,
+        ':externo' => $externalId, ':nome' => $externalName,
         ':access' => stridebr_integrations_encrypt((string) $token['access_token']),
         ':refresh' => stridebr_integrations_encrypt(trim((string) ($token['refresh_token'] ?? '')) ?: null),
-        ':expira' => $expiresAt,
-        ':escopos' => is_array($token['scope'] ?? null) ? implode(' ', $token['scope']) : trim((string) ($token['scope'] ?? '')),
+        ':expira' => $expiresAt, ':escopos' => $scope,
         ':metadados' => json_encode($metadata, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
     ]);
     return $stmt->fetch() ?: [];
 }
 
-function stridebr_integrations_register_polar(PDO $pdo, string $userId, array $connection): void
-{
-    $token = stridebr_integrations_decrypt((string) ($connection['access_token_enc'] ?? ''));
-    if (!$token) return;
-    try {
-        $response = stridebr_integrations_http('POST', 'https://www.polaraccesslink.com/v3/users', [
-            'headers' => ['Authorization: Bearer ' . $token, 'Accept: application/json', 'Content-Type: application/json'],
-            'body' => json_encode(['member-id' => $userId], JSON_UNESCAPED_SLASHES),
-        ]);
-        $data = $response['json'];
-        $polarId = is_array($data) ? (string) ($data['polar-user-id'] ?? '') : '';
-        if ($polarId !== '') {
-            $stmt = $pdo->prepare("UPDATE integracoes_usuario SET usuario_externo_id = :externo, metadados = metadados || CAST(:meta AS jsonb), atualizado_em = NOW() WHERE idusuario = :usuario AND provedor = 'polar'");
-            $stmt->execute([':externo' => $polarId, ':meta' => json_encode(['registered' => true]), ':usuario' => $userId]);
-        }
-    } catch (Throwable $e) {
-        if (!str_contains(stridebr_lower($e->getMessage()), 'already')) throw $e;
-    }
-}
-
 function stridebr_integrations_disconnect(PDO $pdo, string $userId, string $providerId): void
 {
+    $connection = stridebr_integrations_get($pdo, $userId, $providerId);
+    if ($providerId === 'strava' && is_array($connection)) {
+        $token = stridebr_integrations_decrypt((string) ($connection['access_token_enc'] ?? ''));
+        if ($token) {
+            try {
+                stridebr_integrations_http('POST', 'https://www.strava.com/oauth/revoke', [
+                    'headers' => ['Authorization: Bearer ' . $token, 'Accept: application/json'],
+                    'body' => [],
+                ]);
+            } catch (Throwable) {
+            }
+        }
+    }
     $stmt = $pdo->prepare("UPDATE integracoes_usuario SET status = 'revogado', access_token_enc = NULL, refresh_token_enc = NULL, token_expira_em = NULL, ultimo_erro = NULL, atualizado_em = NOW() WHERE idusuario = :usuario AND provedor = :provedor");
     $stmt->execute([':usuario' => $userId, ':provedor' => $providerId]);
 }
@@ -477,12 +699,15 @@ function stridebr_integrations_sport_slug(string $providerId, string $sport): st
             'STRENGTH_TRAINING' => 'musculacao', 'WEIGHT_TRAINING' => 'musculacao', 'CALISTHENICS' => 'calistenia', 'CIRCUIT_TRAINING' => 'treino-funcional',
             'TENNIS' => 'tenis', 'BADMINTON' => 'badminton', 'BEACH_TENNIS' => 'beach-tennis', 'YOGA' => 'yoga', 'BOXING' => 'boxe', 'BASKETBALL' => 'basquete', 'VOLLEYBALL' => 'volei',
         ],
-        'fitbit' => [
-            'RUN' => 'corrida', 'RUNNING' => 'corrida', 'TREADMILL' => 'corrida-em-esteira', 'WALK' => 'caminhada', 'WALKING' => 'caminhada', 'HIKE' => 'trilha', 'HIKING' => 'trilha',
-            'BIKE' => 'ciclismo', 'BIKING' => 'ciclismo', 'CYCLING' => 'ciclismo', 'MOUNTAIN BIKE' => 'mountain-bike', 'INDOOR CYCLING' => 'ciclismo-indoor', 'SPINNING' => 'ciclismo-indoor',
-            'SWIM' => 'natacao', 'SWIMMING' => 'natacao', 'ROWING' => 'remo',
-            'WEIGHTS' => 'musculacao', 'WEIGHT TRAINING' => 'musculacao', 'STRENGTH TRAINING' => 'musculacao', 'WORKOUT' => 'treino-funcional', 'CIRCUIT TRAINING' => 'treino-funcional',
-            'TENNIS' => 'tenis', 'BADMINTON' => 'badminton', 'YOGA' => 'yoga', 'BOXING' => 'boxe', 'BASKETBALL' => 'basquete', 'VOLLEYBALL' => 'volei',
+        'google_health' => [
+            'RUNNING' => 'corrida', 'RUN' => 'corrida', 'TREADMILL_RUNNING' => 'corrida-em-esteira', 'WALKING' => 'caminhada', 'HIKING' => 'trilha',
+            'BIKING' => 'ciclismo', 'CYCLING' => 'ciclismo', 'MOUNTAIN_BIKING' => 'mountain-bike', 'INDOOR_CYCLING' => 'ciclismo-indoor',
+            'SWIMMING' => 'natacao', 'ROWING' => 'remo', 'STRENGTH_TRAINING' => 'musculacao', 'WEIGHT_TRAINING' => 'musculacao', 'YOGA' => 'yoga',
+        ],
+        'coros' => [
+            'RUNNING' => 'corrida', 'TRAIL_RUNNING' => 'corrida-em-trilha', 'TREADMILL' => 'corrida-em-esteira', 'WALKING' => 'caminhada', 'HIKING' => 'trilha',
+            'CYCLING' => 'ciclismo', 'MOUNTAIN_BIKING' => 'mountain-bike', 'INDOOR_CYCLING' => 'ciclismo-indoor', 'SWIMMING' => 'natacao',
+            'ROWING' => 'remo', 'STRENGTH_TRAINING' => 'musculacao', 'YOGA' => 'yoga',
         ],
         'suunto' => [
             'RUNNING' => 'corrida', 'RUN' => 'corrida', 'TRAIL RUNNING' => 'corrida-em-trilha', 'TREADMILL' => 'corrida-em-esteira', 'WALKING' => 'caminhada', 'HIKING' => 'trilha', 'TREKKING' => 'trekking',
@@ -492,7 +717,7 @@ function stridebr_integrations_sport_slug(string $providerId, string $sport): st
         ],
     ];
     if (isset($maps[$providerId][$key])) return $maps[$providerId][$key];
-    if (in_array($providerId, ['fitbit', 'suunto'], true)) {
+    if (in_array($providerId, ['google_health', 'coros', 'suunto'], true)) {
         $normalized = stridebr_slug($sport);
         if (str_contains($normalized, 'run') || str_contains($normalized, 'corrid')) return 'corrida';
         if (str_contains($normalized, 'walk') || str_contains($normalized, 'caminh')) return 'caminhada';
@@ -563,6 +788,8 @@ function stridebr_integrations_store_activity(PDO $pdo, string $userId, string $
     }
     $id = atividadeSalvarRegistro($pdo, $userId, $payload);
     $device = is_array($activity['device'] ?? null) ? $activity['device'] : [];
+    if (is_numeric($activity['moving_time_s'] ?? null)) $device['moving_time_s'] = (float) $activity['moving_time_s'];
+    if (trim((string) ($activity['timezone'] ?? '')) !== '') $device['timezone'] = trim((string) $activity['timezone']);
     $update = $pdo->prepare('UPDATE registros_atividade SET origem_provedor = :provedor, id_externo = :externo, dispositivo_origem = CAST(:device AS jsonb), data_atualizacao = NOW() WHERE idregistro = :registro AND idusuario = :usuario');
     $update->execute([
         ':provedor' => $providerId,
@@ -574,221 +801,533 @@ function stridebr_integrations_store_activity(PDO $pdo, string $userId, string $
     return $id;
 }
 
-function stridebr_integrations_refresh_strava(PDO $pdo, string $userId, array $connection): array
+function stridebr_integrations_result(): array
 {
-    $provider = stridebr_integrations_provider('strava');
-    $expires = !empty($connection['token_expira_em']) ? strtotime((string) $connection['token_expira_em']) : null;
-    if (!$expires || $expires > time() + 120) return $connection;
+    return ['created' => 0, 'existing' => 0, 'failed' => 0];
+}
+
+function stridebr_integrations_token_expiring(array $connection, int $margin = 120): bool
+{
+    if (empty($connection['token_expira_em'])) return false;
+    $expires = strtotime((string) $connection['token_expira_em']);
+    return $expires !== false && $expires <= time() + $margin;
+}
+
+function stridebr_integrations_refresh(PDO $pdo, string $userId, string $providerId, array $connection): array
+{
+    if (!stridebr_integrations_token_expiring($connection)) return $connection;
     $refresh = stridebr_integrations_decrypt((string) ($connection['refresh_token_enc'] ?? ''));
-    if (!$refresh) return $connection;
-    $response = stridebr_integrations_http('POST', $provider['token_url'], ['headers' => ['Accept: application/json', 'Content-Type: application/x-www-form-urlencoded'], 'body' => [
-        'client_id' => $provider['client_id'],
-        'client_secret' => $provider['client_secret'],
-        'grant_type' => 'refresh_token',
-        'refresh_token' => $refresh,
-    ]]);
-    $token = $response['json'];
-    if (!is_array($token)) throw new RuntimeException('Não foi possível renovar a conexão com o Strava.');
-    return stridebr_integrations_save_token($pdo, $userId, 'strava', $token);
-}
-
-function stridebr_integrations_sync_strava(PDO $pdo, string $userId, array $connection): int
-{
-    $connection = stridebr_integrations_refresh_strava($pdo, $userId, $connection);
-    $token = stridebr_integrations_decrypt((string) ($connection['access_token_enc'] ?? ''));
-    if (!$token) throw new RuntimeException('Reconecte sua conta Strava.');
-    $after = !empty($connection['ultima_sincronizacao_em']) ? max(0, strtotime((string) $connection['ultima_sincronizacao_em']) - 172800) : time() - 2592000;
-    $url = 'https://www.strava.com/api/v3/athlete/activities?' . http_build_query(['after' => $after, 'page' => 1, 'per_page' => 100]);
-    $response = stridebr_integrations_http('GET', $url, ['headers' => ['Authorization: Bearer ' . $token, 'Accept: application/json']]);
-    $items = is_array($response['json']) ? $response['json'] : [];
-    $created = 0;
-    foreach ($items as $item) {
-        if (!is_array($item) || empty($item['id']) || empty($item['start_date'])) continue;
-        $route = [];
-        $polyline = trim((string) ($item['map']['summary_polyline'] ?? ''));
-        if ($polyline !== '') $route = stridebr_integrations_polyline($polyline);
-        $saved = stridebr_integrations_store_activity($pdo, $userId, 'strava', [
-            'external_id' => (string) $item['id'],
-            'title' => trim((string) ($item['name'] ?? '')),
-            'sport' => (string) ($item['sport_type'] ?? $item['type'] ?? ''),
-            'start_at' => (string) $item['start_date'],
-            'duration_s' => $item['elapsed_time'] ?? $item['moving_time'] ?? null,
-            'distance_m' => $item['distance'] ?? null,
-            'elevation_gain_m' => $item['total_elevation_gain'] ?? null,
-            'avg_hr' => $item['average_heartrate'] ?? null,
-            'max_hr' => $item['max_heartrate'] ?? null,
-            'avg_cadence' => $item['average_cadence'] ?? null,
-            'avg_power' => $item['average_watts'] ?? null,
-            'calories' => $item['calories'] ?? null,
-            'route' => $route,
-            'device' => ['source' => 'Strava'],
-        ]);
-        if ($saved !== null) $created++;
+    if (!$refresh) throw new RuntimeException('Reautorize ' . stridebr_integrations_provider($providerId)['label'] . ' para continuar sincronizando.');
+    $provider = stridebr_integrations_provider($providerId);
+    $headers = ['Accept: application/json', 'Content-Type: application/x-www-form-urlencoded'];
+    $fields = ['grant_type' => 'refresh_token', 'refresh_token' => $refresh];
+    $tokenUrl = trim((string) ($provider['token_url'] ?? ''));
+    if ($providerId === 'coros') {
+        $meta = stridebr_integrations_metadata($connection);
+        $oauth = is_array($meta['oauth'] ?? null) ? $meta['oauth'] : [];
+        $tokenUrl = trim((string) ($oauth['token_url'] ?? ''));
+        $clientId = trim((string) ($oauth['client_id'] ?? ''));
+        if (!stridebr_integrations_https_url($tokenUrl) || $clientId === '') throw new RuntimeException('Reautorize a COROS para atualizar a configuração OAuth.');
+        $fields['client_id'] = $clientId;
+        $mcpUrl = trim((string) ($oauth['mcp_url'] ?? $provider['mcp_url'] ?? ''));
+        if ($mcpUrl !== '') $fields['resource'] = $mcpUrl;
+        $secret = stridebr_integrations_decrypt((string) ($oauth['client_secret_enc'] ?? ''));
+        if ($secret && in_array((string) ($oauth['token_auth'] ?? ''), ['client_secret_basic', 'basic'], true)) $headers[] = 'Authorization: Basic ' . base64_encode($clientId . ':' . $secret);
+        elseif ($secret) $fields['client_secret'] = $secret;
+    } elseif (($provider['token_auth'] ?? 'basic') === 'body') {
+        $fields['client_id'] = $provider['client_id'];
+        $fields['client_secret'] = $provider['client_secret'];
+    } else {
+        $headers[] = 'Authorization: Basic ' . base64_encode((string) $provider['client_id'] . ':' . (string) $provider['client_secret']);
     }
-    return $created;
-}
-
-function stridebr_integrations_sync_polar(PDO $pdo, string $userId, array $connection): int
-{
-    $token = stridebr_integrations_decrypt((string) ($connection['access_token_enc'] ?? ''));
-    if (!$token) throw new RuntimeException('Reconecte sua conta Polar.');
-    $response = stridebr_integrations_http('GET', 'https://www.polaraccesslink.com/v3/exercises?route=true', ['headers' => ['Authorization: Bearer ' . $token, 'Accept: application/json']]);
-    $items = is_array($response['json']) ? $response['json'] : [];
-    $created = 0;
-    foreach ($items as $item) {
-        if (!is_array($item) || empty($item['id']) || empty($item['start_time'])) continue;
-        $duration = stridebr_integrations_iso_duration_seconds((string) ($item['duration'] ?? ''));
-        $offset = is_numeric($item['start_time_utc_offset'] ?? null) ? (int) $item['start_time_utc_offset'] : 0;
-        $start = new DateTimeImmutable((string) $item['start_time'], new DateTimeZone(sprintf('%+03d:%02d', intdiv($offset, 60), abs($offset) % 60)));
-        $route = [];
-        foreach ((array) ($item['route'] ?? []) as $point) {
-            if (!is_array($point) || !is_numeric($point['longitude'] ?? null) || !is_numeric($point['latitude'] ?? null)) continue;
-            $route[] = [(float) $point['longitude'], (float) $point['latitude']];
-        }
-        $saved = stridebr_integrations_store_activity($pdo, $userId, 'polar', [
-            'external_id' => (string) $item['id'],
-            'title' => '',
-            'sport' => (string) ($item['detailed_sport_info'] ?? $item['sport'] ?? ''),
-            'start_at' => $start->format(DateTimeInterface::ATOM),
-            'duration_s' => $duration,
-            'distance_m' => $item['distance'] ?? null,
-            'avg_hr' => $item['heart_rate']['average'] ?? null,
-            'calories' => $item['calories'] ?? null,
-            'route' => $route,
-            'device' => ['source' => 'Polar', 'name' => $item['device'] ?? null, 'id' => $item['device_id'] ?? null],
-        ]);
-        if ($saved !== null) $created++;
-    }
-    return $created;
-}
-
-
-function stridebr_integrations_refresh_fitbit(PDO $pdo, string $userId, array $connection): array
-{
-    $provider = stridebr_integrations_provider('fitbit');
-    $expires = !empty($connection['token_expira_em']) ? strtotime((string) $connection['token_expira_em']) : null;
-    if (!$expires || $expires > time() + 120) return $connection;
-    $refresh = stridebr_integrations_decrypt((string) ($connection['refresh_token_enc'] ?? ''));
-    if (!$refresh) return $connection;
-    $response = stridebr_integrations_http('POST', $provider['token_url'], [
-        'headers' => [
-            'Accept: application/json',
-            'Content-Type: application/x-www-form-urlencoded',
-            'Authorization: Basic ' . base64_encode($provider['client_id'] . ':' . $provider['client_secret']),
-        ],
-        'body' => [
-            'grant_type' => 'refresh_token',
-            'refresh_token' => $refresh,
-        ],
-    ]);
+    $response = stridebr_integrations_http('POST', $tokenUrl, ['headers' => $headers, 'body' => $fields]);
     $token = $response['json'];
-    if (!is_array($token)) throw new RuntimeException('Não foi possível renovar a conexão com o Fitbit.');
-    return stridebr_integrations_save_token($pdo, $userId, 'fitbit', $token);
+    if (!is_array($token) || trim((string) ($token['access_token'] ?? '')) === '') throw new RuntimeException('Não foi possível renovar a conexão com ' . $provider['label'] . '.');
+    if ($providerId === 'coros') $token['_stridebr_meta'] = ['token_url' => $tokenUrl] + (is_array($oauth ?? null) ? $oauth : []);
+    return stridebr_integrations_save_token($pdo, $userId, $providerId, $token);
 }
 
-function stridebr_integrations_fitbit_start(array $item, ?array $parsed): ?string
+function stridebr_integrations_connection_token(PDO $pdo, string $userId, string $providerId, array $connection): array
+{
+    $connection = stridebr_integrations_refresh($pdo, $userId, $providerId, $connection);
+    $token = stridebr_integrations_decrypt((string) ($connection['access_token_enc'] ?? ''));
+    if (!$token) throw new RuntimeException('Reautorize ' . stridebr_integrations_provider($providerId)['label'] . ' para continuar sincronizando.');
+    return [$connection, $token];
+}
+
+function stridebr_integrations_parsed_activity(array $parsed, string $externalId, string $fallbackTitle = '', array $device = []): array
 {
     $summary = is_array($parsed['summary'] ?? null) ? $parsed['summary'] : [];
-    if (is_numeric($summary['start_ts'] ?? null)) return (new DateTimeImmutable('@' . (int) $summary['start_ts']))->format(DateTimeInterface::ATOM);
-    foreach (['originalStartTime', 'startTime'] as $key) {
-        $value = trim((string) ($item[$key] ?? ''));
-        if ($value === '') continue;
-        try {
-            return (new DateTimeImmutable($value))->format(DateTimeInterface::ATOM);
-        } catch (Throwable) {
+    $startTs = is_numeric($summary['start_ts'] ?? null) ? (float) $summary['start_ts'] : null;
+    if ($startTs === null) throw new RuntimeException('A atividade externa não possui horário inicial utilizável.');
+    return [
+        'external_id' => $externalId,
+        'title' => trim((string) ($parsed['title'] ?? '')) ?: $fallbackTitle,
+        'sport' => (string) ($parsed['sport'] ?? 'generic'),
+        'start_at' => (new DateTimeImmutable('@' . (int) floor($startTs)))->format(DateTimeInterface::ATOM),
+        'duration_s' => $summary['duration_s'] ?? null,
+        'distance_m' => $summary['distance_m'] ?? null,
+        'elevation_gain_m' => $summary['elevation_gain_m'] ?? null,
+        'avg_hr' => $summary['avg_hr'] ?? null,
+        'max_hr' => $summary['max_hr'] ?? null,
+        'avg_cadence' => $summary['avg_cadence'] ?? null,
+        'avg_power' => $summary['avg_power'] ?? null,
+        'calories' => $summary['calories'] ?? null,
+        'route' => is_array($summary['coordinates'] ?? null) ? $summary['coordinates'] : [],
+        'device' => $device + (is_array($parsed['device'] ?? null) ? $parsed['device'] : []),
+    ];
+}
+
+function stridebr_integrations_strava_rate_low(array $response): bool
+{
+    foreach ([['x-ratelimit-usage', 'x-ratelimit-limit'], ['x-readratelimit-usage', 'x-readratelimit-limit']] as [$usageHeader, $limitHeader]) {
+        $usage = stridebr_integrations_header_first($response, $usageHeader);
+        $limit = stridebr_integrations_header_first($response, $limitHeader);
+        if ($usage === null || $limit === null) continue;
+        $used = array_map('intval', array_map('trim', explode(',', $usage)));
+        $caps = array_map('intval', array_map('trim', explode(',', $limit)));
+        foreach ($used as $index => $count) {
+            $cap = $caps[$index] ?? 0;
+            if ($cap > 0 && $count >= max(1, $cap - 5)) return true;
         }
+    }
+    return false;
+}
+
+function stridebr_integrations_sync_strava(PDO $pdo, string $userId, array $connection): array
+{
+    [$connection, $token] = stridebr_integrations_connection_token($pdo, $userId, 'strava', $connection);
+    $provider = stridebr_integrations_provider('strava');
+    $after = !empty($connection['ultima_sincronizacao_em']) ? max(0, strtotime((string) $connection['ultima_sincronizacao_em']) - 172800) : time() - 2592000;
+    $url = $provider['api_base_url'] . '/athlete/activities?' . http_build_query(['after' => $after, 'page' => 1, 'per_page' => 100], '', '&', PHP_QUERY_RFC3986);
+    $response = stridebr_integrations_http('GET', $url, ['headers' => ['Authorization: Bearer ' . $token, 'Accept: application/json']]);
+    $items = is_array($response['json']) ? $response['json'] : [];
+    $result = stridebr_integrations_result();
+    $detailBudget = stridebr_integrations_strava_rate_low($response) ? 0 : 50;
+    foreach ($items as $item) {
+        if (!is_array($item) || empty($item['id']) || empty($item['start_date'])) continue;
+        $externalId = (string) $item['id'];
+        if (stridebr_integrations_duplicate($pdo, $userId, 'strava', $externalId)) { $result['existing']++; continue; }
+        $data = $item;
+        if ($detailBudget > 0) {
+            try {
+                $detail = stridebr_integrations_http('GET', $provider['api_base_url'] . '/activities/' . rawurlencode($externalId), ['headers' => ['Authorization: Bearer ' . $token, 'Accept: application/json']]);
+                if (is_array($detail['json'])) $data = $detail['json'];
+                $detailBudget--;
+                if (stridebr_integrations_strava_rate_low($detail)) $detailBudget = 0;
+            } catch (Throwable) {
+            }
+        }
+        try {
+            $route = [];
+            $polyline = trim((string) ($data['map']['polyline'] ?? $data['map']['summary_polyline'] ?? ''));
+            if ($polyline !== '') $route = stridebr_integrations_polyline($polyline);
+            $device = ['source' => 'Strava'];
+            if (trim((string) ($data['device_name'] ?? '')) !== '') $device['name'] = trim((string) $data['device_name']);
+            if (is_array($data['laps'] ?? null)) {
+                $device['laps'] = array_map(static fn(array $lap): array => array_intersect_key($lap, array_flip(['id', 'name', 'elapsed_time', 'moving_time', 'distance', 'total_elevation_gain', 'average_speed', 'average_heartrate', 'average_cadence', 'average_watts'])), array_slice(array_values(array_filter($data['laps'], 'is_array')), 0, 100));
+            }
+            $saved = stridebr_integrations_store_activity($pdo, $userId, 'strava', [
+                'external_id' => $externalId, 'title' => trim((string) ($data['name'] ?? '')),
+                'sport' => (string) ($data['sport_type'] ?? $data['type'] ?? ''), 'start_at' => (string) ($data['start_date'] ?? $item['start_date']),
+                'duration_s' => $data['elapsed_time'] ?? $data['moving_time'] ?? null, 'moving_time_s' => $data['moving_time'] ?? null,
+                'distance_m' => $data['distance'] ?? null, 'elevation_gain_m' => $data['total_elevation_gain'] ?? null,
+                'avg_hr' => $data['average_heartrate'] ?? null, 'max_hr' => $data['max_heartrate'] ?? null,
+                'avg_cadence' => $data['average_cadence'] ?? null, 'avg_power' => $data['average_watts'] ?? null,
+                'calories' => $data['calories'] ?? null, 'route' => $route, 'device' => $device,
+            ]);
+            if ($saved !== null) $result['created']++; else $result['existing']++;
+        } catch (Throwable) { $result['failed']++; }
+    }
+    return $result;
+}
+
+function stridebr_integrations_find_coordinates(mixed $value, array &$out): void
+{
+    if (!is_array($value)) return;
+    $lat = $value['latitude'] ?? $value['lat'] ?? $value['latitudeDegrees'] ?? null;
+    $lon = $value['longitude'] ?? $value['lon'] ?? $value['lng'] ?? $value['longitudeDegrees'] ?? null;
+    if (is_numeric($lat) && is_numeric($lon)) {
+        $lat = (float) $lat; $lon = (float) $lon;
+        if ($lat >= -90 && $lat <= 90 && $lon >= -180 && $lon <= 180) $out[] = [$lon, $lat];
+    }
+    foreach ($value as $child) if (is_array($child)) stridebr_integrations_find_coordinates($child, $out);
+}
+
+function stridebr_integrations_polar_items(array $json): array
+{
+    foreach (['trainingSessions', 'training_sessions', 'sessions', 'data'] as $key) if (is_array($json[$key] ?? null)) return array_values($json[$key]);
+    return array_is_list($json) ? $json : [];
+}
+
+function stridebr_integrations_sync_polar(PDO $pdo, string $userId, array $connection): array
+{
+    [$connection, $token] = stridebr_integrations_connection_token($pdo, $userId, 'polar', $connection);
+    $provider = stridebr_integrations_provider('polar');
+    $from = !empty($connection['ultima_sincronizacao_em']) ? (new DateTimeImmutable((string) $connection['ultima_sincronizacao_em']))->modify('-2 days') : (new DateTimeImmutable('now'))->modify('-30 days');
+    $to = (new DateTimeImmutable('now'))->modify('+1 day');
+    $url = $provider['api_base_url'] . '/training-sessions/list?' . http_build_query(['from' => $from->format('Y-m-d'), 'to' => $to->format('Y-m-d')], '', '&', PHP_QUERY_RFC3986);
+    $response = stridebr_integrations_http('GET', $url, ['headers' => ['Authorization: Bearer ' . $token, 'Accept: application/json']]);
+    $items = is_array($response['json']) ? stridebr_integrations_polar_items($response['json']) : [];
+    $result = stridebr_integrations_result();
+    $enhancedByDay = [];
+    foreach ($items as $item) {
+        if (!is_array($item)) continue;
+        $externalId = trim((string) ($item['identifier']['id'] ?? $item['id'] ?? ''));
+        $startRaw = trim((string) ($item['startTime'] ?? $item['start_time'] ?? ''));
+        if ($externalId === '' || $startRaw === '') continue;
+        if (stridebr_integrations_duplicate($pdo, $userId, 'polar', $externalId)) { $result['existing']++; continue; }
+        try {
+            $timezoneOffset = is_numeric($item['timezoneOffsetMinutes'] ?? null) ? (int) $item['timezoneOffsetMinutes'] : null;
+            $timezone = null;
+            if ($timezoneOffset !== null && !preg_match('/(?:Z|[+-]\d{2}:?\d{2})$/i', $startRaw)) {
+                $absolute = abs($timezoneOffset);
+                $timezone = new DateTimeZone(sprintf('%s%02d:%02d', $timezoneOffset >= 0 ? '+' : '-', intdiv($absolute, 60), $absolute % 60));
+            }
+            $start = $timezone ? new DateTimeImmutable($startRaw, $timezone) : new DateTimeImmutable($startRaw);
+            $day = $start->format('Y-m-d');
+            if (!array_key_exists($day, $enhancedByDay)) {
+                $nextDay = (new DateTimeImmutable($day))->modify('+1 day')->format('Y-m-d');
+                $featureQuery = 'from=' . rawurlencode($day) . '&to=' . rawurlencode($nextDay) . '&features=routes&features=statistics&features=laps';
+                try {
+                    $detailResponse = stridebr_integrations_http('GET', $provider['api_base_url'] . '/training-sessions/list?' . $featureQuery, ['headers' => ['Authorization: Bearer ' . $token, 'Accept: application/json']]);
+                    $enhancedByDay[$day] = is_array($detailResponse['json']) ? stridebr_integrations_polar_items($detailResponse['json']) : [];
+                } catch (Throwable) { $enhancedByDay[$day] = []; }
+            }
+            $detail = $item;
+            foreach ($enhancedByDay[$day] as $candidate) {
+                if (is_array($candidate) && (string) ($candidate['identifier']['id'] ?? $candidate['id'] ?? '') === $externalId) { $detail = $candidate; break; }
+            }
+            $route = [];
+            stridebr_integrations_find_coordinates($detail['routes'] ?? $detail['route'] ?? [], $route);
+            $route = atividadeArquivoSimplificarRota($route);
+            $durationMs = $detail['durationMillis'] ?? $detail['duration_ms'] ?? null;
+            $duration = is_numeric($durationMs) ? (float) $durationMs / 1000 : null;
+            $sport = (string) ($detail['sport']['name'] ?? $detail['sport']['slug'] ?? $detail['sportName'] ?? $detail['detailedSportInfo'] ?? '');
+            $device = ['source' => 'Polar'];
+            $model = trim((string) ($detail['product']['modelName'] ?? $detail['deviceName'] ?? ''));
+            if ($model !== '') $device['name'] = $model;
+            if (trim((string) ($detail['deviceId'] ?? '')) !== '') $device['id'] = trim((string) $detail['deviceId']);
+            if (is_array($detail['laps'] ?? null)) $device['laps'] = array_slice($detail['laps'], 0, 100);
+            $saved = stridebr_integrations_store_activity($pdo, $userId, 'polar', [
+                'external_id' => $externalId, 'title' => trim((string) ($detail['name'] ?? '')), 'sport' => $sport,
+                'start_at' => $start->format(DateTimeInterface::ATOM), 'duration_s' => $duration,
+                'distance_m' => $detail['distanceMeters'] ?? $detail['distance'] ?? null,
+                'elevation_gain_m' => $detail['ascentMeters'] ?? $detail['ascent'] ?? $detail['totalAscent'] ?? null,
+                'avg_hr' => $detail['hrAvg'] ?? $detail['averageHeartRate'] ?? null, 'max_hr' => $detail['hrMax'] ?? $detail['maximumHeartRate'] ?? null,
+                'avg_cadence' => $detail['cadenceAvg'] ?? $detail['averageCadence'] ?? null, 'avg_power' => $detail['powerAvg'] ?? $detail['averagePower'] ?? null,
+                'calories' => $detail['calories'] ?? null, 'route' => $route, 'device' => $device,
+                'timezone' => $timezoneOffset !== null ? sprintf('%+d minutes', $timezoneOffset) : '',
+            ]);
+            if ($saved !== null) $result['created']++; else $result['existing']++;
+        } catch (Throwable) { $result['failed']++; }
+    }
+    return $result;
+}
+
+function stridebr_integrations_google_health_start(array $item): ?string
+{
+    $interval = is_array($item['exercise']['interval'] ?? null) ? $item['exercise']['interval'] : (is_array($item['interval'] ?? null) ? $item['interval'] : []);
+    foreach (['startTime', 'start_time'] as $key) {
+        $value = trim((string) ($interval[$key] ?? ''));
+        if ($value !== '') { try { return (new DateTimeImmutable($value))->format(DateTimeInterface::ATOM); } catch (Throwable) {} }
     }
     return null;
 }
 
-function stridebr_integrations_sync_fitbit(PDO $pdo, string $userId, array $connection): int
+function stridebr_integrations_google_health_external_id(array $item): string
 {
-    require_once __DIR__ . '/activity_file_exchange.php';
-    $connection = stridebr_integrations_refresh_fitbit($pdo, $userId, $connection);
-    $token = stridebr_integrations_decrypt((string) ($connection['access_token_enc'] ?? ''));
-    if (!$token) throw new RuntimeException('Reconecte sua conta Fitbit.');
-    $after = !empty($connection['ultima_sincronizacao_em'])
-        ? (new DateTimeImmutable((string) $connection['ultima_sincronizacao_em']))->modify('-2 days')
-        : (new DateTimeImmutable('now'))->modify('-30 days');
-    $url = 'https://api.fitbit.com/1/user/-/activities/list.json?' . http_build_query([
-        'afterDate' => $after->format('Y-m-d'),
-        'sort' => 'asc',
-        'offset' => 0,
-        'limit' => 100,
-    ], '', '&', PHP_QUERY_RFC3986);
-    $response = stridebr_integrations_http('GET', $url, [
-        'headers' => ['Authorization: Bearer ' . $token, 'Accept: application/json'],
-    ]);
-    $items = is_array($response['json']['activities'] ?? null) ? $response['json']['activities'] : [];
-    $created = 0;
-    foreach ($items as $item) {
-        if (!is_array($item)) continue;
-        $logId = trim((string) ($item['logId'] ?? ''));
-        if ($logId === '' || stridebr_integrations_duplicate($pdo, $userId, 'fitbit', $logId)) continue;
-        $parsed = null;
-        try {
-            $tcx = stridebr_integrations_http(
-                'GET',
-                'https://api.fitbit.com/1/user/-/activities/' . rawurlencode($logId) . '.tcx',
-                ['headers' => ['Authorization: Bearer ' . $token, 'Accept: application/vnd.garmin.tcx+xml, application/xml, text/xml']]
-            );
-            if (trim((string) $tcx['body']) !== '') $parsed = atividadeArquivoTcx((string) $tcx['body']);
-        } catch (Throwable) {
-            $parsed = null;
-        }
-        $summary = is_array($parsed['summary'] ?? null) ? $parsed['summary'] : [];
-        $start = stridebr_integrations_fitbit_start($item, $parsed);
-        if ($start === null) continue;
-        $duration = is_numeric($summary['duration_s'] ?? null)
-            ? (int) round((float) $summary['duration_s'])
-            : (is_numeric($item['activeDuration'] ?? null) ? (int) round((float) $item['activeDuration'] / 1000) : (is_numeric($item['duration'] ?? null) ? (int) round((float) $item['duration'] / 1000) : null));
-        $coordinates = is_array($summary['coordinates'] ?? null) ? $summary['coordinates'] : [];
-        $device = ['source' => 'Fitbit'];
-        if (is_array($item['source'] ?? null)) {
-            $source = $item['source'];
-            if (trim((string) ($source['name'] ?? '')) !== '') $device['name'] = trim((string) $source['name']);
-            if (trim((string) ($source['type'] ?? '')) !== '') $device['type'] = trim((string) $source['type']);
-        }
-        $saved = stridebr_integrations_store_activity($pdo, $userId, 'fitbit', [
-            'external_id' => $logId,
-            'title' => trim((string) ($item['activityName'] ?? '')),
-            'sport' => (string) ($item['activityName'] ?? $parsed['sport'] ?? ''),
-            'start_at' => $start,
-            'duration_s' => $duration,
-            'distance_m' => is_numeric($summary['distance_m'] ?? null) ? (float) $summary['distance_m'] : null,
-            'elevation_gain_m' => is_numeric($summary['elevation_gain_m'] ?? null) ? (float) $summary['elevation_gain_m'] : null,
-            'avg_hr' => is_numeric($summary['avg_hr'] ?? null) ? (float) $summary['avg_hr'] : null,
-            'max_hr' => is_numeric($summary['max_hr'] ?? null) ? (float) $summary['max_hr'] : null,
-            'avg_cadence' => is_numeric($summary['avg_cadence'] ?? null) ? (float) $summary['avg_cadence'] : null,
-            'avg_power' => is_numeric($summary['avg_power'] ?? null) ? (float) $summary['avg_power'] : null,
-            'calories' => is_numeric($item['calories'] ?? null) ? (float) $item['calories'] : (is_numeric($summary['calories'] ?? null) ? (float) $summary['calories'] : null),
-            'route' => $coordinates,
-            'device' => $device,
-        ]);
-        if ($saved !== null) $created++;
-    }
-    return $created;
+    $name = trim((string) ($item['name'] ?? ''));
+    if ($name === '') return '';
+    $parts = explode('/', $name);
+    return trim((string) end($parts));
 }
 
-function stridebr_integrations_refresh_suunto(PDO $pdo, string $userId, array $connection): array
+function stridebr_integrations_sync_google_health(PDO $pdo, string $userId, array $connection): array
 {
-    $provider = stridebr_integrations_provider('suunto');
-    $expires = !empty($connection['token_expira_em']) ? strtotime((string) $connection['token_expira_em']) : null;
-    if (!$expires || $expires > time() + 120) return $connection;
-    $refresh = stridebr_integrations_decrypt((string) ($connection['refresh_token_enc'] ?? ''));
-    if (!$refresh) return $connection;
-    $response = stridebr_integrations_http('POST', (string) $provider['token_url'], [
-        'headers' => [
-            'Accept: application/json',
-            'Content-Type: application/x-www-form-urlencoded',
-            'Authorization: Basic ' . base64_encode((string) $provider['client_id'] . ':' . (string) $provider['client_secret']),
-        ],
-        'body' => ['grant_type' => 'refresh_token', 'refresh_token' => $refresh],
-    ]);
-    if (!is_array($response['json']) || trim((string) ($response['json']['access_token'] ?? '')) === '') {
-        throw new RuntimeException('Não foi possível renovar a conexão com a Suunto.');
+    require_once __DIR__ . '/activity_file_exchange.php';
+    [$connection, $token] = stridebr_integrations_connection_token($pdo, $userId, 'google_health', $connection);
+    $provider = stridebr_integrations_provider('google_health');
+    $url = $provider['api_base_url'] . '/users/me/dataTypes/exercise/dataPoints?pageSize=100';
+    $result = stridebr_integrations_result();
+    $pages = 0;
+    do {
+        $response = stridebr_integrations_http('GET', $url, ['headers' => ['Authorization: Bearer ' . $token, 'Accept: application/json']]);
+        $json = is_array($response['json']) ? $response['json'] : [];
+        $items = is_array($json['dataPoints'] ?? null) ? $json['dataPoints'] : (is_array($json['data_points'] ?? null) ? $json['data_points'] : []);
+        foreach ($items as $item) {
+            if (!is_array($item)) continue;
+            $externalId = stridebr_integrations_google_health_external_id($item);
+            $start = stridebr_integrations_google_health_start($item);
+            if ($externalId === '' || $start === null) continue;
+            if (stridebr_integrations_duplicate($pdo, $userId, 'google_health', $externalId)) { $result['existing']++; continue; }
+            try {
+                $exercise = is_array($item['exercise'] ?? null) ? $item['exercise'] : [];
+                $metrics = is_array($exercise['metricsSummary'] ?? null) ? $exercise['metricsSummary'] : (is_array($exercise['metrics_summary'] ?? null) ? $exercise['metrics_summary'] : []);
+                $active = $exercise['activeDuration'] ?? $exercise['active_duration'] ?? null;
+                $duration = null;
+                if (is_string($active) && preg_match('/^([0-9.]+)s$/', $active, $m)) $duration = (float) $m[1];
+                elseif (is_numeric($active)) $duration = (float) $active;
+                $distanceMm = $metrics['distanceMillimeters'] ?? $metrics['distanceMillimiters'] ?? $metrics['distance_millimeters'] ?? null;
+                $elevationMm = $metrics['elevationGainMillimeters'] ?? $metrics['elevation_gain_millimeters'] ?? null;
+                $activity = [
+                    'external_id' => $externalId, 'title' => trim((string) ($exercise['displayName'] ?? $exercise['display_name'] ?? '')),
+                    'sport' => (string) ($exercise['exerciseType'] ?? $exercise['exercise_type'] ?? ''), 'start_at' => $start, 'duration_s' => $duration,
+                    'distance_m' => is_numeric($distanceMm) ? (float) $distanceMm / 1000 : null,
+                    'elevation_gain_m' => is_numeric($elevationMm) ? (float) $elevationMm / 1000 : null,
+                    'avg_hr' => $metrics['averageHeartRateBeatsPerMinute'] ?? $metrics['average_heart_rate_beats_per_minute'] ?? null,
+                    'calories' => $metrics['caloriesKcal'] ?? $metrics['calories_kcal'] ?? null, 'route' => [],
+                    'device' => ['source' => 'Google Health', 'platform' => $item['dataSource']['platform'] ?? $item['data_source']['platform'] ?? null],
+                ];
+                if (is_array($exercise['splitSummaries'] ?? $exercise['split_summaries'] ?? null)) $activity['device']['splits'] = array_slice($exercise['splitSummaries'] ?? $exercise['split_summaries'], 0, 100);
+                try {
+                    $tcxUrl = $provider['api_base_url'] . '/users/me/dataTypes/exercise/dataPoints/' . rawurlencode($externalId) . ':exportExerciseTcx?alt=media';
+                    $tcx = stridebr_integrations_http('GET', $tcxUrl, ['headers' => ['Authorization: Bearer ' . $token, 'Accept: application/vnd.garmin.tcx+xml, application/xml, text/xml']]);
+                    if (trim((string) $tcx['body']) !== '') {
+                        $parsed = atividadeArquivoTcx((string) $tcx['body']);
+                        $fromFile = stridebr_integrations_parsed_activity($parsed, $externalId, $activity['title'], $activity['device']);
+                        foreach (['duration_s','distance_m','elevation_gain_m','avg_hr','max_hr','avg_cadence','avg_power','calories','route'] as $key) if (($fromFile[$key] ?? null) !== null && ($fromFile[$key] ?? []) !== []) $activity[$key] = $fromFile[$key];
+                        if (($fromFile['sport'] ?? 'generic') !== 'generic') $activity['sport'] = $fromFile['sport'];
+                        $activity['device'] = $fromFile['device'];
+                    }
+                } catch (Throwable) {
+                }
+                $saved = stridebr_integrations_store_activity($pdo, $userId, 'google_health', $activity);
+                if ($saved !== null) $result['created']++; else $result['existing']++;
+            } catch (Throwable) { $result['failed']++; }
+        }
+        $pageToken = trim((string) ($json['nextPageToken'] ?? $json['next_page_token'] ?? ''));
+        $url = $pageToken !== '' ? $provider['api_base_url'] . '/users/me/dataTypes/exercise/dataPoints?' . http_build_query(['pageSize' => 100, 'pageToken' => $pageToken], '', '&', PHP_QUERY_RFC3986) : '';
+        $pages++;
+    } while ($url !== '' && $pages < 10);
+    return $result;
+}
+
+function stridebr_integrations_coros_mcp_json(string $body): ?array
+{
+    $decoded = json_decode($body, true);
+    if (is_array($decoded)) return $decoded;
+    $candidate = null;
+    foreach (preg_split('/\\r?\\n/', $body) ?: [] as $line) {
+        if (!str_starts_with($line, 'data:')) continue;
+        $data = trim(substr($line, 5));
+        $json = json_decode($data, true);
+        if (is_array($json)) $candidate = $json;
     }
-    return stridebr_integrations_save_token($pdo, $userId, 'suunto', $response['json']);
+    return $candidate;
+}
+
+function stridebr_integrations_coros_mcp_modern(string $mcpUrl, string $token, string $method, array $params, int|string|null $id = 1, bool $allowError = false): array
+{
+    $headers = [
+        'Authorization: Bearer ' . $token,
+        'Accept: application/json, text/event-stream',
+        'Content-Type: application/json',
+        'MCP-Protocol-Version: 2026-07-28',
+        'Mcp-Method: ' . $method,
+    ];
+    if (in_array($method, ['tools/call', 'prompts/get'], true) && trim((string) ($params['name'] ?? '')) !== '') $headers[] = 'Mcp-Name: ' . trim((string) $params['name']);
+    elseif ($method === 'resources/read' && trim((string) ($params['uri'] ?? '')) !== '') $headers[] = 'Mcp-Name: ' . trim((string) $params['uri']);
+    $params['_meta'] = [
+        'io.modelcontextprotocol/protocolVersion' => '2026-07-28',
+        'io.modelcontextprotocol/clientInfo' => ['name' => 'StrideBR', 'version' => '1.0.0-rc.4'],
+        'io.modelcontextprotocol/clientCapabilities' => [],
+    ];
+    $payload = ['jsonrpc' => '2.0', 'method' => $method, 'params' => $params];
+    if ($id !== null) $payload['id'] = $id;
+    $response = stridebr_integrations_http('POST', $mcpUrl, ['headers' => $headers, 'json' => $payload, 'allow_error' => $allowError]);
+    $json = stridebr_integrations_coros_mcp_json((string) $response['body']) ?? $response['json'];
+    if ($allowError && (($response['status'] < 200 || $response['status'] >= 300) || is_array($json['error'] ?? null))) return ['_http_status' => (int) $response['status'], '_error' => is_array($json) ? $json : null];
+    if ($id === null) return [];
+    if (!is_array($json)) throw new RuntimeException('A COROS retornou uma resposta MCP inválida.');
+    if (is_array($json['error'] ?? null)) throw new RuntimeException(trim((string) ($json['error']['message'] ?? 'Erro retornado pela COROS.')));
+    return is_array($json['result'] ?? null) ? $json['result'] : [];
+}
+
+function stridebr_integrations_coros_mcp_legacy(string $mcpUrl, string $token, string $method, array $params, ?string &$sessionId, int|string|null $id = 1): array
+{
+    $headers = ['Authorization: Bearer ' . $token, 'Accept: application/json, text/event-stream', 'Content-Type: application/json', 'MCP-Protocol-Version: 2025-11-25'];
+    if ($sessionId) $headers[] = 'Mcp-Session-Id: ' . $sessionId;
+    $payload = ['jsonrpc' => '2.0', 'method' => $method];
+    if ($id !== null) $payload['id'] = $id;
+    if ($params !== []) $payload['params'] = $params;
+    $response = stridebr_integrations_http('POST', $mcpUrl, ['headers' => $headers, 'json' => $payload]);
+    $newSession = stridebr_integrations_header_first($response, 'mcp-session-id');
+    if ($newSession) $sessionId = $newSession;
+    $json = stridebr_integrations_coros_mcp_json((string) $response['body']) ?? $response['json'];
+    if ($id === null) return [];
+    if (!is_array($json)) throw new RuntimeException('A COROS retornou uma resposta MCP inválida.');
+    if (is_array($json['error'] ?? null)) throw new RuntimeException(trim((string) ($json['error']['message'] ?? 'Erro retornado pela COROS.')));
+    return is_array($json['result'] ?? null) ? $json['result'] : [];
+}
+
+function stridebr_integrations_coros_mcp_mode(string $mcpUrl, string $token): string
+{
+    $probe = stridebr_integrations_coros_mcp_modern($mcpUrl, $token, 'server/discover', [], 'stridebr-protocol', true);
+    if (!isset($probe['_http_status'])) return 'modern';
+    $status = (int) ($probe['_http_status'] ?? 0);
+    $error = is_array($probe['_error'] ?? null) ? $probe['_error'] : [];
+    $code = is_array($error['error'] ?? null) ? (int) ($error['error']['code'] ?? 0) : 0;
+    if (in_array($status, [400, 404, 405], true) || $code === -32601) return 'legacy';
+    throw new RuntimeException('A COROS recusou a negociação do protocolo MCP.');
+}
+
+function stridebr_integrations_coros_mcp_call(string $mode, string $mcpUrl, string $token, string $method, array $params, ?string &$sessionId, int|string|null $id = 1): array
+{
+    if ($mode === 'modern') return stridebr_integrations_coros_mcp_modern($mcpUrl, $token, $method, $params, $id);
+    return stridebr_integrations_coros_mcp_legacy($mcpUrl, $token, $method, $params, $sessionId, $id);
+}
+
+function stridebr_integrations_coros_content(array $result): mixed
+{
+    if (isset($result['structuredContent'])) return $result['structuredContent'];
+    $content = is_array($result['content'] ?? null) ? $result['content'] : [];
+    foreach ($content as $entry) {
+        if (!is_array($entry)) continue;
+        if (isset($entry['json'])) return $entry['json'];
+        $text = trim((string) ($entry['text'] ?? ''));
+        if ($text !== '') { $decoded = json_decode($text, true); return is_array($decoded) ? $decoded : $text; }
+    }
+    return null;
+}
+
+function stridebr_integrations_coros_records(mixed $value): array
+{
+    $records = [];
+    $walk = static function (mixed $node) use (&$walk, &$records): void {
+        if (!is_array($node)) return;
+        $label = $node['labelId'] ?? $node['label_id'] ?? null;
+        $sport = $node['sportType'] ?? $node['sport_type'] ?? $node['sportTypeCode'] ?? null;
+        if (is_scalar($label) && trim((string) $label) !== '') $records[] = ['label_id' => trim((string) $label), 'sport_type' => is_scalar($sport) ? trim((string) $sport) : '', 'raw' => $node];
+        foreach ($node as $child) $walk($child);
+    };
+    $walk($value);
+    if (is_string($value)) {
+        if (preg_match_all('/LabelId:\\s*([^|\\r\\n]+).*?SportType:\\s*([^|\\r\\n]+)/i', $value, $matches, PREG_SET_ORDER)) foreach ($matches as $match) $records[] = ['label_id' => trim($match[1]), 'sport_type' => trim($match[2]), 'raw' => []];
+    }
+    $unique = [];
+    foreach ($records as $record) $unique[$record['label_id']] = $record;
+    return array_values($unique);
+}
+
+function stridebr_integrations_coros_find(mixed $value, array $keys): mixed
+{
+    if (!is_array($value)) return null;
+    foreach ($keys as $key) if (array_key_exists($key, $value) && is_scalar($value[$key])) return $value[$key];
+    foreach ($value as $child) {
+        $found = stridebr_integrations_coros_find($child, $keys);
+        if ($found !== null && $found !== '') return $found;
+    }
+    return null;
+}
+
+function stridebr_integrations_coros_start(mixed $value): ?string
+{
+    $raw = stridebr_integrations_coros_find($value, ['startTime', 'start_time', 'startDateTime', 'start_date_time', 'startTimestamp', 'start_timestamp']);
+    if ($raw === null || $raw === '') return null;
+    try {
+        if (is_numeric($raw)) {
+            $number = (float) $raw;
+            if ($number > 100000000000) $number /= 1000;
+            return (new DateTimeImmutable('@' . (int) floor($number)))->format(DateTimeInterface::ATOM);
+        }
+        return (new DateTimeImmutable((string) $raw))->format(DateTimeInterface::ATOM);
+    } catch (Throwable) {
+        return null;
+    }
+}
+
+function stridebr_integrations_coros_summary_activity(array $record, mixed $detail): ?array
+{
+    $combined = ['record' => $record['raw'] ?? [], 'detail' => $detail];
+    $start = stridebr_integrations_coros_start($combined);
+    if ($start === null) return null;
+    $duration = stridebr_integrations_coros_find($combined, ['durationSeconds', 'duration_seconds', 'duration', 'totalTime', 'total_time']);
+    $distance = stridebr_integrations_coros_find($combined, ['distanceMeters', 'distance_meters', 'distance', 'totalDistance', 'total_distance']);
+    $elevation = stridebr_integrations_coros_find($combined, ['elevationGainMeters', 'elevation_gain_meters', 'ascentMeters', 'ascent_meters', 'totalAscent', 'total_ascent']);
+    return [
+        'external_id' => (string) $record['label_id'],
+        'title' => trim((string) (stridebr_integrations_coros_find($combined, ['name', 'activityName', 'activity_name', 'title']) ?? '')),
+        'sport' => (string) (($record['sport_type'] ?? '') ?: (stridebr_integrations_coros_find($combined, ['sportType', 'sport_type', 'sport']) ?? '')),
+        'start_at' => $start,
+        'duration_s' => is_numeric($duration) ? (float) $duration : null,
+        'distance_m' => is_numeric($distance) ? (float) $distance : null,
+        'elevation_gain_m' => is_numeric($elevation) ? (float) $elevation : null,
+        'avg_hr' => stridebr_integrations_coros_find($combined, ['averageHeartRate', 'avgHeartRate', 'average_heart_rate', 'avg_hr']),
+        'max_hr' => stridebr_integrations_coros_find($combined, ['maximumHeartRate', 'maxHeartRate', 'maximum_heart_rate', 'max_hr']),
+        'avg_cadence' => stridebr_integrations_coros_find($combined, ['averageCadence', 'avgCadence', 'average_cadence']),
+        'avg_power' => stridebr_integrations_coros_find($combined, ['averagePower', 'avgPower', 'average_power']),
+        'calories' => stridebr_integrations_coros_find($combined, ['calories', 'caloriesKcal', 'calories_kcal']),
+        'route' => [],
+        'device' => ['source' => 'COROS'],
+    ];
+}
+
+function stridebr_integrations_coros_urls(mixed $value): array
+{
+    $urls = [];
+    $walk = static function (mixed $node) use (&$walk, &$urls): void {
+        if (is_string($node)) {
+            if (preg_match_all('~https://[^\\s"<>]+~', $node, $m)) foreach ($m[0] as $url) $urls[] = rtrim($url, '.,);');
+            return;
+        }
+        if (is_array($node)) foreach ($node as $child) $walk($child);
+    };
+    $walk($value);
+    return array_values(array_unique(array_filter($urls, 'stridebr_integrations_https_url')));
+}
+
+function stridebr_integrations_sync_coros(PDO $pdo, string $userId, array $connection): array
+{
+    require_once __DIR__ . '/activity_file_exchange.php';
+    [$connection, $token] = stridebr_integrations_connection_token($pdo, $userId, 'coros', $connection);
+    $provider = stridebr_integrations_provider('coros');
+    $meta = stridebr_integrations_metadata($connection);
+    $mcpUrl = trim((string) ($meta['oauth']['mcp_url'] ?? $provider['mcp_url'] ?? ''));
+    if (!stridebr_integrations_https_url($mcpUrl)) throw new RuntimeException('A configuração MCP da COROS ficou inválida; reautorize a conta.');
+    $session = null;
+    $mode = stridebr_integrations_coros_mcp_mode($mcpUrl, $token);
+    if ($mode === 'legacy') {
+        $initialize = stridebr_integrations_coros_mcp_legacy($mcpUrl, $token, 'initialize', ['protocolVersion' => '2025-11-25', 'capabilities' => [], 'clientInfo' => ['name' => 'StrideBR', 'version' => '1.0.0-rc.4']], $session, 1);
+        if ($initialize === []) throw new RuntimeException('A COROS não aceitou a inicialização MCP.');
+        stridebr_integrations_coros_mcp_legacy($mcpUrl, $token, 'notifications/initialized', [], $session, null);
+    }
+    $from = !empty($connection['ultima_sincronizacao_em']) ? (new DateTimeImmutable((string) $connection['ultima_sincronizacao_em']))->modify('-2 days') : (new DateTimeImmutable('now'))->modify('-30 days');
+    $to = new DateTimeImmutable('now');
+    $query = stridebr_integrations_coros_mcp_call($mode, $mcpUrl, $token, 'tools/call', ['name' => 'querySportRecords', 'arguments' => ['startDate' => $from->format('Y-m-d'), 'endDate' => $to->format('Y-m-d'), 'limit' => 50, 'timezone' => date_default_timezone_get()]], $session, 2);
+    $records = stridebr_integrations_coros_records(stridebr_integrations_coros_content($query));
+    $result = stridebr_integrations_result();
+    $fitDownloads = 0;
+    foreach ($records as $record) {
+        $externalId = $record['label_id'];
+        if (stridebr_integrations_duplicate($pdo, $userId, 'coros', $externalId)) { $result['existing']++; continue; }
+        try {
+            $arguments = ['labelId' => $externalId];
+            if ($record['sport_type'] !== '') $arguments['sportType'] = $record['sport_type'];
+            $activity = null;
+            if ($fitDownloads < 50) {
+                try {
+                    $fitResponse = stridebr_integrations_coros_mcp_call($mode, $mcpUrl, $token, 'tools/call', ['name' => 'queryActivityFitFileDownloadUrls', 'arguments' => $arguments], $session, 'fit-' . $externalId);
+                    $urls = stridebr_integrations_coros_urls(stridebr_integrations_coros_content($fitResponse));
+                    if ($urls !== []) {
+                        $fit = stridebr_integrations_http('GET', $urls[0], ['headers' => ['Accept: application/octet-stream'], 'timeout' => 30]);
+                        $fitDownloads++;
+                        $parsed = atividadeArquivoFit((string) $fit['body']);
+                        $activity = stridebr_integrations_parsed_activity($parsed, $externalId, '', ['source' => 'COROS']);
+                    }
+                } catch (Throwable) {
+                }
+            }
+            if ($activity === null) {
+                $detailResponse = stridebr_integrations_coros_mcp_call($mode, $mcpUrl, $token, 'tools/call', ['name' => 'getActivityDetail', 'arguments' => $arguments], $session, 'detail-' . $externalId);
+                $activity = stridebr_integrations_coros_summary_activity($record, stridebr_integrations_coros_content($detailResponse));
+            }
+            if (!is_array($activity)) throw new RuntimeException('A atividade COROS não possui dados suficientes para importação.');
+            $saved = stridebr_integrations_store_activity($pdo, $userId, 'coros', $activity);
+            if ($saved !== null) $result['created']++; else $result['existing']++;
+        } catch (Throwable) { $result['failed']++; }
+    }
+    return $result;
 }
 
 function stridebr_integrations_suunto_start(array $item): ?string
@@ -806,75 +1345,68 @@ function stridebr_integrations_suunto_start(array $item): ?string
     return null;
 }
 
-function stridebr_integrations_sync_suunto(PDO $pdo, string $userId, array $connection): int
+function stridebr_integrations_sync_suunto(PDO $pdo, string $userId, array $connection): array
 {
-    $connection = stridebr_integrations_refresh_suunto($pdo, $userId, $connection);
+    [$connection, $token] = stridebr_integrations_connection_token($pdo, $userId, 'suunto', $connection);
     $provider = stridebr_integrations_provider('suunto');
-    $token = stridebr_integrations_decrypt((string) ($connection['access_token_enc'] ?? ''));
     $subscriptionKey = trim((string) ($provider['subscription_key'] ?? ''));
-    if (!$token || $subscriptionKey === '') throw new RuntimeException('Reconecte sua conta Suunto ou configure a chave da Cloud API.');
-    $response = stridebr_integrations_http('GET', rtrim((string) $provider['api_base_url'], '/') . '/v2/workouts', [
-        'headers' => [
-            'Authorization: Bearer ' . $token,
-            'Ocp-Apim-Subscription-Key: ' . $subscriptionKey,
-            'Accept: application/json',
-        ],
-    ]);
+    if ($subscriptionKey === '') throw new RuntimeException('A chave da Suunto Cloud API ainda não está configurada.');
+    $response = stridebr_integrations_http('GET', rtrim((string) $provider['api_base_url'], '/') . '/v2/workouts', ['headers' => ['Authorization: Bearer ' . $token, 'Ocp-Apim-Subscription-Key: ' . $subscriptionKey, 'Accept: application/json']]);
     $items = is_array($response['json']) ? $response['json'] : [];
     if (isset($items['workouts']) && is_array($items['workouts'])) $items = $items['workouts'];
-    $created = 0;
+    $result = stridebr_integrations_result();
     foreach ($items as $item) {
         if (!is_array($item)) continue;
         $externalId = trim((string) ($item['workoutKey'] ?? $item['id'] ?? ''));
         $start = stridebr_integrations_suunto_start($item);
-        if ($externalId === '' || $start === null || stridebr_integrations_duplicate($pdo, $userId, 'suunto', $externalId)) continue;
-        $hr = is_array($item['hrdata'] ?? null) ? $item['hrdata'] : [];
-        $activityName = trim((string) ($item['activityName'] ?? $item['sport'] ?? $item['activity'] ?? ''));
-        if ($activityName === '' && (string) ($item['activityId'] ?? '') === '1') $activityName = 'running';
-        $device = ['source' => 'Suunto'];
-        foreach (['deviceName' => 'name', 'device' => 'name', 'productName' => 'name'] as $sourceKey => $targetKey) {
-            if (!empty($item[$sourceKey]) && is_scalar($item[$sourceKey])) $device[$targetKey] = trim((string) $item[$sourceKey]);
-        }
-        $saved = stridebr_integrations_store_activity($pdo, $userId, 'suunto', [
-            'external_id' => $externalId,
-            'title' => trim((string) ($item['description'] ?? $item['name'] ?? '')),
-            'sport' => $activityName !== '' ? $activityName : (string) ($item['activityId'] ?? ''),
-            'start_at' => $start,
-            'duration_s' => is_numeric($item['totalTime'] ?? null) ? (float) $item['totalTime'] : (is_numeric($item['duration'] ?? null) ? (float) $item['duration'] : null),
-            'distance_m' => is_numeric($item['totalDistance'] ?? null) ? (float) $item['totalDistance'] : null,
-            'elevation_gain_m' => is_numeric($item['totalAscent'] ?? null) ? (float) $item['totalAscent'] : null,
-            'avg_hr' => is_numeric($hr['workoutAvgHR'] ?? null) ? (float) $hr['workoutAvgHR'] : (is_numeric($item['avgHeartRate'] ?? null) ? (float) $item['avgHeartRate'] : null),
-            'max_hr' => is_numeric($hr['workoutMaxHR'] ?? null) ? (float) $hr['workoutMaxHR'] : (is_numeric($item['maxHeartRate'] ?? null) ? (float) $item['maxHeartRate'] : null),
-            'avg_cadence' => is_numeric($item['avgCadence'] ?? null) ? (float) $item['avgCadence'] : null,
-            'avg_power' => is_numeric($item['avgPower'] ?? null) ? (float) $item['avgPower'] : null,
-            'calories' => is_numeric($item['energyConsumption'] ?? null) ? (float) $item['energyConsumption'] : (is_numeric($item['calories'] ?? null) ? (float) $item['calories'] : null),
-            'route' => [],
-            'device' => $device,
-        ]);
-        if ($saved !== null) $created++;
+        if ($externalId === '' || $start === null) continue;
+        if (stridebr_integrations_duplicate($pdo, $userId, 'suunto', $externalId)) { $result['existing']++; continue; }
+        try {
+            $hr = is_array($item['hrdata'] ?? null) ? $item['hrdata'] : [];
+            $activityName = trim((string) ($item['activityName'] ?? $item['sport'] ?? $item['activity'] ?? ''));
+            if ($activityName === '' && (string) ($item['activityId'] ?? '') === '1') $activityName = 'running';
+            $device = ['source' => 'Suunto'];
+            foreach (['deviceName' => 'name', 'device' => 'name', 'productName' => 'name'] as $sourceKey => $targetKey) if (!empty($item[$sourceKey]) && is_scalar($item[$sourceKey])) $device[$targetKey] = trim((string) $item[$sourceKey]);
+            $saved = stridebr_integrations_store_activity($pdo, $userId, 'suunto', [
+                'external_id' => $externalId, 'title' => trim((string) ($item['description'] ?? $item['name'] ?? '')), 'sport' => $activityName !== '' ? $activityName : (string) ($item['activityId'] ?? ''), 'start_at' => $start,
+                'duration_s' => is_numeric($item['totalTime'] ?? null) ? (float) $item['totalTime'] : (is_numeric($item['duration'] ?? null) ? (float) $item['duration'] : null),
+                'distance_m' => is_numeric($item['totalDistance'] ?? null) ? (float) $item['totalDistance'] : null, 'elevation_gain_m' => is_numeric($item['totalAscent'] ?? null) ? (float) $item['totalAscent'] : null,
+                'avg_hr' => is_numeric($hr['workoutAvgHR'] ?? null) ? (float) $hr['workoutAvgHR'] : (is_numeric($item['avgHeartRate'] ?? null) ? (float) $item['avgHeartRate'] : null),
+                'max_hr' => is_numeric($hr['workoutMaxHR'] ?? null) ? (float) $hr['workoutMaxHR'] : (is_numeric($item['maxHeartRate'] ?? null) ? (float) $item['maxHeartRate'] : null),
+                'avg_cadence' => $item['avgCadence'] ?? null, 'avg_power' => $item['avgPower'] ?? null, 'calories' => $item['energyConsumption'] ?? $item['calories'] ?? null, 'route' => [], 'device' => $device,
+            ]);
+            if ($saved !== null) $result['created']++; else $result['existing']++;
+        } catch (Throwable) { $result['failed']++; }
     }
-    return $created;
+    return $result;
+}
+
+function stridebr_integrations_sync_detailed(PDO $pdo, string $userId, string $providerId): array
+{
+    $connection = stridebr_integrations_get($pdo, $userId, $providerId);
+    if (!$connection || !in_array((string) ($connection['status'] ?? ''), ['conectado', 'erro'], true)) throw new InvalidArgumentException('Essa conta não está conectada.');
+    if (!stridebr_db_bool($connection['sincronizar_atividades'] ?? true)) return stridebr_integrations_result();
+    try {
+        $result = match ($providerId) {
+            'strava' => stridebr_integrations_sync_strava($pdo, $userId, $connection),
+            'polar' => stridebr_integrations_sync_polar($pdo, $userId, $connection),
+            'google_health' => stridebr_integrations_sync_google_health($pdo, $userId, $connection),
+            'coros' => stridebr_integrations_sync_coros($pdo, $userId, $connection),
+            'suunto' => stridebr_integrations_sync_suunto($pdo, $userId, $connection),
+            default => throw new RuntimeException('A sincronização deste serviço ainda não está disponível.'),
+        };
+        $stmt = $pdo->prepare("UPDATE integracoes_usuario SET ultima_sincronizacao_em = NOW(), ultimo_erro = NULL, status = 'conectado', atualizado_em = NOW() WHERE idusuario = :usuario AND provedor = :provedor");
+        $stmt->execute([':usuario' => $userId, ':provedor' => $providerId]);
+        return $result + stridebr_integrations_result();
+    } catch (Throwable $e) {
+        $stmt = $pdo->prepare("UPDATE integracoes_usuario SET ultimo_erro = :erro, status = 'erro', atualizado_em = NOW() WHERE idusuario = :usuario AND provedor = :provedor");
+        $label = stridebr_integrations_provider($providerId)['label'];
+        $stmt->execute([':erro' => 'Não foi possível sincronizar com ' . $label . '. Reautorize a conexão se o problema persistir.', ':usuario' => $userId, ':provedor' => $providerId]);
+        throw $e;
+    }
 }
 
 function stridebr_integrations_sync(PDO $pdo, string $userId, string $providerId): int
 {
-    $connection = stridebr_integrations_get($pdo, $userId, $providerId);
-    if (!$connection || !in_array((string) ($connection['status'] ?? ''), ['conectado', 'erro'], true)) throw new InvalidArgumentException('Essa conta não está conectada.');
-    if (!stridebr_db_bool($connection['sincronizar_atividades'] ?? true)) return 0;
-    try {
-        $created = match ($providerId) {
-            'strava' => stridebr_integrations_sync_strava($pdo, $userId, $connection),
-            'polar' => stridebr_integrations_sync_polar($pdo, $userId, $connection),
-            'fitbit' => stridebr_integrations_sync_fitbit($pdo, $userId, $connection),
-            'suunto' => stridebr_integrations_sync_suunto($pdo, $userId, $connection),
-            default => throw new RuntimeException('A sincronização automática deste serviço será ativada quando a API do provedor estiver configurada.'),
-        };
-        $stmt = $pdo->prepare("UPDATE integracoes_usuario SET ultima_sincronizacao_em = NOW(), ultimo_erro = NULL, status = 'conectado', atualizado_em = NOW() WHERE idusuario = :usuario AND provedor = :provedor");
-        $stmt->execute([':usuario' => $userId, ':provedor' => $providerId]);
-        return $created;
-    } catch (Throwable $e) {
-        $stmt = $pdo->prepare("UPDATE integracoes_usuario SET ultimo_erro = :erro, status = 'erro', atualizado_em = NOW() WHERE idusuario = :usuario AND provedor = :provedor");
-        $stmt->execute([':erro' => substr($e->getMessage(), 0, 1000), ':usuario' => $userId, ':provedor' => $providerId]);
-        throw $e;
-    }
+    return (int) stridebr_integrations_sync_detailed($pdo, $userId, $providerId)['created'];
 }

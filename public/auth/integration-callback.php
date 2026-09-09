@@ -34,22 +34,21 @@ if (!is_array($pending)
 }
 
 try {
-    $token = stridebr_integrations_exchange($provider, $code);
+    $token = stridebr_integrations_exchange($provider, $code, $pending);
     $connection = stridebr_integrations_save_token($pdo, $idUsuario, $provider, $token);
-    if ($provider === 'polar') {
-        stridebr_integrations_register_polar($pdo, $idUsuario, $connection);
-        $connection = stridebr_integrations_get($pdo, $idUsuario, $provider) ?? $connection;
-    }
     $providerConfig = stridebr_integrations_provider($provider);
     stridebr_flash('success', $providerConfig['label'] . ' conectado ao StrideBR.');
     try {
-        $imported = stridebr_integrations_sync($pdo, $idUsuario, $provider);
-        if ($imported > 0) stridebr_flash('success', $imported . ' atividade' . ($imported === 1 ? '' : 's') . ' importada' . ($imported === 1 ? '' : 's') . '.');
+        $sync = stridebr_integrations_sync_detailed($pdo, $idUsuario, $provider);
+        $imported = (int) ($sync['created'] ?? 0);
+        $existing = (int) ($sync['existing'] ?? 0);
+        $failed = (int) ($sync['failed'] ?? 0);
+        if ($imported > 0 || $existing > 0 || $failed > 0) stridebr_flash($failed > 0 ? 'info' : 'success', $imported . ' novas · ' . $existing . ' já existentes · ' . $failed . ' falharam.');
     } catch (Throwable $syncError) {
-        error_log('StrideBR initial integration sync failed for ' . $provider . ': ' . $syncError->getMessage());
+        error_log('StrideBR initial integration sync failed for ' . $provider . ' [' . get_class($syncError) . ']');
     }
 } catch (Throwable $e) {
-    error_log('StrideBR integration callback failed for user ' . $idUsuario . ' / ' . $provider . ': ' . $e->getMessage());
+    error_log('StrideBR integration callback failed for user ' . $idUsuario . ' / ' . $provider . ' [' . get_class($e) . ']');
     stridebr_flash('danger', 'Não foi possível concluir a conexão agora.');
 }
 
