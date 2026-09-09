@@ -28,6 +28,12 @@ function stridebr_marketing_slug(string $value): string
         $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
         if (is_string($ascii) && $ascii !== '') $value = $ascii;
     }
+    $value = strtr($value, [
+        'á' => 'a', 'à' => 'a', 'â' => 'a', 'ã' => 'a', 'ä' => 'a', 'å' => 'a',
+        'é' => 'e', 'è' => 'e', 'ê' => 'e', 'ë' => 'e', 'í' => 'i', 'ì' => 'i', 'î' => 'i', 'ï' => 'i',
+        'ó' => 'o', 'ò' => 'o', 'ô' => 'o', 'õ' => 'o', 'ö' => 'o', 'ú' => 'u', 'ù' => 'u', 'û' => 'u', 'ü' => 'u',
+        'ç' => 'c', 'ñ' => 'n',
+    ]);
     $value = preg_replace('/[^a-z0-9]+/', '_', $value) ?? '';
     $value = trim($value, '_');
     return substr($value, 0, 80);
