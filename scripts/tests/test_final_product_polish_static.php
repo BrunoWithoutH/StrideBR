@@ -98,9 +98,11 @@ $assert(($unknown['status'] ?? '') === 'unknown' && ($unknown['match'] ?? null) 
 $assert(str_contains($strength, 'stridebr_exercise_resolve_catalog') && str_contains($scheduleFn, 'stridebr_exercise_resolve_catalog'), 'Registro/import e cronograma manual devem compartilhar o resolver do servidor.');
 $assert(str_contains($activityJs, "tr('activity.strength.looks_like'") && !str_contains($activityJs, 'strengthSimilarity(name, candidate.name) >= 0.97'), 'Frontend deve sugerir fuzzy sem auto-link agressivo.');
 
-$assert(str_contains($library, 'data-library-heading-actions="treinos"') && str_contains($library, 'data-library-heading-actions="exercicios"'), 'Biblioteca deve manter ações contextuais por tab.');
+$assert(str_contains($library, 'class="library-page-heading-actions"') && str_contains($library, 'data-library-heading-actions="treinos"') && str_contains($library, 'data-library-heading-actions="exercicios"'), 'Biblioteca deve manter um único slot estrutural para ações contextuais por tab.');
 $assert(str_contains($libraryJs, 'history.pushState({libraryTab: tab}') && str_contains($libraryJs, "window.addEventListener('popstate'"), 'Tabs da Biblioteca devem preservar History API.');
+$assert(str_contains($libraryCss, '.library-heading-actions[hidden]{display:none!important}') && str_contains($libraryCss, '.library-page-heading-actions{'), 'Ações inativas da Biblioteca devem obedecer hidden e não criar uma terceira coluna no heading.');
 $assert(str_contains($libraryCss, '.library-heading-actions[data-library-heading-actions="treinos"]{grid-template-columns:1fr}'), 'Ação primária de Treinos deve continuar fácil de encontrar no mobile.');
+$assert(str_contains($activityCss, '.activity-bulk-bar{') && str_contains($activityCss, 'display:flex;') && str_contains($activityCss, 'flex-wrap:wrap;') && str_contains($activityCss, '.activity-bulk-fields{flex:1 1 610px;'), 'Batch toolbar deve usar wrapping baseado no espaço real do container, sem colunas rígidas que colidam.');
 $assert(str_contains($read('public/user/bibliotecaexercicios.php'), "require __DIR__ . '/biblioteca.php';") && str_contains($read('public/user/bibliotecatreinos.php'), "require __DIR__ . '/biblioteca.php';"), 'Wrappers antigos da Biblioteca devem continuar compatíveis sem páginas duplicadas.');
 
 $assert(!str_contains($trainer, "stridebr_t('trainer.open_agenda')") && !str_contains($trainer, "stridebr_t('trainer.subtitle')"), 'Heading de Treinador não deve duplicar Agenda nem carregar subtitle genérico.');
