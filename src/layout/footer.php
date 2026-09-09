@@ -114,7 +114,10 @@ $navActive = static function (array $prefixes) use ($currentPath): string {
         <a href="/pages/extras/changelog.php"><?php echo stridebr_e(stridebr_t('nav.news')); ?></a>
 
         <?php if (stridebr_has_role('moderator')): ?><a href="/admin/index.php"><?php echo stridebr_e(stridebr_has_role('admin') ? stridebr_t('nav.administration', [], 'Administração') : stridebr_t('nav.moderation', [], 'Moderação')); ?></a><?php endif; ?>
-        <button class="mobile-more-dismiss" type="button" data-mobile-more-close><?php echo stridebr_e(stridebr_t('nav.close_menu')); ?></button>
+        <form class="mobile-more-logout" method="POST" action="/function/logout.php">
+            <?php echo stridebr_csrf_field(); ?>
+            <button type="submit"><?php echo stridebr_e(stridebr_t('nav.sign_out')); ?></button>
+        </form>
     </div>
 </div>
 

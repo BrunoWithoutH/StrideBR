@@ -61,7 +61,7 @@ return [
     'nav.sign_in' => 'Entrar',
     'nav.notifications' => 'Notificações',
     'nav.open_navigation' => 'Abrir navegação',
-    'footer.tagline' => 'Planeje, execute e registre atividades físicas.',
+    'footer.tagline' => 'Plataforma esportiva brasileira, livre e open source.',
     'footer.about' => 'Sobre',
     'footer.team' => 'Equipe',
     'footer.contact' => 'Contato',
@@ -3230,4 +3230,9 @@ return [
     'admin.overview.open_feedback' => 'Revisar feedback',
     'admin.overview.open_diagnostics' => 'Abrir diagnóstico',
     'admin.overview.mail_configuration_problem' => 'Um recurso de e-mail está ativo, mas o envio transacional está indisponível.',
+    'account.sessions_current' => 'Sessão atual',
+    'account.sessions_recent' => 'Outros acessos recentes',
+    'account.sessions_history' => 'Acessos antigos ou encerrados',
+    'account.sessions_activity_help' => 'Esta lista mostra o último uso registrado, não confirma que outro dispositivo continua conectado. Acessos antigos podem já ter expirado.',
+    'account.session_last_activity' => 'Última atividade',
 ];

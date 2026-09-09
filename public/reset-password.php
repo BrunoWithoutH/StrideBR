@@ -157,8 +157,10 @@ $authorization = stridebr_auth_password_reset_session();
             <?php foreach ($errors as $error): ?><div class="alert alert-danger" role="alert"><?php echo stridebr_e($error); ?></div><?php endforeach; ?>
             <?php if ($notice): ?><div class="alert alert-info" role="status"><?php echo stridebr_e($notice); ?></div><?php endif; ?>
             <?php if ($success): ?>
-                <div class="alert alert-success" role="status"><?php echo stridebr_e(stridebr_t('auth.reset_success')); ?></div>
-                <div class="auth-modern-footer"><a href="/login.php"><?php echo stridebr_e(stridebr_t('auth.login')); ?></a></div>
+                <div class="auth-reset-success">
+                    <div class="alert alert-success" role="status"><?php echo stridebr_e(stridebr_t('auth.reset_success')); ?></div>
+                    <a class="auth-modern-submit" href="/login.php"><?php echo stridebr_e(stridebr_t('auth.login')); ?></a>
+                </div>
             <?php elseif (!$enabled): ?>
                 <div class="alert alert-info"><?php echo stridebr_e(stridebr_t('auth.reset_unavailable')); ?></div>
             <?php elseif ($authorization): ?>

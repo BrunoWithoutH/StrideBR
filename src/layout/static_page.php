@@ -10,7 +10,7 @@ $pageTitle = isset($pageTitle) ? (string) $pageTitle : 'StrideBR';
 $pageDescription = isset($pageDescription) ? (string) $pageDescription : '';
 $pageHtml = isset($pageHtml) ? (string) $pageHtml : '';
 $currentPath = (string) (parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH) ?: '/');
-$metaDescription = $pageDescription !== '' ? $pageDescription : 'StrideBR: planeje treinos, registre atividades e acompanhe sua evolução.';
+$metaDescription = $pageDescription !== '' ? $pageDescription : 'StrideBR é uma plataforma esportiva brasileira, livre e open source para planejar treinos, registrar atividades físicas e acompanhar evolução.';
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">

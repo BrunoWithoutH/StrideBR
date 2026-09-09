@@ -208,3 +208,19 @@
         padding: 22px 18px;
     }
 }
+
+/* The global pressed-button animation must not move this absolute hit target. */
+.showHidePw,
+.showHidePw:hover,
+.showHidePw:active:not(:disabled) {
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1;
+}
+.password-field { position:relative; display:block; width:100%; }
+.password-field > input { padding-right:86px!important; }
+.password-field .showHidePw { width:72px; }
+a.auth-modern-submit { display:flex; align-items:center; justify-content:center; text-decoration:none; }
+.auth-reset-success { display:grid; gap:16px; }

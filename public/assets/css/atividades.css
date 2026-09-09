@@ -3630,3 +3630,27 @@ html[data-theme="dark"] .activity-post-save-preview{background:#0d1117}
   .activity-detail-compare span{display:none}
 }
 @media(prefers-reduced-motion:reduce){.activity-detail-skeleton-head span,.activity-detail-skeleton-head strong,.activity-detail-skeleton-metrics i,.activity-detail-skeleton-block{animation:none}}
+
+/* Selection communicates the same state on the row and on its control. */
+.activity-row-select { width:32px; height:44px; }
+.activity-row-select span { width:22px; height:22px; border:2px solid var(--ui-muted); display:grid; place-items:center; }
+.activity-row-select input:checked+span { background:var(--ui-accent); border-color:var(--ui-accent); box-shadow:none; }
+.activity-row-select input:checked+span::after { content:'✓'; color:#fff; font:800 16px/1 var(--font-ui); }
+.activity-row-select:hover span { border-color:var(--ui-accent); }
+.activity-list-row.is-bulk-mode .activity-row-main { padding-left:48px!important; }
+.activity-list-row.is-selected .activity-row-main { background:transparent; }
+.activity-row-strength-facts { color:var(--ui-text-strong); font-weight:700; white-space:normal; overflow:visible; }
+.activity-row-strength-focus { color:var(--ui-text-secondary); }
+@media(max-width:760px) {
+    .activity-history-filters { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; width:100%; }
+    .activity-history-filters>input[type="search"] { grid-column:1/-1; width:100%; }
+    .activity-history-filters>*, .activity-history-filters .sport-combobox { min-width:0; max-width:100%; }
+    .activity-row-main { grid-template-columns:34px 28px minmax(0,1fr) 12px!important; }
+    .activity-row-metrics { grid-column:2/4!important; gap:6px 12px!important; }
+    .activity-row-metrics small { font-size:.65rem!important; }
+    .activity-row-metrics strong { font-size:.8rem!important; }
+    .activity-row-strength-preview { grid-column:2/4!important; grid-template-columns:minmax(0,1fr)!important; gap:4px!important; }
+    .activity-row-strength-facts { font-size:.8rem; }
+    .activity-row-strength-focus { font-size:.7rem; white-space:normal; }
+    .activity-row-date,.activity-row-icon { grid-row:1; }
+}

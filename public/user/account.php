@@ -192,17 +192,23 @@ $emailVerified = stridebr_db_bool($usuario['verificado'] ?? false) || !empty($us
 $passwordResetEnabled = stridebr_auth_password_reset_enabled($pdo);
 $emailVerificationEnabled = stridebr_auth_email_verification_enabled($pdo);
 $sessions = [];
+$currentSessionHash = stridebr_session_hash();
 if ($sessionTracking) {
     try {
-        $stmt = $pdo->prepare('SELECT sessao_hash, criado_em, ultimo_uso_em, ip::text AS ip, user_agent, revogado_em FROM sessoes_usuario WHERE idusuario = :id ORDER BY ultimo_uso_em DESC LIMIT 20');
-        $stmt->execute([':id' => $idUsuario]);
+        $stmt = $pdo->prepare('SELECT sessao_hash, criado_em, ultimo_uso_em, ip::text AS ip, user_agent, revogado_em FROM sessoes_usuario WHERE idusuario = :id ORDER BY (sessao_hash = :current) DESC, (revogado_em IS NULL) DESC, ultimo_uso_em DESC LIMIT 20');
+        $stmt->execute([':id' => $idUsuario, ':current' => $currentSessionHash]);
         $sessions = $stmt->fetchAll();
     } catch (Throwable) {
         $sessions = [];
         $sessionTracking = false;
     }
 }
-$currentSessionHash = stridebr_session_hash();
+$sessionGroups = ['current' => [], 'recent' => [], 'history' => []];
+foreach ($sessions as $session) {
+    $isCurrent = hash_equals((string) $currentSessionHash, (string) $session['sessao_hash']);
+    $recent = empty($session['revogado_em']) && strtotime((string) $session['ultimo_uso_em']) >= time() - max(1, (int) ini_get('session.gc_maxlifetime'));
+    $sessionGroups[$isCurrent ? 'current' : ($recent ? 'recent' : 'history')][] = $session;
+}
 $deviceLabel = static function (?string $agent): array {
     $agent = (string) $agent;
     $browser = str_contains($agent, 'Firefox/') ? 'Firefox' : (str_contains($agent, 'Edg/') ? 'Edge' : (str_contains($agent, 'Chrome/') ? 'Chrome' : (str_contains($agent, 'Safari/') ? 'Safari' : 'Navegador')));
@@ -253,7 +259,7 @@ $flashes = stridebr_take_flashes();
                         <form method="POST" class="account-password-form">
                             <?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="request_email_change">
                             <label><?php echo stridebr_e(stridebr_t('account.new_email')); ?><input type="email" name="novo_email" autocomplete="email" maxlength="255" placeholder="voce@exemplo.com" required></label>
-                            <label><?php echo stridebr_e(stridebr_t('account.current_password')); ?><input type="password" name="senha_email" autocomplete="current-password" maxlength="128" required></label>
+                            <label><?php echo stridebr_e(stridebr_t('account.current_password')); ?><span class="password-field"><input type="password" id="account-email-password" name="senha_email" autocomplete="current-password" maxlength="128" required><button type="button" class="showHidePw" aria-controls="account-email-password" aria-pressed="false" aria-label="<?php echo stridebr_e(stridebr_t('auth.password_visibility')); ?>" data-show-label="<?php echo stridebr_e(stridebr_t('auth.show_password')); ?>" data-hide-label="<?php echo stridebr_e(stridebr_t('auth.hide_password')); ?>"><?php echo stridebr_e(stridebr_t('auth.show_password')); ?></button></span></label>
                             <div class="account-form-actions"><button type="submit" class="secondary-button"><?php echo stridebr_e(stridebr_t('account.send_code')); ?></button></div>
                         </form>
                     <?php endif; ?>
@@ -263,8 +269,8 @@ $flashes = stridebr_take_flashes();
                     <div class="account-settings-heading"><div><span class="account-settings-kicker"><?php echo stridebr_e(stridebr_t('account.access')); ?></span><h2><?php echo stridebr_e(stridebr_t('account.change_password')); ?></h2><p><?php echo stridebr_e(stridebr_t('account.password_help')); ?></p></div></div>
                     <form method="POST" class="account-password-form">
                         <?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="change_password">
-                        <label><?php echo stridebr_e(stridebr_t('account.current_password')); ?><input type="password" name="senha_atual" autocomplete="current-password" maxlength="128" required></label>
-                        <div class="account-password-row"><label><?php echo stridebr_e(stridebr_t('account.new_password')); ?><input type="password" name="nova_senha" autocomplete="new-password" minlength="8" maxlength="128" required></label><label><?php echo stridebr_e(stridebr_t('account.confirm_password')); ?><input type="password" name="confirmar_senha" autocomplete="new-password" minlength="8" maxlength="128" required></label></div>
+                        <label><?php echo stridebr_e(stridebr_t('account.current_password')); ?><span class="password-field"><input type="password" id="account-current-password" name="senha_atual" autocomplete="current-password" maxlength="128" required><button type="button" class="showHidePw" aria-controls="account-current-password" aria-pressed="false" aria-label="<?php echo stridebr_e(stridebr_t('auth.password_visibility')); ?>" data-show-label="<?php echo stridebr_e(stridebr_t('auth.show_password')); ?>" data-hide-label="<?php echo stridebr_e(stridebr_t('auth.hide_password')); ?>"><?php echo stridebr_e(stridebr_t('auth.show_password')); ?></button></span></label>
+                        <div class="account-password-row"><label><?php echo stridebr_e(stridebr_t('account.new_password')); ?><span class="password-field"><input type="password" id="account-new-password" name="nova_senha" autocomplete="new-password" minlength="8" maxlength="128" required><button type="button" class="showHidePw" aria-controls="account-new-password" aria-pressed="false" aria-label="<?php echo stridebr_e(stridebr_t('auth.password_visibility')); ?>" data-show-label="<?php echo stridebr_e(stridebr_t('auth.show_password')); ?>" data-hide-label="<?php echo stridebr_e(stridebr_t('auth.hide_password')); ?>"><?php echo stridebr_e(stridebr_t('auth.show_password')); ?></button></span></label><label><?php echo stridebr_e(stridebr_t('account.confirm_password')); ?><span class="password-field"><input type="password" id="account-confirm-password" name="confirmar_senha" autocomplete="new-password" minlength="8" maxlength="128" required><button type="button" class="showHidePw" aria-controls="account-confirm-password" aria-pressed="false" aria-label="<?php echo stridebr_e(stridebr_t('auth.password_visibility')); ?>" data-show-label="<?php echo stridebr_e(stridebr_t('auth.show_password')); ?>" data-hide-label="<?php echo stridebr_e(stridebr_t('auth.hide_password')); ?>"><?php echo stridebr_e(stridebr_t('auth.show_password')); ?></button></span></label></div>
                         <div class="account-form-actions"><button type="submit" class="primary-button"><?php echo stridebr_e(stridebr_t('account.change_password')); ?></button><?php if ($passwordResetEnabled): ?><a href="/forgot-password.php"><?php echo stridebr_e(stridebr_t('account.forgot_current_password')); ?></a><?php endif; ?></div>
                     </form>
                     <?php if ($passwordDateAvailable && !empty($usuario['senha_alterada_em'])): ?><small class="account-security-meta"><?php echo stridebr_e(stridebr_t('account.last_change')); ?> <?php echo stridebr_e(stridebr_t('account.last_change_at', ['date' => stridebr_format_datetime_short((string) $usuario['senha_alterada_em'])])); ?></small><?php endif; ?>
@@ -282,15 +288,20 @@ $flashes = stridebr_take_flashes();
                     <?php elseif ($sessions === []): ?>
                         <div class="account-session-note"><?php echo stridebr_e(stridebr_t('account.no_sessions')); ?></div>
                     <?php else: ?>
+                        <p class="account-session-note"><?php echo stridebr_e(stridebr_t('account.sessions_activity_help')); ?></p>
+                        <?php foreach ($sessionGroups as $group => $groupSessions): if ($groupSessions === []) continue; ?>
+                        <?php if ($group === 'history'): ?><details class="account-session-history"><summary><?php echo stridebr_e(stridebr_t('account.sessions_history')); ?> (<?php echo count($groupSessions); ?>)</summary><?php else: ?><h3><?php echo stridebr_e(stridebr_t('account.sessions_' . $group)); ?></h3><?php endif; ?>
                         <div class="account-session-list">
-                            <?php foreach ($sessions as $session): ?>
+                            <?php foreach ($groupSessions as $session): ?>
                                 <?php [$browser, $os] = $deviceLabel($session['user_agent'] ?? null); $isCurrent = hash_equals((string) ($currentSessionHash ?? ''), (string) $session['sessao_hash']); $revoked = !empty($session['revogado_em']); ?>
-                                <article class="account-session-item<?php echo $revoked ? ' is-revoked' : ''; ?>">
-                                    <div><strong><?php echo stridebr_e($browser . ' · ' . $os); ?><?php echo $isCurrent ? ' · ' . stridebr_e(stridebr_t('account.this_device')) : ''; ?></strong><span><?php echo stridebr_e((new DateTimeImmutable((string) $session['ultimo_uso_em']))->format('d/m/Y H:i')); ?><?php echo !empty($session['ip']) ? ' · ' . stridebr_e((string) $session['ip']) : ''; ?><?php echo $revoked ? ' · ' . stridebr_e(stridebr_t('account.session_closed')) : ''; ?></span></div>
+                                <article class="account-session-item<?php echo $isCurrent ? ' is-current' : ($revoked ? ' is-revoked' : ''); ?>">
+                                    <div><strong><?php echo stridebr_e($browser . ' · ' . $os); ?><?php echo $isCurrent ? ' · ' . stridebr_e(stridebr_t('account.this_device')) : ''; ?></strong><span><?php echo stridebr_e(stridebr_t('account.session_last_activity')); ?> · <?php echo stridebr_e((new DateTimeImmutable((string) $session['ultimo_uso_em']))->format('d/m/Y H:i')); ?><?php echo !empty($session['ip']) ? ' · ' . stridebr_e((string) $session['ip']) : ''; ?><?php echo $revoked ? ' · ' . stridebr_e(stridebr_t('account.session_closed')) : ''; ?></span></div>
                                     <?php if (!$isCurrent && !$revoked): ?><form method="POST"><?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="revoke_session"><input type="hidden" name="sessao_hash" value="<?php echo stridebr_e((string) $session['sessao_hash']); ?>"><button type="submit" class="secondary-button compact"><?php echo stridebr_e(stridebr_t('account.end')); ?></button></form><?php endif; ?>
                                 </article>
                             <?php endforeach; ?>
                         </div>
+                        <?php if ($group === 'history'): ?></details><?php endif; ?>
+                        <?php endforeach; ?>
                     <?php endif; ?>
                 </section>
 
@@ -316,5 +327,6 @@ $flashes = stridebr_take_flashes();
     </main>
 </div>
 <?php require dirname(__DIR__, 2) . '/src/layout/footer.php'; ?>
+<script src="<?php echo stridebr_e(stridebr_asset('/assets/js/loginform.js')); ?>"></script>
 </body>
 </html>
