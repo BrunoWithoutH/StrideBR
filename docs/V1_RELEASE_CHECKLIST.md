@@ -1,6 +1,6 @@
-# StrideBR 1.0.0 RC4 — checklist de release
+# StrideBR 1.0.0 RC5 — checklist de release
 
-Esta checklist separa checks automatizados do smoke que precisa de ambiente real. Não promova a RC4 para 1.0 somente porque a suíte estática passou.
+Esta checklist separa checks automatizados do smoke que precisa de ambiente real. Não promova a RC5 para 1.0 somente porque a suíte estática passou.
 
 ## 1. Automático
 
@@ -122,7 +122,7 @@ A indisponibilidade física de um aparelho pode ser registrada, mas não deve se
 ## 5. Produção e segurança
 
 - [ ] `STRIDEBR_APP_ENV=production`
-- [ ] `STRIDEBR_VERSION=1.0.0-rc.4`
+- [ ] `STRIDEBR_VERSION=1.0.0-rc.5`
 - [ ] `STRIDEBR_APP_URL` aponta para HTTPS real
 - [ ] HTTP redireciona para HTTPS
 - [ ] cookies de sessão mantêm `Secure`, `HttpOnly` e `SameSite=Lax`
@@ -136,19 +136,19 @@ A indisponibilidade física de um aparelho pode ser registrada, mas não deve se
 
 ## 6. Git e promoção
 
-Antes da tag RC4:
+Antes da tag RC5:
 
 - [ ] working tree limpa
 - [ ] nenhum segredo/dump/upload/ZIP acidental
-- [ ] validação local da RC4 aprovada e registrada
+- [ ] validação local da RC5 aprovada e registrada
 - [ ] release check repetido depois da última correção
 - [ ] pendências de smoke real e backup/restore registradas para Infra
 
 Somente depois da revisão do diff e da aprovação explícita para commit, push e tag:
 
 ```bash
-git tag -a v1.0.0-rc.4 -m "StrideBR 1.0.0 RC4"
-git push origin v1.0.0-rc.4
+git tag -a v1.0.0-rc.5 -m "StrideBR 1.0.0 RC5"
+git push origin v1.0.0-rc.5
 ```
 
 Não criar `v1.0.0` nesta etapa.
