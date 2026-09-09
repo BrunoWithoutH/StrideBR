@@ -184,8 +184,10 @@ $exerciseUndo = is_array($_SESSION['exercise_library_undo'] ?? null) && (int) ($
                     <span class="eyebrow"><?php echo stridebr_e(stridebr_t('schedule.planning')); ?></span>
                     <h1><?php echo stridebr_e(stridebr_t('library.page_title')); ?></h1>
                 </div>
-                <div class="library-heading-actions" data-library-heading-actions="treinos"<?php echo $tab !== 'treinos' ? ' hidden' : ''; ?>><button type="button" class="primary-button" data-new-workout-library>+ <?php echo stridebr_e(stridebr_t('library.new_workout')); ?></button></div>
-                <div class="library-heading-actions" data-library-heading-actions="exercicios"<?php echo $tab !== 'exercicios' ? ' hidden' : ''; ?>><button type="button" class="secondary-button" data-new-category><?php echo stridebr_e(stridebr_t('library.new_category')); ?></button><button type="button" class="primary-button" data-new-exercise>+ <?php echo stridebr_e(stridebr_t('library.new_exercise')); ?></button></div>
+                <div class="library-page-heading-actions">
+                    <div class="library-heading-actions" data-library-heading-actions="treinos"<?php echo $tab !== 'treinos' ? ' hidden' : ''; ?>><button type="button" class="primary-button" data-new-workout-library>+ <?php echo stridebr_e(stridebr_t('library.new_workout')); ?></button></div>
+                    <div class="library-heading-actions" data-library-heading-actions="exercicios"<?php echo $tab !== 'exercicios' ? ' hidden' : ''; ?>><button type="button" class="secondary-button" data-new-category><?php echo stridebr_e(stridebr_t('library.new_category')); ?></button><button type="button" class="primary-button" data-new-exercise>+ <?php echo stridebr_e(stridebr_t('library.new_exercise')); ?></button></div>
+                </div>
             </header>
 
             <nav class="workout-library-tabs" aria-label="<?php echo stridebr_e(stridebr_t('library.page_title')); ?>" data-library-tabs>
