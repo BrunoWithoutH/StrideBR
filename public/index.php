@@ -12,7 +12,7 @@ if (stridebr_is_logged_in()) {
 }
 
 $accountDeleted = (string) ($_GET['conta'] ?? '') === 'excluida';
-$pageDescription = 'StrideBR é uma plataforma brasileira para registrar atividades físicas, organizar treinos e cronogramas, acompanhar metas e evolução em corrida e outros esportes.';
+$pageDescription = 'StrideBR é uma plataforma esportiva brasileira, livre e open source, para planejar treinos, registrar atividades físicas e acompanhar evolução.';
 ?>
 <!DOCTYPE html>
 <html lang="<?php echo function_exists('stridebr_html_lang') ? stridebr_e(stridebr_html_lang()) : 'pt-BR'; ?>">

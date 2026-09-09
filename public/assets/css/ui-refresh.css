@@ -6101,3 +6101,66 @@ body.activity-edit-embedded .activity-edit-form.is-route-subview .activity-route
     .site-ad-provider,
     .site-ad-preview { min-height: 100px; }
 }
+
+/* Final mobile usability: keep navigation in flow and modal scroll contained. */
+.settings-heading-row { flex-direction:column; align-items:flex-start; gap:12px; margin-bottom:16px; }
+.settings-heading-row .page-heading { margin-bottom:0; }
+.settings-heading-row + .settings-tabs { margin-top:0; }
+.settings-view-preferences > .settings-sports-disclosure { margin-top:0!important; padding-top:0!important; border-top:0; }
+.settings-sports-disclosure > summary { gap:10px; }
+.settings-sports-disclosure > summary > * { min-width:0; }
+.settings-form select { padding-right:32px!important; }
+.pin-tool-button { display:inline-grid; place-items:center; flex:0 0 44px; width:44px; height:44px; padding:0; line-height:1; color:var(--ui-text-strong); }
+.workout-finish-sheet { max-height:100%; overflow-y:auto; overscroll-behavior:contain; border-color:var(--ui-border); }
+.workout-choice-row button { color:var(--ui-text-strong); border-color:var(--ui-border-strong); }
+.workout-choice-row button.is-selected { color:#fff; }
+.workout-finish-heading > button { background:var(--ui-panel-soft); color:var(--ui-text-strong); flex-shrink:0; }
+.workout-finish-actions { position:sticky; bottom:0; background:var(--ui-panel); padding-block:12px; }
+.quick-register-duration-input { background:var(--ui-panel); }
+.quick-register-duration-field.is-disabled .quick-register-duration-input { background:var(--ui-panel-soft); }
+.quick-register-note { background:var(--ui-panel-soft); border-color:var(--ui-border); }
+.quick-register-duration-heading { flex-wrap:wrap; }
+.quick-register-duration-heading label { display:inline-flex; gap:8px; min-height:32px; }
+.quick-register-duration-heading input { appearance:auto; width:20px!important; height:20px!important; }
+.account-session-history { margin-top:16px; }
+.account-session-history > summary { cursor:pointer; color:var(--ui-muted); padding-block:12px; }
+.account-session-item.is-current { border-left:3px solid var(--ui-accent); padding-left:12px; }
+.account-session-item > div { min-width:0; overflow-wrap:anywhere; }
+.mobile-more-panel .mobile-more-logout { margin:8px 0 0; padding-top:8px; border-top:1px solid var(--ui-border); }
+.mobile-more-panel .mobile-more-logout button { width:100%; text-align:left; color:var(--ui-danger); }
+:root[data-theme="dark"] .mobile-bottom-nav,
+:root[data-theme="dark"] .mobile-more-panel { background:var(--ui-panel); color:var(--ui-text); border-color:var(--ui-border); }
+:root[data-theme="dark"] .mobile-nav-item,
+:root[data-theme="dark"] .mobile-more-panel > a,
+:root[data-theme="dark"] .mobile-more-panel > button { color:var(--ui-text-secondary); }
+:root[data-theme="dark"] .mobile-nav-item.is-active { background:var(--ui-accent-soft); color:var(--ui-text-strong); }
+:root[data-theme="dark"] .mobile-more-panel :is(a,button):hover { background:var(--ui-surface-hover); }
+html.ui-modal-scroll-locked { overflow:hidden!important; }
+html.ui-modal-scroll-locked body { position:fixed!important; top:var(--ui-modal-scroll-top); width:100%; overflow:hidden!important; }
+.password-field { position:relative; display:block; width:100%; }
+.password-field > input { padding-right:86px!important; }
+.password-field .showHidePw {
+    position:absolute; right:7px; top:50%; z-index:1; width:72px; min-height:34px;
+    display:inline-flex; align-items:center; justify-content:center; padding:6px 8px;
+    transform:translateY(-50%); border:0; border-radius:var(--radius-control);
+    background:var(--ui-surface-hover); color:var(--ui-text-secondary); font:700 .78rem var(--font-ui); cursor:pointer;
+}
+.password-field .showHidePw:hover,
+.password-field .showHidePw:active:not(:disabled) { transform:translateY(-50%); background:var(--ui-panel-soft); color:var(--ui-text-strong); }
+.password-field .showHidePw:focus-visible { outline:2px solid var(--ui-accent); outline-offset:2px; }
+@media(max-width:760px) {
+    .quick-tools-modal,.quick-register-workout,.workout-session-modal,.workout-editor-modal { padding:0!important; }
+    .quick-tools-panel,.quick-register-dialog,.schedule-body .workout-editor {
+        width:100%!important; max-width:100%!important; height:100dvh; max-height:100dvh!important;
+        border-radius:0!important; overscroll-behavior:contain;
+        padding-top:calc(16px + env(safe-area-inset-top)); padding-bottom:calc(16px + env(safe-area-inset-bottom));
+    }
+    .workout-session-panel { height:100dvh; max-height:100dvh; border-radius:0!important; }
+    .workout-session-modal.is-keyboard-open .workout-session-panel { height:100%; max-height:100%; }
+    .workout-finish-sheet { inset:0; padding:16px; padding-bottom:calc(16px + env(safe-area-inset-bottom)); border-radius:0!important; }
+    .quick-register-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .quick-register-duration-field { grid-column:1/-1; }
+    .quick-register-actions > button { flex:1; }
+    .activities-toolbar-actions:has([data-safe-back]) { display:flex!important; justify-content:flex-start; width:100%; }
+    .activity-toolbar-link[data-safe-back] { display:inline-flex!important; }
+}

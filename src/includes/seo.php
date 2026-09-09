@@ -56,11 +56,18 @@ function stridebr_seo_brand_data(?string $locale = null): array
     $base = stridebr_seo_origin() . '/';
     $locale ??= function_exists('stridebr_locale') ? stridebr_locale() : 'pt-BR';
     $language = $locale === 'en' ? 'en' : 'pt-BR';
+    $description = $locale === 'en'
+        ? 'StrideBR is a Brazilian platform for planning workouts, logging physical activities, and following sports progress.'
+        : 'StrideBR é uma plataforma brasileira para planejar treinos, registrar atividades físicas e acompanhar evolução esportiva.';
     return ['@context' => 'https://schema.org', '@graph' => [
         ['@type' => 'Organization', '@id' => $base . '#organization', 'name' => 'StrideBR', 'alternateName' => 'Stride BR', 'url' => $base,
-            'logo' => stridebr_seo_origin() . '/assets/img/pwa/icon-512.png', 'sameAs' => ['https://www.instagram.com/stridebr.app/']],
+            'description' => $description, 'areaServed' => ['@type' => 'Country', 'name' => 'Brazil'],
+            'logo' => stridebr_seo_origin() . '/assets/img/pwa/icon-512.png', 'sameAs' => [
+                'https://www.instagram.com/stridebr.app/',
+                'https://github.com/BrunoWithoutH/StrideBR',
+            ]],
         ['@type' => 'WebSite', '@id' => $base . '#website', 'name' => 'StrideBR', 'alternateName' => 'Stride BR', 'url' => $base,
-            'publisher' => ['@id' => $base . '#organization'], 'inLanguage' => $language],
+            'description' => $description, 'publisher' => ['@id' => $base . '#organization'], 'inLanguage' => $language],
     ]];
 }
 
@@ -69,7 +76,7 @@ function stridebr_seo_head(array $page): string
 {
     $title = stridebr_seo_text((string) ($page['title'] ?? 'StrideBR'), 120);
     if (!str_contains($title, 'StrideBR')) $title .= ' — StrideBR';
-    $description = stridebr_seo_text((string) ($page['description'] ?? 'StrideBR: registre atividades, organize treinos e acompanhe sua evolução esportiva.'));
+    $description = stridebr_seo_text((string) ($page['description'] ?? 'StrideBR é uma plataforma esportiva brasileira, livre e open source para planejar treinos, registrar atividades físicas e acompanhar evolução.'));
     $path = (string) ($page['path'] ?? parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH));
     $canonical = stridebr_seo_canonical($path, $page['event_slug'] ?? null);
     $indexable = $canonical !== null && !stridebr_robots_noindex() && empty($page['noindex']) && http_response_code() < 400;

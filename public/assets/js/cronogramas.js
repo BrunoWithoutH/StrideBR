@@ -243,15 +243,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const positionWeekAtUsefulHour = (force = false) => {
         if (!calendar || fitMode || currentView !== 'week' || (weekPositioned && !force)) return;
         const targetHour = recommendedWeekStartHour();
-        if (isMobileWeek()) {
-            const calendarTop = window.scrollY + calendar.getBoundingClientRect().top;
-            const headerHeight = document.querySelector('.site-header')?.getBoundingClientRect().height || 0;
-            const targetTop = Math.max(0, calendarTop + (targetHour * calendarHourHeight) - headerHeight - 8);
-            window.scrollTo({top: targetTop, behavior: 'auto'});
-        } else {
-            calendar.scrollTop = targetHour * calendarHourHeight;
-            calendar.scrollLeft = 0;
-        }
+        calendar.scrollTop = targetHour * calendarHourHeight;
+        calendar.scrollLeft = 0;
         weekPositioned = true;
     };
 

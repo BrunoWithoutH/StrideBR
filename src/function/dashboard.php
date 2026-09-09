@@ -882,37 +882,23 @@ function dashboardAtividadesRecentes(PDO $pdo, string $idUsuario, int $limite = 
 
 function dashboardTreinosProximos(PDO $pdo, string $idUsuario, int $limite = 5): array
 {
-    $stmt = $pdo->prepare(
-        "SELECT tc.idtreino, tc.titulo, tc.dia_semana, tc.hora_inicio, tc.hora_fim,
-                tc.termina_dia_seguinte, COALESCE(tc.cor, c.cor) AS cor,
-                c.nome AS cronograma_nome
-         FROM treinos_cronograma tc
-         JOIN cronogramas c ON c.idcronograma = tc.idcronograma
-         WHERE c.idusuario = :usuario AND c.ativo = TRUE
-         ORDER BY tc.dia_semana, tc.hora_inicio, tc.ordem"
-    );
-    $stmt->execute([':usuario' => $idUsuario]);
-    $rows = $stmt->fetchAll();
-
-    $tz = new DateTimeZone('America/Sao_Paulo');
-    $now = new DateTimeImmutable('now', $tz);
-    $currentWeekday = (int) $now->format('w');
+    require_once __DIR__ . '/cronograma.php';
+    $now = new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo'));
+    $rows = cronogramaListarOcorrenciasConciliadas($pdo, $idUsuario, $now->format('Y-m-d'), $now->modify('+14 days')->format('Y-m-d'));
     $proximos = [];
-
+    $seen = [];
     foreach ($rows as $row) {
-        $weekday = (int) $row['dia_semana'];
-        $delta = ($weekday - $currentWeekday + 7) % 7;
-        $candidateDate = $now->setTime(0, 0)->modify('+' . $delta . ' days');
-        [$hour, $minute] = array_map('intval', explode(':', substr((string) $row['hora_inicio'], 0, 5)));
-        $candidate = $candidateDate->setTime($hour, $minute);
-        if ($candidate < $now) {
-            $candidate = $candidate->modify('+7 days');
-        }
+        if (!empty($row['concluido']) || ($row['status'] ?? '') === 'cancelado') continue;
+        $candidate = new DateTimeImmutable($row['data_treino'] . ' ' . $row['hora_inicio'], $now->getTimezone());
+        if ($candidate < $now) continue;
+        // Identity is the occurrence, never its title: two workouts can share a name.
+        $key = $row['idtreino'] . ':' . $row['data_original'];
+        if (isset($seen[$key])) continue;
+        $seen[$key] = true;
         $row['proxima_data'] = $candidate;
         $proximos[] = $row;
     }
-
-    usort($proximos, static fn(array $a, array $b): int => $a['proxima_data'] <=> $b['proxima_data']);
+    usort($proximos, static fn(array $a, array $b): int => [$a['proxima_data'], $a['idtreino']] <=> [$b['proxima_data'], $b['idtreino']]);
     return array_slice($proximos, 0, max(1, min(8, $limite)));
 }
 

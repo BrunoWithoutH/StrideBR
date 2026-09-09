@@ -20,9 +20,9 @@ function stridebr_settings_workspace_navigation(string $active): void
 function stridebr_settings_workspace_heading(string $section, string $description, ?string $backUrl = null): void
 {
     echo '<div class="settings-heading-row">';
-    echo '<div class="page-heading settings-workspace-heading"><span class="settings-workspace-kicker">' . stridebr_e(stridebr_t('nav.settings')) . '</span><h1>' . stridebr_e($section) . '</h1><p>' . stridebr_e($description) . '</p></div>';
     if ($backUrl !== null && $backUrl !== '') {
-        echo '<a class="secondary-button settings-profile-back" href="' . stridebr_e($backUrl) . '">← ' . stridebr_e(stridebr_t('settings.back_profile')) . '</a>';
+        echo '<a class="context-back-button settings-profile-back" href="' . stridebr_e($backUrl) . '">← ' . stridebr_e(stridebr_t('settings.back_profile')) . '</a>';
     }
+    echo '<div class="page-heading settings-workspace-heading"><span class="settings-workspace-kicker">' . stridebr_e(stridebr_t('nav.settings')) . '</span><h1>' . stridebr_e($section) . '</h1><p>' . stridebr_e($description) . '</p></div>';
     echo '</div>';
 }

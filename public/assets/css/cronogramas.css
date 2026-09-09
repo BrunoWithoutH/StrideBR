@@ -2699,3 +2699,29 @@ html.calendar-quick-open .floating-utility-dock{display:none!important}
 .trainer-shell .trainer-card-actions .primary-button,.trainer-shell .trainer-card-actions .secondary-button,.trainer-shell .trainer-athlete-actions .primary-button,.trainer-shell .trainer-athlete-actions .secondary-button{min-height:44px}
 }
 .trainer-permissions>.trainer-permission-help{grid-column:1/-1;margin:0 0 6px;color:var(--ui-muted);font-size:.78rem;line-height:1.45}
+
+@media(max-width:760px) {
+    .schedule-toolbar {
+        position:relative; top:auto; display:grid; grid-template-columns:minmax(0,1fr) auto;
+        gap:8px!important; overflow:visible; align-items:center;
+    }
+    .schedule-toolbar .schedule-select-label { grid-column:1/-1; width:100%; min-width:0; }
+    .schedule-toolbar .schedule-select-label select { width:100%; min-width:0; max-width:none; }
+    .schedule-toolbar .view-switch { grid-column:1; grid-row:2; justify-self:stretch; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); }
+    .schedule-toolbar .schedule-new-workout { grid-column:1; grid-row:3; }
+    .schedule-toolbar .zoom-controls { grid-column:1/-1; grid-row:4; justify-self:start; justify-content:flex-start; }
+    .schedule-toolbar .schedule-actions-menu { grid-column:2; grid-row:2; }
+    .schedule-toolbar .schedule-toolbar-spacer { display:none; }
+    .schedule-actions-menu[open] .schedule-actions-content { position:fixed; inset:auto 0 0; width:100%; max-height:85dvh; overflow:auto; overscroll-behavior:contain; }
+    .calendar-view[data-calendar-view="week"] {
+        height:62dvh; min-height:340px; max-height:640px; overflow:auto;
+        overscroll-behavior:contain; touch-action:pan-x pan-y;
+    }
+    .calendar-view[data-calendar-view="week"] .week-calendar {
+        grid-template-columns:48px repeat(7,minmax(var(--day-min-width,142px),1fr));
+        width:var(--calendar-min-width,1042px);
+    }
+    .monthly-calendar { min-width:672px; }
+    .monthly-calendar .monthly-day { min-width:0; padding:6px; }
+    .monthly-event { padding:6px; }
+}

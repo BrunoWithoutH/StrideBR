@@ -61,7 +61,7 @@ return [
     'nav.sign_in' => 'Sign in',
     'nav.notifications' => 'Notifications',
     'nav.open_navigation' => 'Open navigation',
-    'footer.tagline' => 'Plan, train, and log physical activities.',
+    'footer.tagline' => 'Brazilian, free and open-source sports platform.',
     'footer.about' => 'About',
     'footer.team' => 'Team',
     'footer.contact' => 'Contact',
@@ -3230,4 +3230,9 @@ return [
     'admin.overview.open_feedback' => 'Review feedback',
     'admin.overview.open_diagnostics' => 'Open diagnostics',
     'admin.overview.mail_configuration_problem' => 'An email feature is enabled, but transactional delivery is unavailable.',
+    'account.sessions_current' => 'Current session',
+    'account.sessions_recent' => 'Other recent sessions',
+    'account.sessions_history' => 'Older or ended sessions',
+    'account.sessions_activity_help' => 'This list shows the last recorded use; it does not confirm another device is still signed in. Older sessions may have expired.',
+    'account.session_last_activity' => 'Last activity',
 ];

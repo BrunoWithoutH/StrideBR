@@ -1057,3 +1057,28 @@ window.StrideBRSportPickerInit = (root = document) => {
 };
 
 document.addEventListener('DOMContentLoaded', () => window.StrideBRSportPickerInit(document));
+
+// Existing dialogs share a page lock; nested dialogs must not unlock their parent.
+(() => {
+    let locked = false;
+    let scrollY = 0;
+    const sync = () => {
+        const visible = [...document.querySelectorAll('[aria-modal="true"], dialog[open]')]
+            .some(dialog => dialog.getClientRects().length > 0 && getComputedStyle(dialog).visibility !== 'hidden');
+        if (visible === locked) return;
+        locked = visible;
+        if (locked) {
+            scrollY = window.scrollY;
+            document.documentElement.style.setProperty('--ui-modal-scroll-top', `-${scrollY}px`);
+            document.documentElement.classList.add('ui-modal-scroll-locked');
+        } else {
+            document.documentElement.classList.remove('ui-modal-scroll-locked');
+            document.documentElement.style.removeProperty('--ui-modal-scroll-top');
+            window.scrollTo({top: scrollY, behavior: 'instant'});
+        }
+    };
+    document.addEventListener('DOMContentLoaded', () => {
+        new MutationObserver(sync).observe(document.body, {subtree:true, childList:true, attributes:true, attributeFilter:['hidden','open','class','aria-modal']});
+        sync();
+    });
+})();

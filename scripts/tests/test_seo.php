@@ -77,7 +77,14 @@ try {
     $assert($meta($doc, 'og:image')[0] === 'https://stridebr.com.br/assets/img/branding/stridebr-og.png', 'Absolute image');
     $schema = $doc['jsonld'][0] ?? null;
     $assert(is_array($schema) && array_column($schema['@graph'] ?? [], '@type') === ['Organization','WebSite'], 'Brand schema');
-    foreach ($schema['@graph'] as $entity) $assert($entity['alternateName'] === 'Stride BR', 'Alternate name');
+    $organization = $schema['@graph'][0] ?? [];
+    $website = $schema['@graph'][1] ?? [];
+    foreach ([$organization, $website] as $entity) {
+        $assert(($entity['name'] ?? null) === 'StrideBR', 'Brand name');
+        $assert(($entity['alternateName'] ?? null) === 'Stride BR', 'Alternate name');
+    }
+    $assert(($organization['sameAs'] ?? []) === ['https://www.instagram.com/stridebr.app/', 'https://github.com/BrunoWithoutH/StrideBR'], 'Official organization profiles');
+    $assert(($organization['url'] ?? null) === 'https://stridebr.com.br/', 'Organization canonical domain');
     $assert(($schema['@graph'][1]['inLanguage'] ?? null) === 'pt-BR', 'Brand schema language');
     $assert(!str_contains($html, 'SearchAction') && !str_contains($html, 'twitter:site'), 'No invented search or account');
     $assert(count($meta($doc, 'google-site-verification')) === 0 && count($meta($doc, 'msvalidate.01')) === 0, 'Empty verification omitted');
@@ -145,6 +152,8 @@ try {
     }
     $indexSource = file_get_contents(dirname(__DIR__,2).'/public/index.php');
     $assert(str_contains($indexSource, 'stridebr_html_lang()') && str_contains($indexSource, "'locale' => stridebr_locale()"), 'Home locale remains dynamic');
+    $readme = file_get_contents(dirname(__DIR__,2).'/README.md');
+    $assert(str_contains($readme, 'https://stridebr.com.br'), 'README identifies the official site');
 
     echo "✓ SEO metadata: $checks assertions\n";
 } finally {
