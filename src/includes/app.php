@@ -640,7 +640,7 @@ function stridebr_maps_runtime_script(): string
 
 function stridebr_version(): string
 {
-    return trim((string) (getenv('STRIDEBR_VERSION') ?: '1.0.0-rc.4'));
+    return trim((string) (getenv('STRIDEBR_VERSION') ?: '1.0.0-rc.5'));
 }
 
 function stridebr_build(): string

@@ -369,7 +369,7 @@ function stridebr_integrations_coros_discovery(string $mcpUrl): array
 {
     $meta = [
         'io.modelcontextprotocol/protocolVersion' => '2026-07-28',
-        'io.modelcontextprotocol/clientInfo' => ['name' => 'StrideBR', 'version' => '1.0.0-rc.4'],
+        'io.modelcontextprotocol/clientInfo' => ['name' => 'StrideBR', 'version' => '1.0.0-rc.5'],
         'io.modelcontextprotocol/clientCapabilities' => [],
     ];
     $probe = stridebr_integrations_http('POST', $mcpUrl, [
@@ -1130,7 +1130,7 @@ function stridebr_integrations_coros_mcp_modern(string $mcpUrl, string $token, s
     elseif ($method === 'resources/read' && trim((string) ($params['uri'] ?? '')) !== '') $headers[] = 'Mcp-Name: ' . trim((string) $params['uri']);
     $params['_meta'] = [
         'io.modelcontextprotocol/protocolVersion' => '2026-07-28',
-        'io.modelcontextprotocol/clientInfo' => ['name' => 'StrideBR', 'version' => '1.0.0-rc.4'],
+        'io.modelcontextprotocol/clientInfo' => ['name' => 'StrideBR', 'version' => '1.0.0-rc.5'],
         'io.modelcontextprotocol/clientCapabilities' => [],
     ];
     $payload = ['jsonrpc' => '2.0', 'method' => $method, 'params' => $params];
@@ -1288,7 +1288,7 @@ function stridebr_integrations_sync_coros(PDO $pdo, string $userId, array $conne
     $session = null;
     $mode = stridebr_integrations_coros_mcp_mode($mcpUrl, $token);
     if ($mode === 'legacy') {
-        $initialize = stridebr_integrations_coros_mcp_legacy($mcpUrl, $token, 'initialize', ['protocolVersion' => '2025-11-25', 'capabilities' => [], 'clientInfo' => ['name' => 'StrideBR', 'version' => '1.0.0-rc.4']], $session, 1);
+        $initialize = stridebr_integrations_coros_mcp_legacy($mcpUrl, $token, 'initialize', ['protocolVersion' => '2025-11-25', 'capabilities' => [], 'clientInfo' => ['name' => 'StrideBR', 'version' => '1.0.0-rc.5']], $session, 1);
         if ($initialize === []) throw new RuntimeException('A COROS não aceitou a inicialização MCP.');
         stridebr_integrations_coros_mcp_legacy($mcpUrl, $token, 'notifications/initialized', [], $session, null);
     }

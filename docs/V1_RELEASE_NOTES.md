@@ -1,4 +1,8 @@
-# StrideBR 1.0.0 RC4
+# StrideBR 1.0.0 RC5
+
+A versão atual é `1.0.0-rc.5`.
+
+## Histórico da RC4
 
 Preparação local de `1.0.0-rc.4`: toggle de senha, caminho cadastro → login, consistência visual da recuperação/redefinição, correções pontuais de interface em Cronogramas e metatag de propriedade AdSense. Publicidade permanece desligada.
 
@@ -72,4 +76,4 @@ A promoção para produção/1.0 final exige backup recente, restore em banco se
 
 ## Versão
 
-A candidata em preparação é `v1.0.0-rc.4`. A publicação desta RC exige os checks locais e a auditoria registrados no relatório final. Deploy real e homologação são etapas posteriores de Infra; não criar `v1.0.0` nesta rodada.
+A candidata atual é `v1.0.0-rc.5`. A publicação desta RC exige os checks locais e a auditoria registrados no relatório final. Deploy real e homologação são etapas posteriores de Infra; não criar `v1.0.0` nesta rodada.
