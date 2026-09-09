@@ -426,7 +426,9 @@ function stridebr_ui_boot_script(): string
     $escape = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     $uiSrc = function_exists('stridebr_asset') ? stridebr_asset('/assets/js/ui-boot.js') : '/assets/js/ui-boot.js';
     $pwaSrc = function_exists('stridebr_asset') ? stridebr_asset('/assets/js/pwa.js') : '/assets/js/pwa.js';
-    $touchIcon = function_exists('stridebr_asset') ? stridebr_asset('/assets/img/pwa/apple-touch-icon.png') : '/assets/img/pwa/apple-touch-icon.png';
+    $touchIcon180 = function_exists('stridebr_asset') ? stridebr_asset('/assets/img/branding/app-icons/ios/apple-touch-icon-180x180.png') : '/assets/img/branding/app-icons/ios/apple-touch-icon-180x180.png';
+    $touchIcon167 = function_exists('stridebr_asset') ? stridebr_asset('/assets/img/branding/app-icons/ios/apple-touch-icon-167x167.png') : '/assets/img/branding/app-icons/ios/apple-touch-icon-167x167.png';
+    $touchIcon152 = function_exists('stridebr_asset') ? stridebr_asset('/assets/img/branding/app-icons/ios/apple-touch-icon-152x152.png') : '/assets/img/branding/app-icons/ios/apple-touch-icon-152x152.png';
     return stridebr_adsense_verification_meta()
         . '<link rel="manifest" href="/manifest.webmanifest">'
         . '<meta name="theme-color" content="#40507C">'
@@ -434,7 +436,9 @@ function stridebr_ui_boot_script(): string
         . '<meta name="apple-mobile-web-app-capable" content="yes">'
         . '<meta name="apple-mobile-web-app-title" content="StrideBR">'
         . '<meta name="apple-mobile-web-app-status-bar-style" content="default">'
-        . '<link rel="apple-touch-icon" href="' . $escape($touchIcon) . '">'
+        . '<link rel="apple-touch-icon" sizes="180x180" href="' . $escape($touchIcon180) . '">'
+        . '<link rel="apple-touch-icon" sizes="167x167" href="' . $escape($touchIcon167) . '">'
+        . '<link rel="apple-touch-icon" sizes="152x152" href="' . $escape($touchIcon152) . '">'
         . '<script data-stridebr-ui-boot src="' . $escape($uiSrc) . '" data-theme-mode="' . $escape(stridebr_theme()) . '" data-locale-mode="' . $escape(stridebr_locale_preference()) . '" data-locale="' . $escape(stridebr_locale()) . '"></script>'
         . '<script src="' . $escape($pwaSrc) . '" data-build="' . $escape(function_exists('stridebr_build') ? stridebr_build() : 'rc') . '" defer></script>';
 }

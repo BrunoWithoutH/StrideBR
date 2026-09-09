@@ -13,6 +13,7 @@ $suites = [
     'integration synchronization' => 'test_integration_sync.php',
     'SEO public sitemap' => 'test_seo_database.php',
     'product polish' => 'test_product_polish.php',
+    'marketing attribution' => 'test_marketing_attribution.php',
 ];
 $passed = 0;
 $failures = [];

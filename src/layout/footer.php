@@ -126,6 +126,9 @@ $navActive = static function (array $prefixes) use ($currentPath): string {
 <?php echo stridebr_i18n_runtime_script(false); ?>
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/scripts.js')); ?>"></script>
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/page-loading.js')); ?>"></script>
+<?php if (!$footerLoggedIn): ?>
+<script src="<?php echo stridebr_e(stridebr_asset('/assets/js/marketing.js')); ?>" defer></script>
+<?php endif; ?>
 <?php if ($footerLoggedIn): ?>
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/quick-tools.js')); ?>"></script>
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/workout-session.js')); ?>"></script>

@@ -37,7 +37,7 @@ $end = $event['data_fim'] ? new DateTimeImmutable((string) $event['data_fim']) :
 $deadline = $event['inscricoes_ate'] ? new DateTimeImmutable((string) $event['inscricoes_ate']) : null;
 $distances = is_array($event['distancias']) ? $event['distancias'] : (json_decode((string) $event['distancias'], true) ?: []);
 $images = (array) ($event['imagens'] ?? []);
-$mainImage = $images[0]['caminho'] ?? '/assets/img/branding/stridebr-og.png';
+$mainImage = $images[0]['caminho'] ?? '/assets/img/branding/stridebr-og-20260909.png';
 $locationParts = array_filter([(string) ($event['local_nome'] ?? ''), (string) ($event['cidade'] ?? ''), (string) ($event['estado'] ?? '')], static fn(string $v): bool => trim($v) !== '');
 $location = implode(' · ', $locationParts);
 $descriptionMeta = stridebr_seo_text((string) ($event['descricao'] ?? '')) ?: 'Detalhes, data e fontes do evento esportivo no StrideBR.';

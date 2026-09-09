@@ -491,7 +491,7 @@ textarea {
 }
 
 .schedule-month-calendar .monthly-day {
-    min-height: 132px !important;
+    min-height: 94px !important;
 }
 
 .schedule-month-day-heading strong,
@@ -2434,15 +2434,15 @@ input[type="submit"].is-submitting {
 .monthly-add summary > small { margin-left: auto; color: var(--ui-faint); font-size: .66rem; font-weight: 500; }
 .monthly-calendar { gap: 1px; border-color: var(--ui-grid-border); border-radius: var(--radius-card); background: var(--ui-grid-border); box-shadow: none; }
 .monthly-weekday { padding: 7px 6px; background: var(--ui-grid-header); color: var(--ui-muted); font-size: .65rem; letter-spacing: .02em; }
-.monthly-day { min-height: 146px; padding: 6px; border-radius: 0 !important; }
+.monthly-day { min-height: 104px; padding: 5px; border-radius: 0 !important; }
 .monthly-day.is-outside { background: var(--ui-panel-soft); }
 .monthly-day.is-today { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 32%, var(--ui-grid-border)); }
 .monthly-day > header { min-height: 24px; display: flex; align-items: center; gap: 5px; }
 .monthly-day > header strong { width: 23px; height: 23px; display: grid; place-items: center; border-radius: var(--radius-circle);corner-shape:round; color: var(--ui-text-secondary); font-size: .72rem; }
 .monthly-day.is-today > header strong { background: var(--ui-accent); color: #fff; }
 .monthly-day > header span { padding: 2px 5px; border-radius: var(--radius-full);corner-shape:round; background: color-mix(in srgb, var(--ui-panel-soft) 82%, var(--ui-grid-header)); color: color-mix(in srgb, var(--ui-text-secondary) 88%, var(--ui-muted)); font-size: .58rem; font-weight: 800; }
-.monthly-events { gap: 4px; margin-top: 3px; }
-.monthly-event { gap: 3px; padding: 6px 7px; border-color: color-mix(in srgb, var(--ui-grid-border) 82%, var(--ui-panel)); border-radius: var(--radius-control) !important; background: var(--ui-panel-soft); font-size: .67rem; line-height: 1.25; }
+.monthly-events { gap: 3px; margin-top: 2px; }
+.monthly-event { gap: 2px; padding: 5px 6px; border-color: color-mix(in srgb, var(--ui-grid-border) 82%, var(--ui-panel)); border-radius: var(--radius-control) !important; background: var(--ui-panel-soft); font-size: .67rem; line-height: 1.25; }
 .monthly-event.is-recurring { border-left: 2px solid color-mix(in srgb, var(--ui-muted) 86%, var(--ui-border-strong)); }
 .monthly-event.is-scheduled { border-left: 2px solid color-mix(in srgb, var(--ui-accent) 88%, var(--ui-border)); background: color-mix(in srgb, var(--ui-accent-soft) 72%, var(--ui-panel) 28%); }
 .monthly-event.is-trainer { border-left-color: #8A6CAF; background: color-mix(in srgb, #8A6CAF 10%, var(--ui-panel) 90%); }
@@ -2459,7 +2459,7 @@ input[type="submit"].is-submitting {
 .monthly-event-actions button,.monthly-event-actions a { min-height: 24px; padding: 3px 6px; border-radius: var(--radius-control); font-size: .61rem; font-weight: 750; }
 .monthly-event-actions.is-link-row a { padding: 2px 0; border: 0; background: transparent; color: #405b8a; text-decoration: none; }
 .monthly-event-actions.is-link-row a:hover { text-decoration: underline; }
-@media (max-width: 900px) { .monthly-meta-row { align-items: flex-start; flex-direction: column; } .monthly-summary-pills { justify-content: flex-start; } .monthly-day { min-height: 128px; } }
+@media (max-width: 900px) { .monthly-meta-row { align-items: flex-start; flex-direction: column; } .monthly-summary-pills { justify-content: flex-start; } .monthly-day { min-height: 94px; } }
 @media (max-width: 720px) { .monthly-toolbar { align-items: stretch; flex-direction: column; } .monthly-filter { width: 100%; min-width: 0; } .monthly-filter label { grid-template-columns: 1fr; } .monthly-title-block { flex: 1; min-width: 0; } .monthly-add summary > small { display: none; } .monthly-calendar { min-width: 760px; } .monthly-shell { overflow-x: auto; } }
 
 .workout-editor-modal { z-index: var(--z-modal) !important; }
@@ -6164,3 +6164,58 @@ html.ui-modal-scroll-locked body { position:fixed!important; top:var(--ui-modal-
     .activities-toolbar-actions:has([data-safe-back]) { display:flex!important; justify-content:flex-start; width:100%; }
     .activity-toolbar-link[data-safe-back] { display:inline-flex!important; }
 }
+
+
+/* Mobile/PWA finish: compact monthly scan + contextual install help. */
+.schedule-month-event-main{gap:1px!important;padding:4px 24px 4px 6px!important}
+.schedule-month-event-main :is(.schedule-month-event-meta,.schedule-month-event-title,.schedule-month-event-status),
+.schedule-month-static :is(.schedule-month-event-meta,.schedule-month-event-title,.schedule-month-event-status){min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.schedule-month-event-main strong,.schedule-month-static strong{min-width:0;display:flex;align-items:center;gap:4px;font-size:.7rem;line-height:1.2}
+.schedule-month-event-main strong .schedule-month-event-title,.schedule-month-static strong .schedule-month-event-title{min-width:0;flex:1}
+.schedule-month-event-meta{color:var(--ui-muted);font-size:.59rem;font-variant-numeric:tabular-nums}
+.schedule-month-event-status{color:var(--ui-muted);font-size:.56rem;line-height:1.15}
+.schedule-month-static{position:relative;display:grid;gap:1px}
+.schedule-month-static .schedule-month-event-action{min-height:24px;margin-top:2px;padding:3px 6px}
+.monthly-event{position:relative;min-width:0}
+.monthly-event > :is(strong,small),.monthly-event-kicker{min-width:0}
+.monthly-event > strong{overflow:hidden}
+.monthly-event > strong:not(:has(> span)){text-overflow:ellipsis;white-space:nowrap}
+.monthly-event > small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.monthly-event-kicker > em{max-width:58%;}
+.monthly-event-more{position:absolute;top:3px;right:3px;z-index:4}
+.monthly-event-more>summary{display:grid;place-items:center;width:24px;height:24px;border-radius:var(--radius-detail);color:var(--ui-muted);cursor:pointer;list-style:none}
+.monthly-event-more>summary::-webkit-details-marker{display:none}
+.monthly-event-more>summary:hover,.monthly-event-more>summary:focus-visible{background:var(--ui-surface-hover);color:var(--ui-text-strong);outline:none}
+.monthly-event-more[open]>summary{background:var(--ui-panel);box-shadow:inset 0 0 0 1px var(--ui-border)}
+.monthly-event-more-menu{position:absolute;top:27px;right:0;width:max-content;min-width:148px;max-width:220px;display:grid;gap:3px;padding:6px;border:1px solid var(--ui-border);border-radius:var(--radius-menu);background:var(--ui-panel);box-shadow:0 10px 30px rgba(15,23,42,.18)}
+.monthly-event-more-menu :is(a,button,span){min-height:30px;display:flex;align-items:center;width:100%;padding:5px 7px;border:0;border-radius:var(--radius-detail);background:transparent;color:var(--ui-text-secondary);font:inherit;font-size:.68rem;text-align:left;text-decoration:none}
+.monthly-event-more-menu :is(a,button):hover,.monthly-event-more-menu :is(a,button):focus-visible{background:var(--ui-surface-hover);color:var(--ui-text-strong);outline:none}
+.monthly-event-more-menu form{margin:0}
+.monthly-event-more-menu .monthly-plan-note{min-height:auto;color:var(--ui-muted);font-size:.62rem}
+:root[data-theme="dark"] .calendar-quick-create-popover,:root[data-theme="dark"] .calendar-quick-create-header,:root[data-theme="dark"] .quick-create-schedule-fields,:root[data-theme="dark"] .quick-create-source-card,:root[data-theme="dark"] .quick-create-exercises{background:var(--ui-panel)!important;border-color:var(--ui-border)!important;color:var(--ui-text)!important}
+:root[data-theme="dark"] .calendar-quick-create-header,:root[data-theme="dark"] .quick-create-schedule-fields{background:var(--ui-panel-soft)!important}
+:root[data-theme="dark"] .quick-create-source-card.is-active{background:var(--ui-accent-soft)!important;border-color:color-mix(in srgb,var(--ui-accent) 62%,var(--ui-border))!important}
+:root[data-theme="dark"] .quick-create-source-card :is(strong,small),:root[data-theme="dark"] .quick-create-section-heading :is(strong,span),:root[data-theme="dark"] .calendar-quick-create-header p,:root[data-theme="dark"] .quick-create-save-library{color:var(--ui-text-secondary)!important}
+:root[data-theme="dark"] .quick-create-source-card strong,:root[data-theme="dark"] .quick-create-section-heading strong{color:var(--ui-text-strong)!important}
+:root[data-theme="dark"] .quick-create-source-icon{background:var(--ui-panel-soft)!important;border-color:var(--ui-border)!important;color:var(--ui-text-secondary)!important}
+
+.pwa-install-hint-shell{display:none}
+@media(max-width:900px){
+  .pwa-install-hint-shell{width:min(720px,calc(100% - 24px));margin:10px auto 0}
+  .pwa-install-hint-shell.is-visible{display:block}
+  .pwa-install-hint{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 11px;border:1px solid var(--ui-border);border-radius:var(--radius-card);background:var(--ui-panel-soft);color:var(--ui-text);box-shadow:0 5px 18px rgba(15,23,42,.06)}
+  .pwa-install-hint-copy{min-width:0;display:grid;gap:2px}
+  .pwa-install-hint-copy strong{font-size:.8rem;color:var(--ui-text-strong)}
+  .pwa-install-hint-copy span{font-size:.7rem;line-height:1.35;color:var(--ui-muted)}
+  .pwa-install-hint-actions{flex:0 0 auto;display:flex;align-items:center;gap:6px}
+  .pwa-install-hint-actions button{min-height:38px;padding:7px 10px;border:1px solid var(--ui-border);border-radius:var(--radius-control);background:var(--ui-panel);color:var(--ui-text-secondary);font:inherit;font-size:.72rem;font-weight:750;cursor:pointer}
+  .pwa-install-hint-actions button[data-pwa-install]{border-color:color-mix(in srgb,var(--ui-accent) 55%,var(--ui-border));background:var(--ui-accent);color:#fff}
+  .pwa-install-hint-actions button:focus-visible{outline:2px solid var(--ui-accent);outline-offset:2px}
+  .pwa-install-hint.is-ios{align-items:flex-start}
+  .pwa-install-hint.is-ios .pwa-install-hint-copy span{max-width:36ch}
+}
+@media(max-width:430px){
+  .pwa-install-hint{align-items:stretch;flex-direction:column;gap:8px}
+  .pwa-install-hint-actions{justify-content:flex-end}
+}
+html.is-standalone .pwa-install-hint-shell,html.ui-modal-scroll-locked .pwa-install-hint-shell,html.calendar-quick-open .pwa-install-hint-shell{display:none!important}

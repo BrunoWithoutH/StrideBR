@@ -71,6 +71,8 @@ php scripts/tests/test_activity_delete_modal_static.php
 php scripts/tests/test_activity_edit_embed_static.php
 php scripts/tests/test_gps_web_static.php
 php scripts/tests/test_pwa_foundation_static.php
+php scripts/tests/test_schedule_mobile_pwa_static.php
+php scripts/tests/test_marketing_attribution_static.php
 php scripts/tests/test_web1_robustness_static.php
 php scripts/tests/test_onboarding_copy_ux_static.php
 php scripts/tests/test_onboarding_i18n_static.php

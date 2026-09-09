@@ -67,14 +67,16 @@ try {
     $html = stridebr_seo_head($page);
     $doc = $parse($html);
     $assert($doc['title'] === [$page['title']], 'Home title');
-    foreach (['description','robots','twitter:card','twitter:title','twitter:description','twitter:image'] as $name) $assert(count($meta($doc, $name)) === 1, 'Single meta ' . $name);
-    foreach (['type','title','description','url','site_name','image','image:width','image:height','image:alt','locale'] as $key) $assert(count($meta($doc, 'og:' . $key)) === 1, 'Single OG ' . $key);
+    foreach (['description','robots','twitter:card','twitter:title','twitter:description','twitter:image','twitter:image:alt'] as $name) $assert(count($meta($doc, $name)) === 1, 'Single meta ' . $name);
+    foreach (['type','title','description','url','site_name','image','image:width','image:height','image:type','image:alt','locale'] as $key) $assert(count($meta($doc, 'og:' . $key)) === 1, 'Single OG ' . $key);
     $assert(count($link($doc, 'canonical')) === 1, 'Single canonical');
     $assert($link($doc, 'canonical')[0] === 'https://stridebr.com.br/', 'Canonical ignores host and query');
     $assert($meta($doc, 'og:url')[0] === 'https://stridebr.com.br/', 'OG URL canonical');
     $assert($meta($doc, 'og:site_name')[0] === 'StrideBR', 'Brand');
     $assert($meta($doc, 'twitter:card')[0] === 'summary_large_image', 'Large card');
-    $assert($meta($doc, 'og:image')[0] === 'https://stridebr.com.br/assets/img/branding/stridebr-og.png', 'Absolute image');
+    $ogImageUrl = 'https://stridebr.com.br/assets/img/branding/stridebr-og-20260909.png';
+    $assert($meta($doc, 'og:image')[0] === $ogImageUrl, 'Versioned absolute OG image');
+    $assert($meta($doc, 'twitter:image')[0] === $ogImageUrl, 'Twitter uses versioned OG image');
     $schema = $doc['jsonld'][0] ?? null;
     $assert(is_array($schema) && array_column($schema['@graph'] ?? [], '@type') === ['Organization','WebSite'], 'Brand schema');
     $organization = $schema['@graph'][0] ?? [];
@@ -135,16 +137,18 @@ try {
     $assert(stridebr_seo_sitemap_urls() === [], 'No staging sitemap URLs');
     $assert(str_contains(stridebr_seo_head(['path' => '/']), 'noindex'), 'Staging metadata noindex');
 
-    $image = getimagesize(dirname(__DIR__,2).'/public/assets/img/branding/stridebr-og.png');
+    $ogImagePath = dirname(__DIR__,2).'/public/assets/img/branding/stridebr-og-20260909.png';
+    $assert(is_file($ogImagePath), 'Versioned OG image exists');
+    $image = getimagesize($ogImagePath);
     $assert($image[0] === 1200 && $image[1] === 630, 'OG image dimensions');
-    $assert(filesize(dirname(__DIR__,2).'/public/assets/img/branding/stridebr-og.png') < 300000, 'OG image lightweight');
+    $assert(filesize($ogImagePath) > 0 && filesize($ogImagePath) < 300000, 'OG image lightweight');
     $robots = file_get_contents(dirname(__DIR__,2).'/public/robots.txt');
     $assert(str_contains($robots, 'Sitemap: https://stridebr.com.br/sitemap.xml') && !str_contains($robots, 'Disallow: /assets'), 'Robots sitemap and assets');
     $assert(str_contains(file_get_contents(dirname(__DIR__,2).'/public/.htaccess'), 'RewriteRule ^robots\\.txt$ robots.php [L]'), 'Dynamic robots remains authoritative');
 
     $uiBoot = stridebr_ui_boot_script();
     $assert(substr_count($uiBoot, 'name="theme-color"') === 1, 'Theme color remains centralized');
-    $assert(str_contains($uiBoot, 'manifest.webmanifest') && str_contains($uiBoot, 'apple-touch-icon.png'), 'PWA metadata remains centralized');
+    $assert(str_contains($uiBoot, 'manifest.webmanifest') && str_contains($uiBoot, '/assets/img/branding/app-icons/ios/apple-touch-icon-180x180.png') && substr_count($uiBoot, 'rel="apple-touch-icon"') === 3, 'PWA metadata remains centralized');
     foreach (['public/index.php','public/calendario.php','public/evento.php','src/layout/static_page.php'] as $file) {
         $source = file_get_contents(dirname(__DIR__,2) . '/' . $file);
         $assert(str_contains($source, '/assets/img/favicon/favicon.png'), 'Existing favicon preserved in ' . $file);
