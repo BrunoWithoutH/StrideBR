@@ -431,7 +431,7 @@ Evoluir o módulo existente para:
 - histórico de eventos;
 - comparação entre participações.
 
-Events deve conversar diretamente com Teams quando houver equipes e delegações.
+Quando necessário, Events poderá apoiar contextos institucionais por contratos explícitos com Teams; detalhes, ownership e implementação pertencem à documentação canônica do Teams.
 
 # 12. Visões específicas por esporte
 
@@ -506,80 +506,17 @@ A colaboração entre amigos deve continuar útil mesmo fora do StrideBR Teams.
 
 Evitar transformar a interface em um construtor de dashboard complexo.
 
-# 15. StrideBR Teams
+# 15. Relação futura com StrideBR Teams
 
-## 2027 — novo pilar estratégico
+## 2027 — integração de produto, não backlog duplicado
 
-O Teams é uma das principais frentes planejadas para 2027.
+O [StrideBR Teams](https://github.com/BrunoWithoutH/StrideBR-Teams) é o produto institucional pago do ecossistema, com repositório, roadmap, releases e deploy próprios. O piloto desejado para 2027 é IFFar — Campus Frederico Westphalen; seu domínio planejado é `teams.stridebr.com.br`.
 
-Primeiro piloto: **IFFar — Campus Frederico Westphalen**.
+O Core permanece gratuito e open source. O Trainer individual do Core também permanece gratuito: vínculo treinador-atleta, acompanhamento autorizado, prescrição, compartilhamento e planejamento individual não dependem de Teams.
 
-A arquitetura deve ser multi-organização, mas o lançamento pode ser controlado e fechado.
+Este roadmap mantém somente capacidades do Core que possuem valor próprio e podem futuramente apoiar Teams, como treinos estruturados, planejado × realizado, timeline de atividades, colaboração, integrações e eventos. Requisitos institucionais — organizações, memberships, equipes, papéis, billing, ownership, UX e MVP Teams — são definidos no repositório canônico do Teams, não aqui.
 
-Documento completo: `STRIDEBR_TEAMS.md`.
-
-## Fundação
-
-- organizações;
-- unidades/campi;
-- temporadas;
-- delegações;
-- equipes/modalidades;
-- subgrupos;
-- atletas;
-- treinadores;
-- responsáveis;
-- convites;
-- permissões hierárquicas.
-
-## Teams Training
-
-- atribuir treinos;
-- planejamento coletivo;
-- presença/conclusão;
-- associação atividade ↔ treino;
-- elementos trabalhados;
-- volume;
-- intensidade;
-- planejado × realizado;
-- visão individual e da equipe.
-
-## Teams Performance
-
-- tendências;
-- evolução;
-- resultados;
-- competições;
-- comparação entre temporadas;
-- preparação para JEIF/JIF Sul/JIF Nacional e demais eventos.
-
-## Teams Athlete Health — fase posterior
-
-- RPE;
-- fadiga;
-- recuperação;
-- sono;
-- desconfortos;
-- histórico de interrupções/lesões;
-- retorno ao treinamento.
-
-Dados desta área exigem proteção adicional, especialmente por poder envolver menores de idade.
-
-## LAB — Teams Research / Insights
-
-Somente após existir base suficiente e governança adequada:
-
-- análises longitudinais;
-- padrões de carga;
-- relações entre treinamento e desempenho;
-- correlações entre treinamento, fortalecimento, recuperação e ocorrências;
-- dados agregados para pesquisa esportiva.
-
-Não apresentar correlação como causalidade nem transformar o produto em ferramenta de diagnóstico.
-
-## Possível apresentação
-
-`teams.stridebr.com.br` pode ser usado futuramente como entrada para a área Teams sem separar necessariamente backend, banco ou autenticação.
+Core e Teams usam uma identidade StrideBR compartilhada, mas isso não define SSO, sessão, banco, storage, API ou eventos. Integrações futuras devem estabelecer contratos explícitos, ownership e autorização contextual; não devem pressupor acesso direto a tabelas internas do Core.
 
 # 16. Administração, infraestrutura de produto e API
 
@@ -619,7 +556,7 @@ Marcar como frentes estratégicas, não necessariamente como próximas entregas:
 - **Gear Intelligence e equipamento por trecho**;
 - **Music & Performance**;
 - **Smart Routes**;
-- **StrideBR Teams**.
+- **integração futura com StrideBR Teams**, conforme suas fronteiras explícitas.
 
 # 19. Sequência sugerida
 
@@ -662,15 +599,11 @@ Sem amarrar números de versão antes da 1.0 estabilizar:
 - mapas agregados;
 - recursos de descoberta opcionais.
 
-## Fase Teams — em paralelo controlado durante 2027
+## Relação com Teams — em paralelo controlado durante 2027
 
-- validação com treinadores no fim de 2026;
-- protótipo;
-- fundação organizacional;
-- MVP com IFFar FW;
-- Teams Training;
-- Teams Performance;
-- módulos de saúde apenas posteriormente.
+- acompanhar discovery e prioridades pelo repositório canônico do Teams;
+- evoluir no Core apenas capacidades que também tragam valor a usuários individuais;
+- definir contratos de integração antes de qualquer dependência entre produtos.
 
 # 20. Princípios de priorização
 
