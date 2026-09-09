@@ -8,7 +8,7 @@ require_once dirname(__DIR__, 2) . '/src/layout/settings_workspace.php';
 
 $idUsuario = stridebr_require_login();
 $settingsView = (string) ($_GET['view'] ?? 'settings');
-$settingsView = $settingsView === 'profile' ? 'profile' : 'settings';
+$settingsView = in_array($settingsView, ['profile', 'connections'], true) ? $settingsView : 'settings';
 require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
 require_once dirname(__DIR__, 2) . '/src/includes/auth.php';
 require_once dirname(__DIR__, 2) . '/src/function/atividade_modelo.php';
@@ -512,6 +512,11 @@ $profilePhoto = stridebr_profile_photo_url((string) ($usuario['fotousuario'] ?? 
 $profileBackUrl = trim((string) ($usuario['username'] ?? '')) !== '' ? '/u/' . rawurlencode((string) $usuario['username']) : '/';
 $roleLabel = stridebr_role_label((string) ($usuario['papelusuario'] ?? 'user'));
 $flashes = stridebr_take_flashes();
+$settingsHeading = match ($settingsView) {
+    'profile' => ['settings.page_profile', 'settings.profile_heading_help', 'profile'],
+    'connections' => ['settings.devices_services', 'settings.connections_help', 'connections'],
+    default => ['settings.page_preferences', 'settings.preferences_heading_help', 'preferences'],
+};
 ?>
 <!DOCTYPE html>
 <html lang="<?php echo function_exists('stridebr_html_lang') ? stridebr_e(stridebr_html_lang()) : 'pt-BR'; ?>">
@@ -521,7 +526,7 @@ $flashes = stridebr_take_flashes();
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <link rel="icon" type="image/png" href="<?php echo stridebr_e(stridebr_asset('/assets/img/favicon/favicon.png')); ?>">
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/style.css')); ?>">
-    <title><?php echo stridebr_e(stridebr_t($settingsView === 'profile' ? 'settings.page_profile' : 'settings.page_preferences')); ?> | StrideBR</title>
+    <title><?php echo stridebr_e(stridebr_t($settingsHeading[0])); ?> | StrideBR</title>
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>">
 </head>
 <body>
@@ -529,8 +534,8 @@ $flashes = stridebr_take_flashes();
     <?php require dirname(__DIR__, 2) . '/src/layout/header.php'; ?>
     <main class="main-content">
         <div class="page-shell settings-shell">
-            <?php stridebr_settings_workspace_heading(stridebr_t($settingsView === 'profile' ? 'settings.page_profile' : 'settings.page_preferences'), stridebr_t($settingsView === 'profile' ? 'settings.profile_heading_help' : 'settings.preferences_heading_help'), $profileBackUrl); ?>
-            <?php stridebr_settings_workspace_navigation($settingsView === 'profile' ? 'profile' : 'preferences'); ?>
+            <?php stridebr_settings_workspace_heading(stridebr_t($settingsHeading[0]), stridebr_t($settingsHeading[1]), $profileBackUrl); ?>
+            <?php stridebr_settings_workspace_navigation($settingsHeading[2]); ?>
             <?php foreach ($flashes as $flash): ?><div class="alert alert-<?php echo stridebr_e($flash['type'] ?? 'info'); ?>"><?php echo stridebr_e($flash['message'] ?? ''); ?></div><?php endforeach; ?>
             <?php foreach ($errors as $error): ?><div class="alert alert-danger"><?php echo stridebr_e($error); ?></div><?php endforeach; ?>
             <form method="POST" enctype="multipart/form-data" class="content-card settings-form settings-view-<?php echo stridebr_e($settingsView); ?>">
@@ -728,7 +733,7 @@ $flashes = stridebr_take_flashes();
                 <button type="submit" class="settings-save"><?php echo stridebr_e(stridebr_t('settings.save_changes')); ?></button>
             </form>
 
-            <?php if ($settingsView === 'profile'): ?>
+            <?php if ($settingsView === 'connections'): ?>
                 <section class="content-card settings-connections" id="conexoes">
                     <div class="settings-connections-heading">
                         <div>

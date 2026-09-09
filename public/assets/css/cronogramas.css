@@ -101,13 +101,13 @@
 }
 
 .danger-button {
-    background: #fff1f2;
+    background: color-mix(in srgb, var(--ui-danger) 11%, var(--ui-panel));
     color: var(--ui-danger);
-    border: 1px solid #fecdd3;
+    border: 1px solid color-mix(in srgb, var(--ui-danger) 38%, var(--ui-border));
 }
 
 .danger-button:hover {
-    background: #ffe4e6;
+    background: color-mix(in srgb, var(--ui-danger) 18%, var(--ui-panel));
 }
 
 .schedule-create-panel,
@@ -402,8 +402,8 @@
     right: 5px;
     min-height: 24px;
     overflow: hidden;
-    background: #dbeafe;
-    border: 1px solid #93c5fd;
+    background: color-mix(in srgb, var(--ui-info) 13%, var(--ui-panel));
+    border: 1px solid color-mix(in srgb, var(--ui-info) 43%, var(--ui-border));
     border-left: 4px solid #3b82f6;
     border-radius: var(--radius-card);
     padding: 5px 7px;
@@ -564,7 +564,7 @@
 
 .exercise-table th,
 .exercise-table td {
-    border-bottom: 1px solid #eaecf0;
+    border-bottom: 1px solid var(--ui-border-soft);
     padding: 9px 7px;
     vertical-align: top;
 }
@@ -1155,7 +1155,8 @@ html.schedule-actions-open {
 }
 .preview-exercise-number {
     width: 28px; height: 28px; display: grid; place-items: center;
-    border-radius: var(--radius-circle);corner-shape:round; background: #e2e8f0; color: var(--ui-text-secondary); font-size: .8rem; font-weight: 800;
+    border: 1px solid color-mix(in srgb, var(--ui-accent) 36%, var(--ui-border));
+    border-radius: var(--radius-circle);corner-shape:round; background: var(--ui-accent-soft); color: var(--ui-accent); font-size: .8rem; font-weight: 800;
 }
 .preview-exercise strong { display: block; }
 .preview-exercise-meta { display: flex; flex-wrap: wrap; gap: 5px 8px; margin-top: 4px; }
@@ -1312,7 +1313,7 @@ html.schedule-actions-open {
     aspect-ratio: 16 / 9;
     margin: -18px -18px 14px;
     overflow: hidden;
-    background: #e2e8f0;
+    background: var(--ui-panel-soft);
 }
 .library-exercise-media img {
     width: 100%;
@@ -1399,7 +1400,7 @@ html.schedule-actions-open {
     width: 42px;
     height: 42px;
     border-radius: var(--radius-detail);
-    background: #f0f2f7;
+    background: var(--ui-panel-soft);
     color: var(--ui-text-secondary);
     font-size: 1.35rem;
     font-weight: 800;
@@ -1481,9 +1482,9 @@ html.schedule-actions-open {
 .schedule-import-error {
     margin: 0;
     padding: 10px 12px;
-    border: 1px solid #fecdca;
+    border: 1px solid color-mix(in srgb, var(--ui-danger) 35%, var(--ui-border));
     border-radius: var(--radius-detail);
-    background: #fffbfa;
+    background: color-mix(in srgb, var(--ui-danger) 6%, var(--ui-panel));
     color: var(--ui-danger);
     font-size: .84rem;
 }
@@ -1968,7 +1969,7 @@ html.schedule-actions-open {
     justify-content: space-between;
     gap: 14px;
     padding: 17px 18px 14px;
-    border-bottom: 1px solid #eaecf0;
+    border-bottom: 1px solid var(--ui-border-soft);
 }
 
 .quick-register-dialog h2 { margin: 2px 0 3px; font-size: 1.2rem; }
@@ -2140,10 +2141,10 @@ html.schedule-actions-open {
 html.calendar-quick-open{overflow:hidden}
 
 .schedule-month-calendar .monthly-day:not(.is-outside){cursor:pointer;transition:background .12s ease,box-shadow .12s ease}
-.schedule-month-calendar .monthly-day:not(.is-outside):hover{background:#f8faff}
+.schedule-month-calendar .monthly-day:not(.is-outside):hover{background:var(--ui-surface-hover)}
 .schedule-month-calendar .monthly-day:not(.is-outside):focus-visible{outline:2px solid #647bbf;outline-offset:-2px}
-.schedule-month-empty-day{display:grid;place-items:center;width:28px;height:28px;margin:4px auto 0;border-radius:var(--radius-circle);corner-shape:round;color:#9aa6b6;font-size:1.1rem;opacity:.45;transition:opacity .12s ease,background .12s ease}
-.schedule-month-calendar .monthly-day:hover .schedule-month-empty-day{opacity:1;background:#eef2f8;color:#4c5f79}
+.schedule-month-empty-day{display:grid;place-items:center;width:28px;height:28px;margin:4px auto 0;border-radius:var(--radius-circle);corner-shape:round;color:var(--ui-faint);font-size:1.1rem;opacity:.45;transition:opacity .12s ease,background .12s ease}
+.schedule-month-calendar .monthly-day:hover .schedule-month-empty-day{opacity:1;background:var(--ui-panel-soft);color:var(--ui-text-secondary)}
 
 .draft-exercise-page,.model-exercise-page{max-width:1220px;margin:0 auto}
 .draft-exercise-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:18px}
@@ -2465,7 +2466,7 @@ html.calendar-quick-open{overflow:hidden}
 }
 
 .workout-card.is-complete:hover {
-    background: #eaecf0;
+    background: var(--ui-panel-soft);
     color: var(--ui-text-secondary);
 }
 
@@ -2542,10 +2543,13 @@ html.calendar-quick-open{overflow:hidden}
 
 @media (min-width: 761px) {
     .schedule-month-calendar-wrap {
-        max-height: clamp(500px, 68dvh, 760px);
-        overflow: auto;
-        overscroll-behavior: contain;
-        scrollbar-gutter: stable;
+        height: auto;
+        max-height: none;
+        overflow-x: auto;
+        overflow-y: visible;
+        overscroll-behavior-x: contain;
+        overscroll-behavior-y: auto;
+        scrollbar-gutter: auto;
     }
 
     .calendar-view[data-calendar-view="week"] {
@@ -2667,7 +2671,7 @@ html.calendar-quick-open{overflow:hidden}
   gap:12px;
   margin:0 0 10px;
   padding:9px 11px;
-  border:1px solid #d6dce6;
+  border:1px solid var(--ui-border);
   border-radius:var(--radius-card);
   background:var(--ui-panel);
   color:var(--ui-text-secondary);

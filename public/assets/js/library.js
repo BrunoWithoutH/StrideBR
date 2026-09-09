@@ -10,6 +10,7 @@
     const tabLinks = [...document.querySelectorAll('[data-library-tab]')];
     const tabViews = [...document.querySelectorAll('[data-library-view]')];
     const headingActions = [...document.querySelectorAll('[data-library-heading-actions]')];
+    const tabHelp = [...document.querySelectorAll('[data-library-tab-help]')];
     const exerciseUndo = document.querySelector('[data-library-exercise-undo]');
     const setLibraryTab = (tab, {push = true} = {}) => {
         if (!page || !['treinos', 'exercicios'].includes(tab)) return;
@@ -20,6 +21,7 @@
             link.setAttribute('aria-current', active ? 'page' : 'false');
         });
         headingActions.forEach(group => { group.hidden = group.dataset.libraryHeadingActions !== tab; });
+        tabHelp.forEach(help => { help.hidden = help.dataset.libraryTabHelp !== tab; });
         tabViews.forEach(view => {
             const active = view.dataset.libraryView === tab;
             view.hidden = !active;

@@ -14,6 +14,16 @@ function stridebr_normalize_exercise_name(string $value): string
         if (is_string($transliterated) && $transliterated !== '') $value = $transliterated;
     }
     $value = preg_replace('/\p{Mn}+/u', '', $value) ?? $value;
+    // iconv may transliterate accented characters to ASCII before combining marks exist.
+    $value = strtr($value, [
+        'á' => 'a', 'à' => 'a', 'â' => 'a', 'ã' => 'a', 'ä' => 'a', 'å' => 'a',
+        'Á' => 'A', 'À' => 'A', 'Â' => 'A', 'Ã' => 'A', 'Ä' => 'A', 'Å' => 'A',
+        'é' => 'e', 'è' => 'e', 'ê' => 'e', 'ë' => 'e', 'É' => 'E', 'È' => 'E', 'Ê' => 'E', 'Ë' => 'E',
+        'í' => 'i', 'ì' => 'i', 'î' => 'i', 'ï' => 'i', 'Í' => 'I', 'Ì' => 'I', 'Î' => 'I', 'Ï' => 'I',
+        'ó' => 'o', 'ò' => 'o', 'ô' => 'o', 'õ' => 'o', 'ö' => 'o', 'Ó' => 'O', 'Ò' => 'O', 'Ô' => 'O', 'Õ' => 'O', 'Ö' => 'O',
+        'ú' => 'u', 'ù' => 'u', 'û' => 'u', 'ü' => 'u', 'Ú' => 'U', 'Ù' => 'U', 'Û' => 'U', 'Ü' => 'U',
+        'ç' => 'c', 'Ç' => 'C', 'ñ' => 'n', 'Ñ' => 'N',
+    ]);
     $value = str_replace(["‐", "‑", "‒", "–", "—", "―", "_", "/", "\\"], ' ', $value);
     $value = preg_replace('/[^\p{L}\p{N}\s]+/u', ' ', $value) ?? $value;
     $value = preg_replace('/\s+/u', ' ', trim($value)) ?? trim($value);

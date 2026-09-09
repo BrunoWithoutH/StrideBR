@@ -12,7 +12,7 @@
     $automatic = in_array($providerId, stridebr_integrations_periodic_providers(), true);
     $enabled = stridebr_db_bool($connection['sincronizar_atividades'] ?? true);
     $statusKey = $connected ? ($reauthorize ? 'integrations.reauthorize' : ($syncing ? 'integrations.syncing' : ($hasError ? 'integrations.last_error' : 'common.connected'))) : ($configured ? 'integrations.not_connected' : 'settings.unavailable');
-    $returnTo = '/user/edit-profile.php#conexoes';
+    $returnTo = '/user/settings.php?view=connections#conexoes';
     $lastSync = $connected && !empty($connection['ultima_sincronizacao_em']) ? new DateTimeImmutable((string) $connection['ultima_sincronizacao_em']) : null;
     $lastSync = $lastSync?->setTimezone(new DateTimeZone('America/Sao_Paulo'));
     $lastLabel = $lastSync && $lastSync->format('Y-m-d') === (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d') ? stridebr_t('integrations.today', ['time' => $lastSync->format('H:i')]) : ($lastSync ? stridebr_format_datetime_short($lastSync) : '');

@@ -7,6 +7,7 @@ function stridebr_settings_workspace_navigation(string $active): void
     $items = [
         'profile' => ['label' => stridebr_t('settings.page_profile'), 'href' => '/user/edit-profile.php'],
         'preferences' => ['label' => stridebr_t('settings.preferences'), 'href' => '/user/settings.php'],
+        'connections' => ['label' => stridebr_t('settings.connections'), 'href' => '/user/settings.php?view=connections'],
         'account' => ['label' => stridebr_t('account.page_title'), 'href' => '/user/account.php'],
     ];
     echo '<nav class="settings-tabs" aria-label="' . stridebr_e(stridebr_t('nav.settings')) . '">';

@@ -94,8 +94,11 @@ $headerActive = static function (array $paths) use ($headerPath): string {
                         <a href="/user/cronogramatreinos.php?new=schedule"><strong><?php echo stridebr_e(stridebr_t('nav.schedule')); ?></strong><span><?php echo stridebr_e(stridebr_t('nav.create_schedule_desc')); ?></span></a>
                     </div>
                 </details>
+                <?php if (!empty($_SESSION['Username'])): ?>
+                    <a class="mobile-profile-link" href="/u/<?php echo rawurlencode((string) $_SESSION['Username']); ?>" aria-label="<?php echo stridebr_e(stridebr_t('nav.profile')); ?>"><img class="userimage" src="<?php echo stridebr_e($headerPhoto); ?>" alt="" width="34" height="34" decoding="async" fetchpriority="high"></a>
+                <?php endif; ?>
                 <details data-header-menu="toggle" class="user-menu">
-                    <summary aria-label="<?php echo stridebr_e(stridebr_t('common.open_profile_menu')); ?>"><img class="userimage" src="<?php echo stridebr_e($headerPhoto); ?>" alt="<?php echo stridebr_e(stridebr_t('common.profile_image_alt')); ?>" width="34" height="34" decoding="async" fetchpriority="high"></summary>
+                    <summary aria-label="<?php echo stridebr_e(stridebr_t('common.open_profile_menu')); ?>"><img class="userimage" src="<?php echo stridebr_e($headerPhoto); ?>" alt="<?php echo stridebr_e(stridebr_t('common.profile_image_alt')); ?>" width="34" height="34" decoding="async" fetchpriority="high"><span class="mobile-more-label" aria-hidden="true">•••</span></summary>
                     <div class="user-menu-content">
                         <div class="user-menu-section"><span class="user-menu-label"><?php echo stridebr_e(stridebr_t('nav.account')); ?></span>
                         <?php if (!empty($_SESSION['Username'])): ?><a href="/u/<?php echo rawurlencode((string) $_SESSION['Username']); ?>"><?php echo stridebr_e(stridebr_t('nav.profile')); ?></a><?php endif; ?>

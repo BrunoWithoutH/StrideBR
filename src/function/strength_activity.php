@@ -32,7 +32,7 @@ function atividadeForcaNormalizarEntrada(array $source): array
     $exerciseOrder = 0;
     foreach (array_slice($source, 0, 80) as $exercise) {
         if (!is_array($exercise)) continue;
-        $name = trim((string) ($exercise['nome'] ?? ''));
+        $name = preg_replace('/\s+/u', ' ', trim(str_replace("\u{00A0}", ' ', (string) ($exercise['nome'] ?? '')))) ?? trim((string) ($exercise['nome'] ?? ''));
         $idExercise = trim((string) ($exercise['idexercicio'] ?? ''));
         if (stridebr_length($name) > 160) throw new InvalidArgumentException('O nome de um exercício é muito longo.');
         $sets = [];
