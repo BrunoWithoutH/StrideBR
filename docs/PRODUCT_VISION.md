@@ -2,7 +2,21 @@
 
 O StrideBR é uma plataforma esportiva para **planejar, executar, registrar, analisar e acompanhar atividades físicas** sem limitar o produto a uma única modalidade.
 
-O objetivo não é ser apenas um diário de corrida ou uma rede social esportiva. O produto deve funcionar como uma base pessoal de treinamento e, no futuro, também como uma plataforma para atletas, treinadores, equipes e organizações.
+O objetivo não é ser apenas um diário de corrida ou uma rede social esportiva. O produto deve funcionar como uma base pessoal de treinamento, inclusive para colaboração individual entre atletas e treinadores.
+
+## Ecossistema e fronteira do produto
+
+O ecossistema StrideBR possui produtos relacionados, mas distintos:
+
+```text
+Conta StrideBR
+├── StrideBR — produto individual gratuito e open source
+└── StrideBR Teams — produto institucional pago
+```
+
+Este repositório é a fonte canônica do StrideBR/Core: implementação atual, atividades, cronogramas, Trainer individual, GPS, progresso, integrações e infraestrutura atual. O [StrideBR Teams](https://github.com/BrunoWithoutH/StrideBR-Teams) é a fonte canônica de produto, organizações, equipes, memberships, papéis institucionais, billing, ownership de dados, MVP 2027 e integração institucional Core ↔ Teams.
+
+Há uma única identidade StrideBR: uma pessoa não tem conta, senha, perfil ou cópia de usuário Teams separados. A implementação atual da identidade permanece no Core; o mecanismo técnico futuro de autenticação/SSO entre produtos continua em aberto. Produtos e repositórios podem ter roadmap, release e deploy independentes.
 
 ## Ciclos principais
 
@@ -18,7 +32,7 @@ Para uso com treinador ou equipe:
 treinador planeja → atleta executa → StrideBR registra e analisa → treinador acompanha → próximo treino
 ```
 
-## Pilares do produto
+## Capacidades do StrideBR
 
 ### Activity
 
@@ -46,12 +60,6 @@ Equipamentos como parte real do histórico esportivo, não apenas como um contad
 
 Eventos e competições, próximos compromissos, participações, resultados e histórico esportivo.
 
-### Teams
-
-Atletas, treinadores, equipes e organizações em um ambiente compartilhado de planejamento e acompanhamento esportivo. O primeiro piloto planejado é o IFFar — Campus Frederico Westphalen.
-
-Consulte `STRIDEBR_TEAMS.md` para a visão específica deste pilar.
-
 ## Diferenciais estratégicos
 
 Algumas frentes têm potencial para definir a identidade do StrideBR no longo prazo:
@@ -61,7 +69,7 @@ Algumas frentes têm potencial para definir a identidade do StrideBR no longo pr
 - **Gear Intelligence:** analisar equipamentos, inclusive por trecho e em comparação com contextos semelhantes.
 - **Music & Performance:** relacionar a trilha sonora da atividade com momentos, métricas e desempenho sem hospedar arquivos de áudio.
 - **Smart Routes:** gerar rotas adequadas ao objetivo do treino, considerando distância, elevação, terreno, formato e preferências.
-- **StrideBR Teams:** conectar planejamento, execução, acompanhamento e evolução de atletas e equipes.
+- **Integração futura com Teams:** permitir que capacidades individuais do Core possam apoiar contextos institucionais por fronteiras explícitas, sem transformar o Core em produto pago.
 
 ## Princípios de produto
 
@@ -69,6 +77,7 @@ Algumas frentes têm potencial para definir a identidade do StrideBR no longo pr
 - Dados históricos não devem perder significado quando templates ou definições mudarem.
 - O usuário deve ter controle sobre seus dados, privacidade e o que aparece na interface.
 - Social deve servir à utilidade: colaboração, treino, compartilhamento e equipes. Não há objetivo de criar um feed infinito.
+- Colaboração individual, vínculo treinador-atleta, prescrição, compartilhamento e planejamento continuam úteis e gratuitos fora do Teams.
 - Recursos avançados devem continuar compreensíveis para usuários comuns.
 - Métricas não devem fingir precisão ou causalidade que os dados não suportam.
 - Dados de saúde e bem-estar exigem acesso restrito e tratamento adicional.
@@ -79,6 +88,7 @@ Algumas frentes têm potencial para definir a identidade do StrideBR no longo pr
 ## Documentos relacionados
 
 - `PRODUCT_ROADMAP.md` — backlog e direção por horizonte.
-- `STRIDEBR_TEAMS.md` — visão e escopo futuro do StrideBR Teams.
+- `PROJECT_MAP.md` — mapa do ecossistema e fontes canônicas.
+- `STRIDEBR_TEAMS.md` — ponte para o repositório e a documentação canônica do Teams.
 - `architecture.md` — arquitetura e regras atuais do sistema.
 - `V1_RELEASE_CHECKLIST.md` — critérios da Web 1.0.

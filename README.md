@@ -15,6 +15,13 @@ StrideBR é uma plataforma esportiva brasileira, livre e open source, para plane
 - Feito no Brasil
 - [GPL-3.0](LICENSE) / open source
 
+## Ecossistema StrideBR
+
+- **StrideBR** — produto individual gratuito e open source em [stridebr.com.br](https://stridebr.com.br).
+- **StrideBR Teams** — camada institucional paga, em desenvolvimento em repositório próprio: [BrunoWithoutH/StrideBR-Teams](https://github.com/BrunoWithoutH/StrideBR-Teams). Seu domínio planejado é `teams.stridebr.com.br`.
+
+Todos os produtos usam uma única identidade StrideBR. O Teams complementa o StrideBR individual; não substitui as capacidades gratuitas do Core, incluindo o Trainer para colaboração individual.
+
 ## O que é o StrideBR?
 
 O StrideBR reúne o planejamento de treinos, o registro de atividades e o acompanhamento de evolução em um só lugar. Ele é pensado para pessoas que treinam corrida, musculação e outras modalidades, e também para quem organiza rotinas de treino.

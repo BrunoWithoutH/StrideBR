@@ -24,9 +24,17 @@ The current product name is StrideBR. A future naming change to Stride may be ev
 - Public/community features are future capabilities. Private personal use is the current baseline.
 - The web application is the first client, but the domain model must remain suitable for a future API and mobile application.
 
+## Ecosystem and identity
+
+StrideBR is the individual, free and open-source product in the StrideBR ecosystem. [StrideBR Teams](https://github.com/BrunoWithoutH/StrideBR-Teams) is a separate institutional paid product, with an independent codebase and future domain (`teams.stridebr.com.br`). This repository remains the canonical source for the Core implementation and architecture; the Teams repository is canonical for institutional requirements and architecture.
+
+There is conceptually one StrideBR identity. A Core user is the same person who may later have Teams memberships, roles and entitlements; Teams does not conceptually create, copy or synchronize a second user account. The current identity implementation remains hosted in Core. Its future technical location and the authentication/SSO mechanism are not decided.
+
+Identity answers who the StrideBR person is. Authorization answers what that person can do. Institutional membership, roles and entitlements belong to the Teams context. A shared identity does not decide whether products share a database or storage. Future Core ↔ Teams integration must use explicit contracts and must not assume direct access to Core tables.
+
 ## Users and privacy
 
-A user owns personal content and may use global StrideBR content.
+A user owns personal content and may use global StrideBR content. In the current Core implementation, `users` hosts the identity implementation; conceptually the account belongs to the StrideBR ecosystem, not exclusively to this product. Personal Core data does not automatically become institutional data when a person participates in Teams. Details of institutional data ownership remain canonical in the Teams repository.
 
 The data model is prepared for three visibility levels where appropriate:
 

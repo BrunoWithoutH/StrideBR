@@ -1,5 +1,11 @@
 # Monetização do StrideBR
 
+## Escopo no ecossistema
+
+O StrideBR/Core continua gratuito e open source, inclusive o Trainer individual: vínculo treinador-atleta, acompanhamento conforme permissões, prescrição, compartilhamento e planejamento individual não são paywall. Esta documentação cobre apenas a monetização operacional do Core, como publicidade e doações voluntárias.
+
+O [StrideBR Teams](https://github.com/BrunoWithoutH/StrideBR-Teams) é a camada institucional paga do ecossistema. Billing, planos, preços, trials e entitlements institucionais pertencem à documentação canônica do Teams; não há definição desses itens neste repositório.
+
 A infraestrutura de publicidade do StrideBR nasce desligada. Nenhum publisher, slot ou anúncio real faz parte do repositório. A aplicação registra apenas **placements visuais**; ela não envia identificadores, dados esportivos ou parâmetros de targeting para o renderer de publicidade.
 
 ## Configuração

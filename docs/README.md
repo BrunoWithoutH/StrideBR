@@ -4,9 +4,10 @@ Este diretório reúne documentação técnica, de produto, operação e release
 
 ## Produto
 
-- [`PRODUCT_VISION.md`](PRODUCT_VISION.md) — visão de longo prazo e pilares do produto.
+- [`PRODUCT_VISION.md`](PRODUCT_VISION.md) — visão de longo prazo do Core e sua relação com o ecossistema.
 - [`PRODUCT_ROADMAP.md`](PRODUCT_ROADMAP.md) — backlog, prioridades e horizontes futuros.
-- [`STRIDEBR_TEAMS.md`](STRIDEBR_TEAMS.md) — visão interna do StrideBR Teams e piloto planejado para 2027.
+- [`PROJECT_MAP.md`](PROJECT_MAP.md) — mapa curto de produtos, identidade e fontes canônicas.
+- [`STRIDEBR_TEAMS.md`](STRIDEBR_TEAMS.md) — documento-ponte e contexto histórico; a documentação específica é canônica no [StrideBR-Teams](https://github.com/BrunoWithoutH/StrideBR-Teams).
 - [`architecture.md`](architecture.md) — arquitetura e regras atuais do domínio.
 
 ## Atividades, GPS e compartilhamento
