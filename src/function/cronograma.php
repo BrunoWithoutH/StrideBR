@@ -10,6 +10,18 @@ function cronogramaGerarId(int $length = 21): string
     return stridebr_generate_id($length);
 }
 
+/** Preserve the user's spelling while making whitespace and Unicode canonical. */
+function cronogramaNormalizarNome(string $value): string
+{
+    $value = trim(str_replace("\u{00A0}", ' ', $value));
+    if ($value === '') return '';
+    if (class_exists('Normalizer')) {
+        $normalized = Normalizer::normalize($value, Normalizer::FORM_C);
+        if (is_string($normalized)) $value = $normalized;
+    }
+    return preg_replace('/\s+/u', ' ', trim($value)) ?? trim($value);
+}
+
 function cronogramaListar(PDO $pdo, string $idUsuario): array
 {
     $stmt = $pdo->prepare('SELECT * FROM cronogramas WHERE idusuario = :usuario AND ativo = TRUE ORDER BY data_atualizacao DESC, nome');
@@ -26,7 +38,7 @@ function cronogramaBuscar(PDO $pdo, string $idCronograma, string $idUsuario): ar
 
 function cronogramaCriar(PDO $pdo, string $idUsuario, string $nome, ?string $descricao = null): string
 {
-    $nome = trim($nome);
+    $nome = cronogramaNormalizarNome($nome);
     if ($nome === '' || stridebr_length($nome) > 120) {
         throw new InvalidArgumentException(stridebr_t('schedule.validation.schedule_name'));
     }
@@ -83,7 +95,7 @@ function cronogramaSalvarTreino(PDO $pdo, string $idUsuario, array $payload, ?st
         throw new RuntimeException(stridebr_t('planning.message.schedule_missing'));
     }
 
-    $titulo = trim((string) ($payload['titulo'] ?? ''));
+    $titulo = cronogramaNormalizarNome((string) ($payload['titulo'] ?? ''));
     $dia = filter_var($payload['dia_semana'] ?? null, FILTER_VALIDATE_INT);
     $inicio = (string) ($payload['hora_inicio'] ?? '');
     $fim = (string) ($payload['hora_fim'] ?? '');
@@ -421,7 +433,7 @@ function cronogramaListarExerciciosBiblioteca(PDO $pdo, string $idUsuario): arra
 function cronogramaResolverExercicioBiblioteca(array $biblioteca, string $idExercicio, string $nome): array
 {
     $idExercicio = trim($idExercicio);
-    $nome = trim($nome);
+    $nome = cronogramaNormalizarNome($nome);
     $byId = array_column($biblioteca, null, 'idexercicio');
     if ($idExercicio !== '' && isset($byId[$idExercicio])) {
         return ['idexercicio' => $idExercicio, 'nome' => $nome !== '' ? $nome : (string) $byId[$idExercicio]['nome']];
@@ -487,7 +499,7 @@ function cronogramaNormalizarUrlMidia(?string $url): ?string
 
 function cronogramaCriarExercicio(PDO $pdo, string $idUsuario, string $nome, ?string $descricao = null, array $categorias = [], ?string $imagemUrl = null, ?string $videoUrl = null): string
 {
-    $nome = trim($nome);
+    $nome = cronogramaNormalizarNome($nome);
     $slug = stridebr_slug($nome);
     $imagemUrl = cronogramaNormalizarUrlMidia($imagemUrl);
     $videoUrl = cronogramaNormalizarUrlMidia($videoUrl);
@@ -625,7 +637,7 @@ function cronogramaSalvarExercicios(PDO $pdo, string $idTreino, string $idUsuari
             if (!is_array($row)) continue;
             $idOccurrence = trim((string) ($row['idtreino_exercicio'] ?? ''));
             $idExercise = trim((string) ($row['idexercicio'] ?? ''));
-            $name = trim((string) ($row['nome'] ?? $row['nome_snapshot'] ?? ''));
+            $name = cronogramaNormalizarNome((string) ($row['nome'] ?? $row['nome_snapshot'] ?? ''));
 
             $resolvedExercise = cronogramaResolverExercicioBiblioteca($biblioteca, $idExercise, $name);
             $idExercise = (string) $resolvedExercise['idexercicio'];
@@ -767,7 +779,7 @@ function cronogramaAdicionarCampoExtra(PDO $pdo, string $idTreino, string $idUsu
     if (cronogramaBuscarTreino($pdo, $idTreino, $idUsuario) === []) {
         throw new RuntimeException(stridebr_t('schedule.workout_not_found'));
     }
-    $nome = trim($nome);
+    $nome = cronogramaNormalizarNome($nome);
     $slug = stridebr_slug($nome);
     if ($nome === '' || stridebr_length($nome) > 80 || $slug === '' || !in_array($tipo, ['texto', 'inteiro', 'decimal', 'booleano'], true)) {
         throw new InvalidArgumentException(stridebr_t('schedule.validation.extra_field_invalid'));
@@ -1005,7 +1017,7 @@ function cronogramaRestaurarExercicioPessoal(PDO $pdo, string $idUsuario, string
 
 function cronogramaAtualizarExercicioPessoal(PDO $pdo, string $idUsuario, string $idExercicio, string $nome, ?string $descricao, array $categorias, array $modalidades, ?string $imagemUrl = null, ?string $videoUrl = null): bool
 {
-    $nome = trim($nome);
+    $nome = cronogramaNormalizarNome($nome);
     $slug = stridebr_slug($nome);
     $imagemUrl = cronogramaNormalizarUrlMidia($imagemUrl);
     $videoUrl = cronogramaNormalizarUrlMidia($videoUrl);
@@ -1153,7 +1165,7 @@ function cronogramaSalvarTreinoModelo(PDO $pdo, string $idUsuario, array $payloa
     if (!cronogramaBibliotecaDisponivel($pdo)) {
         throw new RuntimeException(stridebr_t('schedule.validation.library_unavailable'));
     }
-    $titulo = trim((string) ($payload['titulo'] ?? ''));
+    $titulo = cronogramaNormalizarNome((string) ($payload['titulo'] ?? ''));
     $codigo = trim((string) ($payload['codigo'] ?? ''));
     $foco = trim((string) ($payload['foco'] ?? ''));
     $descricao = trim((string) ($payload['descricao'] ?? ''));
@@ -1605,7 +1617,7 @@ function cronogramaEditarTreinoEscopo(PDO $pdo, string $idUsuario, string $idTre
     $day = filter_var($payload['dia_semana'] ?? null, FILTER_VALIDATE_INT);
     if ($day === false || $day < 0 || $day > 6) throw new InvalidArgumentException(stridebr_t('schedule.invalid_weekday'));
     $targetDate = cronogramaDataNaMesmaSemana($referenceDate, (int) $day);
-    $titulo = trim((string) ($payload['titulo'] ?? ''));
+    $titulo = cronogramaNormalizarNome((string) ($payload['titulo'] ?? ''));
     $codigo = trim((string) ($payload['codigo'] ?? ''));
     $foco = trim((string) ($payload['foco'] ?? ''));
     $descricao = trim((string) ($payload['descricao'] ?? ''));

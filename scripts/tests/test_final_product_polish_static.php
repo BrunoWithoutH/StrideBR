@@ -38,6 +38,9 @@ $progressCss = $read('public/assets/css/sport-hub.css');
 $home = $read('public/home.php');
 $events = $read('public/calendario.php');
 $friends = $read('public/user/amigos.php');
+$profile = $read('public/user/perfil.php');
+$header = $read('src/layout/header.php');
+$headerCss = $read('public/assets/css/style.css');
 $agenda = $read('public/user/agenda-mensal.php');
 $pt = $read('src/i18n/pt-BR.php');
 $en = $read('src/i18n/en.php');
@@ -124,6 +127,15 @@ $assert(str_contains($events, "stridebr_t('events.subtitle')"), 'Subtitle de Eve
 $assert(str_contains($friends, "stridebr_t('friends.subtitle')"), 'Subtitle de Amigos deve permanecer porque explica a ação principal.');
 $assert(str_contains($agenda, "stridebr_t('agenda.subtitle_self')"), 'Subtitle da Agenda deve permanecer porque explica recorrências e datas específicas.');
 $assert(str_contains($events, "stridebr_t('common.events')") && !preg_match('/<h1[^>]*>\s*Calend[aá]rio\s*<\/h1>/ui', $events), 'Rota /calendario.php deve exibir Eventos, não o filename interno.');
+
+$assert(str_contains($profile, '$publicProfilesEnabled = stridebr_feature_enabled') && str_contains($profile, '!$isSelf && !$isFriend && !$publicProfilesEnabled'), 'Flag de perfil público deve ser avaliada depois da amizade e não bloquear amigo autorizado.');
+$assert(str_contains($profile, '$isFriend && in_array($visibility, [\'amigos\', \'publico\'], true)'), 'Perfil Amigos/Público deve reconhecer amizade aceita sem abrir perfil privado.');
+$assert(str_contains($friends, 'class="person-identity-link"') && substr_count($friends, 'class="person-identity-link"') >= 3, 'Busca, solicitações e lista de amigos devem oferecer bloco de identidade clicável.');
+$assert(str_contains($friends, '<div class="person-actions"><form') && str_contains($friends, '<form method="POST" data-confirm'), 'Ações mutáveis dos cards de pessoas devem permanecer fora do link de perfil.');
+$assert(str_contains($header, 'class="mobile-profile-link"') && str_contains($header, 'class="mobile-more-label"'), 'Mobile deve separar avatar para perfil do menu Mais.');
+$assert(str_contains($headerCss, '.mobile-profile-link { display: inline-grid;') && str_contains($headerCss, '.user-menu summary > img { display: none; }'), 'Avatar mobile deve ter alvo direto e o menu deve continuar visualmente distinto.');
+$assert(str_contains($libraryCss, ".schedule-month-calendar-wrap {\n        height: auto;\n        max-height: none;") && str_contains($libraryCss, 'overflow-y: visible;'), 'Mês desktop deve usar o scroll vertical do documento, sem container vertical interno.');
+$assert(str_contains($libraryCss, '.schedule-month-calendar .monthly-day:not(.is-outside):hover{background:var(--ui-surface-hover)}') && str_contains($libraryCss, 'schedule-month-empty-day{display:grid') && str_contains($libraryCss, 'color:var(--ui-faint)'), 'Estados do Mês devem usar tokens e não vazar superfícies claras no dark mode.');
 
 foreach (['activity.bulk_cancel_selection','activity.strength.looks_like','auth.reset_code_title','auth.confirm_code','auth.reset_email_subject','auth.reset_email_body','progress.active_days_count.one','trainer.invite_declined'] as $key) {
     $assert(str_contains($pt, "'{$key}'") && str_contains($en, "'{$key}'"), "Key {$key} precisa existir em PT-BR e EN.");

@@ -18,7 +18,6 @@ if (!$profile) { stridebr_error_document(404); }
 
 $viewer = stridebr_is_logged_in() ? (string) ($_SESSION['IdUsuario'] ?? '') : '';
 $isSelf = $viewer !== '' && $viewer === $profile['idusuario'];
-if (!$isSelf && !stridebr_feature_enabled($pdo, 'public_profiles.enabled', false)) { stridebr_error_document(404); }
 
 $isFriend = false;
 if ($viewer !== '' && !$isSelf) {
@@ -28,7 +27,10 @@ if ($viewer !== '' && !$isSelf) {
 }
 
 $visibility = (string) $profile['visibilidadeperfil'];
-$canView = $isSelf || $visibility === 'publico' || ($visibility === 'amigos' && $isFriend);
+$publicProfilesEnabled = stridebr_feature_enabled($pdo, 'public_profiles.enabled', false);
+// The public-profile flag controls anonymous/public discovery, not authorized friendship access.
+if (!$isSelf && !$isFriend && !$publicProfilesEnabled) { stridebr_error_document(404); }
+$canView = $isSelf || ($isFriend && in_array($visibility, ['amigos', 'publico'], true)) || ($visibility === 'publico' && $publicProfilesEnabled);
 $sports = [];
 $schedules = [];
 $activityStats = ['atividades' => 0, 'distancia_m' => 0.0, 'duracao_s' => 0.0];
