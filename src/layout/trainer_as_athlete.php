@@ -17,7 +17,7 @@
                                     <input type="hidden" name="action" value="update_permissions">
                                     <input type="hidden" name="idvinculo" value="<?php echo stridebr_e($link['idvinculo']); ?>">
                                     <strong><?php echo stridebr_e(stridebr_t('trainer.permissions')); ?></strong>
-                                    <p class="trainer-permission-help"><?php echo stridebr_e(stridebr_t('trainer.permissions_help')); ?></p>
+                                    <p class="trainer-permission-help"><?php echo stridebr_e(stridebr_t('trainer.subtitle')); ?> <?php echo stridebr_e(stridebr_t('trainer.permissions_help')); ?></p>
                                     <label><input type="checkbox" name="pode_prescrever"<?php echo stridebr_db_bool($link['pode_prescrever']) ? ' checked' : ''; ?>> <?php echo stridebr_e(stridebr_t('trainer.prescribe')); ?></label>
                                     <label><input type="checkbox" name="pode_ver_cronograma"<?php echo stridebr_db_bool($link['pode_ver_cronograma']) ? ' checked' : ''; ?>> <?php echo stridebr_e(stridebr_t('trainer.view_schedules')); ?></label>
                                     <label><input type="checkbox" name="pode_ver_atividades"<?php echo stridebr_db_bool($link['pode_ver_atividades']) ? ' checked' : ''; ?>> <?php echo stridebr_e(stridebr_t('trainer.view_activities')); ?></label>
@@ -31,7 +31,7 @@
                             <?php endif; ?>
                         </article>
                     <?php endforeach; ?>
-                    <?php if ($asAthlete === []): ?><div class="content-card trainer-empty rich"><strong><?php echo stridebr_e(stridebr_t('trainer.no_coach')); ?></strong><p><?php echo stridebr_e(stridebr_t('trainer.no_coach_help')); ?></p></div><?php endif; ?>
+                    <?php if ($asAthlete === []): ?><div class="content-card trainer-empty rich"><strong><?php echo stridebr_e(stridebr_t('trainer.no_coach')); ?></strong></div><?php endif; ?>
                 </div>
                 <details class="trainer-section"<?php echo $asAthlete === [] ? ' open' : ''; ?>><summary><?php echo stridebr_e(stridebr_t('trainer.find')); ?></summary>
                 <form method="POST" class="content-card trainer-invite-form">

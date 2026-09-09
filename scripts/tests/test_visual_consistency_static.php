@@ -62,6 +62,6 @@ $assert(str_contains($loginCss, '.auth-modern-field-wrap .showHidePw') && str_co
 $assert(substr_count($reset, 'type="button" class="showHidePw"') === 2 && str_contains($reset, 'aria-controls="reset-password"') && str_contains($reset, 'aria-controls="reset-password-confirm"'), 'reset possui toggles independentes nas duas senhas');
 $assert(substr_count($reset, 'autocomplete="new-password"') === 2 && str_contains($reset, "/assets/js/loginform.js"), 'reset preserva new-password e reutiliza o toggle validado');
 $assert(str_contains($signup, 'signup-login-link') && str_contains($signup, "stridebr_t('auth.already_account')") && str_contains($signup, 'href="/login.php"'), 'cadastro mantém ação secundária para login');
-$assert(str_contains($forgot, 'auth-unified-card') && str_contains($forgot, 'aria-describedby="recovery-guidance"') && str_contains($forgot, 'role="status"'), 'recuperação mantém cartão unificado, orientação e feedback acessível');
+$assert(str_contains($forgot, 'auth-unified-card') && str_contains($forgot, 'aria-describedby="recovery-guidance"') && str_contains($reset, 'role="status"'), 'recuperação mantém cartão unificado, orientação e feedback acessível no fluxo por código');
 
 printf("✓ visual consistency static: %d assertions\n", $assertions);

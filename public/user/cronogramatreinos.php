@@ -137,6 +137,7 @@ function cronogramaImportData(PDO $pdo, string $idUsuario, array $data): string
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     stridebr_verify_csrf();
     $action = (string) ($_POST['action'] ?? '');
+    $wantsJson = str_contains(strtolower((string) ($_SERVER['HTTP_ACCEPT'] ?? '')), 'application/json');
     try {
         if ($action === 'create_schedule') {
             $idNovo = cronogramaCriar($pdo, $idUsuario, (string) ($_POST['nome'] ?? ''), $_POST['descricao'] ?? null);
@@ -197,7 +198,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $idCronograma = (string) (($undo['snapshot']['treino']['idcronograma'] ?? '') ?: ($_POST['idcronograma'] ?? ''));
             unset($_SESSION['schedule_undo_workout']);
             notificacaoCronogramaSincronizadoAlterado($pdo, $idUsuario, $idCronograma, stridebr_t('planning.message.workout_restored'));
-            stridebr_flash('success', stridebr_t('schedule.workout_restored'));
+            $message = stridebr_t('schedule.workout_restored');
+            if ($wantsJson) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['ok' => true, 'message' => $message, 'idcronograma' => $idCronograma], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                exit;
+            }
+            stridebr_flash('success', $message);
             $fallback = '/user/cronogramatreinos.php?id=' . urlencode($idCronograma);
             header('Location: ' . stridebr_safe_redirect((string) ($_POST['return_to'] ?? ''), $fallback));
             exit;
@@ -215,7 +222,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'snapshot' => $snapshot,
             ];
             notificacaoCronogramaSincronizadoAlterado($pdo, $idUsuario, $idCronograma, stridebr_t('planning.message.workout_removed'));
-            stridebr_flash('success', stridebr_t('schedule.workout_removed_from_schedule'));
+            $message = stridebr_t('schedule.workout_removed_from_schedule');
+            if ($wantsJson) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode([
+                    'ok' => true,
+                    'message' => $message,
+                    'idcronograma' => $idCronograma,
+                    'undo_token' => (string) ($_SESSION['schedule_undo_workout']['token'] ?? ''),
+                    'undo_expires' => (int) ($_SESSION['schedule_undo_workout']['expires'] ?? 0),
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                exit;
+            }
+            stridebr_flash('success', $message);
             $fallback = '/user/cronogramatreinos.php?id=' . urlencode($idCronograma);
             header('Location: ' . stridebr_safe_redirect((string) ($_POST['return_to'] ?? ''), $fallback));
             exit;
@@ -321,10 +340,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
     } catch (Throwable $e) {
-        $errors[] = $e instanceof InvalidArgumentException || $e instanceof RuntimeException ? $e->getMessage() : stridebr_t('schedule.operation_error');
+        $message = $e instanceof InvalidArgumentException || $e instanceof RuntimeException ? $e->getMessage() : stridebr_t('schedule.operation_error');
         if (!$e instanceof InvalidArgumentException && !$e instanceof RuntimeException) {
             error_log($e->getMessage());
         }
+        if ($wantsJson) {
+            http_response_code($e instanceof InvalidArgumentException || $e instanceof RuntimeException ? 422 : 500);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['ok' => false, 'error' => $message], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+        $errors[] = $message;
     }
 }
 
@@ -926,7 +952,7 @@ $initialView = in_array($requestedInitialView, $allowedInitialViews, true)
                             <div class="schedule-side-list-heading"><strong><?php echo stridebr_e(stridebr_t('schedule.my_schedules')); ?></strong><span><?php echo count($cronogramas); ?></span></div>
                             <nav>
                                 <?php foreach ($cronogramas as $item): ?>
-                                    <a href="/user/cronogramatreinos.php?id=<?php echo rawurlencode((string) $item['idcronograma']); ?>" class="<?php echo $item['idcronograma'] === $idSelecionado ? 'is-active' : ''; ?>"><span><?php echo stridebr_e($item['nome']); ?></span></a>
+                                    <a href="/user/cronogramatreinos.php?id=<?php echo rawurlencode((string) $item['idcronograma']); ?>" data-schedule-workspace-nav class="<?php echo $item['idcronograma'] === $idSelecionado ? 'is-active' : ''; ?>"><span><?php echo stridebr_e($item['nome']); ?></span></a>
                                 <?php endforeach; ?>
                             </nav>
                         </section>
@@ -949,11 +975,11 @@ $initialView = in_array($requestedInitialView, $allowedInitialViews, true)
                 <section class="schedule-week-context" data-view-context="week"<?php echo $initialView === 'week' ? '' : ' hidden'; ?>>
                     <div class="schedule-period-toolbar">
                         <nav class="schedule-period-nav" aria-label="<?php echo stridebr_e(stridebr_t('schedule.week_navigation')); ?>">
-                            <a class="schedule-period-arrow" href="/user/cronogramatreinos.php?id=<?php echo rawurlencode($idSelecionado); ?>&amp;view=week&amp;planning_week=<?php echo max(-52, $planningWeekOffset - 1); ?>" aria-label="<?php echo stridebr_e(stridebr_t('schedule.previous_week')); ?>">←</a>
+                            <a class="schedule-period-arrow" href="/user/cronogramatreinos.php?id=<?php echo rawurlencode($idSelecionado); ?>&amp;view=week&amp;planning_week=<?php echo max(-52, $planningWeekOffset - 1); ?>" aria-label="<?php echo stridebr_e(stridebr_t('schedule.previous_week')); ?>" data-schedule-workspace-nav>←</a>
                             <strong><?php echo stridebr_e($weekRangeLabel); ?></strong>
-                            <a class="schedule-period-arrow" href="/user/cronogramatreinos.php?id=<?php echo rawurlencode($idSelecionado); ?>&amp;view=week&amp;planning_week=<?php echo min(12, $planningWeekOffset + 1); ?>" aria-label="<?php echo stridebr_e(stridebr_t('schedule.next_week')); ?>">→</a>
+                            <a class="schedule-period-arrow" href="/user/cronogramatreinos.php?id=<?php echo rawurlencode($idSelecionado); ?>&amp;view=week&amp;planning_week=<?php echo min(12, $planningWeekOffset + 1); ?>" aria-label="<?php echo stridebr_e(stridebr_t('schedule.next_week')); ?>" data-schedule-workspace-nav>→</a>
                         </nav>
-                        <a class="secondary-button schedule-period-current" href="/user/cronogramatreinos.php?id=<?php echo rawurlencode($idSelecionado); ?>&amp;view=week&amp;planning_week=0"><?php echo stridebr_e(stridebr_t('schedule.this_week')); ?></a>
+                        <a class="secondary-button schedule-period-current" href="/user/cronogramatreinos.php?id=<?php echo rawurlencode($idSelecionado); ?>&amp;view=week&amp;planning_week=0" data-schedule-workspace-nav><?php echo stridebr_e(stridebr_t('schedule.this_week')); ?></a>
                     </div>
                     <div class="schedule-week-context-summary" data-week-context-summary>
                         <span data-week-compact-progress><?php echo stridebr_e($weekPlannedCount === 0 ? stridebr_t('schedule.week_no_workouts') : stridebr_t('schedule.week_progress_compact', ['done' => $weekCompletedCount, 'total' => $weekPlannedCount])); ?></span>

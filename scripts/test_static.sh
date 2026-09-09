@@ -96,6 +96,7 @@ php scripts/tests/test_sport_hub_monetization_static.php
 php scripts/tests/test_sport_taxonomy_energy_static.php
 php scripts/tests/test_sport_picker_static.php
 php scripts/tests/test_manual_strength_ui_static.php
+php scripts/tests/test_final_product_polish_static.php
 php scripts/tests/test_migration_dependency_static.php
 php scripts/tests/test_radius_system_static.php
 php scripts/tests/test_design_system_static.php

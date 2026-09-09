@@ -38,17 +38,34 @@ document.addEventListener('DOMContentLoaded', () => {
     const strengthEmpty = strengthEditor?.querySelector('[data-strength-empty]')
     const strengthExerciseList = strengthEditor?.querySelector('[data-strength-exercise-list]')
     const strengthLibrary = new Map()
+    let strengthCatalog = []
     const strengthReferenceCache = new Map()
-    const normalizeStrengthName = value => String(value || '').trim().toLocaleLowerCase('pt-BR')
+    const normalizeStrengthName = value => String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR').replace(/[‐‑‒–—―_\/\\-]+/g, ' ').replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim()
+    const strengthSimilarity = (left, right) => {
+        const a = normalizeStrengthName(left)
+        const b = normalizeStrengthName(right)
+        if (!a || !b) return 0
+        if (a === b) return 1
+        const previous = Array.from({length: b.length + 1}, (_, index) => index)
+        for (let i = 1; i <= a.length; i += 1) {
+            const current = [i]
+            for (let j = 1; j <= b.length; j += 1) current[j] = Math.min(current[j - 1] + 1, previous[j] + 1, previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1))
+            previous.splice(0, previous.length, ...current)
+        }
+        return 1 - previous[b.length] / Math.max(a.length, b.length)
+    }
     const strengthEscape = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char]))
     const setStrengthLibrary = (items = []) => {
         strengthLibrary.clear()
+        strengthCatalog = []
         if (strengthExerciseList) strengthExerciseList.replaceChildren()
         items.forEach((item) => {
             const name = String(item?.name || item?.nome || '').trim()
             const id = String(item?.id || item?.idexercicio || '').trim()
             if (!name) return
-            strengthLibrary.set(normalizeStrengthName(name), {id, name})
+            const catalogItem = {id, name}
+            strengthLibrary.set(normalizeStrengthName(name), catalogItem)
+            strengthCatalog.push(catalogItem)
             if (!strengthExerciseList) return
             const option = document.createElement('option')
             option.value = name
@@ -77,6 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <label><span>${strengthEscape(tr('activity.strength.exercise'))}</span><input type="text" list="activity-strength-exercise-options" data-strength-exercise-name autocomplete="off" placeholder="${strengthEscape(tr('activity.strength.exercise_placeholder'))}"><input type="hidden" data-strength-exercise-id></label>
                 <button type="button" class="activity-inline-action is-danger" data-strength-remove-exercise>${strengthEscape(tr('activity.strength.remove'))}</button>
             </div>
+            <div class="activity-strength-suggestions" data-strength-suggestions hidden></div>
             <div class="activity-strength-reference" data-strength-reference hidden></div>
             <div class="activity-strength-sets" data-strength-sets>
                 <div class="activity-strength-set activity-strength-set-head" aria-hidden="true"><span>${strengthEscape(tr('activity.strength.set'))}</span><span>${strengthEscape(tr('activity.strength.type'))}</span><span>kg</span><span>Reps</span><span>RIR</span><span>${strengthEscape(tr('activity.strength.done'))}</span><span></span></div>
@@ -113,9 +131,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const syncStrengthExerciseId = input => {
         const exercise = input?.closest('[data-strength-exercise]')
         const hidden = exercise?.querySelector('[data-strength-exercise-id]')
+        const suggestions = exercise?.querySelector('[data-strength-suggestions]')
         if (!hidden) return
-        const match = strengthLibrary.get(normalizeStrengthName(input.value))
+        const normalized = normalizeStrengthName(input.value)
+        const match = strengthLibrary.get(normalized)
         hidden.value = match?.id || ''
+        if (!suggestions) return
+        if (match || normalized.length < 3) {
+            suggestions.hidden = true
+            suggestions.replaceChildren()
+            return
+        }
+        const candidates = strengthCatalog.map(item => ({...item, score: strengthSimilarity(normalized, item.name)})).filter(item => item.score >= .72).sort((a, b) => b.score - a.score).slice(0, 2)
+        if (!candidates.length) {
+            suggestions.hidden = true
+            suggestions.replaceChildren()
+            return
+        }
+        suggestions.innerHTML = `<span>${strengthEscape(tr('activity.strength.looks_like'))}</span>${candidates.map(item => `<button type="button" class="activity-inline-action" data-strength-suggestion data-exercise-id="${strengthEscape(item.id)}" data-exercise-name="${strengthEscape(item.name)}">${strengthEscape(item.name)}</button>`).join('')}`
+        suggestions.hidden = false
     }
     const applyStrengthReference = (exercise, reference) => {
         if (exercise) exercise._stridebrStrengthReference = reference || null
@@ -234,6 +268,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     })
     strengthEditor?.addEventListener('click', (event) => {
+        const suggestion = event.target.closest('[data-strength-suggestion]')
+        if (suggestion) {
+            const exercise = suggestion.closest('[data-strength-exercise]')
+            const input = exercise?.querySelector('[data-strength-exercise-name]')
+            const hidden = exercise?.querySelector('[data-strength-exercise-id]')
+            if (input) input.value = suggestion.dataset.exerciseName || ''
+            if (hidden) hidden.value = suggestion.dataset.exerciseId || ''
+            const host = exercise?.querySelector('[data-strength-suggestions]')
+            if (host) { host.hidden = true; host.replaceChildren() }
+            if (input) loadStrengthReference(input)
+            return
+        }
         const useLast = event.target.closest('[data-strength-use-last]')
         if (useLast) {
             useLatestStrengthSession(useLast.closest('[data-strength-exercise]'))
@@ -8239,6 +8285,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const detailPrefetches = new Map()
     let bulkMode = false
     const bulkSelected = new Set()
+    const bulkHasChanges = () => {
+        if (!bulkBar) return false
+        const sport = String(bulkBar.elements.idmodalidade?.value || '')
+        const durationMode = String(bulkBar.elements.duracao_modo?.value || 'keep')
+        const visibility = String(bulkBar.elements.visibilidade?.value || '')
+        return sport !== '' || durationMode !== 'keep' || visibility !== ''
+    }
 
     const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'}[char]))
     const usesDesktopActivityPanel = () => window.matchMedia('(min-width: 901px)').matches
@@ -8287,6 +8340,21 @@ document.addEventListener('DOMContentLoaded', () => {
         return `<div class="activity-row-metrics">${metrics.map((metric) => `<span data-metric-kind="${activityMetricKind(metric.rotulo)}"><small>${escapeHtml(metric.rotulo)}</small><strong>${escapeHtml(metric.valor)}</strong></span>`).join('')}</div>`
     }
 
+    const renderStrengthPreview = (item) => {
+        const strength = item?.strength && typeof item.strength === 'object' ? item.strength : {}
+        const facts = []
+        const duration = (item.metricas || []).find(metric => activityMetricKind(metric?.rotulo || '') === 'duration')
+        if (duration?.valor) facts.push(String(duration.valor))
+        const exercises = Number(strength.exercises || 0)
+        const sets = Number(strength.sets || 0)
+        if (exercises > 0) facts.push(trn('activity.history.exercise_count.one', 'activity.history.exercise_count.other', exercises))
+        if (sets > 0) facts.push(trn('activity.history.set_count.one', 'activity.history.set_count.other', sets))
+        const code = String(strength.code || '').trim()
+        const focus = String(strength.focus || '').trim()
+        if (!code && !focus && !facts.length) return ''
+        return `<div class="activity-row-strength-preview"><div class="activity-row-strength-facts">${code ? `<span class="activity-row-strength-code">${escapeHtml(code)}</span>` : ''}${facts.length ? `<span>${escapeHtml(facts.join(' · '))}</span>` : ''}</div>${focus ? `<span class="activity-row-strength-focus" title="${escapeHtml(focus)}">${escapeHtml(focus)}</span>` : ''}</div>`
+    }
+
     const renderHistoryRow = (item) => {
         const article = document.createElement('article')
         article.className = 'activity-list-row'
@@ -8304,7 +8372,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <strong>${escapeHtml(item.titulo)}</strong>
                     <span>${escapeHtml(item.modalidade)} · ${escapeHtml(item.hora)}</span>
                 </div>
-                ${renderMetricas(item.metricas)}
+                ${article.classList.contains('is-strength-row') ? renderStrengthPreview(item) : renderMetricas(item.metricas)}
                 <span class="activity-row-open" aria-hidden="true">›</span>
             </button>`
         article.classList.toggle('is-bulk-mode', bulkMode)
@@ -8358,7 +8426,7 @@ document.addEventListener('DOMContentLoaded', () => {
         historyRoot.classList.toggle('is-bulk-mode', bulkMode)
         if (bulkBar) bulkBar.hidden = !bulkMode
         if (bulkToggle) {
-            bulkToggle.textContent = bulkMode ? 'Selecionando' : 'Selecionar'
+            bulkToggle.textContent = tr(bulkMode ? 'activity.bulk_selecting' : 'common.select')
             bulkToggle.setAttribute('aria-pressed', bulkMode ? 'true' : 'false')
         }
         historyList?.querySelectorAll('[data-history-row]').forEach(row => {
@@ -8370,7 +8438,17 @@ document.addEventListener('DOMContentLoaded', () => {
             if (input) input.checked = checked
         })
         if (bulkCount) bulkCount.textContent = trn('activity.bulk_selected.one', 'activity.bulk_selected.other', bulkSelected.size)
-        bulkBar?.querySelectorAll('button[type="submit"], [data-bulk-delete]').forEach(button => { button.disabled = bulkSelected.size === 0 })
+        const loadedRows = Array.from(historyList?.querySelectorAll('[data-history-row]') || [])
+        const allLoadedSelected = loadedRows.length > 0 && loadedRows.every(row => bulkSelected.has(String(row.dataset.activityId || '')))
+        if (bulkSelectVisible) {
+            bulkSelectVisible.textContent = allLoadedSelected
+                ? tr('activity.bulk_clear_loaded')
+                : tr('activity.bulk_select_loaded_count', {count: i18n.number?.(loadedRows.length, 0) ?? String(loadedRows.length)})
+            bulkSelectVisible.disabled = loadedRows.length === 0
+        }
+        const submit = bulkBar?.querySelector('button[type="submit"]')
+        if (submit) submit.disabled = bulkSelected.size === 0 || !bulkHasChanges()
+        if (bulkDelete) bulkDelete.disabled = bulkSelected.size === 0
     }
     const leaveBulkMode = () => { bulkMode = false; bulkSelected.clear(); updateBulkUi() }
     const setRowSelected = (row, selected) => {
@@ -8380,7 +8458,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateBulkUi()
     }
     const runBulkRequest = async (action = 'update') => {
-        if (!bulkBar || !bulkSelected.size) return
+        if (!bulkBar || !bulkSelected.size || (action === 'update' && !bulkHasChanges())) return
         if (action === 'delete') {
             const message = trn('activity.history.delete_confirm.one', 'activity.history.delete_confirm.other', bulkSelected.size)
             const confirmed = window.StrideBRUI?.confirm ? await window.StrideBRUI.confirm(message, {title: tr('activity.delete_many_title'), confirmLabel: tr('activity.delete_label'), danger: true}) : window.confirm(message)
@@ -8415,8 +8493,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             window.StrideBRUI?.notify?.(error?.message || tr('activity.history.update_error'), 'error')
         } finally {
-            if (submit) submit.disabled = bulkSelected.size === 0
-            if (bulkDelete) bulkDelete.disabled = bulkSelected.size === 0
+            updateBulkUi()
         }
     }
 
@@ -9222,6 +9299,8 @@ document.addEventListener('DOMContentLoaded', () => {
             bulkDurationInput.required = setMode
         }
     }
+    bulkBar?.addEventListener('change', updateBulkUi)
+    bulkBar?.addEventListener('input', updateBulkUi)
     bulkDurationMode?.addEventListener('change', syncBulkDuration)
     bulkDurationInput?.addEventListener('input', () => {
         if (bulkDurationMode && bulkDurationInput.value !== '') { bulkDurationMode.value = 'set'; syncBulkDuration() }
