@@ -12,8 +12,7 @@ if (stridebr_is_logged_in()) {
 }
 
 $accountDeleted = (string) ($_GET['conta'] ?? '') === 'excluida';
-$pageUrl = stridebr_public_url() . '/';
-$pageDescription = 'Planeje treinos, registre atividades, acompanhe metas, rotas e evolução em diferentes esportes com o StrideBR.';
+$pageDescription = 'StrideBR é uma plataforma brasileira para registrar atividades físicas, organizar treinos e cronogramas, acompanhar metas e evolução em corrida e outros esportes.';
 ?>
 <!DOCTYPE html>
 <html lang="<?php echo function_exists('stridebr_html_lang') ? stridebr_e(stridebr_html_lang()) : 'pt-BR'; ?>">
@@ -22,20 +21,10 @@ $pageDescription = 'Planeje treinos, registre atividades, acompanhe metas, rotas
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="author" content="Bruno Evaristo Pinheiro">
-    <meta name="description" content="<?php echo stridebr_e($pageDescription); ?>">
-    <meta name="theme-color" content="#40507c">
-    <meta property="og:type" content="website">
-    <meta property="og:site_name" content="StrideBR">
-    <meta property="og:title" content="StrideBR · Planeje, treine e registre">
-    <meta property="og:description" content="<?php echo stridebr_e($pageDescription); ?>">
-    <meta property="og:image" content="<?php echo stridebr_e(stridebr_social_image_url()); ?>">
-    <meta property="og:url" content="<?php echo stridebr_e($pageUrl); ?>">
-    <meta name="twitter:card" content="summary_large_image">
-    <link rel="canonical" href="<?php echo stridebr_e($pageUrl); ?>">
+    <?php echo stridebr_seo_head(['title' => 'StrideBR — Treinos, atividades e evolução esportiva', 'description' => $pageDescription, 'path' => '/', 'locale' => stridebr_locale(), 'structured' => stridebr_seo_brand_data(stridebr_locale())]); ?>
     <link rel="icon" type="image/png" href="<?php echo stridebr_e(stridebr_asset('/assets/img/favicon/favicon.png')); ?>">
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/style.css')); ?>">
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/index.css')); ?>">
-    <title>StrideBR · Planeje, treine e registre</title>
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>">
 </head>
 <body>
@@ -45,7 +34,7 @@ $pageDescription = 'Planeje treinos, registre atividades, acompanhe metas, rotas
         <div class="landing-shell">
             <?php if ($accountDeleted): ?><div class="alert alert-success">Sua conta e os dados vinculados foram excluídos.</div><?php endif; ?>
             <section class="landing-hero">
-                <div class="landing-copy"><span class="landing-eyebrow">Treinos e atividades</span><h1>Planeje. Treine.<br>Registre sua evolução.</h1><p>Organize o treino de hoje, registre atividades e acompanhe sua evolução.</p><div class="landing-actions"><a class="landing-primary" href="/signup.php">Criar conta</a><a class="landing-secondary" href="/login.php">Já tenho uma conta</a></div></div>
+                <div class="landing-copy"><span class="landing-eyebrow">Treinos e atividades</span><h1>Planeje. Treine.<br>Registre sua evolução.</h1><p>No StrideBR, organize treinos e cronogramas, registre atividades e acompanhe sua evolução.</p><div class="landing-actions"><a class="landing-primary" href="/signup.php">Criar conta</a><a class="landing-secondary" href="/login.php">Já tenho uma conta</a></div></div>
                 <div class="landing-principles"><p>Planejamento, registro e análise.</p><span>Cronogramas, atividades, progresso, rotas e privacidade no mesmo lugar.</span></div>
             </section>
             <section class="landing-features"><article><span>01</span><h2>Planeje sua rotina</h2><p>Cronogramas semanais, agenda mensal, recorrências e treinos com exercícios detalhados.</p></article><article><span>02</span><h2>Registre qualquer esporte</h2><p>Atividades com métricas próprias, equipamentos, rotas, distância e elevação.</p></article><article><span>03</span><h2>Compare com você mesmo</h2><p>Progresso, consistência, recordes e comparação de atividades.</p></article></section>

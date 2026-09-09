@@ -10,7 +10,7 @@ $options = getopt('', ['provider::', 'user::', 'limit::']);
 $providerFilter = stridebr_lower(trim((string) ($options['provider'] ?? '')));
 $userFilter = trim((string) ($options['user'] ?? ''));
 $limit = max(1, min(5000, (int) ($options['limit'] ?? 500)));
-$readyProviders = ['strava', 'polar', 'google_health', 'suunto'];
+$readyProviders = stridebr_integrations_periodic_providers();
 
 if ($providerFilter !== '' && !in_array($providerFilter, $readyProviders, true)) {
     fwrite(STDERR, "Provedor sem sincronização automática disponível: {$providerFilter}\n");
@@ -28,28 +28,7 @@ if (!stridebr_db_table_exists($pdo, 'integracoes_usuario')) {
     exit(2);
 }
 
-$where = ["(status = 'conectado' OR (status = 'erro' AND atualizado_em < NOW() - INTERVAL '15 minutes'))", 'sincronizar_atividades = TRUE'];
-$params = [];
-if ($providerFilter !== '') {
-    $where[] = 'provedor = :provedor';
-    $params[':provedor'] = $providerFilter;
-} else {
-    $placeholders = [];
-    foreach ($readyProviders as $index => $provider) {
-        $key = ':p' . $index;
-        $placeholders[] = $key;
-        $params[$key] = $provider;
-    }
-    $where[] = 'provedor IN (' . implode(',', $placeholders) . ')';
-}
-if ($userFilter !== '') {
-    $where[] = 'idusuario = :usuario';
-    $params[':usuario'] = $userFilter;
-}
-
-$stmt = $pdo->prepare('SELECT idusuario, provedor FROM integracoes_usuario WHERE ' . implode(' AND ', $where) . ' ORDER BY COALESCE(ultima_sincronizacao_em, to_timestamp(0)) ASC LIMIT ' . $limit);
-$stmt->execute($params);
-$connections = $stmt->fetchAll();
+$connections = stridebr_integrations_due_connections($pdo, $providerFilter, $userFilter, $limit);
 
 $processed = 0;
 $imported = 0;
@@ -64,15 +43,18 @@ foreach ($connections as $connection) {
             $skipped++;
             continue;
         }
-        $sync = stridebr_integrations_sync_detailed($pdo, $userId, $providerId);
+        $sync = stridebr_integrations_sync_detailed($pdo, $userId, $providerId, 'periodic');
+        if (!empty($sync['skipped'])) { $skipped++; continue; }
+        $failed += (int) ($sync['failed'] ?? 0);
         $created = (int) ($sync['created'] ?? 0);
         $processed++;
         $imported += $created;
-        printf("%s %s: +%d novas | %d existentes | %d falhas\n", $providerId, $userId, $created, (int) ($sync['existing'] ?? 0), (int) ($sync['failed'] ?? 0));
+        printf("%s: +%d novas | %d existentes | %d falhas\n", $providerId, $created, (int) ($sync['existing'] ?? 0), (int) ($sync['failed'] ?? 0));
     } catch (Throwable $error) {
         $processed++;
         $failed++;
-        fwrite(STDERR, $providerId . ' ' . $userId . ': sincronização falhou [' . get_class($error) . ']' . PHP_EOL);
+        stridebr_integrations_log_failure($providerId, 'periodic_runner', null, $error);
+        fwrite(STDERR, $providerId . ': sincronização falhou.' . PHP_EOL);
     }
 }
 

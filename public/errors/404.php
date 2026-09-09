@@ -1,4 +1,5 @@
 <?php
+header('X-Robots-Tag: noindex, nofollow, noarchive');
 http_response_code(404);
 ?>
 <!doctype html>

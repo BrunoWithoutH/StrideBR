@@ -79,4 +79,4 @@ function stridebr_secure_cookie(): bool
 {
     return !stridebr_is_development() || stridebr_request_is_https() || parse_url(stridebr_app_url(), PHP_URL_SCHEME) === 'https';
 }
-function stridebr_robots_noindex(): bool { return stridebr_env_enabled('STRIDEBR_ROBOTS_NOINDEX', stridebr_is_staging()); }
+function stridebr_robots_noindex(): bool { return stridebr_is_staging() || stridebr_env_enabled('STRIDEBR_ROBOTS_NOINDEX'); }

@@ -34,7 +34,8 @@ $q = trim((string) ($_GET['q'] ?? ''));
 $sport = trim((string) ($_GET['modalidade'] ?? ''));
 $state = trim((string) ($_GET['estado'] ?? ''));
 $month = trim((string) ($_GET['mes'] ?? ''));
-$savedOnly = isset($_GET['salvos']) && $userId !== null;
+$savedRequested = isset($_GET['salvos']);
+$savedOnly = $savedRequested && $userId !== null;
 $filters = ['q' => $q, 'modalidade' => $sport, 'estado' => $state, 'mes' => $month, 'salvos' => $savedOnly];
 $events = $available ? eventosListarPublicados($pdo, $filters, $userId, 100) : [];
 $modalidades = $available ? eventosListarModalidades($pdo) : [];
@@ -53,15 +54,11 @@ $currentQuery = $_SERVER['REQUEST_URI'] ?? '/calendario.php';
     <?php if (function_exists('stridebr_ui_boot_script')) echo stridebr_ui_boot_script(); ?>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="description" content="<?php echo stridebr_e(stridebr_t('events.meta_description')); ?>">
-    <meta property="og:title" content="<?php echo stridebr_e(stridebr_t('events.html_title')); ?>">
-    <meta property="og:description" content="<?php echo stridebr_e(stridebr_t('events.og_description')); ?>">
-    <meta property="og:image" content="<?php echo stridebr_e(stridebr_public_url() . '/assets/img/branding/stridebr-og.png'); ?>">
+    <?php echo stridebr_seo_head(['title' => stridebr_locale() === 'en' ? 'Sports events — StrideBR' : 'Eventos esportivos — StrideBR', 'description' => stridebr_t('events.meta_description'), 'path' => '/calendario.php', 'locale' => stridebr_locale(), 'noindex' => $savedRequested]); ?>
     <link rel="icon" type="image/png" href="<?php echo stridebr_e(stridebr_asset('/assets/img/favicon/favicon.png')); ?>">
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/style.css')); ?>">
 
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/events.css')); ?>">
-    <title><?php echo stridebr_e(stridebr_t('events.html_title')); ?></title>
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>">
 </head>
 <body>

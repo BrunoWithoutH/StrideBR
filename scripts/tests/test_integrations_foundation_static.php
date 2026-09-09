@@ -17,7 +17,7 @@ $migration = $read('src/database/migrations/20260903_v1_rc.sql');
 $strengthMigration = $read('src/database/migrations/20260903_v1_rc.sql');
 $providerMigration = $read('src/database/migrations/20260908_integrations_providers.sql');
 $integrations = $read('src/function/integrations.php');
-$settings = $read('public/user/settings.php');
+$settings = $read('public/user/settings.php') . $read('src/layout/integration_cards.php');
 $profile = $read('public/user/perfil.php');
 $onboarding = $read('public/user/onboarding.php');
 $activityPage = $read('public/user/atividades.php');
@@ -35,7 +35,7 @@ $assert(str_contains($integrations, 'stridebr_integrations_duplicate') && str_co
 $assert(str_contains($integrations, 'stridebr_integrations_sync_strava') && str_contains($integrations, 'stridebr_integrations_sync_polar') && str_contains($integrations, 'stridebr_integrations_sync_google_health') && str_contains($integrations, 'stridebr_integrations_sync_coros'), 'Strava, Polar, Google Health e COROS precisam ter sincronização de entrada implementada.');
 $assert(str_contains($integrations, 'https://www.polaraccesslink.com/v4/data') && !str_contains($integrations, 'polaraccesslink.com/v3') && !str_contains($integrations, 'api.fitbit.com'), 'endpoints ativos precisam estar sem Polar/Fitbit legado.');
 $assert(str_contains($integrations, 'stridebr_integrations_sync_suunto') && str_contains($integrations, 'Ocp-Apim-Subscription-Key') && str_contains($env, 'SUUNTO_SUBSCRIPTION_KEY='), 'Suunto precisa ter OAuth, chave de assinatura e sincronização de entrada pela Cloud API.');
-$assert(str_contains($syncScript, "['strava', 'polar', 'google_health', 'suunto']") && str_contains($syncScript, 'stridebr_integrations_sync_detailed(') && !str_contains($syncScript, "'coros', 'suunto'"), 'runner oportunista precisa excluir COROS e aposentar Fitbit.');
+$assert(str_contains($syncScript, 'stridebr_integrations_periodic_providers()') && str_contains($syncScript, 'stridebr_integrations_sync_detailed(') && !str_contains($syncScript, "'coros', 'suunto'"), 'runner oportunista precisa excluir COROS e aposentar Fitbit.');
 $assert(str_contains($settings, 'id="conexoes"') && str_contains($settings, '/auth/integration.php?provider=') && str_contains($settings, "stridebr_t('settings.show_connection')"), 'Editar perfil precisa centralizar conexão e exposição pública.');
 $assert(strpos($settings, 'id="conexoes"') > strpos($settings, "stridebr_t('settings.links_social')"), 'Conexões deve ficar na parte baixa de Editar perfil, junto da área de links e redes.');
 $assert(str_contains($onboarding, "stridebr_t('onboarding.connect_title')") && str_contains($onboarding, 'data-initial-step'), 'onboarding precisa apresentar conexões sem torná-las obrigatórias.');

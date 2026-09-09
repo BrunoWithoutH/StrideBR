@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/environment.php';
+require_once __DIR__ . '/seo.php';
 
 date_default_timezone_set('America/Sao_Paulo');
 
@@ -812,7 +813,7 @@ function stridebr_support_mailto(string $subject = ''): string
 
 function stridebr_social_image_url(): string
 {
-    return stridebr_public_url() . '/assets/img/branding/stridebr-og.png';
+    return stridebr_seo_origin() . '/assets/img/branding/stridebr-og.png';
 }
 
 function stridebr_password_is_valid_length(string $password, int $min = 8, int $max = 128): bool

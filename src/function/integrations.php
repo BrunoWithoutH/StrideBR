@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/integration_sync_support.php';
+
 function stridebr_integrations_id(int $length = 21): string
 {
     $alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz-';
@@ -281,8 +283,7 @@ function stridebr_integrations_http(string $method, string $url, array $options 
         if (!is_array($mocked)) throw new RuntimeException('Mock HTTP inválido.');
         $mocked += ['status' => 200, 'body' => '', 'json' => null, 'headers' => []];
         if (($mocked['status'] < 200 || $mocked['status'] >= 300) && empty($options['allow_error'])) {
-            $message = is_array($mocked['json']) ? trim((string) ($mocked['json']['message'] ?? $mocked['json']['error_description'] ?? $mocked['json']['error'] ?? '')) : '';
-            throw new RuntimeException($message !== '' ? $message : 'O serviço externo recusou a solicitação.');
+            throw stridebr_integrations_http_error((int) $mocked['status'], $mocked['headers']);
         }
         return $mocked;
     }
@@ -319,10 +320,10 @@ function stridebr_integrations_http(string $method, string $url, array $options 
         $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
         $error = curl_error($ch);
         curl_close($ch);
-        if (!is_string($response)) throw new RuntimeException('Não foi possível falar com o serviço externo.' . ($error !== '' ? ' ' . $error : ''));
+        if (!is_string($response)) throw new RuntimeException('Não foi possível falar com o serviço externo.' );
     } else {
         $context = stream_context_create(['http' => [
-            'method' => strtoupper($method), 'header' => implode("\\r\\n", $headers) . "\\r\\n",
+            'method' => strtoupper($method), 'header' => implode("\r\n", $headers) . "\r\n",
             'content' => $body !== null ? (string) $body : '', 'timeout' => (int) ($options['timeout'] ?? 20), 'ignore_errors' => true,
             'follow_location' => !empty($options['follow_redirects']) ? 1 : 0, 'max_redirects' => 3,
         ]]);
@@ -339,8 +340,7 @@ function stridebr_integrations_http(string $method, string $url, array $options 
     }
     $decoded = json_decode($response, true);
     if (($status < 200 || $status >= 300) && empty($options['allow_error'])) {
-        $message = is_array($decoded) ? trim((string) ($decoded['message'] ?? $decoded['error_description'] ?? $decoded['error'] ?? '')) : '';
-        throw new RuntimeException($message !== '' ? $message : 'O serviço externo recusou a solicitação.');
+        throw stridebr_integrations_http_error($status, $responseHeaders);
     }
     return ['status' => $status, 'body' => $response, 'json' => is_array($decoded) ? $decoded : null, 'headers' => $responseHeaders];
 }
@@ -580,8 +580,8 @@ function stridebr_integrations_save_token(PDO $pdo, string $userId, string $prov
     if ($scope === '') $scope = trim((string) ($provider['scope'] ?? ''));
     $stmt = $pdo->prepare(
         "INSERT INTO integracoes_usuario
-        (idintegracao, idusuario, provedor, status, usuario_externo_id, usuario_externo_nome, access_token_enc, refresh_token_enc, token_expira_em, escopos, metadados, ultima_sincronizacao_em, ultimo_erro, atualizado_em)
-        VALUES (:id, :usuario, :provedor, 'conectado', :externo, :nome, :access, :refresh, :expira, :escopos, CAST(:metadados AS jsonb), NULL, NULL, NOW())
+        (idintegracao, idusuario, provedor, status, usuario_externo_id, usuario_externo_nome, access_token_enc, refresh_token_enc, token_expira_em, escopos, metadados, sincronizar_atividades, ultima_sincronizacao_em, ultimo_erro, atualizado_em)
+        VALUES (:id, :usuario, :provedor, 'conectado', :externo, :nome, :access, :refresh, :expira, :escopos, CAST(:metadados AS jsonb), :atividades, NULL, NULL, NOW())
         ON CONFLICT (idusuario, provedor) DO UPDATE SET
             status = 'conectado', usuario_externo_id = COALESCE(EXCLUDED.usuario_externo_id, integracoes_usuario.usuario_externo_id),
             usuario_externo_nome = COALESCE(EXCLUDED.usuario_externo_nome, integracoes_usuario.usuario_externo_nome),
@@ -592,6 +592,7 @@ function stridebr_integrations_save_token(PDO $pdo, string $userId, string $prov
         RETURNING *"
     );
     $stmt->execute([
+        ':atividades' => in_array('activities_in', $provider['capabilities'] ?? [], true) ? 1 : 0,
         ':id' => stridebr_integrations_id(), ':usuario' => $userId, ':provedor' => $providerId,
         ':externo' => $externalId, ':nome' => $externalName,
         ':access' => stridebr_integrations_encrypt((string) $token['access_token']),
@@ -739,10 +740,37 @@ function stridebr_integrations_duplicate(PDO $pdo, string $userId, string $provi
 
 function stridebr_integrations_store_activity(PDO $pdo, string $userId, string $providerId, array $activity): ?string
 {
+    $ownsTransaction = !$pdo->inTransaction();
+    if ($ownsTransaction) $pdo->beginTransaction();
+    else $pdo->exec('SAVEPOINT integration_activity');
+    $stage = 'deduplication';
+    try {
+        // Works across processes/containers; identity and activity commit together.
+        $lock = $pdo->prepare('SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))');
+        $lock->execute([':key' => 'activity:' . $userId . ':' . $providerId . ':' . (string) ($activity['external_id'] ?? '')]);
+        $id = stridebr_integrations_store_activity_data($pdo, $userId, $providerId, $activity, $stage);
+        if ($ownsTransaction) $pdo->commit();
+        else $pdo->exec('RELEASE SAVEPOINT integration_activity');
+        return $id;
+    } catch (Throwable $error) {
+        if ($ownsTransaction && $pdo->inTransaction()) $pdo->rollBack();
+        elseif ($pdo->inTransaction()) {
+            $pdo->exec('ROLLBACK TO SAVEPOINT integration_activity');
+            $pdo->exec('RELEASE SAVEPOINT integration_activity');
+        }
+        throw new StridebrIntegrationError($stage, str_starts_with($stage, 'persistence.') ? 'persistence_failed' : 'activity_invalid', previous: $error);
+    }
+}
+
+function stridebr_integrations_store_activity_data(PDO $pdo, string $userId, string $providerId, array $activity, string &$stage): ?string
+{
     require_once __DIR__ . '/atividade_modelo.php';
     require_once __DIR__ . '/activity_file_exchange.php';
+    $stage = 'deduplication';
     $externalId = trim((string) ($activity['external_id'] ?? ''));
-    if ($externalId === '' || stridebr_integrations_duplicate($pdo, $userId, $providerId, $externalId)) return null;
+    if ($externalId === '') throw new StridebrIntegrationError('normalization.identity', 'activity_invalid');
+    if (stridebr_integrations_duplicate($pdo, $userId, $providerId, $externalId)) return null;
+    $stage = 'sport_mapping';
     $slug = stridebr_integrations_sport_slug($providerId, (string) ($activity['sport'] ?? ''));
     $modalidade = atividadeArquivoModalidade($pdo, $userId, $slug);
     $summary = [
@@ -755,7 +783,10 @@ function stridebr_integrations_store_activity(PDO $pdo, string $userId, string $
         'avg_power' => $activity['avg_power'] ?? null,
         'calories' => $activity['calories'] ?? null,
     ];
+    $stage = 'normalization.metrics';
     $fields = atividadeArquivoPayloadCampos($pdo, (string) $modalidade['idmodelo'], $summary);
+    $stage = 'normalization.datetime';
+    if (empty($activity['start_at'])) throw new InvalidArgumentException('Missing start time.');
     $start = new DateTimeImmutable((string) $activity['start_at']);
     $duration = is_numeric($activity['duration_s'] ?? null) ? max(0, (int) round((float) $activity['duration_s'])) : null;
     $end = $duration !== null ? $start->modify('+' . $duration . ' seconds') : null;
@@ -765,8 +796,8 @@ function stridebr_integrations_store_activity(PDO $pdo, string $userId, string $
         'idmodelo' => (string) $modalidade['idmodelo'],
         'titulo' => $title,
         'observacoes' => trim((string) ($activity['notes'] ?? '')),
-        'data_inicio' => $start->setTimezone(new DateTimeZone('America/Sao_Paulo'))->format('Y-m-d H:i:s'),
-        'data_fim' => $end ? $end->setTimezone(new DateTimeZone('America/Sao_Paulo'))->format('Y-m-d H:i:s') : '',
+        'data_inicio' => $start->setTimezone(new DateTimeZone('America/Sao_Paulo'))->format('Y-m-d H:i'),
+        'data_fim' => $end ? $end->setTimezone(new DateTimeZone('America/Sao_Paulo'))->format('Y-m-d H:i') : '',
         'status' => 'concluido',
         'visibilidade' => (string) ($defaults['visibility'] ?? 'privado'),
         'origem' => 'api',
@@ -786,12 +817,16 @@ function stridebr_integrations_store_activity(PDO $pdo, string $userId, string $
             'fonte_elevacao' => strtoupper($providerId),
         ];
     }
+    $stage = 'persistence.activity';
     $id = atividadeSalvarRegistro($pdo, $userId, $payload);
     $device = is_array($activity['device'] ?? null) ? $activity['device'] : [];
     if (is_numeric($activity['moving_time_s'] ?? null)) $device['moving_time_s'] = (float) $activity['moving_time_s'];
     if (trim((string) ($activity['timezone'] ?? '')) !== '') $device['timezone'] = trim((string) $activity['timezone']);
-    $update = $pdo->prepare('UPDATE registros_atividade SET origem_provedor = :provedor, id_externo = :externo, dispositivo_origem = CAST(:device AS jsonb), data_atualizacao = NOW() WHERE idregistro = :registro AND idusuario = :usuario');
+    $stage = 'persistence.external_identity';
+    $update = $pdo->prepare('UPDATE registros_atividade SET origem_provedor = :provedor, id_externo = :externo, dispositivo_origem = CAST(:device AS jsonb), data_inicio = :inicio, data_fim = :fim, data_atualizacao = NOW() WHERE idregistro = :registro AND idusuario = :usuario');
     $update->execute([
+        ':inicio' => $start->setTimezone(new DateTimeZone('America/Sao_Paulo'))->format('Y-m-d H:i:s'),
+        ':fim' => $end?->setTimezone(new DateTimeZone('America/Sao_Paulo'))->format('Y-m-d H:i:s'),
         ':provedor' => $providerId,
         ':externo' => $externalId,
         ':device' => json_encode($device, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
@@ -817,7 +852,7 @@ function stridebr_integrations_refresh(PDO $pdo, string $userId, string $provide
 {
     if (!stridebr_integrations_token_expiring($connection)) return $connection;
     $refresh = stridebr_integrations_decrypt((string) ($connection['refresh_token_enc'] ?? ''));
-    if (!$refresh) throw new RuntimeException('Reautorize ' . stridebr_integrations_provider($providerId)['label'] . ' para continuar sincronizando.');
+    if (!$refresh) throw new StridebrIntegrationError('token', 'reauthorize');
     $provider = stridebr_integrations_provider($providerId);
     $headers = ['Accept: application/json', 'Content-Type: application/x-www-form-urlencoded'];
     $fields = ['grant_type' => 'refresh_token', 'refresh_token' => $refresh];
@@ -851,7 +886,7 @@ function stridebr_integrations_connection_token(PDO $pdo, string $userId, string
 {
     $connection = stridebr_integrations_refresh($pdo, $userId, $providerId, $connection);
     $token = stridebr_integrations_decrypt((string) ($connection['access_token_enc'] ?? ''));
-    if (!$token) throw new RuntimeException('Reautorize ' . stridebr_integrations_provider($providerId)['label'] . ' para continuar sincronizando.');
+    if (!$token) throw new StridebrIntegrationError('token', 'reauthorize');
     return [$connection, $token];
 }
 
@@ -894,52 +929,110 @@ function stridebr_integrations_strava_rate_low(array $response): bool
     return false;
 }
 
+function stridebr_integrations_normalize_strava(array $data): array
+{
+    if (empty($data['id']) || !is_scalar($data['id']) || empty($data['start_date']) || !is_string($data['start_date'])) {
+        throw new StridebrIntegrationError('normalization.datetime', 'activity_invalid');
+    }
+    try { new DateTimeImmutable($data['start_date']); }
+    catch (Throwable $error) { throw new StridebrIntegrationError('normalization.datetime', 'activity_invalid', previous: $error); }
+    $route = [];
+    $map = is_array($data['map'] ?? null) ? $data['map'] : [];
+    $polyline = trim((string) ($map['polyline'] ?? '')) ?: trim((string) ($map['summary_polyline'] ?? ''));
+    if ($polyline !== '') {
+        $route = stridebr_integrations_polyline($polyline);
+        foreach ($route as [$lon, $lat]) {
+            if ($lat < -90 || $lat > 90 || $lon < -180 || $lon > 180) throw new StridebrIntegrationError('normalization.route', 'invalid_route');
+        }
+    }
+    $device = ['source' => 'Strava'];
+    if (is_string($data['device_name'] ?? null) && trim($data['device_name']) !== '') $device['name'] = trim($data['device_name']);
+    if (is_array($data['laps'] ?? null)) {
+        $device['laps'] = array_map(static fn(array $lap): array => array_intersect_key($lap, array_flip(['id', 'name', 'elapsed_time', 'moving_time', 'distance', 'total_elevation_gain', 'average_speed', 'average_heartrate', 'average_cadence', 'average_watts'])), array_slice(array_values(array_filter($data['laps'], 'is_array')), 0, 100));
+    }
+    $activity = [
+        'external_id' => (string) $data['id'], 'title' => trim((string) ($data['name'] ?? '')),
+        'sport' => (string) ($data['sport_type'] ?? $data['type'] ?? ''), 'start_at' => $data['start_date'],
+        'duration_s' => $data['elapsed_time'] ?? $data['moving_time'] ?? null, 'moving_time_s' => $data['moving_time'] ?? null,
+        'distance_m' => $data['distance'] ?? null, 'elevation_gain_m' => $data['total_elevation_gain'] ?? null,
+        'avg_hr' => $data['average_heartrate'] ?? null, 'max_hr' => $data['max_heartrate'] ?? null,
+        'avg_cadence' => $data['average_cadence'] ?? null, 'avg_power' => $data['average_watts'] ?? null,
+        'calories' => $data['calories'] ?? null, 'route' => $route, 'device' => $device,
+        'timezone' => is_string($data['timezone'] ?? null) ? $data['timezone'] : '',
+    ];
+    foreach (['duration_s', 'moving_time_s', 'distance_m', 'elevation_gain_m', 'avg_hr', 'max_hr', 'avg_cadence', 'avg_power', 'calories'] as $key) {
+        if ($activity[$key] !== null && (!is_numeric($activity[$key]) || !is_finite((float) $activity[$key]) || (float) $activity[$key] < 0)) {
+            throw new StridebrIntegrationError('normalization.metrics', 'invalid_metric');
+        }
+    }
+    return $activity;
+}
+
 function stridebr_integrations_sync_strava(PDO $pdo, string $userId, array $connection): array
 {
-    [$connection, $token] = stridebr_integrations_connection_token($pdo, $userId, 'strava', $connection);
-    $provider = stridebr_integrations_provider('strava');
-    $after = !empty($connection['ultima_sincronizacao_em']) ? max(0, strtotime((string) $connection['ultima_sincronizacao_em']) - 172800) : time() - 2592000;
-    $url = $provider['api_base_url'] . '/athlete/activities?' . http_build_query(['after' => $after, 'page' => 1, 'per_page' => 100], '', '&', PHP_QUERY_RFC3986);
-    $response = stridebr_integrations_http('GET', $url, ['headers' => ['Authorization: Bearer ' . $token, 'Accept: application/json']]);
-    $items = is_array($response['json']) ? $response['json'] : [];
-    $result = stridebr_integrations_result();
-    $detailBudget = stridebr_integrations_strava_rate_low($response) ? 0 : 50;
-    foreach ($items as $item) {
-        if (!is_array($item) || empty($item['id']) || empty($item['start_date'])) continue;
-        $externalId = (string) $item['id'];
-        if (stridebr_integrations_duplicate($pdo, $userId, 'strava', $externalId)) { $result['existing']++; continue; }
-        $data = $item;
-        if ($detailBudget > 0) {
-            try {
-                $detail = stridebr_integrations_http('GET', $provider['api_base_url'] . '/activities/' . rawurlencode($externalId), ['headers' => ['Authorization: Bearer ' . $token, 'Accept: application/json']]);
-                if (is_array($detail['json'])) $data = $detail['json'];
-                $detailBudget--;
-                if (stridebr_integrations_strava_rate_low($detail)) $detailBudget = 0;
-            } catch (Throwable) {
+    $stage = 'token';
+    try {
+        $initial = ($connection['_sync_trigger'] ?? '') === 'initial';
+        [$connection, $token] = stridebr_integrations_connection_token($pdo, $userId, 'strava', $connection);
+        $provider = stridebr_integrations_provider('strava');
+        $after = !empty($connection['ultima_sincronizacao_em']) ? max(0, strtotime((string) $connection['ultima_sincronizacao_em']) - 172800) : time() - 2592000;
+        $headers = ['Authorization: Bearer ' . $token, 'Accept: application/json'];
+        $result = stridebr_integrations_result();
+        $deadline = microtime(true) + ($initial ? 12 : 120);
+        $detailBudget = $initial ? 2 : 50;
+        // Bound work per invocation. A deferred run keeps its checkpoint so older pages are retried.
+        for ($page = 1; $page <= 10; $page++) {
+            $stage = 'listing';
+            $url = $provider['api_base_url'] . '/athlete/activities?' . http_build_query(['after' => $after, 'page' => $page, 'per_page' => 100], '', '&', PHP_QUERY_RFC3986);
+            $response = stridebr_integrations_http('GET', $url, ['headers' => $headers, 'timeout' => max(1, min(20, (int) ceil($deadline - microtime(true))))]);
+            if (!is_array($response['json']) || !array_is_list($response['json'])) throw new StridebrIntegrationError('listing', 'invalid_response', $response['status']);
+            $items = $response['json'];
+            if (stridebr_integrations_strava_rate_low($response)) return $result + ['deferred' => true, 'rate_limited' => true, 'retry_after' => stridebr_integrations_strava_retry($response)];
+            foreach ($items as $item) {
+                $externalId = is_array($item) && is_scalar($item['id'] ?? null) ? (string) $item['id'] : null;
+                $stage = 'deduplication';
+                try {
+                    if ($externalId === null) throw new StridebrIntegrationError('normalization.identity', 'activity_invalid');
+                    if (stridebr_integrations_duplicate($pdo, $userId, 'strava', $externalId)) { $result['existing']++; continue; }
+                    if ($detailBudget <= 0 || microtime(true) >= $deadline) return $result + ['deferred' => true, 'retry_after' => 900];
+                    $stage = 'detail';
+                    $detailBudget--;
+                    $detail = stridebr_integrations_http('GET', $provider['api_base_url'] . '/activities/' . rawurlencode($externalId), ['headers' => $headers, 'timeout' => max(1, min(20, (int) ceil($deadline - microtime(true))))]);
+                    if (!is_array($detail['json']) || (string) ($detail['json']['id'] ?? '') !== $externalId) throw new StridebrIntegrationError('detail', 'invalid_response', $detail['status']);
+                    $stage = 'normalization';
+                    $activity = stridebr_integrations_normalize_strava($detail['json']);
+                    $stage = 'persistence';
+                    $saved = stridebr_integrations_store_activity($pdo, $userId, 'strava', $activity);
+                    if ($saved !== null) $result['created']++; else $result['existing']++;
+                    if (stridebr_integrations_strava_rate_low($detail)) return $result + ['deferred' => true, 'rate_limited' => true, 'retry_after' => stridebr_integrations_strava_retry($detail)];
+                } catch (Throwable $error) {
+                    stridebr_integrations_log_failure('strava', $stage, $externalId, $error);
+                    $result['failed']++;
+                    if ($error instanceof StridebrIntegrationError) {
+                        $result['error_code'] = $error->internalCode;
+                        if ($error->internalCode === 'reauthorize') return $result + ['reauthorize' => true];
+                        if ($error->httpStatus === 429) return $result + ['deferred' => true, 'rate_limited' => true, 'retry_after' => max(900, $error->retryAfter)];
+                    }
+                }
             }
+            if (count($items) < 100) return $result;
         }
-        try {
-            $route = [];
-            $polyline = trim((string) ($data['map']['polyline'] ?? $data['map']['summary_polyline'] ?? ''));
-            if ($polyline !== '') $route = stridebr_integrations_polyline($polyline);
-            $device = ['source' => 'Strava'];
-            if (trim((string) ($data['device_name'] ?? '')) !== '') $device['name'] = trim((string) $data['device_name']);
-            if (is_array($data['laps'] ?? null)) {
-                $device['laps'] = array_map(static fn(array $lap): array => array_intersect_key($lap, array_flip(['id', 'name', 'elapsed_time', 'moving_time', 'distance', 'total_elevation_gain', 'average_speed', 'average_heartrate', 'average_cadence', 'average_watts'])), array_slice(array_values(array_filter($data['laps'], 'is_array')), 0, 100));
-            }
-            $saved = stridebr_integrations_store_activity($pdo, $userId, 'strava', [
-                'external_id' => $externalId, 'title' => trim((string) ($data['name'] ?? '')),
-                'sport' => (string) ($data['sport_type'] ?? $data['type'] ?? ''), 'start_at' => (string) ($data['start_date'] ?? $item['start_date']),
-                'duration_s' => $data['elapsed_time'] ?? $data['moving_time'] ?? null, 'moving_time_s' => $data['moving_time'] ?? null,
-                'distance_m' => $data['distance'] ?? null, 'elevation_gain_m' => $data['total_elevation_gain'] ?? null,
-                'avg_hr' => $data['average_heartrate'] ?? null, 'max_hr' => $data['max_heartrate'] ?? null,
-                'avg_cadence' => $data['average_cadence'] ?? null, 'avg_power' => $data['average_watts'] ?? null,
-                'calories' => $data['calories'] ?? null, 'route' => $route, 'device' => $device,
-            ]);
-            if ($saved !== null) $result['created']++; else $result['existing']++;
-        } catch (Throwable) { $result['failed']++; }
+        return $result + ['deferred' => true, 'retry_after' => 900];
+    } catch (Throwable $error) {
+        if ($error instanceof StridebrIntegrationError) throw new StridebrIntegrationError($stage, $error->internalCode, $error->httpStatus, $error->retryAfter, $error);
+        throw new StridebrIntegrationError($stage, 'provider_failed', previous: $error);
     }
-    return $result;
+}
+
+function stridebr_integrations_strava_retry(array $response): int
+{
+    // Daily quota resets at midnight UTC; short-window quota at the next quarter hour.
+    foreach ([['x-ratelimit-usage', 'x-ratelimit-limit'], ['x-readratelimit-usage', 'x-readratelimit-limit']] as [$usage, $limit]) {
+        $used = explode(',', stridebr_integrations_header_first($response, $usage) ?? '');
+        $caps = explode(',', stridebr_integrations_header_first($response, $limit) ?? '');
+        if ((int) ($caps[1] ?? 0) > 0 && (int) ($used[1] ?? 0) >= (int) $caps[1] - 5) return max(900, strtotime('tomorrow UTC') - time() + 60);
+    }
+    return 900;
 }
 
 function stridebr_integrations_find_coordinates(mixed $value, array &$out): void
@@ -1020,7 +1113,7 @@ function stridebr_integrations_sync_polar(PDO $pdo, string $userId, array $conne
                 'timezone' => $timezoneOffset !== null ? sprintf('%+d minutes', $timezoneOffset) : '',
             ]);
             if ($saved !== null) $result['created']++; else $result['existing']++;
-        } catch (Throwable) { $result['failed']++; }
+        } catch (Throwable $error) { stridebr_integrations_log_failure('polar', 'normalization', $externalId, $error); $result['failed']++; }
     }
     return $result;
 }
@@ -1094,7 +1187,7 @@ function stridebr_integrations_sync_google_health(PDO $pdo, string $userId, arra
                 }
                 $saved = stridebr_integrations_store_activity($pdo, $userId, 'google_health', $activity);
                 if ($saved !== null) $result['created']++; else $result['existing']++;
-            } catch (Throwable) { $result['failed']++; }
+            } catch (Throwable $error) { stridebr_integrations_log_failure('google_health', 'normalization', $externalId, $error); $result['failed']++; }
         }
         $pageToken = trim((string) ($json['nextPageToken'] ?? $json['next_page_token'] ?? ''));
         $url = $pageToken !== '' ? $provider['api_base_url'] . '/users/me/dataTypes/exercise/dataPoints?' . http_build_query(['pageSize' => 100, 'pageToken' => $pageToken], '', '&', PHP_QUERY_RFC3986) : '';
@@ -1325,7 +1418,7 @@ function stridebr_integrations_sync_coros(PDO $pdo, string $userId, array $conne
             if (!is_array($activity)) throw new RuntimeException('A atividade COROS não possui dados suficientes para importação.');
             $saved = stridebr_integrations_store_activity($pdo, $userId, 'coros', $activity);
             if ($saved !== null) $result['created']++; else $result['existing']++;
-        } catch (Throwable) { $result['failed']++; }
+        } catch (Throwable $error) { stridebr_integrations_log_failure('coros', 'normalization', $externalId, $error); $result['failed']++; }
     }
     return $result;
 }
@@ -1376,33 +1469,69 @@ function stridebr_integrations_sync_suunto(PDO $pdo, string $userId, array $conn
                 'avg_cadence' => $item['avgCadence'] ?? null, 'avg_power' => $item['avgPower'] ?? null, 'calories' => $item['energyConsumption'] ?? $item['calories'] ?? null, 'route' => [], 'device' => $device,
             ]);
             if ($saved !== null) $result['created']++; else $result['existing']++;
-        } catch (Throwable) { $result['failed']++; }
+        } catch (Throwable $error) { stridebr_integrations_log_failure('suunto', 'normalization', $externalId, $error); $result['failed']++; }
     }
     return $result;
 }
 
-function stridebr_integrations_sync_detailed(PDO $pdo, string $userId, string $providerId): array
+function stridebr_integrations_sync_detailed(PDO $pdo, string $userId, string $providerId, string $trigger = 'manual'): array
 {
-    $connection = stridebr_integrations_get($pdo, $userId, $providerId);
-    if (!$connection || !in_array((string) ($connection['status'] ?? ''), ['conectado', 'erro'], true)) throw new InvalidArgumentException('Essa conta não está conectada.');
-    if (!stridebr_db_bool($connection['sincronizar_atividades'] ?? true)) return stridebr_integrations_result();
+    $lockKey = 'integration:' . $userId . ':' . $providerId;
+    $lock = $pdo->prepare('SELECT pg_try_advisory_lock(hashtextextended(:key, 0))');
+    $lock->execute([':key' => $lockKey]);
+    if (!stridebr_db_bool($lock->fetchColumn())) return stridebr_integrations_result() + ['skipped' => 'busy'];
     try {
-        $result = match ($providerId) {
-            'strava' => stridebr_integrations_sync_strava($pdo, $userId, $connection),
-            'polar' => stridebr_integrations_sync_polar($pdo, $userId, $connection),
-            'google_health' => stridebr_integrations_sync_google_health($pdo, $userId, $connection),
-            'coros' => stridebr_integrations_sync_coros($pdo, $userId, $connection),
-            'suunto' => stridebr_integrations_sync_suunto($pdo, $userId, $connection),
-            default => throw new RuntimeException('A sincronização deste serviço ainda não está disponível.'),
-        };
-        $stmt = $pdo->prepare("UPDATE integracoes_usuario SET ultima_sincronizacao_em = NOW(), ultimo_erro = NULL, status = 'conectado', atualizado_em = NOW() WHERE idusuario = :usuario AND provedor = :provedor");
-        $stmt->execute([':usuario' => $userId, ':provedor' => $providerId]);
+        // Re-read after acquiring the lock: the other process may have refreshed/synchronized.
+        $connection = stridebr_integrations_get($pdo, $userId, $providerId);
+        if (!$connection || !stridebr_integrations_eligible($connection, $trigger)) return stridebr_integrations_result() + ['skipped' => 'not_due'];
+        $cooldown = $pdo->prepare("SELECT MAX(COALESCE((metadados->'sync'->>'rate_limit_until')::bigint, 0)) FROM integracoes_usuario WHERE provedor = :provider");
+        $cooldown->execute([':provider' => $providerId]);
+        if ((int) $cooldown->fetchColumn() > time()) return stridebr_integrations_result() + ['skipped' => 'provider_backoff'];
+        $connection['_sync_trigger'] = $trigger;
+        $started = time();
+        $state = stridebr_integrations_metadata($connection)['sync'] ?? [];
+        $state['started_at'] = $started;
+        stridebr_integrations_sync_state($pdo, $userId, $providerId, $state);
+        try {
+            $result = match ($providerId) {
+                'strava' => stridebr_integrations_sync_strava($pdo, $userId, $connection),
+                'polar' => stridebr_integrations_sync_polar($pdo, $userId, $connection),
+                'google_health' => stridebr_integrations_sync_google_health($pdo, $userId, $connection),
+                'coros' => stridebr_integrations_sync_coros($pdo, $userId, $connection),
+                'suunto' => stridebr_integrations_sync_suunto($pdo, $userId, $connection),
+                default => throw new StridebrIntegrationError('provider', 'unavailable'),
+            };
+        } catch (Throwable $error) {
+            stridebr_integrations_log_failure($providerId, 'provider', null, $error);
+            $result = stridebr_integrations_result();
+            $result['failed'] = 1;
+            $result['error_code'] = $error instanceof StridebrIntegrationError ? $error->internalCode : 'provider_failed';
+            $result['reauthorize'] = $result['error_code'] === 'reauthorize';
+            $result['rate_limited'] = $result['error_code'] === 'rate_limit';
+            $result['retry_after'] = $error instanceof StridebrIntegrationError ? $error->retryAfter : 0;
+        }
+        $failed = (int) ($result['failed'] ?? 0) > 0;
+        $deferred = !empty($result['deferred']);
+        $failures = $failed ? min(8, (int) ($state['failures'] ?? 0) + 1) : 0;
+        $delay = max((int) ($result['retry_after'] ?? 0), $failed ? min(21600, 900 * (2 ** ($failures - 1))) : 900);
+        $state = [
+            'started_at' => null, 'last_attempt_at' => $started, 'failures' => $failures,
+            'retry_at' => ($failed || $deferred) ? time() + $delay : 0,
+            'reauthorize' => !empty($result['reauthorize']),
+            'error_code' => $result['error_code'] ?? null,
+            'rate_limit_until' => !empty($result['rate_limited']) ? time() + $delay : 0,
+        ];
+        stridebr_integrations_sync_state($pdo, $userId, $providerId, $state);
+        $stmt = $pdo->prepare("UPDATE integracoes_usuario SET ultima_sincronizacao_em = CASE WHEN :completed = 1 THEN to_timestamp(:started) ELSE ultima_sincronizacao_em END, ultimo_erro = :erro, status = :status, atualizado_em = NOW() WHERE idusuario = :usuario AND provedor = :provedor");
+        $stmt->execute([
+            ':completed' => !$failed && !$deferred ? 1 : 0, ':started' => $started,
+            ':erro' => $failed ? ($state['reauthorize'] ? 'reauthorize' : 'sync_failed') : null,
+            ':status' => $failed ? 'erro' : 'conectado', ':usuario' => $userId, ':provedor' => $providerId,
+        ]);
         return $result + stridebr_integrations_result();
-    } catch (Throwable $e) {
-        $stmt = $pdo->prepare("UPDATE integracoes_usuario SET ultimo_erro = :erro, status = 'erro', atualizado_em = NOW() WHERE idusuario = :usuario AND provedor = :provedor");
-        $label = stridebr_integrations_provider($providerId)['label'];
-        $stmt->execute([':erro' => 'Não foi possível sincronizar com ' . $label . '. Reautorize a conexão se o problema persistir.', ':usuario' => $userId, ':provedor' => $providerId]);
-        throw $e;
+    } finally {
+        $unlock = $pdo->prepare('SELECT pg_advisory_unlock(hashtextextended(:key, 0))');
+        $unlock->execute([':key' => $lockKey]);
     }
 }
 

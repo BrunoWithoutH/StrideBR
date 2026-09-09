@@ -10,6 +10,8 @@ $suites = [
     'schedules' => 'test_schedule.php', 'workout sessions' => 'test_workout_session.php',
     'friends' => 'test_friends.php', 'schedule sharing' => 'test_schedule_sharing.php',
     'trainer' => 'test_trainer.php', 'permissions' => 'test_permissions.php',
+    'integration synchronization' => 'test_integration_sync.php',
+    'SEO public sitemap' => 'test_seo_database.php',
     'product polish' => 'test_product_polish.php',
 ];
 $passed = 0;

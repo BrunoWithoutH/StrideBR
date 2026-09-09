@@ -738,78 +738,7 @@ $flashes = stridebr_take_flashes();
                         </div>
                         <span class="settings-connections-badge"><?php echo stridebr_e(stridebr_t('settings.file_support')); ?></span>
                     </div>
-                    <div class="settings-connections-grid">
-                        <?php foreach ($integrationRegistry as $providerId => $provider): ?>
-                            <?php
-                            $connection = $integrationConnections[$providerId] ?? null;
-                            $connected = is_array($connection) && in_array((string) ($connection['status'] ?? ''), ['conectado', 'erro'], true);
-                            $configured = stridebr_integrations_configured($provider);
-                            $kind = (string) ($provider['kind'] ?? 'cloud');
-                            $returnTo = '/user/edit-profile.php#conexoes';
-                            $lastSync = $connected && !empty($connection['ultima_sincronizacao_em']) ? new DateTimeImmutable((string) $connection['ultima_sincronizacao_em']) : null;
-                            ?>
-                            <article class="integration-card<?php echo $connected ? ' is-connected' : ''; ?>" data-integration-provider="<?php echo stridebr_e($providerId); ?>">
-                                <div class="integration-card-main">
-                                    <span class="integration-provider-mark" aria-hidden="true"><?php echo stridebr_e(strtoupper(substr((string) $provider['short'], 0, 1))); ?></span>
-                                    <div>
-                                        <div class="integration-card-title"><h3><?php echo stridebr_e($provider['label']); ?></h3><?php if ($connected): ?><span class="integration-status<?php echo (string) ($connection['status'] ?? '') === 'erro' ? ' has-error' : ' is-connected'; ?>"><?php echo stridebr_e(stridebr_t((string) ($connection['status'] ?? '') === 'erro' ? 'settings.connection_error' : 'common.connected')); ?></span><?php elseif ($kind === 'future'): ?><span class="integration-status"><?php echo stridebr_e(stridebr_t('settings.awaiting_availability')); ?></span><?php elseif (in_array($kind, ['mobile', 'bridge'], true)): ?><span class="integration-status"><?php echo stridebr_e(stridebr_t('settings.requires_mobile_app')); ?></span><?php elseif ($configured): ?><span class="integration-status"><?php echo stridebr_e(stridebr_t('settings.available')); ?></span><?php else: ?><span class="integration-status"><?php echo stridebr_e(stridebr_t('settings.unavailable')); ?></span><?php endif; ?></div>
-                                        <p><?php echo stridebr_e($provider['description']); ?></p>
-                                        <?php if ($connected): ?>
-                                            <small><?php echo $lastSync ? stridebr_e(stridebr_t('settings.last_sync', ['date' => stridebr_format_datetime_short($lastSync)])) : stridebr_e(stridebr_t('settings.awaiting_first_sync')); ?></small>
-                                            <?php if (trim((string) ($connection['ultimo_erro'] ?? '')) !== ''): ?><small class="integration-error-text"><?php echo stridebr_e((string) $connection['ultimo_erro']); ?></small><?php endif; ?>
-                                        <?php elseif ($kind === 'future'): ?>
-                                            <small><?php echo stridebr_e(stridebr_t('settings.awaiting_availability')); ?></small>
-                                        <?php elseif ($kind === 'mobile'): ?>
-                                            <small><?php echo stridebr_e(stridebr_t($providerId === 'health_connect' ? 'settings.android_activation' : 'settings.ios_activation')); ?></small>
-                                        <?php elseif ($kind === 'bridge'): ?>
-                                            <small><?php echo stridebr_e(stridebr_t('settings.health_connect_help')); ?></small>
-                                        <?php elseif (!$configured): ?>
-                                            <small><?php echo stridebr_e(stridebr_t('settings.provider_pending')); ?></small>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                                <div class="integration-card-actions">
-                                    <?php if ($connected): ?>
-                                        <?php if (isset($integrationSyncReady[$providerId])): ?>
-                                            <form method="POST" action="/function/integration-action.php">
-                                                <?php echo stridebr_csrf_field(); ?><input type="hidden" name="provider" value="<?php echo stridebr_e($providerId); ?>"><input type="hidden" name="action" value="sync"><input type="hidden" name="return" value="<?php echo stridebr_e($returnTo); ?>">
-                                                <button type="submit" class="secondary-button"><?php echo stridebr_e(stridebr_t('settings.sync_now')); ?></button>
-                                            </form>
-                                        <?php endif; ?>
-                                        <?php if ((string) ($connection['status'] ?? '') === 'erro' && $configured): ?>
-                                            <a class="secondary-button" href="/auth/integration.php?provider=<?php echo rawurlencode($providerId); ?>&amp;reauthorize=1&amp;return=<?php echo rawurlencode($returnTo); ?>"><?php echo stridebr_e(stridebr_t('settings.reauthorize')); ?></a>
-                                        <?php endif; ?>
-                                        <details class="integration-preferences">
-                                            <summary><?php echo stridebr_e(stridebr_t('settings.preferences')); ?></summary>
-                                            <form method="POST" action="/function/integration-action.php" class="integration-preferences-form">
-                                                <?php echo stridebr_csrf_field(); ?><input type="hidden" name="provider" value="<?php echo stridebr_e($providerId); ?>"><input type="hidden" name="action" value="preferences"><input type="hidden" name="return" value="<?php echo stridebr_e($returnTo); ?>">
-                                                <label><input type="checkbox" name="sync_activities" value="1"<?php echo stridebr_db_bool($connection['sincronizar_atividades'] ?? true) ? ' checked' : ''; ?>> <?php echo stridebr_e(stridebr_t('settings.sync_activities')); ?></label>
-                                                <?php if (in_array('workouts_out', $provider['capabilities'] ?? [], true)): ?><label><input type="checkbox" name="sync_workouts" value="1"<?php echo stridebr_db_bool($connection['sincronizar_treinos'] ?? false) ? ' checked' : ''; ?>> <?php echo stridebr_e(stridebr_t('settings.send_workouts')); ?></label><?php endif; ?>
-                                                <?php if (!empty($provider['profile_link'])): ?><label><input type="checkbox" name="show_profile" value="1"<?php echo stridebr_db_bool($connection['mostrar_perfil'] ?? false) ? ' checked' : ''; ?>> <?php echo stridebr_e(stridebr_t('settings.show_connection')); ?></label><label><?php echo stridebr_e(stridebr_t('settings.public_profile_link')); ?><input type="url" name="profile_url" maxlength="500" placeholder="https://..." value="<?php echo stridebr_e((string) ($connection['perfil_publico_url'] ?? '')); ?>"></label><?php endif; ?>
-                                                <button type="submit" class="secondary-button"><?php echo stridebr_e(stridebr_t('settings.save_preferences')); ?></button>
-                                            </form>
-                                        </details>
-                                        <form method="POST" action="/function/integration-action.php">
-                                            <?php echo stridebr_csrf_field(); ?><input type="hidden" name="provider" value="<?php echo stridebr_e($providerId); ?>"><input type="hidden" name="action" value="disconnect"><input type="hidden" name="return" value="<?php echo stridebr_e($returnTo); ?>">
-                                            <button type="submit" class="text-button danger"><?php echo stridebr_e(stridebr_t('settings.disconnect')); ?></button>
-                                        </form>
-                                    <?php elseif ($kind === 'cloud' && $configured): ?>
-                                        <a class="primary-button" href="/auth/integration.php?provider=<?php echo rawurlencode($providerId); ?>&amp;return=<?php echo rawurlencode($returnTo); ?>"><?php echo stridebr_e(stridebr_t('settings.connect')); ?></a>
-                                    <?php elseif ($kind === 'cloud'): ?>
-                                        <span class="integration-disabled-action"><?php echo stridebr_e(stridebr_t('settings.unavailable')); ?></span>
-                                    <?php elseif ($kind === 'future'): ?>
-                                        <span class="integration-disabled-action"><?php echo stridebr_e(stridebr_t('settings.awaiting_availability')); ?></span>
-                                    <?php elseif ($providerId === 'health_connect'): ?>
-                                        <span class="integration-disabled-action"><?php echo stridebr_e(stridebr_t('settings.requires_android')); ?></span>
-                                    <?php elseif ($providerId === 'apple_health'): ?>
-                                        <span class="integration-disabled-action"><?php echo stridebr_e(stridebr_t('settings.requires_ios')); ?></span>
-                                    <?php else: ?>
-                                        <span class="integration-disabled-action"><?php echo stridebr_e(stridebr_t('settings.via_health_connect')); ?></span>
-                                    <?php endif; ?>
-                                </div>
-                            </article>
-                        <?php endforeach; ?>
-                    </div>
+                    <?php require dirname(__DIR__, 2) . '/src/layout/integration_cards.php'; ?>
                 </section>
             <?php endif; ?>
         </div>

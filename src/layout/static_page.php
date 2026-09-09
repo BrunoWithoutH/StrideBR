@@ -10,7 +10,6 @@ $pageTitle = isset($pageTitle) ? (string) $pageTitle : 'StrideBR';
 $pageDescription = isset($pageDescription) ? (string) $pageDescription : '';
 $pageHtml = isset($pageHtml) ? (string) $pageHtml : '';
 $currentPath = (string) (parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH) ?: '/');
-$canonical = stridebr_public_url() . $currentPath;
 $metaDescription = $pageDescription !== '' ? $pageDescription : 'StrideBR: planeje treinos, registre atividades e acompanhe sua evolução.';
 ?>
 <!DOCTYPE html>
@@ -19,20 +18,10 @@ $metaDescription = $pageDescription !== '' ? $pageDescription : 'StrideBR: plane
     <?php if (function_exists('stridebr_ui_boot_script')) echo stridebr_ui_boot_script(); ?>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="description" content="<?php echo stridebr_e($metaDescription); ?>">
-    <meta name="theme-color" content="#40507c">
-    <meta property="og:type" content="website">
-    <meta property="og:site_name" content="StrideBR">
-    <meta property="og:title" content="<?php echo stridebr_e($pageTitle); ?> | StrideBR">
-    <meta property="og:description" content="<?php echo stridebr_e($metaDescription); ?>">
-    <meta property="og:image" content="<?php echo stridebr_e(stridebr_social_image_url()); ?>">
-    <meta property="og:url" content="<?php echo stridebr_e($canonical); ?>">
-    <meta name="twitter:card" content="summary_large_image">
-    <link rel="canonical" href="<?php echo stridebr_e($canonical); ?>">
+    <?php echo stridebr_seo_head(['title' => $currentPath === '/pages/help/faq.php' ? 'Perguntas frequentes — StrideBR' : $pageTitle, 'description' => $metaDescription, 'path' => $currentPath, 'locale' => 'pt-BR']); ?>
     <link rel="icon" type="image/png" href="<?php echo stridebr_e(stridebr_asset('/assets/img/favicon/favicon.png')); ?>">
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/style.css')); ?>">
 
-    <title><?php echo stridebr_e($pageTitle); ?> | StrideBR</title>
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>">
 </head>
 <body>
