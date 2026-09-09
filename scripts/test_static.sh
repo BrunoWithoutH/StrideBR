@@ -109,3 +109,4 @@ php scripts/tests/test_templates.php
 
 php scripts/tests/test_planning_week.php
 php scripts/tests/test_i18n_coverage.php
+php scripts/tests/test_transactional_email_i18n.php
