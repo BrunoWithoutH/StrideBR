@@ -76,7 +76,8 @@ def check_desktop_calendar_scroll(page):
     page.set_content(f'<!doctype html><html data-theme="dark"><head>{HEAD}<style>{CSS}</style></head><body class="schedule-body">{MONTH}</body></html>')
     page.locator('.schedule-month-calendar').evaluate("el => {for(let i=0;i<21;i++){const d=document.createElement('article');d.className='monthly-day';d.innerHTML='<div class=\"schedule-month-day-heading\"><strong>'+(29+i)+'</strong></div>';el.appendChild(d)}}")
     month = page.locator('.schedule-month-calendar-wrap').evaluate('el => ({clientHeight:el.clientHeight, scrollHeight:el.scrollHeight, oy:getComputedStyle(el).overflowY})')
-    assert month['oy'] == 'auto' and month['scrollHeight'] > month['clientHeight'], f'desktop month should scroll internally only when content exceeds bounded area: {month}'
+    assert month['oy'] == 'visible', f'desktop month must not own a vertical scrollbar: {month}'
+    assert page.evaluate('document.documentElement.scrollHeight > window.innerHeight'), 'desktop month overflow must remain reachable through document scroll'
     count += 1
     return count
 
