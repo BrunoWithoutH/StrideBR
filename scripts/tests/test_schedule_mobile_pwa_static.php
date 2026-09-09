@@ -17,7 +17,7 @@ $checks = [
     'mobile weekly calendar has no vertical auto scroll' => str_contains($cronCss, 'overflow-x:auto; overflow-y:hidden;') && !str_contains($cronCss, 'height:62dvh; min-height:340px; max-height:640px; overflow:auto;'),
     'mobile weekly calendar preserves horizontal overscroll containment only' => str_contains($cronCss, 'overscroll-behavior-x:contain; overscroll-behavior-y:auto;'),
     'mobile week does not programmatically create vertical scroll position' => str_contains($cronJs, 'if (!isMobileWeek()) {') && str_contains($cronJs, 'calendar.scrollTop = targetHour * calendarHourHeight;'),
-    'desktop weekly calendar keeps bounded internal vertical scroll' => str_contains($cronCss, 'height: clamp(470px, 67dvh, 740px);') && str_contains($cronCss, 'overflow-y: auto;'),
+    'desktop weekly calendar uses natural document flow instead of internal vertical scroll' => !str_contains($cronCss, 'height: clamp(470px, 67dvh, 740px);') && str_contains($cronCss, '.calendar-view[data-calendar-view="week"] {') && str_contains($cronCss, 'height: auto;') && str_contains($cronCss, 'overflow: visible;'),
     'desktop month can use bounded internal scroll' => str_contains($cronCss, '.schedule-month-calendar-wrap {') && str_contains($cronCss, 'max-height: clamp(500px, 68dvh, 760px);'),
     'mobile month returns to natural page height' => str_contains($cronCss, '.schedule-month-calendar-wrap { height:auto; min-height:0; max-height:none; }') && str_contains($cronCss, 'overflow-x:auto; overflow-y:visible;'),
     'schedule month cells are compact' => str_contains($uiCss, '.schedule-month-calendar .monthly-day {') && str_contains($uiCss, 'min-height: 94px !important;'),

@@ -1062,12 +1062,12 @@ html.schedule-actions-open {
     --hour-height: 48px;
     --day-min-width: 160px;
     --calendar-min-width: 1184px;
-    height: clamp(470px, 67dvh, 760px);
-    overflow: auto;
-    overscroll-behavior: contain;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    overscroll-behavior: auto;
     -webkit-overflow-scrolling: touch;
-    touch-action: pan-x pan-y;
-    scrollbar-gutter: stable;
+    scrollbar-gutter: auto;
 }
 
 .week-calendar {
@@ -1177,7 +1177,6 @@ html.schedule-actions-open {
     .schedule-toolbar .secondary-button,
     .schedule-toolbar .view-button { padding-block: 7px; font-size: .8rem; }
     .schedule-select-label > span { display: none; }
-    .calendar-view { height: clamp(410px, 64dvh, 610px); }
 }
 
 @media (max-width: 900px) {
@@ -2551,12 +2550,11 @@ html.calendar-quick-open{overflow:hidden}
 
     .calendar-view[data-calendar-view="week"] {
         --hour-height: 42px;
-        height: clamp(470px, 67dvh, 740px);
-        overflow-x: hidden;
-        overflow-y: auto;
-        overscroll-behavior-x: none;
-        overscroll-behavior-y: contain;
-        scrollbar-gutter: stable;
+        height: auto !important;
+        max-height: none;
+        overflow: visible;
+        overscroll-behavior: auto;
+        scrollbar-gutter: auto;
     }
 
     .calendar-view[data-calendar-view="week"] .week-calendar {
@@ -2582,7 +2580,40 @@ html.calendar-quick-open{overflow:hidden}
     }
 }
 
-@media (max-width: 760px) {
+@media (min-width: 721px) and (max-width: 760px) {
+    .calendar-view[data-calendar-view="week"] {
+        --hour-height: 42px;
+        height: auto !important;
+        max-height: none;
+        overflow: visible;
+        overscroll-behavior: auto;
+        scrollbar-gutter: auto;
+    }
+
+    .calendar-view[data-calendar-view="week"] .week-calendar {
+        width: 100%;
+        min-width: 0;
+        grid-template-columns: 54px repeat(7, minmax(0, 1fr));
+    }
+
+    .calendar-view[data-calendar-view="week"] .calendar-corner,
+    .calendar-view[data-calendar-view="week"] .day-header {
+        height: 42px;
+    }
+
+    .calendar-view[data-calendar-view="week"] .time-track span {
+        right: 6px;
+        font-size: .66rem;
+    }
+
+    .calendar-view[data-calendar-view="week"] .workout-card {
+        left: 4px;
+        right: 4px;
+        padding: 5px 6px;
+    }
+}
+
+@media (max-width: 720px) {
     .calendar-view[data-calendar-view="week"] {
         --hour-height: 38px;
         height: auto;
@@ -2714,7 +2745,7 @@ html.calendar-quick-open .floating-utility-dock{display:none!important}
 }
 .trainer-permissions>.trainer-permission-help{grid-column:1/-1;margin:0 0 6px;color:var(--ui-muted);font-size:.78rem;line-height:1.45}
 
-@media(max-width:760px) {
+@media(max-width:720px) {
     .schedule-toolbar {
         position:relative; top:auto; display:grid; grid-template-columns:minmax(0,1fr) auto;
         gap:8px!important; overflow:visible; align-items:center;

@@ -1064,7 +1064,7 @@ document.addEventListener('DOMContentLoaded', () => window.StrideBRSportPickerIn
     let scrollY = 0;
     const sync = () => {
         const visible = [...document.querySelectorAll('[aria-modal="true"], dialog[open]')]
-            .some(dialog => dialog.getClientRects().length > 0 && getComputedStyle(dialog).visibility !== 'hidden');
+            .some(dialog => dialog.getClientRects().length > 0 && getComputedStyle(dialog).visibility !== 'hidden' && !dialog.closest('details:not([open])'));
         if (visible === locked) return;
         locked = visible;
         if (locked) {
