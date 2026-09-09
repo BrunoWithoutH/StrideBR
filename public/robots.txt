@@ -1,0 +1,25 @@
+User-agent: *
+Allow: /
+Disallow: /user/
+Disallow: /u/
+Disallow: /admin/
+Disallow: /api/
+Disallow: /auth/
+Disallow: /function/
+Disallow: /errors/
+Disallow: /home.php
+Disallow: /login
+Disallow: /signup
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /verify-email
+Disallow: /resend-verification
+Disallow: /accept-legal
+Disallow: /settings
+Disallow: /account
+Disallow: /feedback.php
+Disallow: /health.php
+Disallow: /ready.php
+Disallow: /calendario.php?salvos
+
+Sitemap: https://stridebr.com.br/sitemap.xml

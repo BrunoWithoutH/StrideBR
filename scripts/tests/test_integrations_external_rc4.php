@@ -128,7 +128,7 @@ try {
     stridebr_integrations_http('GET', 'https://provider.test/resource');
     $assert(false, 'erro HTTP externo não propagado');
 } catch (RuntimeException $e) {
-    $assert(str_contains($e->getMessage(), 'invalid_token'), 'erro HTTP precisa ser compreensível');
+    $assert($e instanceof StridebrIntegrationError && $e->httpStatus === 401 && $e->internalCode === 'reauthorize' && !str_contains($e->getMessage(), 'invalid_token'), 'erro HTTP precisa preservar categoria/status sem mensagem bruta');
 }
 unset($GLOBALS['stridebr_integrations_http_mock']);
 

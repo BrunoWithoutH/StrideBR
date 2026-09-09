@@ -40,17 +40,16 @@ $images = (array) ($event['imagens'] ?? []);
 $mainImage = $images[0]['caminho'] ?? '/assets/img/branding/stridebr-og.png';
 $locationParts = array_filter([(string) ($event['local_nome'] ?? ''), (string) ($event['cidade'] ?? ''), (string) ($event['estado'] ?? '')], static fn(string $v): bool => trim($v) !== '');
 $location = implode(' · ', $locationParts);
-$descriptionMeta = trim(preg_replace('/\s+/u', ' ', (string) ($event['descricao'] ?? '')) ?? '');
-if ($descriptionMeta === '') $descriptionMeta = 'Detalhes, data e fontes do evento esportivo no StrideBR.';
-if (function_exists('mb_substr')) $descriptionMeta = mb_substr($descriptionMeta, 0, 160, 'UTF-8'); else $descriptionMeta = substr($descriptionMeta, 0, 160);
-$eventCanonical = stridebr_public_url() . '/evento.php?e=' . rawurlencode((string) $event['slug']);
+$descriptionMeta = stridebr_seo_text((string) ($event['descricao'] ?? '')) ?: 'Detalhes, data e fontes do evento esportivo no StrideBR.';
+$eventCanonical = stridebr_seo_canonical('/evento.php', (string) $event['slug']);
 $eventImageUrls = [];
 foreach ($images as $image) {
     $path = trim((string) ($image['caminho'] ?? ''));
     if ($path === '') continue;
-    $eventImageUrls[] = str_starts_with($path, 'http') ? $path : stridebr_public_url() . $path;
+    $eventImageUrls[] = stridebr_seo_image($path)['url'];
 }
-if ($eventImageUrls === []) $eventImageUrls[] = stridebr_public_url() . '/assets/img/branding/stridebr-og.png';
+$eventImageUrls = array_values(array_unique($eventImageUrls));
+if ($eventImageUrls === []) $eventImageUrls[] = stridebr_seo_image((string) $mainImage)['url'];
 $structuredEvent = [
     '@context' => 'https://schema.org',
     '@type' => 'SportsEvent',
@@ -87,20 +86,11 @@ $flashes = stridebr_take_flashes();
     <?php if (function_exists('stridebr_ui_boot_script')) echo stridebr_ui_boot_script(); ?>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="description" content="<?php echo stridebr_e($descriptionMeta); ?>">
-    <meta property="og:type" content="article">
-    <meta property="og:title" content="<?php echo stridebr_e((string) $event['titulo']); ?> | StrideBR">
-    <meta property="og:description" content="<?php echo stridebr_e($descriptionMeta); ?>">
-    <meta property="og:image" content="<?php echo stridebr_e(str_starts_with((string) $mainImage, 'http') ? (string) $mainImage : stridebr_public_url() . (string) $mainImage); ?>">
-    <meta property="og:url" content="<?php echo stridebr_e($eventCanonical); ?>">
-    <meta name="twitter:card" content="summary_large_image">
-    <link rel="canonical" href="<?php echo stridebr_e($eventCanonical); ?>">
-    <script type="application/ld+json"><?php echo json_encode($structuredEvent, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?></script>
+    <?php echo stridebr_seo_head(['title' => (string) $event['titulo'] . ' — StrideBR', 'description' => $descriptionMeta, 'path' => '/evento.php', 'event_slug' => (string) $event['slug'], 'image' => (string) $mainImage, 'image_alt' => (string) ($images[0]['texto_alternativo'] ?? $event['titulo']), 'locale' => stridebr_locale(), 'type' => 'article', 'structured' => $structuredEvent]); ?>
     <link rel="icon" type="image/png" href="<?php echo stridebr_e(stridebr_asset('/assets/img/favicon/favicon.png')); ?>">
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/style.css')); ?>">
 
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/events.css')); ?>">
-    <title><?php echo stridebr_e((string) $event['titulo']); ?> | StrideBR</title>
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>">
 </head>
 <body>

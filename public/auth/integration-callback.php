@@ -19,7 +19,7 @@ if ($state !== '') unset($_SESSION['StrideBRIntegrationOAuth'][$state]);
 $returnTo = stridebr_safe_redirect(is_array($pending) ? (string) ($pending['return'] ?? '') : '', '/user/edit-profile.php#conexoes');
 
 if ($oauthError !== '') {
-    stridebr_flash('info', 'A conexão foi cancelada.');
+    stridebr_flash('info', stridebr_t('integrations.connection_cancelled'));
     header('Location: ' . $returnTo);
     exit;
 }
@@ -28,7 +28,7 @@ if (!is_array($pending)
     || !hash_equals((string) ($pending['provider'] ?? ''), $provider)
     || (int) ($pending['created_at'] ?? 0) < time() - 900
     || $code === '') {
-    stridebr_flash('danger', 'A tentativa de conexão expirou ou não pôde ser validada.');
+    stridebr_flash('danger', stridebr_t('integrations.connection_expired'));
     header('Location: ' . $returnTo);
     exit;
 }
@@ -37,19 +37,22 @@ try {
     $token = stridebr_integrations_exchange($provider, $code, $pending);
     $connection = stridebr_integrations_save_token($pdo, $idUsuario, $provider, $token);
     $providerConfig = stridebr_integrations_provider($provider);
-    stridebr_flash('success', $providerConfig['label'] . ' conectado ao StrideBR.');
+    // OAuth reauthorization releases auth/backoff state, preserving the user's preferences.
+    stridebr_integrations_sync_state($pdo, $idUsuario, $provider, []);
+    stridebr_flash('success', stridebr_t('integrations.connected', ['provider' => $providerConfig['label']]));
+    if (in_array($provider, stridebr_integrations_periodic_providers(), true) && stridebr_db_bool($connection['sincronizar_atividades'] ?? true)) {
+        stridebr_flash('info', stridebr_t('integrations.automatic_help'));
+    }
     try {
-        $sync = stridebr_integrations_sync_detailed($pdo, $idUsuario, $provider);
-        $imported = (int) ($sync['created'] ?? 0);
-        $existing = (int) ($sync['existing'] ?? 0);
-        $failed = (int) ($sync['failed'] ?? 0);
-        if ($imported > 0 || $existing > 0 || $failed > 0) stridebr_flash($failed > 0 ? 'info' : 'success', $imported . ' novas · ' . $existing . ' já existentes · ' . $failed . ' falharam.');
+        $sync = stridebr_integrations_initial_sync($pdo, $idUsuario, $provider);
+        if (empty($sync['skipped'])) stridebr_flash(...stridebr_integrations_feedback($sync, $providerConfig['label']));
     } catch (Throwable $syncError) {
-        error_log('StrideBR initial integration sync failed for ' . $provider . ' [' . get_class($syncError) . ']');
+        stridebr_integrations_log_failure($provider, 'initial_sync', null, $syncError);
+        stridebr_flash('info', stridebr_t('integrations.try_later'));
     }
 } catch (Throwable $e) {
-    error_log('StrideBR integration callback failed for user ' . $idUsuario . ' / ' . $provider . ' [' . get_class($e) . ']');
-    stridebr_flash('danger', 'Não foi possível concluir a conexão agora.');
+    stridebr_integrations_log_failure($provider, 'oauth', null, $e);
+    stridebr_flash('danger', stridebr_t('integrations.connection_failed'));
 }
 
 header('Location: ' . $returnTo);

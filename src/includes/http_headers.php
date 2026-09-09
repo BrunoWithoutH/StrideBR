@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 require_once __DIR__ . '/environment.php';
+require_once __DIR__ . '/seo.php';
 
 function stridebr_content_security_policy(bool $embedded = false): string
 {
@@ -26,6 +27,6 @@ function stridebr_send_security_headers(): void
     header('X-Content-Type-Options: nosniff');
     header('Referrer-Policy: strict-origin-when-cross-origin');
     header('Permissions-Policy: camera=(), microphone=(), geolocation=(self)');
-    if (stridebr_robots_noindex() || preg_match('#^/(user/|admin/|api/|function/|auth/|home\.php|login\.php|signup\.php|verify-email\.php|forgot-password\.php|reset-password\.php)#', $path)) header('X-Robots-Tag: noindex, nofollow, noarchive');
+    if (stridebr_robots_noindex() || !stridebr_seo_public_path($path) || ($path === '/calendario.php' && isset($_GET['salvos']))) header('X-Robots-Tag: noindex, nofollow, noarchive');
     // TLS redirects and HSTS are owned by Infra; no header on local HTTP.
 }

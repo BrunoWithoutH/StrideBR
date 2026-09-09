@@ -12,6 +12,7 @@ fi
 find public src scripts -type f -name '*.php' -not -path '*/vendor/*' -print0 \
   | xargs -0 -n1 php -l >/dev/null
 printf '%s\n' '✓ PHP syntax'
+php scripts/tests/test_seo.php
 php scripts/tests/test_workout_load.php
 php scripts/tests/test_deploy_configuration.php
 sh -eu -c '. ./.env.example; test "$POLAR_OAUTH_SCOPE" = "training_sessions:read activity:read profile:read"; test "$COROS_MCP_URL" = "https://mcp.coros.com/mcp"; test -z "${GOOGLE_HEALTH_CLIENT_ID:-}"; test -z "${GOOGLE_HEALTH_CLIENT_SECRET:-}"; test -z "${FITBIT_CLIENT_ID:-}"'

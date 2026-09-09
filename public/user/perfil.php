@@ -112,7 +112,7 @@ foreach ($profileHighlights as $highlight) {
     if (isset($highlightValues[$type])) $renderedHighlights[] = $highlightValues[$type];
 }
 if ($renderedHighlights === []) $renderedHighlights = [$highlightValues['activities'], $highlightValues['distance'], $highlightValues['duration']];
-$profileCanonical = stridebr_public_url() . '/u/' . rawurlencode((string) $profile['username']);
+$profileCanonical = stridebr_seo_origin() . '/u/' . rawurlencode((string) $profile['username']);
 $profileMetaDescription = $canView && trim((string) ($profile['biousuario'] ?? '')) !== ''
     ? trim(preg_replace('/\s+/u', ' ', (string) $profile['biousuario']) ?? '')
     : $displayName . ' no StrideBR — atividades, esportes e cronogramas compartilhados.';

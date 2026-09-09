@@ -145,3 +145,68 @@ COROS não é incluído no polling periódico; use “Sincronizar agora” na in
 ## Banco
 
 A migration `20260908_integrations_providers.sql` somente amplia o CHECK de `integracoes_usuario.provedor` para aceitar `google_health` e `coros`. Não adiciona tabela ou coluna e mantém `fitbit` aceito para registros históricos.
+
+## Sincronização automática — operação no Dokploy
+
+Configure **um agendamento a cada 15 minutos** (`*/15 * * * *`) no serviço `app`,
+com as mesmas variáveis de ambiente e acesso ao PostgreSQL da aplicação:
+
+```sh
+sh /var/www/html/scripts/sync_integrations.sh --limit=100
+```
+
+Se Infra executar o agendamento no host, a forma equivalente, no diretório do
+Compose de produção já configurado, é:
+
+```sh
+docker compose -f compose.dokploy.yaml exec -T app sh /var/www/html/scripts/sync_integrations.sh --limit=100
+```
+
+O shell e o runner existentes foram preservados. Não é necessário criar outro
+serviço de sincronização. Este documento não instala cron nem realiza deploy.
+
+- Strava, Polar, Google Health e Suunto configurado: entrada de atividades ON em
+  novas conexões, sincronização inicial no retorno OAuth e execução periódica.
+  Preferências OFF existentes são preservadas; o botão manual continua disponível.
+- COROS: sincronização manual, fora do runner periódico, inclusive quando se passa
+  `--provider=coros`. O comportamento existente de importação após conexão permanece.
+- Apenas conexões habilitadas, conectadas ou com erro recuperável e prazo vencido
+  são selecionadas. A última sincronização completa deve ter pelo menos 15 minutos.
+- Tokens só são renovados quando a conexão elegível vai sincronizar e o token vence
+  em até 120 segundos. Não há renovação em massa nem polling pelo navegador.
+- PostgreSQL mantém uma trava por usuário/provedor entre processos e containers.
+  A gravação da atividade e de sua identidade externa é atômica, com trava também
+  por atividade e preservação do índice único já existente.
+- Falhas recebem backoff de 15, 30, 60 minutos etc., limitado a 6 horas.
+  `Retry-After` pode ampliar a espera. HTTP 401 exige reautorização.
+  Rate limits conhecidos são compartilhados entre conexões do mesmo provedor;
+  no Strava, o limite diário aguarda a próxima meia-noite UTC.
+- Strava solicita listagem paginada e detalhes; usa polyline e laps do detalhe.
+  Não acrescenta consultas de streams por atividade nesta rodada. Sem GPS, uma
+  atividade pode ser importada sem rota. Falha no detalhe não vira importação
+  silenciosa de um resumo incompleto.
+- A importação inicial Strava limita detalhes a duas atividades e a janela HTTP
+  a aproximadamente 12 segundos; o restante continua pelo runner. Execuções
+  posteriores têm orçamento de 50 detalhes, até 10 páginas e janela HTTP de
+  aproximadamente 120 segundos. O checkpoint só avança após conclusão sem falhas
+  nem adiamentos. Limites de banco/refresh e tempo de persistência são adicionais.
+- O runner termina com código 1 se houver falhas, inclusive parciais, e código 2
+  para configuração/filtro inválido. Monitore saída e logs PHP; não salve tokens
+  nem respostas de API para diagnosticar.
+
+O diagnóstico usa `provider`, `stage`, `external_activity_id`, `http_status`,
+`exception_type`, `error_code` e, em falhas PostgreSQL, `sqlstate`. Não registra
+mensagem bruta da exceção, payload, cabeçalho Authorization ou credenciais.
+
+### Evolução para webhook do Strava
+
+A persistência e normalização são reutilizáveis, separadas do gatilho periódico.
+Um futuro consumidor de webhook deve reutilizar as mesmas travas, deduplicação e
+backoff, com validação da assinatura/assinatura de eventos conforme o contrato
+oficial, validação de assinatura de subscription quando aplicável e tratamento
+explícito de criação/alteração/exclusão e revogação. Nenhum endpoint ou subscription
+incompleto foi criado. Antes dessa etapa, confirmar as regras atuais de verificação
+e entrega na [documentação oficial de webhooks](https://developers.strava.com/docs/webhooks/).
+
+Referências: [API de atividades](https://developers.strava.com/docs/reference/),
+[limites de requisição](https://developers.strava.com/docs/rate-limits/).
