@@ -3505,6 +3505,7 @@ input[type="file"]::file-selector-button:hover { background: var(--ui-surface-ho
 
 :root[data-theme="dark"] :is(.secondary-button,.view-button,.dashboard-button-secondary,.icon-button,.icon-only-button,.monthly-nav-button,
 .schedule-actions-header .icon-button,.exchange-back,.exchange-export-actions a,.exchange-bulk-actions button,.exchange-card-close){background:var(--ui-panel-soft)!important;color:var(--ui-text)!important;border-color:var(--ui-border)!important}
+:root[data-theme="dark"] .view-switch .view-button.is-active{background:var(--ui-accent-soft)!important;color:var(--ui-text-strong)!important;border-color:var(--ui-border)!important;box-shadow:inset 0 -2px 0 var(--ui-accent)}
 :root[data-theme="dark"] :is(.secondary-button,.view-button,.dashboard-button-secondary,.icon-button,.icon-only-button,.exchange-back,.exchange-export-actions a):hover{background:var(--ui-surface-hover)!important;color:var(--ui-text-strong)!important;border-color:var(--ui-border-strong)!important}
 
 :root[data-theme="dark"] :is(.activity-row-select span,.check-label span){background:var(--ui-panel-soft)!important;border-color:var(--ui-border)!important}

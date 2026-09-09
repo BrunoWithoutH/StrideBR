@@ -21,10 +21,11 @@ try {
         stridebr_integrations_disconnect($pdo, $idUsuario, $provider);
         stridebr_flash('success', $providerConfig['label'] . ' desconectado.');
     } elseif ($action === 'sync') {
-        $count = stridebr_integrations_sync($pdo, $idUsuario, $provider);
-        stridebr_flash('success', $count > 0
-            ? $count . ' atividade' . ($count === 1 ? '' : 's') . ' nova' . ($count === 1 ? '' : 's') . ' sincronizada' . ($count === 1 ? '' : 's') . '.'
-            : 'Sincronização concluída. Nenhuma atividade nova.');
+        $sync = stridebr_integrations_sync_detailed($pdo, $idUsuario, $provider);
+        $count = (int) ($sync['created'] ?? 0);
+        $existing = (int) ($sync['existing'] ?? 0);
+        $failed = (int) ($sync['failed'] ?? 0);
+        stridebr_flash($failed > 0 ? 'info' : 'success', $count . ' novas · ' . $existing . ' já existentes · ' . $failed . ' falharam.');
     } elseif ($action === 'preferences') {
         stridebr_integrations_update_preferences($pdo, $idUsuario, $provider, [
             'sync_activities' => isset($_POST['sync_activities']),
@@ -39,7 +40,7 @@ try {
 } catch (InvalidArgumentException $e) {
     stridebr_flash('danger', $e->getMessage());
 } catch (Throwable $e) {
-    error_log('StrideBR integration action failed for user ' . $idUsuario . ' / ' . $provider . ': ' . $e->getMessage());
+    error_log('StrideBR integration action failed for user ' . $idUsuario . ' / ' . $provider . ' [' . get_class($e) . ']');
     stridebr_flash('danger', 'Não foi possível atualizar essa conexão agora.');
 }
 

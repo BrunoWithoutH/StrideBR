@@ -57,7 +57,7 @@ $assert(str_contains($adsJs, "data-ad-status") && str_contains($adsJs, "unfilled
 $assert(!str_contains($adsJs, 'stridebr.ads.consent') && !str_contains($adsLayout, 'ad-consent'), 'consentimento local antigo precisa estar desacoplado do runtime.');
 $assert(str_contains($csp, 'pagead2.googlesyndication.com') && str_contains($csp, 'frame-src') && str_contains($csp, 'doubleclick.net'), 'CSP precisa estar preparada para o provider futuro.');
 $assert(str_contains($read('public/index.php'), 'stridebr_ui_boot_script()') && !str_contains($read('public/index.php'), 'stridebr_adsense_verification_meta()') && str_contains($read('src/includes/i18n.php'), 'return stridebr_adsense_verification_meta()'), 'landing pública precisa suportar meta de verificação sem ligar ads.');
-$assert(str_contains($read('public/ads.txt.example'), 'pub-XXXXXXXXXXXXXXXX'), 'ads.txt deve continuar apenas como exemplo sem publisher real.');
+$assert($read('public/ads.txt') === "google.com, pub-3948145279411749, DIRECT, f08c47fec0942fa0\n", 'public/ads.txt precisa conter exatamente a autorização do publisher.');
 $assert(str_contains($docs, 'crawler login') && str_contains($docs, 'CMP') && str_contains($docs, 'php scripts/ads_status.php'), 'documentação precisa cobrir ativação futura completa.');
 
 $allAdVars = [

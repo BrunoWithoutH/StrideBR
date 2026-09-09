@@ -1,121 +1,147 @@
-# Configuração de conexões do StrideBR
+# Configuração de integrações do StrideBR
 
-O StrideBR carrega variáveis da raiz do projeto em `.env`. Variáveis definidas diretamente no servidor têm prioridade e não são sobrescritas pelo arquivo.
+O StrideBR lê variáveis do ambiente do processo e, como fallback local, do `.env`. Valores já definidos pelo servidor têm prioridade. Nunca versione `.env` nem copie secrets reais para `.env.example`.
 
-## Preparação
-
-Na raiz do projeto:
-
-```bash
-./scripts/setup_env.sh
-nano .env
-php scripts/integrations_status.php
-```
-
-O script cria `.env` a partir de `.env.example`, gera `STRIDEBR_INTEGRATIONS_SECRET` quando ainda não existe e tenta aplicar permissão `600`.
-
-Nunca versione `.env`. Não altere `STRIDEBR_INTEGRATIONS_SECRET` depois que houver conexões gravadas no banco. Todos os processos/servidores que acessam a mesma tabela `integracoes_usuario` devem usar o mesmo segredo.
-
-Em produção configure também:
+## Base
 
 ```dotenv
 STRIDEBR_APP_ENV=production
-STRIDEBR_APP_URL=https://seu-dominio
+STRIDEBR_APP_URL=https://stridebr.com.br
+STRIDEBR_INTEGRATIONS_SECRET=
 ```
 
-Os callbacks são sempre:
-
-```text
-https://seu-dominio/auth/integration-callback.php?provider=strava
-https://seu-dominio/auth/integration-callback.php?provider=polar
-https://seu-dominio/auth/integration-callback.php?provider=fitbit
-https://seu-dominio/auth/integration-callback.php?provider=suunto
-https://seu-dominio/auth/integration-callback.php?provider=garmin
-```
+`STRIDEBR_INTEGRATIONS_SECRET` deve ser longo, permanente e igual em todos os processos que acessam `integracoes_usuario`.
 
 ## Strava
-
-Crie um aplicativo no painel de API do Strava. Configure o domínio de callback com o domínio público do StrideBR e copie Client ID e Client Secret:
 
 ```dotenv
 STRAVA_CLIENT_ID=
 STRAVA_CLIENT_SECRET=
 ```
 
-O StrideBR solicita `read,activity:read_all`.
+Callback:
 
-## Polar Flow / AccessLink
+```text
+https://stridebr.com.br/auth/integration-callback.php?provider=strava
+```
 
-Crie um client em `https://admin.polaraccesslink.com/`, adicione o callback exato e copie Client ID/Secret:
+Scopes solicitados: `read,activity:read_all`.
+
+## Polar AccessLink API v4
 
 ```dotenv
 POLAR_CLIENT_ID=
 POLAR_CLIENT_SECRET=
-POLAR_OAUTH_SCOPE=accesslink.read_all
+POLAR_OAUTH_AUTHORIZE_URL=https://auth.polar.com/oauth/authorize
+POLAR_OAUTH_TOKEN_URL=https://auth.polar.com/oauth/token
+POLAR_OAUTH_SCOPE="training_sessions:read activity:read profile:read"
 ```
 
-O StrideBR registra o usuário no AccessLink após o OAuth e importa exercícios disponíveis pela API v3.
+Callback:
 
-## Fitbit
+```text
+https://stridebr.com.br/auth/integration-callback.php?provider=polar
+```
 
-Crie/gerencie um aplicativo em `https://dev.fitbit.com/`, use aplicação web/server e registre o callback exato. Configure:
+Não configure os endpoints antigos `flow.polar.com/oauth2/authorization`, `polarremote.com/v2/oauth2/token` nem `accesslink.read_all`.
+
+## Google Health
 
 ```dotenv
-FITBIT_CLIENT_ID=
-FITBIT_CLIENT_SECRET=
-FITBIT_OAUTH_SCOPE=activity profile heartrate location
+GOOGLE_HEALTH_CLIENT_ID=
+GOOGLE_HEALTH_CLIENT_SECRET=
+GOOGLE_HEALTH_OAUTH_AUTHORIZE_URL=https://accounts.google.com/o/oauth2/v2/auth
+GOOGLE_HEALTH_OAUTH_TOKEN_URL=https://oauth2.googleapis.com/token
+GOOGLE_HEALTH_OAUTH_SCOPE="https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly https://www.googleapis.com/auth/googlehealth.location.readonly https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly"
 ```
 
-A sincronização atual usa a lista de atividades e tenta obter TCX quando disponível.
+Callback:
+
+```text
+https://stridebr.com.br/auth/integration-callback.php?provider=google_health
+```
+
+Essa conexão substitui o Fitbit Web legado. Não configure `FITBIT_CLIENT_ID`, `FITBIT_CLIENT_SECRET` ou `FITBIT_OAUTH_*` para novas conexões.
+
+Google Sign-In é outra aplicação/fluxo e continua usando `/auth/google-callback.php`.
+
+Em OAuth Testing Mode, esteja preparado para refresh tokens de curta duração. Para produção pública, conclua no Google Cloud/Health Console as verificações e revisões exigidas para os scopes solicitados.
+
+## COROS MCP
+
+```dotenv
+COROS_MCP_URL=https://mcp.coros.com/mcp
+```
+
+Callback:
+
+```text
+https://stridebr.com.br/auth/integration-callback.php?provider=coros
+```
+
+Não defina `COROS_CLIENT_ID` ou `COROS_CLIENT_SECRET`. O client OAuth é descoberto/estabelecido pelo protocolo MCP atual, com Protected Resource Metadata path-aware, PKCE S256 e negociação `2026-07-28`; existe fallback controlado para compatibilidade com servidor MCP legado.
+
+O endpoint público de metadata do client é:
+
+```text
+https://stridebr.com.br/auth/mcp-client-metadata.php
+```
 
 ## Suunto
-
-A Suunto Cloud API exige acesso ao Partner Program/API Zone. Depois da aprovação, assine a Developer API, configure o OAuth no perfil, registre o callback e copie Client ID, Client Secret e a subscription key:
 
 ```dotenv
 SUUNTO_CLIENT_ID=
 SUUNTO_CLIENT_SECRET=
-SUUNTO_SUBSCRIPTION_KEY=
 SUUNTO_OAUTH_AUTHORIZE_URL=https://cloudapi-oauth.suunto.com/oauth/authorize
 SUUNTO_OAUTH_TOKEN_URL=https://cloudapi-oauth.suunto.com/oauth/token
 SUUNTO_OAUTH_SCOPE=workout
+SUUNTO_OAUTH_TOKEN_AUTH=basic
 SUUNTO_API_BASE_URL=https://cloudapi.suunto.com
+SUUNTO_SUBSCRIPTION_KEY=
 ```
 
-## Garmin Connect
+Callback:
 
-Solicite acesso ao Garmin Connect Developer Program. O código deixa o provedor desativado até receber as credenciais e os endpoints oficiais liberados para o projeto:
-
-```dotenv
-GARMIN_OAUTH_CLIENT_ID=
-GARMIN_OAUTH_CLIENT_SECRET=
-GARMIN_OAUTH_AUTHORIZE_URL=
-GARMIN_OAUTH_TOKEN_URL=
-GARMIN_OAUTH_SCOPE=
+```text
+https://stridebr.com.br/auth/integration-callback.php?provider=suunto
 ```
 
-Activity API, Training API e Courses API dependem da aprovação/configuração do projeto no portal Garmin.
+Sem `SUUNTO_SUBSCRIPTION_KEY`, o provider permanece indisponível.
 
-## Health Connect, Samsung Health e Apple Health
+## Garmin
 
-Não são conexões OAuth do site e não podem ser lidas diretamente por navegador/PWA. Health Connect é uma API/SDK Android; Apple Health é acessado via HealthKit com capability/entitlement nativo. A integração automática direta exige um app ou bridge nativo mínimo. Sem isso, o StrideBR pode receber dados indiretamente por integrações cloud compatíveis ou por importação manual, mas não acessar esses repositórios locais diretamente.
+A entrada da Garmin continua intencionalmente bloqueada no Web. Não preencha endpoints não confirmados. Quando o acesso oficial for liberado, o projeto poderá integrar Activity API, Training API e Courses API sobre a infraestrutura existente.
 
-## Sincronização periódica
+## HALO e integrações mobile
 
-Depois que houver contas conectadas:
+HALO não possui conexão direta habilitada. Health Connect, Samsung Health e Apple Health permanecem dependentes do futuro app mobile; nenhuma delas deve iniciar OAuth pelo Web.
+
+## Sincronização
+
+Status de configuração sem revelar secrets:
+
+```bash
+php scripts/integrations_status.php
+```
+
+Sincronização dos providers permitidos no runner:
 
 ```bash
 ./scripts/sync_integrations.sh
 ```
 
-Em VPS pode ser executado por cron, por exemplo a cada 10 minutos:
-
-```cron
-*/10 * * * * cd /caminho/stridebr && ./scripts/sync_integrations.sh >> /var/log/stridebr-integrations.log 2>&1
-```
-
-Antes de ativar em produção, rode:
+Filtros disponíveis:
 
 ```bash
-php scripts/integrations_status.php
+./scripts/sync_integrations.sh --provider=strava
+./scripts/sync_integrations.sh --provider=polar
+./scripts/sync_integrations.sh --provider=google_health
+./scripts/sync_integrations.sh --user=ID_DO_USUARIO
+./scripts/sync_integrations.sh --limit=100
 ```
+
+COROS não é incluído no polling periódico; use “Sincronizar agora” na interface.
+
+## Banco
+
+A migration `20260908_integrations_providers.sql` somente amplia o CHECK de `integracoes_usuario.provedor` para aceitar `google_health` e `coros`. Não adiciona tabela ou coluna e mantém `fitbit` aceito para registros históricos.

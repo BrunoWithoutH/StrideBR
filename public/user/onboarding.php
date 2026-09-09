@@ -247,7 +247,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="onboarding-step-heading"><span><?php echo stridebr_e(stridebr_t('onboarding.optional')); ?></span><h2><?php echo stridebr_e(stridebr_t('onboarding.connect_title')); ?></h2></div>
                 <p class="onboarding-connections-intro"><?php echo stridebr_e(stridebr_t('onboarding.connect_intro')); ?></p>
                 <div class="onboarding-connections-grid">
-                    <?php foreach (['garmin', 'strava', 'polar', 'health_connect', 'apple_health'] as $providerId): ?>
+                    <?php foreach (['garmin', 'strava', 'polar', 'google_health', 'coros', 'health_connect', 'apple_health'] as $providerId): ?>
                         <?php
                         $provider = $integrationRegistry[$providerId];
                         $connection = $integrationConnections[$providerId] ?? null;

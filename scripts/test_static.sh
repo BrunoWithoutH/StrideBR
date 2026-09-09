@@ -14,7 +14,7 @@ find public src scripts -type f -name '*.php' -not -path '*/vendor/*' -print0 \
 printf '%s\n' '✓ PHP syntax'
 php scripts/tests/test_workout_load.php
 php scripts/tests/test_deploy_configuration.php
-sh -eu -c '. ./.env.example; test "$FITBIT_OAUTH_SCOPE" = "activity profile heartrate location"'
+sh -eu -c '. ./.env.example; test "$POLAR_OAUTH_SCOPE" = "training_sessions:read activity:read profile:read"; test "$COROS_MCP_URL" = "https://mcp.coros.com/mcp"; test -z "${GOOGLE_HEALTH_CLIENT_ID:-}"; test -z "${GOOGLE_HEALTH_CLIENT_SECRET:-}"; test -z "${FITBIT_CLIENT_ID:-}"'
 printf '%s\n' '✓ canonical env is shell-compatible'
 
 if command -v node >/dev/null 2>&1; then
@@ -89,6 +89,7 @@ STRIDEBR_FAKE_LEGACY=1 php scripts/tests/test_activity_manual_save_fake.php
 php scripts/tests/test_i18n_theme_google_static.php
 php scripts/tests/test_production_theme_migrations_static.php
 php scripts/tests/test_integrations_foundation_static.php
+php scripts/tests/test_integrations_external_rc4.php
 php scripts/tests/test_ads_placements_static.php
 php scripts/tests/test_sport_hub_monetization_static.php
 php scripts/tests/test_sport_taxonomy_energy_static.php
@@ -99,6 +100,7 @@ php scripts/tests/test_radius_system_static.php
 php scripts/tests/test_design_system_static.php
 php scripts/tests/test_dark_contrast_static.php
 php scripts/tests/test_visual_consistency_static.php
+php scripts/tests/test_schedule_hierarchy_static.php
 php scripts/tests/test_admin_feedback_static.php
 php scripts/tests/test_ui_consolidation_static.php
 php scripts/tests/test_templates.php

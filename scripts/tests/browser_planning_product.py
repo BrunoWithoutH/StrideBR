@@ -36,9 +36,14 @@ with sync_playwright() as p:
             assert page.locator('main').count()
             assert 'Fatal error' not in page.locator('body').inner_text()
             assert page.locator('html').get_attribute('lang')==locale
-    page.goto(BASE+'/user/cronogramatreinos.php?planning_week=-1&lang=en')
-    summary=page.locator('.planning-week')
-    assert '3 planned' in summary.inner_text() and '3 not completed' in summary.inner_text() and '3 other activities' in summary.inner_text()
+    page.goto(BASE+'/user/cronogramatreinos.php?planning_week=-1&view=week&lang=en')
+    assert page.locator('.planning-week').count()==0
+    assert page.locator('[data-view-context=week]').is_visible()
+    assert page.locator('[data-week-context-summary]').is_visible()
+    assert page.locator('[data-week-summary]').count()==1
+    assert page.locator('[data-calendar-view=week]').is_visible()
+    assert page.locator('[aria-label=\"Previous week\"]').count()==1
+    assert page.locator('[aria-label=\"Next week\"]').count()==1
     page.screenshot(path=str(OUT/'schedule-previous-week.png'),full_page=True)
     for locale in ['pt-BR','en']:
         for route,label in [('cronogramatreinos.php','schedule'),('agenda-mensal.php','agenda'),('treinador.php','athlete')]:
