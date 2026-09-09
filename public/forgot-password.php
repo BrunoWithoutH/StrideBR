@@ -8,40 +8,43 @@ require_once dirname(__DIR__) . '/src/config/pg_config.php';
 require_once dirname(__DIR__) . '/src/includes/auth.php';
 
 $enabled = stridebr_auth_password_reset_enabled($pdo);
-$sentMessage = false;
 $errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     stridebr_verify_csrf();
     if (!$enabled) {
-        $errors[] = 'A recuperação por e-mail está indisponível no momento.';
+        $errors[] = stridebr_t('auth.reset_unavailable');
     } else {
         $email = stridebr_lower(trim((string) ($_POST['email'] ?? '')));
         $ip = stridebr_client_ip() ?? '';
         $emailValid = filter_var($email, FILTER_VALIDATE_EMAIL) !== false && stridebr_length($email) <= 255;
         $blocked = ($ip !== '' && stridebr_auth_limit_is_blocked($pdo, 'forgot-ip', $ip))
             || ($emailValid && stridebr_auth_limit_is_blocked($pdo, 'forgot-email', $email));
+        $userId = '';
 
         if (!$blocked) {
-            if ($ip !== '') {
-                stridebr_auth_limit_record_attempt($pdo, 'forgot-ip', $ip, 10, 1800, 1800);
-            }
+            if ($ip !== '') stridebr_auth_limit_record_attempt($pdo, 'forgot-ip', $ip, 10, 1800, 1800);
             if ($emailValid) {
                 stridebr_auth_limit_record_attempt($pdo, 'forgot-email', $email, 3, 1800, 1800);
                 $stmt = $pdo->prepare("SELECT idusuario, emailusuario, COALESCE(NULLIF(nome_exibicao,''), nomeusuario) AS nome_exibicao FROM usuarios WHERE lower(emailusuario) = lower(:email) AND statususuario = 'Ativo' LIMIT 1");
                 $stmt->execute([':email' => $email]);
                 $user = $stmt->fetch();
                 if ($user) {
+                    $userId = (string) $user['idusuario'];
                     try {
-                        stridebr_send_password_reset_email($pdo, $user['idusuario'], $user['emailusuario'], $user['nome_exibicao']);
+                        stridebr_send_password_reset_email($pdo, $userId, (string) $user['emailusuario'], (string) $user['nome_exibicao']);
                     } catch (Throwable $e) {
-                        error_log('StrideBR password reset mail failed: ' . $e->getMessage());
+                        error_log('StrideBR password reset mail failed: ' . get_class($e));
                     }
                 }
             }
             stridebr_auth_limit_cleanup($pdo);
         }
-        $sentMessage = true;
+
+        stridebr_auth_clear_password_reset_session();
+        stridebr_auth_set_pending_password_reset($email, $userId);
+        header('Location: /reset-password.php');
+        exit;
     }
 }
 ?>
@@ -54,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="icon" type="image/png" href="<?php echo stridebr_e(stridebr_asset('/assets/img/favicon/favicon.png')); ?>">
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/style.css')); ?>">
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/loginsignup.css')); ?>">
-    <title>Recuperar senha | StrideBR</title>
+    <title><?php echo stridebr_e(stridebr_t('auth.forgot_title')); ?> | StrideBR</title>
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>">
 </head>
 <body class="onboarding-body signup-onboarding-body auth-unified-body">
@@ -62,23 +65,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <a class="onboarding-brand" href="/"><img src="<?php echo stridebr_e(stridebr_asset('/assets/img/logos/stridebr-logo.svg')); ?>" alt="StrideBR" width="110" height="43"></a>
         <main class="onboarding-card auth-unified-card">
             <div class="auth-unified-heading">
-                <h1>Recuperar senha</h1>
-                <p id="recovery-guidance">Informe seu e-mail para receber um link de redefinição de senha.</p>
+                <h1><?php echo stridebr_e(stridebr_t('auth.forgot_title')); ?></h1>
+                <p id="recovery-guidance"><?php echo stridebr_e(stridebr_t('auth.forgot_guidance_code')); ?></p>
             </div>
             <?php foreach ($errors as $error): ?><div class="alert alert-danger" role="alert"><?php echo stridebr_e($error); ?></div><?php endforeach; ?>
-            <?php if ($sentMessage): ?><div class="alert alert-success" role="status">Se o e-mail estiver em uma conta ativa, enviaremos um link de redefinição.</div><?php endif; ?>
             <?php if (!$enabled): ?>
-                <div class="alert alert-info">A recuperação de senha está indisponível no momento.</div>
+                <div class="alert alert-info"><?php echo stridebr_e(stridebr_t('auth.reset_unavailable')); ?></div>
             <?php else: ?>
                 <form method="POST" class="auth-modern-form">
                     <?php echo stridebr_csrf_field(); ?>
-                    <label class="auth-modern-field">E-mail
+                    <label class="auth-modern-field"><?php echo stridebr_e(stridebr_t('auth.email')); ?>
                         <input type="email" name="email" aria-describedby="recovery-guidance" autocomplete="email" maxlength="255" required>
                     </label>
-                    <button class="auth-modern-submit" type="submit">Enviar link</button>
+                    <button class="auth-modern-submit" type="submit"><?php echo stridebr_e(stridebr_t('auth.send_code')); ?></button>
                 </form>
             <?php endif; ?>
-            <div class="auth-modern-footer"><a href="/login.php">Voltar para entrar</a></div>
+            <div class="auth-modern-footer"><a href="/login.php"><?php echo stridebr_e(stridebr_t('auth.back_to_login')); ?></a></div>
         </main>
     </div>
 </body>

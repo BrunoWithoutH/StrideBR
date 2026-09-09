@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/exercise_resolver.php';
+
 require_once __DIR__ . '/atividade_modelo.php';
 
 function atividadeForcaNumeroDecimal(mixed $value, float $min, float $max, int $decimals = 3): ?float
@@ -76,28 +78,22 @@ function atividadeForcaNormalizarEntrada(array $source): array
 
 function atividadeForcaResolverExercicios(PDO $pdo, string $idUsuario, array $exercises): array
 {
-    $ids = [];
-    foreach ($exercises as $exercise) {
-        $id = trim((string) ($exercise['idexercicio'] ?? ''));
-        if ($id !== '') $ids[$id] = true;
-    }
-    if ($ids === []) return $exercises;
-    $params = [':usuario' => $idUsuario];
-    $marks = [];
-    foreach (array_keys($ids) as $index => $id) {
-        $key = ':exercicio_' . $index;
-        $marks[] = $key;
-        $params[$key] = $id;
-    }
-    $stmt = $pdo->prepare('SELECT idexercicio, nome FROM exercicios WHERE ativo = TRUE AND (idusuario IS NULL OR idusuario = :usuario) AND idexercicio IN (' . implode(',', $marks) . ')');
-    $stmt->execute($params);
-    $allowed = [];
-    foreach ($stmt->fetchAll() as $row) $allowed[(string) $row['idexercicio']] = (string) $row['nome'];
+    $catalog = stridebr_exercise_catalog_for_user($pdo, $idUsuario);
+    $catalogById = [];
+    foreach ($catalog as $item) $catalogById[(string) ($item['idexercicio'] ?? '')] = $item;
     foreach ($exercises as &$exercise) {
         $id = trim((string) ($exercise['idexercicio'] ?? ''));
-        if ($id === '') continue;
-        if (!isset($allowed[$id])) throw new InvalidArgumentException('Um dos exercícios selecionados não está disponível.');
-        $exercise['nome'] = $allowed[$id];
+        $originalName = trim((string) ($exercise['nome'] ?? ''));
+        if ($id !== '') {
+            if (!isset($catalogById[$id])) throw new InvalidArgumentException('Um dos exercícios selecionados não está disponível.');
+            if ($originalName === '') $exercise['nome'] = (string) $catalogById[$id]['nome'];
+            continue;
+        }
+        if ($originalName === '') continue;
+        $resolution = stridebr_exercise_resolve_catalog($catalog, ['nome' => $originalName]);
+        if (($resolution['status'] ?? '') === 'matched' && is_array($resolution['match'] ?? null)) {
+            $exercise['idexercicio'] = (string) $resolution['match']['idexercicio'];
+        }
     }
     unset($exercise);
     return $exercises;

@@ -196,22 +196,24 @@ function atividadeCardMetricas(array $detalhes, int $limite = 4): array
     );
     $strength = in_array(stridebr_lower((string) ($detalhes['modalidade_slug'] ?? '')), ['musculacao', 'calistenia', 'crossfit'], true);
     if ($strength) {
-        $hasCodeValue = false;
-        $hasFocusValue = false;
-        foreach ($detalhes['record_values'] ?? [] as $idCampo => $valor) {
-            if ($valor === null || trim((string) $valor) === '') continue;
-            $slug = stridebr_lower((string) ($camposPorId[(string) $idCampo]['slug'] ?? ''));
-            if ($slug === 'codigo_treino') $hasCodeValue = true;
-            if ($slug === 'foco_muscular') $hasFocusValue = true;
+        $exerciseCount = max(0, (int) ($detalhes['strength_summary']['exercises'] ?? 0));
+        $setCount = max(0, (int) ($detalhes['strength_summary']['sets'] ?? 0));
+        if ($exerciseCount > 0) {
+            $candidatos[] = [
+                'rotulo' => stridebr_t('activity.strength.exercises'),
+                'valor' => stridebr_format_number($exerciseCount, 0),
+                'prioridade' => 4,
+                'ordem' => 0,
+            ];
         }
-        $codigo = trim((string) ($detalhes['treino_codigo'] ?? ''));
-        $foco = trim((string) ($detalhes['treino_foco'] ?? ''));
-        if (($codigo === '' || $foco === '') && preg_match('/^(?:academia|treino)\s+([A-Z0-9]+)\s*[-–—]\s*(.+)$/iu', trim((string) ($detalhes['titulo'] ?? '')), $partes)) {
-            if ($codigo === '') $codigo = trim((string) ($partes[1] ?? ''));
-            if ($foco === '') $foco = trim((string) ($partes[2] ?? ''));
+        if ($setCount > 0) {
+            $candidatos[] = [
+                'rotulo' => stridebr_t('activity.strength.sets'),
+                'valor' => stridebr_format_number($setCount, 0),
+                'prioridade' => 5,
+                'ordem' => 0,
+            ];
         }
-        if (!$hasCodeValue && $codigo !== '') $candidatos[] = ['rotulo' => stridebr_t('activity.code'), 'valor' => $codigo, 'prioridade' => -20, 'ordem' => 0];
-        if (!$hasFocusValue && $foco !== '') $candidatos[] = ['rotulo' => stridebr_t('activity.focus'), 'valor' => $foco, 'prioridade' => -19, 'ordem' => 0];
     }
     $adicionar = static function (string $idCampo, mixed $valor) use (&$candidatos, $camposPorId, $strength, $sportContext): void {
         $campo = $camposPorId[$idCampo] ?? null;
@@ -220,11 +222,10 @@ function atividadeCardMetricas(array $detalhes, int $limite = 4): array
         if ($texto === '') return;
         $chave = stridebr_lower(trim((string) (($campo['slug'] ?? '') . ' ' . ($campo['rotulo'] ?? ''))));
         foreach (['intensidade', 'feeling', 'sensacao', 'sensação', 'esforco', 'esforço', 'observa', 'nota'] as $ocultar) if (str_contains($chave, $ocultar)) return;
+        if ($strength && (str_contains($chave, 'codigo_treino') || str_contains($chave, 'foco_muscular') || str_contains($chave, 'foco muscular'))) return;
         $prioridade = 50;
-        if ($strength && str_contains($chave, 'codigo_treino')) $prioridade = -18;
-        elseif ($strength && (str_contains($chave, 'foco_muscular') || str_contains($chave, 'foco muscular'))) $prioridade = -17;
         $grupos = [0 => ['distancia', 'distância'], 1 => ['duracao', 'duração', 'tempo'], 2 => ['ritmo', 'pace', 'velocidade'], 3 => ['elevacao', 'elevação', 'desnivel', 'desnível'], 4 => ['series', 'séries', 'sets'], 5 => ['repeticoes', 'repetições', 'reps'], 6 => ['carga', 'peso']];
-        if ($prioridade >= 0) foreach ($grupos as $rank => $termos) foreach ($termos as $termo) if (str_contains($chave, $termo)) { $prioridade = $rank; break 2; }
+        foreach ($grupos as $rank => $termos) foreach ($termos as $termo) if (str_contains($chave, $termo)) { $prioridade = $rank; break 2; }
         $candidatos[] = ['rotulo' => stridebr_activity_field_label((string) ($campo['slug'] ?? ''), (string) ($campo['rotulo'] ?? '')), 'valor' => $texto, 'prioridade' => $prioridade, 'ordem' => (int) ($campo['ordem'] ?? 999)];
     };
     foreach ($detalhes['record_values'] ?? [] as $idCampo => $valor) $adicionar((string) $idCampo, $valor);
@@ -305,6 +306,34 @@ function atividadeHistoricoMetricaKind(string $label): string
     return 'metric';
 }
 
+function atividadeHistoricoStrengthPreviewHtml(array $item): string
+{
+    $strength = is_array($item['strength'] ?? null) ? $item['strength'] : [];
+    $facts = [];
+    foreach ((array) ($item['metricas'] ?? []) as $metric) {
+        $label = (string) ($metric['rotulo'] ?? '');
+        $value = trim((string) ($metric['valor'] ?? ''));
+        if ($value === '' || atividadeHistoricoMetricaKind($label) !== 'duration') continue;
+        $facts[] = $value;
+        break;
+    }
+    $exerciseCount = max(0, (int) ($strength['exercises'] ?? 0));
+    $setCount = max(0, (int) ($strength['sets'] ?? 0));
+    if ($exerciseCount > 0) $facts[] = stridebr_tn('activity.history.exercise_count.one', 'activity.history.exercise_count.other', $exerciseCount, ['count' => $exerciseCount]);
+    if ($setCount > 0) $facts[] = stridebr_tn('activity.history.set_count.one', 'activity.history.set_count.other', $setCount, ['count' => $setCount]);
+    $code = trim((string) ($strength['code'] ?? ''));
+    $focus = trim((string) ($strength['focus'] ?? ''));
+    if ($code === '' && $focus === '' && $facts === []) return '';
+    $html = '<div class="activity-row-strength-preview">';
+    $html .= '<div class="activity-row-strength-facts">';
+    if ($code !== '') $html .= '<span class="activity-row-strength-code">' . stridebr_e($code) . '</span>';
+    if ($facts !== []) $html .= '<span>' . stridebr_e(implode(' · ', $facts)) . '</span>';
+    $html .= '</div>';
+    if ($focus !== '') $html .= '<span class="activity-row-strength-focus" title="' . stridebr_e($focus) . '">' . stridebr_e($focus) . '</span>';
+    $html .= '</div>';
+    return $html;
+}
+
 function atividadeHistoricoLinhaHtml(array $item): string
 {
     $id = (string) ($item['id'] ?? '');
@@ -320,6 +349,7 @@ function atividadeHistoricoLinhaHtml(array $item): string
         $metrics .= '<span data-metric-kind="' . stridebr_e(atividadeHistoricoMetricaKind($label)) . '"><small>' . stridebr_e($label) . '</small><strong>' . stridebr_e($value) . '</strong></span>';
     }
     if ($metrics !== '') $metrics = '<div class="activity-row-metrics">' . $metrics . '</div>';
+    if ($strengthClass !== '') $metrics = atividadeHistoricoStrengthPreviewHtml($item);
     $icon = (string) ($item['icone_html'] ?? '');
 
     return '<article class="activity-list-row' . $strengthClass . '" data-history-row data-activity-id="' . stridebr_e($id) . '" data-activity-title="' . stridebr_e($title) . '" data-activity-sport="' . stridebr_e($sportSlug) . '">' .
@@ -472,12 +502,29 @@ function atividadeListarRegistrosPagina(PDO $pdo, string $idUsuario, int $limite
         $detail['treino_codigo'] = $row['treino_codigo'] ?? '';
         $detail['treino_foco'] = $row['treino_foco'] ?? '';
         $date = new DateTimeImmutable((string) $row['data_inicio']);
+        $strengthData = null;
+        if (in_array((string) ($row['modalidade_slug'] ?? ''), ['musculacao', 'calistenia', 'crossfit'], true)) {
+            $code = trim((string) ($row['treino_codigo'] ?? ''));
+            $focus = trim((string) ($row['treino_foco'] ?? ''));
+            if (($code === '' || $focus === '') && preg_match('/^(?:academia|treino)\s+([A-Z0-9]+)\s*[-–—]\s*(.+)$/iu', trim((string) ($row['titulo'] ?? '')), $parts)) {
+                if ($code === '') $code = trim((string) ($parts[1] ?? ''));
+                if ($focus === '') $focus = trim((string) ($parts[2] ?? ''));
+            }
+            $strengthData = [
+                'code' => $code,
+                'focus' => $focus,
+                'exercises' => max(0, (int) ($detail['strength_summary']['exercises'] ?? 0)),
+                'sets' => max(0, (int) ($detail['strength_summary']['sets'] ?? 0)),
+            ];
+        }
         $items[] = [
             'id' => (string) $row['idregistro'], 'titulo' => (string) ($row['titulo'] ?: $row['modalidade_nome']),
             'modalidade' => (string) $row['modalidade_nome'], 'modalidade_slug' => (string) $row['modalidade_slug'],
             'icone_html' => function_exists('stridebr_sport_icon_html') ? stridebr_sport_icon_html((string) $row['modalidade_slug']) : '',
             'data_iso' => $date->format(DATE_ATOM), 'data' => stridebr_format_date($date), 'dia' => $date->format('d'), 'mes' => atividadeMesAbreviado($date), 'hora' => $date->format('H:i'),
-            'metricas' => atividadeCardMetricas($detail), 'esforco' => $row['esforco_percebido'] !== null ? (int) $row['esforco_percebido'] : null,
+            'metricas' => atividadeCardMetricas($detail),
+            'strength' => $strengthData,
+            'esforco' => $row['esforco_percebido'] !== null ? (int) $row['esforco_percebido'] : null,
         ];
     }
     $last = end($rows);
@@ -567,6 +614,24 @@ function atividadeCarregarRegistrosResumo(PDO $pdo, array $registros): array
             ];
         }
         $unitsByRecord[$rid][$unitId]['values'][$fieldId] = $resolvedValue;
+    }
+
+    if (stridebr_db_table_exists($pdo, 'series_exercicio_atividade')) {
+        $strengthStmt = $pdo->prepare(
+            "SELECT idregistro, COUNT(DISTINCT ordem_exercicio) AS exercises, COUNT(*) AS sets
+             FROM series_exercicio_atividade
+             WHERE idregistro IN ({$placeholders})
+             GROUP BY idregistro"
+        );
+        $strengthStmt->execute($ids);
+        foreach ($strengthStmt->fetchAll() as $strengthRow) {
+            $rid = (string) ($strengthRow['idregistro'] ?? '');
+            if (!isset($result[$rid])) continue;
+            $result[$rid]['strength_summary'] = [
+                'exercises' => max(0, (int) ($strengthRow['exercises'] ?? 0)),
+                'sets' => max(0, (int) ($strengthRow['sets'] ?? 0)),
+            ];
+        }
     }
 
     foreach ($result as $rid => &$detail) {

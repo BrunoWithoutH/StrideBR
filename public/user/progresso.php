@@ -235,7 +235,7 @@ $flashes = stridebr_take_flashes();
             </section>
 
             <section class="progress-section" aria-labelledby="progress-consistency-title">
-                <header><div><span class="progress-section-question"><?php echo stridebr_e(stridebr_t('progress.question_consistency')); ?></span><h2 id="progress-consistency-title"><?php echo stridebr_e(stridebr_t('progress.consistency')); ?></h2><p><?php echo stridebr_e(stridebr_t('progress.consistency_help_product', ['days' => (string) $currentSummary['active_days']])); ?></p></div></header>
+                <header><div><h2 id="progress-consistency-title"><?php echo stridebr_e(stridebr_t('progress.consistency')); ?></h2><p><?php echo stridebr_e(stridebr_tn('progress.active_days_count.one', 'progress.active_days_count.other', (int) $currentSummary['active_days'], ['count' => (int) $currentSummary['active_days']])); ?></p></div></header>
                 <div class="progress-consistency-wrap" tabindex="0" aria-label="<?php echo stridebr_e(stridebr_t('progress.consistency_aria')); ?>">
                     <div class="progress-consistency-grid" style="--progress-days:<?php echo count($consistencyDays); ?>">
                         <?php foreach ($consistencyDays as $day): $count = (int) $day['count']; $sportNames = []; foreach (array_keys((array) $day['sports']) as $slug) { foreach ($availableSports as $meta) if ((string) $meta['slug'] === (string) $slug) { $sportNames[] = stridebr_sport_name((string) $slug, (string) $meta['name']); break; } } $dayText = stridebr_tn('progress.consistency_day.one', 'progress.consistency_day.other', $count, ['date' => stridebr_format_date($day['date']), 'sports' => $sportNames !== [] ? ' · ' . implode(', ', $sportNames) : '']); ?>
@@ -247,7 +247,7 @@ $flashes = stridebr_take_flashes();
             </section>
 
             <section class="progress-section" aria-labelledby="progress-volume-title">
-                <header><div><span class="progress-section-question"><?php echo stridebr_e(stridebr_t('progress.question_volume')); ?></span><h2 id="progress-volume-title"><?php echo stridebr_e(stridebr_t('progress.volume')); ?></h2><p><?php echo stridebr_e($volumeSummary); ?></p></div><strong class="progress-section-unit"><?php echo stridebr_e($metricLabels[$metric]); ?> · <?php echo stridebr_e($selectedSportLabel); ?></strong></header>
+                <header><div><h2 id="progress-volume-title"><?php echo stridebr_e(stridebr_t('progress.volume')); ?></h2><p><?php echo stridebr_e($volumeSummary); ?></p></div><strong class="progress-section-unit"><?php echo stridebr_e($metricLabels[$metric]); ?> · <?php echo stridebr_e($selectedSportLabel); ?></strong></header>
                 <div class="progress-bar-chart" style="--progress-week-count:<?php echo count($weekly); ?>" role="group" aria-label="<?php echo stridebr_e(stridebr_t('progress.volume_chart_aria', ['metric' => $metricLabels[$metric], 'sport' => $selectedSportLabel])); ?>">
                     <div class="progress-zero-line" aria-hidden="true"></div>
                     <?php foreach ($weekly as $index => $week): $value = $weeklyValues[$index] ?? null; $height = $value === null ? 0 : max(0, min(100, ($value / $maxWeekly) * 100)); $weekLabel = stridebr_t('progress.week_range', ['start' => stridebr_format_date_short($week['start']), 'end' => stridebr_format_date_short($week['end']->modify('-1 second'))]); $tooltipParts = [$weekLabel, stridebr_tn('progress.activity.one','progress.activity.other',(int)$week['activities'])]; if ((float)$week['distance_m'] > 0) $tooltipParts[] = $fmtDistance((float)$week['distance_m']); if ((float)$week['duration_s'] > 0) $tooltipParts[] = $fmtDuration((float)$week['duration_s']); if ((float)$week['elevation_m'] > 0) $tooltipParts[] = '+' . $fmtElevation((float)$week['elevation_m']); $tooltip = implode(' · ', $tooltipParts); ?>
@@ -261,7 +261,7 @@ $flashes = stridebr_take_flashes();
             </section>
 
             <section class="progress-section" aria-labelledby="progress-trend-title">
-                <header><div><span class="progress-section-question"><?php echo stridebr_e(stridebr_t('progress.question_trend')); ?></span><h2 id="progress-trend-title"><?php echo stridebr_e(stridebr_t('progress.trend')); ?></h2><p><?php echo stridebr_e(stridebr_t($trendUsesLine ? 'progress.trend_line_help' : 'progress.trend_sparse_help', ['metric' => $metricLabels[$metric]])); ?></p></div></header>
+                <header><div><h2 id="progress-trend-title"><?php echo stridebr_e(stridebr_t('progress.trend')); ?></h2></div></header>
                 <?php if ($trendUsesLine): ?>
                     <?php
                     $plotW = 1000.0; $plotH = 270.0; $left = 28.0; $top = 20.0; $bottom = 225.0; $usableW = $plotW - ($left * 2); $usableH = $bottom - $top; $lastIndex = max(1, count($weekly) - 1);
@@ -286,11 +286,12 @@ $flashes = stridebr_take_flashes();
                         <?php foreach ($weekly as $idx => $week): $value = $weeklyValues[$idx] ?? null; ?><div role="listitem"><span><?php echo stridebr_e(stridebr_format_date_short($week['start'])); ?></span><strong><?php echo $value === null ? '—' : stridebr_e($fmtMetric($metric, (float)$value)); ?></strong></div><?php endforeach; ?>
                     </div>
                 <?php endif; ?>
+                <?php if (!$trendUsesLine): ?><p class="progress-chart-note"><?php echo stridebr_e(stridebr_t('progress.trend_sparse_help', ['metric' => $metricLabels[$metric]])); ?></p><?php endif; ?>
             </section>
 
             <?php if ($breakdown !== []): ?>
             <section class="progress-section" aria-labelledby="progress-sports-title">
-                <header><div><span class="progress-section-question"><?php echo stridebr_e(stridebr_t('progress.question_sports')); ?></span><h2 id="progress-sports-title"><?php echo stridebr_e(stridebr_t('progress.modalities')); ?></h2><p><?php echo stridebr_e(stridebr_t('progress.modalities_help')); ?></p></div></header>
+                <header><div><h2 id="progress-sports-title"><?php echo stridebr_e(stridebr_t('progress.modalities')); ?></h2></div></header>
                 <div class="progress-sport-list">
                     <?php foreach ($breakdown as $item): $slug = (string)$item['slug']; ?><a href="<?php echo stridebr_e($buildUrl(['sport' => $slug])); ?>" class="progress-sport-row"><span class="progress-sport-icon"><?php echo stridebr_sport_icon_html($slug, 'sport-icon'); ?></span><span><strong><?php echo stridebr_e(stridebr_sport_name($slug, (string)$item['name'])); ?></strong><small><?php echo stridebr_e(stridebr_tn('progress.activity.one','progress.activity.other',(int)$item['activities'])); ?></small></span><span class="progress-sport-values"><?php if ((float)$item['distance_m'] > 0): ?><strong><?php echo stridebr_e($fmtDistance((float)$item['distance_m'])); ?></strong><?php endif; ?><?php if ((float)$item['duration_s'] > 0): ?><small><?php echo stridebr_e($fmtDuration((float)$item['duration_s'])); ?></small><?php endif; ?></span><span aria-hidden="true">›</span></a><?php endforeach; ?>
                 </div>
@@ -298,7 +299,7 @@ $flashes = stridebr_take_flashes();
             <?php endif; ?>
 
             <section class="progress-section" aria-labelledby="progress-compare-title">
-                <header><div><span class="progress-section-question"><?php echo stridebr_e(stridebr_t('progress.question_compare')); ?></span><h2 id="progress-compare-title"><?php echo stridebr_e(stridebr_t('progress.period_comparison')); ?></h2><p><?php echo stridebr_e(stridebr_t('progress.period_comparison_help')); ?></p></div></header>
+                <header><div><h2 id="progress-compare-title"><?php echo stridebr_e(stridebr_t('progress.period_comparison')); ?></h2></div></header>
                 <div class="progress-comparison-list">
                     <?php foreach ($comparisonItems as $item): ?><div><span><?php echo stridebr_e($item['label']); ?></span><strong><?php echo stridebr_e($item['current']); ?></strong><small><?php echo stridebr_e($item['delta']); ?> · <?php echo stridebr_e(stridebr_t('progress.vs_previous_period')); ?></small></div><?php endforeach; ?>
                 </div>

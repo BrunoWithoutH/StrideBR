@@ -20,11 +20,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const scheduleSelector = document.querySelector('[data-schedule-selector]');
     if (scheduleSelector) {
         scheduleSelector.addEventListener('change', () => {
-            const params = new URLSearchParams();
-            params.set('id', scheduleSelector.value);
-            if (currentView !== 'week') params.set('view', currentView);
-            if (currentView === 'month' && pageParams.get('month')) params.set('month', pageParams.get('month'));
-            window.location.href = `/user/cronogramatreinos.php?${params.toString()}`;
+            const url = new URL(window.location.href);
+            url.searchParams.set('id', scheduleSelector.value);
+            if (currentView === 'week') url.searchParams.delete('view');
+            else url.searchParams.set('view', currentView);
+            if (currentView !== 'month') url.searchParams.delete('month');
+            navigateScheduleWorkspace(url, {historyMode:'push'}).catch(() => { window.location.href = url.toString(); });
         });
     }
 
@@ -170,7 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const views = document.querySelectorAll('[data-calendar-view]');
     const viewButtons = document.querySelectorAll('[data-view]');
-    const activateView = (name, updateUrl = true) => {
+    const activateView = (name, updateUrl = true, historyMode = 'replace') => {
         if (![...views].some(view => view.dataset.calendarView === name)) name = 'week';
         currentView = name;
         localStorage.setItem('stridebr.schedule.view', name);
@@ -193,10 +194,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (name === 'week') url.searchParams.delete('view');
             else url.searchParams.set('view', name);
             if (name !== 'month') url.searchParams.delete('month');
-            window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+            const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+            if (historyMode === 'push' && nextUrl !== `${location.pathname}${location.search}${location.hash}`) window.history.pushState({stridebrView:name}, '', nextUrl);
+            else window.history.replaceState({stridebrView:name}, '', nextUrl);
         }
     };
-    viewButtons.forEach(button => button.addEventListener('click', () => activateView(button.dataset.view)));
+    viewButtons.forEach(button => button.addEventListener('click', () => activateView(button.dataset.view, true, 'push')));
     if (views.length) activateView(currentView, false);
 
     const calendar = document.querySelector('[data-calendar-scroll]');
@@ -374,49 +377,82 @@ document.addEventListener('DOMContentLoaded', () => {
             if (title) title.textContent = [nextItem.codigo, nextItem.titulo || tr('schedule.workout_fallback')].filter(Boolean).join(' · ');
         });
     };
-    const refreshScheduleView = async () => {
-        if (currentView === 'month' && monthShell?.dataset.currentMonth) {
-            await fetchMonth(monthShell.dataset.currentMonth, {force:true, showSkeleton:false});
-            return;
-        }
-        const response = await (window.StrideBRNet?.fetch || fetch)(window.location.href, {headers:{'Accept':'text/html','X-Requested-With':'XMLHttpRequest'}, credentials:'same-origin'}, 15000);
-        if (!response.ok) throw new Error(tr('schedule.update_error'));
-        const html = await response.text();
-        const doc = new DOMParser().parseFromString(html, 'text/html');
-        const incomingData = doc.querySelector('[data-workout-editor-data]');
-        if (incomingData) {
-            try {
-                editorWorkouts = JSON.parse(incomingData.textContent || '[]');
-                editorWorkoutMap.clear();
-                editorWorkouts.forEach(item => editorWorkoutMap.set(String(item.idtreino || ''), item));
-            } catch (_) {}
-        }
-        if (currentView === 'week') {
-            const incomingWeek = doc.querySelector('[data-week-calendar]');
-            if (weekCalendar && incomingWeek) {
-                const top = calendar?.scrollTop || 0;
-                const left = calendar?.scrollLeft || 0;
-                weekCalendar.innerHTML = incomingWeek.innerHTML;
-                if (calendar) {
-                    calendar.scrollTop = top;
-                    calendar.scrollLeft = left;
-                }
+    const refreshScheduleView = async (targetUrl = window.location.href) => {
+        const workspace = document.querySelector('.schedule-view-layout');
+        workspace?.setAttribute('aria-busy', 'true');
+        workspace?.classList.add('is-refreshing');
+        try {
+            const response = await (window.StrideBRNet?.fetch || fetch)(targetUrl, {headers:{'Accept':'text/html','X-Requested-With':'XMLHttpRequest'}, credentials:'same-origin'}, 15000);
+            if (!response.ok) throw new Error(tr('schedule.update_error'));
+            const html = await response.text();
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+            const incomingData = doc.querySelector('[data-workout-editor-data]');
+            if (incomingData) {
+                if (editorDataNode) editorDataNode.textContent = incomingData.textContent || '[]';
+                try {
+                    editorWorkouts = JSON.parse(incomingData.textContent || '[]');
+                    editorWorkoutMap.clear();
+                    editorWorkouts.forEach(item => editorWorkoutMap.set(String(item.idtreino || ''), item));
+                } catch (_) {}
             }
-            const currentSummary = document.querySelector('[data-week-summary]');
-            const incomingSummary = doc.querySelector('[data-week-summary]');
-            if (currentSummary && incomingSummary) currentSummary.replaceWith(incomingSummary);
+            const incomingSelector = doc.querySelector('[data-schedule-selector]');
+            if (scheduleSelector && incomingSelector) scheduleSelector.value = incomingSelector.value;
+            const currentSide = document.querySelector('.schedule-side-panel');
+            const incomingSide = doc.querySelector('.schedule-side-panel');
+            if (currentSide && incomingSide) currentSide.innerHTML = incomingSide.innerHTML;
+            const currentUndo = document.querySelector('.schedule-undo-bar');
+            const incomingUndo = doc.querySelector('.schedule-undo-bar');
+            if (currentUndo && incomingUndo) currentUndo.replaceWith(incomingUndo);
+            else if (currentUndo && !incomingUndo) currentUndo.remove();
+            else if (!currentUndo && incomingUndo && createPanel) createPanel.before(incomingUndo);
             const currentCompact = document.querySelector('[data-week-summary-compact]');
             const incomingCompact = doc.querySelector('[data-week-summary-compact]');
             if (currentCompact && incomingCompact) currentCompact.replaceWith(incomingCompact);
             const currentWeekContext = document.querySelector('[data-view-context="week"]');
             const incomingWeekContext = doc.querySelector('[data-view-context="week"]');
             if (currentWeekContext && incomingWeekContext) currentWeekContext.replaceWith(incomingWeekContext);
-            if (fitMode) fitCalendar(); else applyZoom(zoom);
-            return;
+            const incomingWeek = doc.querySelector('[data-week-calendar]');
+            if (weekCalendar && incomingWeek) {
+                const top = calendar?.scrollTop || 0;
+                const left = calendar?.scrollLeft || 0;
+                weekCalendar.innerHTML = incomingWeek.innerHTML;
+                if (calendar) { calendar.scrollTop = top; calendar.scrollLeft = left; }
+            }
+            const currentAgenda = document.querySelector('[data-calendar-view="agenda"]');
+            const incomingAgenda = doc.querySelector('[data-calendar-view="agenda"]');
+            if (currentAgenda && incomingAgenda) currentAgenda.innerHTML = incomingAgenda.innerHTML;
+            const incomingMonth = doc.querySelector('[data-month-calendar-shell]');
+            if (monthShell && incomingMonth) {
+                monthShell.dataset.scheduleId = incomingMonth.dataset.scheduleId || '';
+                const targetMonth = incomingMonth.dataset.currentMonth || monthShell.dataset.currentMonth || '';
+                monthShell.dataset.currentMonth = targetMonth;
+                monthCache.clear();
+                if (targetMonth) await fetchMonth(targetMonth, {force:true, showSkeleton:false});
+            }
+            if (currentView === 'week') {
+                if (fitMode) fitCalendar(); else applyZoom(zoom);
+                requestAnimationFrame(() => positionWeekAtUsefulHour(false));
+            }
+            document.title = doc.title || document.title;
+            syncCompactWeekSummaries();
+        } finally {
+            workspace?.removeAttribute('aria-busy');
+            workspace?.classList.remove('is-refreshing');
         }
-        const currentAgenda = document.querySelector('[data-calendar-view="agenda"]');
-        const incomingAgenda = doc.querySelector('[data-calendar-view="agenda"]');
-        if (currentAgenda && incomingAgenda) currentAgenda.innerHTML = incomingAgenda.innerHTML;
+    };
+    const navigateScheduleWorkspace = async (target, {historyMode='push'}={}) => {
+        const url = target instanceof URL ? target : new URL(String(target), window.location.href);
+        const view = url.searchParams.get('view');
+        const nextView = allowedViews.includes(view) ? view : 'week';
+        const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+        if (historyMode === 'push' && nextUrl !== `${location.pathname}${location.search}${location.hash}`) history.pushState({stridebrWorkspace:true}, '', nextUrl);
+        else if (historyMode === 'replace') history.replaceState({stridebrWorkspace:true}, '', nextUrl);
+        activateView(nextView, false);
+        if (nextView === 'month') {
+            const key = url.searchParams.get('month');
+            if (key && monthParts(key) && monthShell) monthShell.dataset.currentMonth = key;
+        }
+        await refreshScheduleView(nextUrl);
     };
     if (editor && editor.parentElement !== document.body) document.body.appendChild(editor);
     if (saveScopeModal && saveScopeModal.parentElement !== document.body) document.body.appendChild(saveScopeModal);
@@ -1586,13 +1622,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
 
+    document.addEventListener('click', event => {
+        const link = event.target.closest('[data-schedule-workspace-nav]');
+        if (!link || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        navigateScheduleWorkspace(link.href, {historyMode:'push'}).catch(() => { window.location.href = link.href; });
+    });
+
     window.addEventListener('popstate', () => {
         const params = new URLSearchParams(location.search);
-        const key = params.get('month');
-        if (params.get('view') === 'month' && key && monthParts(key)) {
-            activateView('month');
-            navigateMonth(key, {historyMode:'none'});
-        }
+        const view = allowedViews.includes(params.get('view')) ? params.get('view') : 'week';
+        activateView(view, false);
+        navigateScheduleWorkspace(window.location.href, {historyMode:'none'}).catch(() => window.location.reload());
     });
 
     const occurrenceModal = document.querySelector('[data-occurrence-modal]');
@@ -1649,6 +1690,42 @@ document.addEventListener('DOMContentLoaded', () => {
         sessionStorage.removeItem('stridebr.schedule.toast');
         showScheduleToast(pendingScheduleToast);
     }
+    document.addEventListener('submit', async event => {
+        const form = event.target.closest?.('form');
+        if (!form) return;
+        const action = form.querySelector('input[name="action"]')?.value || '';
+        if (action !== 'delete_workout' && action !== 'undo_delete_workout') return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (form.dataset.confirm) {
+            const confirmed = await uiConfirm(form.dataset.confirm, {danger: action === 'delete_workout'});
+            if (!confirmed) return;
+        }
+        const submitter = event.submitter || form.querySelector('button[type="submit"], input[type="submit"]');
+        if (submitter) submitter.disabled = true;
+        try {
+            const response = await (window.StrideBRNet?.fetch || fetch)(form.action || window.location.href, {
+                method: 'POST',
+                headers: {'Accept':'application/json','X-Requested-With':'XMLHttpRequest'},
+                body: new FormData(form),
+                credentials: 'same-origin',
+            }, 15000);
+            if (response.redirected && !new URL(response.url, window.location.href).pathname.includes('/user/cronogramatreinos.php')) {
+                window.location.href = response.url;
+                return;
+            }
+            const data = await response.json().catch(() => null);
+            if (!response.ok || !data?.ok) throw new Error(data?.error || tr('schedule.operation_error'));
+            closePreview();
+            monthCache.clear();
+            await refreshScheduleView();
+            showScheduleToast(data.message || (action === 'delete_workout' ? tr('schedule.workout_removed_from_schedule') : tr('schedule.workout_restored')));
+        } catch (error) {
+            uiNotify(error?.message || tr('schedule.operation_error'));
+        } finally {
+            if (submitter?.isConnected) submitter.disabled = false;
+        }
+    }, true);
     occurrenceForm?.addEventListener('submit', async event => {
         event.preventDefault();
         const submit = occurrenceForm.querySelector('button[type="submit"]');

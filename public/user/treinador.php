@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             stridebr_flash('success', stridebr_t('trainer.link_accepted'));
         } elseif ($action === 'reject_link') {
             treinadorResponderVinculo($pdo, $idUsuario, (string) ($_POST['idvinculo'] ?? ''), 'recusar');
-            stridebr_flash('success', 'Convite recusado.');
+            stridebr_flash('success', stridebr_t('trainer.invite_declined'));
         } elseif ($action === 'end_link') {
             treinadorEncerrarVinculo($pdo, $idUsuario, (string) ($_POST['idvinculo'] ?? ''));
             stridebr_flash('success', stridebr_t('trainer.link_ended'));
@@ -230,8 +230,7 @@ function treinadorAvatar(array $user): string
     <main class="main-content">
         <div class="page-shell trainer-shell">
             <div class="page-heading trainer-heading">
-                <div><span class="eyebrow"><?php echo stridebr_e(stridebr_t('trainer.connected_training')); ?></span><h1><?php echo stridebr_e(stridebr_t('trainer.page_title')); ?></h1><p><?php echo stridebr_e(stridebr_t('trainer.subtitle')); ?></p></div>
-                <a class="secondary-button" href="/user/agenda-mensal.php"><?php echo stridebr_e(stridebr_t('trainer.open_agenda')); ?></a>
+                <div><span class="eyebrow"><?php echo stridebr_e(stridebr_t('trainer.connected_training')); ?></span><h1><?php echo stridebr_e(stridebr_t('trainer.page_title')); ?></h1></div>
             </div>
 
             <nav class="planning-subnav monthly-planning-subnav" aria-label="<?php echo stridebr_e(stridebr_t('schedule.planning_navigation')); ?>">
@@ -243,11 +242,11 @@ function treinadorAvatar(array $user): string
             <?php foreach ($flashes as $flash): ?><div class="alert alert-<?php echo stridebr_e($flash['type'] ?? 'info'); ?>"><?php echo stridebr_e($flash['message'] ?? ''); ?></div><?php endforeach; ?>
             <?php foreach ($errors as $error): ?><div class="alert alert-danger"><?php echo stridebr_e($error); ?></div><?php endforeach; ?>
 
-            <?php if (!$trainerMode) require dirname(__DIR__, 2) . '/src/layout/trainer_as_athlete.php'; ?>
-            <section class="trainer-section">
-                <div class="section-title-row"><div><h2><?php echo stridebr_e(stridebr_t('trainer.coach_mode')); ?></h2><p><?php echo stridebr_e(stridebr_t('trainer.coach_mode_help')); ?></p></div></div>
+            <?php require dirname(__DIR__, 2) . '/src/layout/trainer_as_athlete.php'; ?>
+            <section class="trainer-section" data-trainer-coach-section>
+                <div class="section-title-row"><div><h2><?php echo stridebr_e(stridebr_t('trainer.coach_mode')); ?></h2></div></div>
                 <?php if (!$trainerMode): ?>
-                    <div class="content-card trainer-enable-card"><div><strong><?php echo stridebr_e(stridebr_t('trainer.enable_tools')); ?></strong><p><?php echo stridebr_e(stridebr_t('trainer.enable_help')); ?></p></div><form method="POST"><?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="activate_trainer"><button type="submit" class="primary-button"><?php echo stridebr_e(stridebr_t('trainer.enable_mode')); ?></button></form></div>
+                    <div class="content-card trainer-enable-card"><p><?php echo stridebr_e(stridebr_t('trainer.enable_help')); ?></p><form method="POST"><?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="activate_trainer"><button type="submit" class="primary-button"><?php echo stridebr_e(stridebr_t('trainer.enable_mode')); ?></button></form></div>
                 <?php else: ?>
 
 
@@ -262,7 +261,7 @@ function treinadorAvatar(array $user): string
                                     <?php if ((int) $link['feedback_pendente'] > 0): ?><p><?php echo stridebr_e(stridebr_t('planning.feedback_pending')); ?>: <?php echo (int) $link['feedback_pendente']; ?></p><?php endif; ?>
                                 </div><?php endif; ?>
                                 <?php if ($link['status'] === 'pendente' && $link['solicitado_por'] === 'atleta'): ?><div class="trainer-card-actions"><form method="POST"><?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="accept_link"><input type="hidden" name="idvinculo" value="<?php echo stridebr_e($link['idvinculo']); ?>"><button type="submit" class="primary-button"><?php echo stridebr_e(stridebr_t('trainer.accept_athlete')); ?></button></form><form method="POST"><?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="reject_link"><input type="hidden" name="idvinculo" value="<?php echo stridebr_e($link['idvinculo']); ?>"><button type="submit" class="secondary-button"><?php echo stridebr_e(stridebr_t('friends.decline')); ?></button></form></div><?php endif; ?>
-                                <?php if ($link['status'] === 'aceito'): ?><div class="trainer-card-actions"><a class="primary-button" href="/user/treinador.php?atleta=<?php echo rawurlencode((string) $link['idatleta']); ?>#athlete-workspace"><?php echo stridebr_e(stridebr_t('trainer.open_athlete')); ?></a><details class="trainer-more-menu"><summary aria-label="<?php echo stridebr_e(stridebr_t('schedule.more_actions')); ?>">•••</summary><div><form method="POST" data-confirm="<?php echo stridebr_e(stridebr_t('trainer.end_athlete_confirm')); ?>"><?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="end_link"><input type="hidden" name="idvinculo" value="<?php echo stridebr_e($link['idvinculo']); ?>"><button type="submit" class="is-danger"><?php echo stridebr_e(stridebr_t('trainer.end_link')); ?></button></form></div></details></div><?php endif; ?>
+                                <?php if ($link['status'] === 'aceito'): ?><div class="trainer-card-actions"><a class="primary-button" data-trainer-athlete-link href="/user/treinador.php?atleta=<?php echo rawurlencode((string) $link['idatleta']); ?>#athlete-workspace"><?php echo stridebr_e(stridebr_t('trainer.open_athlete')); ?></a><details class="trainer-more-menu"><summary aria-label="<?php echo stridebr_e(stridebr_t('schedule.more_actions')); ?>">•••</summary><div><form method="POST" data-confirm="<?php echo stridebr_e(stridebr_t('trainer.end_athlete_confirm')); ?>"><?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="end_link"><input type="hidden" name="idvinculo" value="<?php echo stridebr_e($link['idvinculo']); ?>"><button type="submit" class="is-danger"><?php echo stridebr_e(stridebr_t('trainer.end_link')); ?></button></form></div></details></div><?php endif; ?>
                             </article>
                         <?php endforeach; ?>
                         <?php if ($asTrainer === []): ?><div class="content-card trainer-empty rich"><strong><?php echo stridebr_e(stridebr_t('trainer.no_athletes')); ?></strong><p><?php echo stridebr_e(stridebr_t('trainer.no_athletes_help')); ?></p></div><?php endif; ?>
@@ -273,7 +272,7 @@ function treinadorAvatar(array $user): string
             </section>
 
             <?php if ($selectedAthlete !== [] && $selectedLink !== []): ?>
-                <section class="trainer-athlete-workspace" id="athlete-workspace">
+                <section class="trainer-athlete-workspace" id="athlete-workspace" tabindex="-1">
                     <div class="trainer-athlete-header content-card"><div class="trainer-person-heading"><img src="<?php echo stridebr_e(treinadorAvatar($selectedAthlete)); ?>" alt="" width="56" height="56" decoding="async"><div><span><?php echo stridebr_e(stridebr_t('trainer.selected_athlete')); ?></span><h2><?php echo stridebr_e(stridebr_person_name_for_display((string) $selectedAthlete['nome_exibicao'], (string) ($selectedAthlete['username'] ?? ''), stridebr_t('common.user'), 60)); ?></h2><?php if ($selectedAthlete['username']): ?><small>@<?php echo stridebr_e($selectedAthlete['username']); ?></small><?php endif; ?></div></div><div class="trainer-athlete-actions"><?php if (stridebr_db_bool($selectedLink['pode_prescrever'])): ?><button type="button" class="primary-button" data-open-prescription><?php echo stridebr_e(stridebr_t('trainer.prescribe_action')); ?></button><?php endif; ?><a class="secondary-button" href="/user/agenda-mensal.php?atleta=<?php echo rawurlencode($selectedAthleteId); ?>"><?php echo stridebr_e(stridebr_t('schedule.monthly_agenda')); ?></a></div></div>
 
                     <?php if ($planningSummary !== null) require dirname(__DIR__, 2) . '/src/layout/planning_week.php';
@@ -312,9 +311,6 @@ function treinadorAvatar(array $user): string
                     </div>
                 </section>
             <?php endif; ?>
-            <?php if ($trainerMode): ?><details class="trainer-section"><summary><?php echo stridebr_e(stridebr_t('trainer.as_athlete')); ?></summary>
-                <?php require dirname(__DIR__, 2) . '/src/layout/trainer_as_athlete.php'; ?>
-            </details><?php endif; ?>
         </div>
     </main>
 </div>

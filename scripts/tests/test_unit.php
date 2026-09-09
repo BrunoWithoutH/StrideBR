@@ -50,7 +50,7 @@ try {
         'record_values' => [],
         'unidades' => [['values' => ['dur' => '00:45:00']]],
     ], 4);
-    $assert(($strengthMetrics[0]['rotulo'] ?? '') === stridebr_t('activity.code') && ($strengthMetrics[1]['rotulo'] ?? '') === stridebr_t('activity.focus'), 'Histórico de musculação não priorizou código e foco');
+    $assert(count($strengthMetrics) === 1 && ($strengthMetrics[0]['rotulo'] ?? '') === stridebr_t('activity.duration') && ($strengthMetrics[0]['valor'] ?? '') === '45:00', 'Histórico de musculação deve manter duração compacta sem promover código/foco a métricas');
 
     $segmentFields = [
         ['idcampo' => 'dist', 'slug' => 'distancia', 'rotulo' => 'Distância', 'tipo_campo' => 'decimal', 'escopo' => 'unidade', 'unidade_simbolo' => 'km', 'ordem' => 1],

@@ -68,14 +68,14 @@ function stridebr_auth_create_token(PDO $pdo, string $userId, string $email, str
     return $raw;
 }
 
-function stridebr_auth_create_verification_code(PDO $pdo, string $userId, string $email, int $minutes = 15): string
+function stridebr_auth_create_verification_code(PDO $pdo, string $userId, string $email, int $minutes = 15, string $type = 'verificar_email'): string
 {
     for ($attempt = 0; $attempt < 20; $attempt++) {
         $code = (string) random_int(100000, 999999);
         $check = $pdo->prepare('SELECT 1 FROM auth_tokens WHERE token_hash = :hash LIMIT 1');
         $check->execute([':hash' => hash('sha256', $code)]);
         if (!$check->fetchColumn()) {
-            return stridebr_auth_create_token($pdo, $userId, $email, 'verificar_email', $minutes, $code);
+            return stridebr_auth_create_token($pdo, $userId, $email, $type, $minutes, $code);
         }
     }
     throw new RuntimeException('Não foi possível gerar um código de confirmação agora.');
@@ -195,18 +195,62 @@ function stridebr_send_email_change_code(PDO $pdo, string $userId, string $email
 
 function stridebr_send_password_reset_email(PDO $pdo, string $userId, string $email, string $name): bool
 {
-    if (!stridebr_mail_is_configured()) {
-        return false;
-    }
-    $token = stridebr_auth_create_token($pdo, $userId, $email, 'redefinir_senha', 30);
-    $url = stridebr_app_url() . '/reset-password.php?token=' . rawurlencode($token);
-    $body = "Olá, {$name}.\n\nRecebemos uma solicitação para redefinir sua senha do StrideBR. Use o link abaixo:\n{$url}\n\nO link expira em 30 minutos e só pode ser usado uma vez. Se você não pediu a redefinição, ignore esta mensagem.";
-    $sent = stridebr_send_mail($email, 'Redefinição de senha do StrideBR', $body);
+    if (!stridebr_mail_is_configured()) return false;
+    $code = stridebr_auth_create_verification_code($pdo, $userId, $email, 15, 'redefinir_senha');
+    $body = stridebr_t('auth.reset_email_body', ['name' => $name, 'code' => $code]);
+    $sent = stridebr_send_mail($email, stridebr_t('auth.reset_email_subject'), $body);
     if (!$sent) {
         $stmt = $pdo->prepare("UPDATE auth_tokens SET usado_em = NOW() WHERE idusuario = :usuario AND tipo = 'redefinir_senha' AND token_hash = :hash AND usado_em IS NULL");
-        $stmt->execute([':usuario' => $userId, ':hash' => hash('sha256', $token)]);
+        $stmt->execute([':usuario' => $userId, ':hash' => hash('sha256', $code)]);
     }
     return $sent;
+}
+
+function stridebr_auth_set_pending_password_reset(string $email, string $userId = ''): void
+{
+    $_SESSION['PendingPasswordReset'] = ['email' => stridebr_lower(trim($email)), 'user_id' => trim($userId), 'created_at' => time()];
+}
+
+function stridebr_auth_pending_password_reset(): ?array
+{
+    $pending = $_SESSION['PendingPasswordReset'] ?? null;
+    if (!is_array($pending) || (int) ($pending['created_at'] ?? 0) < time() - 1800) {
+        unset($_SESSION['PendingPasswordReset']);
+        return null;
+    }
+    return ['email' => stridebr_lower(trim((string) ($pending['email'] ?? ''))), 'user_id' => trim((string) ($pending['user_id'] ?? '')), 'created_at' => (int) ($pending['created_at'] ?? 0)];
+}
+
+function stridebr_auth_clear_pending_password_reset(): void
+{
+    unset($_SESSION['PendingPasswordReset']);
+}
+
+function stridebr_auth_start_password_reset_session(string $userId, string $tokenId): void
+{
+    session_regenerate_id(true);
+    $_SESSION['PasswordResetAuthorization'] = ['user_id' => $userId, 'token_id' => $tokenId, 'created_at' => time(), 'expires_at' => time() + 600];
+}
+
+function stridebr_auth_password_reset_session(): ?array
+{
+    $authorization = $_SESSION['PasswordResetAuthorization'] ?? null;
+    if (!is_array($authorization) || (int) ($authorization['expires_at'] ?? 0) < time()) {
+        unset($_SESSION['PasswordResetAuthorization']);
+        return null;
+    }
+    $userId = trim((string) ($authorization['user_id'] ?? ''));
+    $tokenId = trim((string) ($authorization['token_id'] ?? ''));
+    if ($userId === '' || $tokenId === '') {
+        unset($_SESSION['PasswordResetAuthorization']);
+        return null;
+    }
+    return ['user_id' => $userId, 'token_id' => $tokenId, 'created_at' => (int) ($authorization['created_at'] ?? 0), 'expires_at' => (int) ($authorization['expires_at'] ?? 0)];
+}
+
+function stridebr_auth_clear_password_reset_session(): void
+{
+    unset($_SESSION['PasswordResetAuthorization']);
 }
 
 function stridebr_auth_google_feature_enabled(): bool

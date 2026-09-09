@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/exercise_resolver.php';
+
 
 function cronogramaGerarId(int $length = 21): string
 {
@@ -416,6 +418,22 @@ function cronogramaListarExerciciosBiblioteca(PDO $pdo, string $idUsuario): arra
     return $stmt->fetchAll();
 }
 
+function cronogramaResolverExercicioBiblioteca(array $biblioteca, string $idExercicio, string $nome): array
+{
+    $idExercicio = trim($idExercicio);
+    $nome = trim($nome);
+    $byId = array_column($biblioteca, null, 'idexercicio');
+    if ($idExercicio !== '' && isset($byId[$idExercicio])) {
+        return ['idexercicio' => $idExercicio, 'nome' => $nome !== '' ? $nome : (string) $byId[$idExercicio]['nome']];
+    }
+    if ($nome === '') return ['idexercicio' => '', 'nome' => ''];
+    $resolution = stridebr_exercise_resolve_catalog($biblioteca, ['nome' => $nome]);
+    if (($resolution['status'] ?? '') === 'matched' && is_array($resolution['match'] ?? null)) {
+        return ['idexercicio' => (string) $resolution['match']['idexercicio'], 'nome' => $nome];
+    }
+    return ['idexercicio' => '', 'nome' => $nome];
+}
+
 function cronogramaListarCategorias(PDO $pdo, string $idUsuario): array
 {
     $stmt = $pdo->prepare('SELECT * FROM categorias_exercicio WHERE ativo = TRUE AND (idusuario IS NULL OR idusuario = :usuario) ORDER BY idusuario NULLS FIRST, nome');
@@ -609,12 +627,9 @@ function cronogramaSalvarExercicios(PDO $pdo, string $idTreino, string $idUsuari
             $idExercise = trim((string) ($row['idexercicio'] ?? ''));
             $name = trim((string) ($row['nome'] ?? $row['nome_snapshot'] ?? ''));
 
-            if ($idExercise !== '' && !isset($bibliotecaIds[$idExercise])) {
-                $idExercise = '';
-            }
-            if ($name === '' && $idExercise !== '') {
-                $name = $bibliotecaIds[$idExercise]['nome'];
-            }
+            $resolvedExercise = cronogramaResolverExercicioBiblioteca($biblioteca, $idExercise, $name);
+            $idExercise = (string) $resolvedExercise['idexercicio'];
+            $name = (string) $resolvedExercise['nome'];
 
             if ($name === '') continue;
             if (stridebr_length($name) > 120) {
@@ -1239,7 +1254,9 @@ function cronogramaSalvarExerciciosTreinoModelo(PDO $pdo, string $idUsuario, str
             if (!is_array($row)) continue;
             $idExercicio = trim((string) ($row['idexercicio'] ?? ''));
             $nome = trim((string) ($row['nome'] ?? $row['nome_snapshot'] ?? ''));
-            if ($idExercicio !== '' && isset($bibliotecaIds[$idExercicio])) $nome = (string) $bibliotecaIds[$idExercicio]['nome'];
+            $resolvedExercise = cronogramaResolverExercicioBiblioteca($biblioteca, $idExercicio, $nome);
+            $idExercicio = (string) $resolvedExercise['idexercicio'];
+            $nome = (string) $resolvedExercise['nome'];
             if ($nome === '') continue;
             $seriesRaw = trim((string) ($row['series'] ?? ''));
             $series = $seriesRaw !== '' && ctype_digit($seriesRaw) ? max(1, min(99, (int) $seriesRaw)) : null;

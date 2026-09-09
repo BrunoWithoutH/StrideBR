@@ -253,7 +253,7 @@ $weekSummary = implode(' · ', $weekSummaryParts);
             <div class="dashboard-modules dashboard-modules-fixed">
                 <?php if ($metasDisponiveis && $metas !== []): ?>
                     <section class="dashboard-panel dashboard-goals-panel dashboard-module is-wide" data-dashboard-module="goals">
-                        <div class="dashboard-panel-heading"><div><h2><?php echo stridebr_e(stridebr_t('home.goals')); ?></h2><p><?php echo stridebr_e(stridebr_t('home.active_goals_help')); ?></p></div><div class="dashboard-panel-actions"><a href="/user/metas.php"><?php echo stridebr_e(stridebr_t('home.manage')); ?></a><button class="dashboard-link-button" type="button" data-goal-open>+ <?php echo stridebr_e(stridebr_t('home.new_goal')); ?></button></div></div>
+                        <div class="dashboard-panel-heading"><div><h2><?php echo stridebr_e(stridebr_t('home.goals')); ?></h2></div><div class="dashboard-panel-actions"><a href="/user/metas.php"><?php echo stridebr_e(stridebr_t('home.manage')); ?></a><button class="dashboard-link-button" type="button" data-goal-open>+ <?php echo stridebr_e(stridebr_t('home.new_goal')); ?></button></div></div>
                         <div class="dashboard-goal-list">
                             <?php foreach (array_slice($metas, 0, 3) as $meta):
                                 $alvo = (float) $meta['valor_alvo'];
