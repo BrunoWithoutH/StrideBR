@@ -7,6 +7,7 @@ require_once dirname(__DIR__) . '/src/includes/app.php';
 require_once dirname(__DIR__) . '/src/config/pg_config.php';
 require_once dirname(__DIR__) . '/src/includes/auth.php';
 require_once dirname(__DIR__) . '/src/function/product_analytics.php';
+require_once dirname(__DIR__) . '/src/function/marketing.php';
 require_once dirname(__DIR__) . '/src/includes/sport_icons.php';
 require_once dirname(__DIR__) . '/src/function/sport_catalog.php';
 
@@ -19,6 +20,7 @@ $registrationEnabled = stridebr_feature_enabled($pdo, 'registration.enabled', tr
 $inviteOnly = stridebr_feature_enabled($pdo, 'registration.invite_only.enabled', false);
 $emailVerificationEnabled = stridebr_auth_email_verification_enabled($pdo);
 $emailVerificationRequired = stridebr_auth_email_verification_required($pdo);
+stridebr_marketing_signup_start($pdo, $_GET);
 $errors = [];
 $allowedGoals = ['organizar', 'condicionamento', 'prova', 'evolucao', 'rotina', 'lazer'];
 $allowedExperience = ['', 'comecando', 'pratico', 'regular'];
@@ -163,6 +165,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 foreach ($values['sports'] as $idModalidade) $insertSport->execute([':usuario' => $id, ':modalidade' => $idModalidade]);
             }
             $pdo->commit();
+
+            stridebr_marketing_signup_complete($pdo, $id);
 
             productAnalyticsRegistrar($pdo, $id, 'onboarding_completed', [
                 'source' => 'signup_before_account',

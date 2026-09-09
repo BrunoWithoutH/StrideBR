@@ -45,6 +45,7 @@ function stridebr_admin_nav(string $active): string
             'feedback' => ['/admin/feedback.php', stridebr_t('admin.nav.feedback', [], 'Feedback')],
             'users' => ['/admin/users.php', stridebr_t('admin.nav.users', [], 'Usuários')],
             'events' => ['/admin/events.php', stridebr_t('admin.nav.events', [], 'Eventos')],
+            'marketing' => ['/admin/marketing.php', stridebr_t('admin.nav.marketing', [], 'Marketing')],
             'diagnostics' => ['/admin/diagnostics.php', stridebr_t('admin.nav.diagnostics', [], 'Diagnóstico')],
         ];
     }

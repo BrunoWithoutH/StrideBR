@@ -10,7 +10,9 @@ const STATIC_ASSETS = [
     '/assets/img/pwa/icon-192.png',
     '/assets/img/pwa/icon-512.png',
     '/assets/img/pwa/maskable-512.png',
-    '/assets/img/pwa/apple-touch-icon.png'
+    '/assets/img/branding/app-icons/ios/apple-touch-icon-180x180.png',
+    '/assets/img/branding/app-icons/ios/apple-touch-icon-167x167.png',
+    '/assets/img/branding/app-icons/ios/apple-touch-icon-152x152.png'
 ]
 
 self.addEventListener('install', event => {

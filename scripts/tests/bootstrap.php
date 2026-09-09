@@ -13,6 +13,7 @@ require_once dirname(__DIR__, 2) . '/src/function/treinador.php';
 require_once dirname(__DIR__, 2) . '/src/function/dashboard.php';
 require_once dirname(__DIR__, 2) . '/src/function/eventos.php';
 require_once dirname(__DIR__, 2) . '/src/function/account_data.php';
+require_once dirname(__DIR__, 2) . '/src/function/marketing.php';
 
 $alphaTestDatabase = (string) $pdo->query('SELECT current_database()')->fetchColumn();
 $alphaTestAllowed = getenv('STRIDEBR_TEST_ALLOW_DATABASE') === '1';
@@ -87,6 +88,15 @@ function alphaTestRouteModel(PDO $pdo): string
 
 function alphaTestCleanup(PDO $pdo): void
 {
+    try {
+        if ($pdo->query("SELECT to_regclass('stridebr.marketing_eventos_aquisicao') IS NOT NULL")->fetchColumn()) {
+            $pdo->exec("DELETE FROM marketing_eventos_aquisicao WHERE idusuario LIKE 'alpha_test_%' OR chave_atribuicao IN (SELECT chave_hash FROM marketing_atribuicoes WHERE idusuario LIKE 'alpha_test_%' OR idcampanha IN (SELECT idcampanha FROM marketing_campanhas WHERE codigo LIKE 'alpha_test_%'))");
+            $pdo->exec("DELETE FROM marketing_atribuicoes WHERE idusuario LIKE 'alpha_test_%' OR idcampanha IN (SELECT idcampanha FROM marketing_campanhas WHERE codigo LIKE 'alpha_test_%')");
+            $pdo->exec("DELETE FROM marketing_placements WHERE codigo LIKE 'alpha_test_%' OR idcampanha IN (SELECT idcampanha FROM marketing_campanhas WHERE codigo LIKE 'alpha_test_%')");
+            $pdo->exec("DELETE FROM marketing_campanhas WHERE codigo LIKE 'alpha_test_%'");
+        }
+    } catch (Throwable) {
+    }
     try {
         if ($pdo->query("SELECT to_regclass('stridebr.eventos_esportivos') IS NOT NULL")->fetchColumn()) {
             $pdo->exec("DELETE FROM eventos_esportivos WHERE criado_por LIKE 'alpha_test_%' OR titulo LIKE 'Alpha test event%'");

@@ -38,7 +38,7 @@ function stridebr_seo_text(string $text, int $limit = 180): string
 
 function stridebr_seo_image(?string $path = null): array
 {
-    $fallback = ['url' => stridebr_seo_origin() . '/assets/img/branding/stridebr-og.png', 'width' => 1200, 'height' => 630, 'type' => 'image/png', 'alt' => 'StrideBR'];
+    $fallback = ['url' => stridebr_seo_origin() . '/assets/img/branding/stridebr-og-20260909.png', 'width' => 1200, 'height' => 630, 'type' => 'image/png', 'alt' => 'StrideBR'];
     if (!$path) return $fallback;
     if (str_starts_with($path, stridebr_seo_origin() . '/')) $path = substr($path, strlen(stridebr_seo_origin()));
     // Only public local event images. Never fetch arbitrary external URLs or private uploads.

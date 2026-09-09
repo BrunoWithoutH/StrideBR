@@ -4,6 +4,7 @@ RewriteEngine On
 RewriteRule ^robots\.txt$ robots.php [L]
 # Dynamic Content-Security-Policy and X-Frame-Options: src/includes/http_headers.php.
 # Strict-Transport-Security: TLS edge only, never on local HTTP.
+RewriteRule ^r/([a-z0-9_-]{2,80})/?$ marketing-redirect.php?code=$1 [L,QSA,NC]
 RewriteRule ^u/([a-z0-9._-]{3,40})/?$ user/perfil.php?username=$1 [L,QSA,NC]
 
 <IfModule mod_headers.c>

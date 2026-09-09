@@ -19,7 +19,9 @@ foreach ([
     '/assets/img/pwa/icon-192.png' => [192, 192],
     '/assets/img/pwa/icon-512.png' => [512, 512],
     '/assets/img/pwa/maskable-512.png' => [512, 512],
-    '/assets/img/pwa/apple-touch-icon.png' => [180, 180],
+    '/assets/img/branding/app-icons/ios/apple-touch-icon-180x180.png' => [180, 180],
+    '/assets/img/branding/app-icons/ios/apple-touch-icon-167x167.png' => [167, 167],
+    '/assets/img/branding/app-icons/ios/apple-touch-icon-152x152.png' => [152, 152],
 ] as $path => $expected) {
     $absolute = $root . '/public' . $path;
     $size = is_file($absolute) ? getimagesize($absolute) : false;
@@ -27,12 +29,17 @@ foreach ([
 }
 
 $manifestIcons = array_column($manifest['icons'] ?? [], 'src');
+$iosSourceRoot = $root . '/docs/branding/app-icons/ios-liquid-glass';
+$iosSourcesAbsent = !is_dir($iosSourceRoot);
 $checks = [
     'manifest possui identidade e escopo root-relative' => ($manifest['name'] ?? null) === 'StrideBR' && ($manifest['short_name'] ?? null) === 'StrideBR' && ($manifest['id'] ?? null) === '/' && ($manifest['start_url'] ?? null) === '/home.php' && ($manifest['scope'] ?? null) === '/',
     'manifest abre standalone com cores coerentes' => ($manifest['display'] ?? null) === 'standalone' && ($manifest['background_color'] ?? null) === '#F0F1EF' && ($manifest['theme_color'] ?? null) === '#40507C',
     'manifest aponta para ícones instaláveis e maskable' => in_array('/assets/img/pwa/icon-192.png', $manifestIcons, true) && in_array('/assets/img/pwa/icon-512.png', $manifestIcons, true) && in_array('/assets/img/pwa/maskable-512.png', $manifestIcons, true),
+    'manifest Android não referencia ícones Apple específicos' => !array_filter($manifestIcons, static fn(string $src): bool => str_contains($src, '/app-icons/ios/') || str_contains($src, 'apple-touch-icon')),
     'ícones PWA existem nas dimensões declaradas' => $iconChecks,
-    'boot compartilhado inclui manifest e metadados iOS' => str_contains($boot, 'rel="manifest" href="/manifest.webmanifest"') && str_contains($boot, 'apple-mobile-web-app-capable') && str_contains($boot, 'apple-mobile-web-app-title') && str_contains($boot, 'apple-touch-icon') && str_contains($boot, '/assets/js/pwa.js'),
+    'pacote mantém somente touch icons iOS necessários' => $iosSourcesAbsent,
+    'service worker pré-cacheia os touch icons iOS atuais' => str_contains($sw, "'/assets/img/branding/app-icons/ios/apple-touch-icon-180x180.png'") && str_contains($sw, "'/assets/img/branding/app-icons/ios/apple-touch-icon-167x167.png'") && str_contains($sw, "'/assets/img/branding/app-icons/ios/apple-touch-icon-152x152.png'") && !str_contains($sw, "'/assets/img/pwa/apple-touch-icon.png'"),
+    'boot compartilhado inclui manifest e metadados iOS' => str_contains($boot, 'rel="manifest" href="/manifest.webmanifest"') && str_contains($boot, 'apple-mobile-web-app-capable') && str_contains($boot, 'apple-mobile-web-app-title') && substr_count($boot, 'rel="apple-touch-icon"') === 3 && str_contains($boot, 'sizes="180x180"') && str_contains($boot, 'sizes="167x167"') && str_contains($boot, 'sizes="152x152"') && str_contains($boot, '/assets/img/branding/app-icons/ios/apple-touch-icon-180x180.png') && str_contains($boot, '/assets/js/pwa.js'),
     'páginas principais usam viewport-fit cover' => str_contains($activities, 'viewport-fit=cover') && str_contains($gps, 'viewport-fit=cover'),
     'detecção standalone é central para padrão e iOS legado' => str_contains($pwa, "matchMedia?.('(display-mode: standalone)')") && str_contains($pwa, 'window.navigator.standalone === true') && str_contains($pwa, "classList.toggle('is-standalone'") && str_contains($pwa, 'dataset.displayMode') && str_contains($pwa, 'window.StrideBRPWA'),
     'service worker é registrado apenas em contexto seguro e com scope raiz' => str_contains($pwa, "'serviceWorker' in navigator && window.isSecureContext") && str_contains($pwa, 'navigator.serviceWorker.register(`/sw.js?build=') && str_contains($pwa, "{scope: '/', updateViaCache: 'none'}"),

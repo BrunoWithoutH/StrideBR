@@ -242,9 +242,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const positionWeekAtUsefulHour = (force = false) => {
         if (!calendar || fitMode || currentView !== 'week' || (weekPositioned && !force)) return;
-        const targetHour = recommendedWeekStartHour();
-        calendar.scrollTop = targetHour * calendarHourHeight;
         calendar.scrollLeft = 0;
+        if (!isMobileWeek()) {
+            const targetHour = recommendedWeekStartHour();
+            calendar.scrollTop = targetHour * calendarHourHeight;
+        }
         weekPositioned = true;
     };
 
@@ -1460,10 +1462,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const scheduledMarkup = item => {
         const time = item.hora_inicio || tr('schedule.by_date');
         const kind = item.origem === 'treinador' ? tr('schedule.prescription') : tr('schedule.scheduled');
-        const author = item.origem === 'treinador' && item.criador_nome ? `<small>${escapeHtml(item.criador_nome)}</small>` : '';
-        const exercises = Number(item.exercicios_total || 0) > 0 ? `<small>${escapeHtml(trn('schedule.exercise_count.one', 'schedule.exercise_count.other', Number(item.exercicios_total)))}</small>` : '';
-        const action = item.status === 'concluido' ? `<em>${escapeHtml(tr('schedule.month_completed'))}</em>` : (item.status === 'publicado' ? `<button type="button" class="schedule-month-event-action" data-start-scheduled-workout="${escapeHtml(item.idagendamento)}">${escapeHtml(tr('schedule.month_start'))}</button>` : '');
-        return `<article class="monthly-event is-scheduled${item.origem === 'treinador' ? ' is-trainer' : ''}"><span>${escapeHtml(time)} · ${kind}</span><strong>${escapeHtml(item.titulo)}</strong>${author}${exercises}${action}</article>`;
+        const completed = item.status === 'concluido';
+        const status = completed ? tr('schedule.month_completed') : kind;
+        const action = item.status === 'publicado' ? `<button type="button" class="schedule-month-event-action" data-start-scheduled-workout="${escapeHtml(item.idagendamento)}">${escapeHtml(tr('schedule.month_start'))}</button>` : '';
+        return `<article class="monthly-event is-scheduled schedule-month-static${item.origem === 'treinador' ? ' is-trainer' : ''}${completed ? ' is-completed' : ''}"><span class="schedule-month-event-meta">${completed ? '✓ ' : ''}${escapeHtml(time)}</span><strong><span class="schedule-month-event-title">${escapeHtml(item.titulo)}</span></strong><small class="schedule-month-event-status">${escapeHtml(status)}</small>${action}</article>`;
     };
     const occurrenceMarkup = item => {
         const completed = !!item.concluido;
@@ -1472,10 +1474,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const menu = completed ? '' : `<button type="button" class="schedule-month-event-menu" data-move-occurrence aria-label="${escapeHtml(tr('schedule.move_or_skip'))}">•••</button>`;
         const today = new Intl.DateTimeFormat('en-CA', {timeZone: 'America/Sao_Paulo', year:'numeric', month:'2-digit', day:'2-digit'}).format(new Date());
         const state = completed ? (item.realizado_fora_planejado ? 'shifted' : 'completed') : ((item.data_planejada || item.data_treino) < today ? 'missed' : 'todo');
-        const status = item.acompanhamento_disponivel === false ? '' : ` · ${tr('planning.status.' + state)}`;
-        return `<article class="monthly-event is-recurring schedule-month-recurring${classes}"${drag} data-occurrence-workout="${escapeHtml(item.idtreino)}" data-occurrence-original="${escapeHtml(item.data_original)}" data-occurrence-date="${escapeHtml(item.data_treino)}" data-occurrence-title="${escapeHtml(item.titulo)}" data-planned-date="${escapeHtml(item.data_planejada || item.data_treino)}" data-planned-time="${escapeHtml(item.hora_planejada || item.hora_inicio)}" data-realized-date="${escapeHtml(item.data_realizada || '')}" data-realized-time="${escapeHtml(item.hora_realizada || '')}" data-activity-id="${escapeHtml(item.idregistro || '')}" data-completed="${completed ? '1' : '0'}"><button type="button" class="schedule-month-event-main" data-preview-workout="${escapeHtml(item.idtreino)}" data-workout-date="${escapeHtml(item.data_treino)}"><span>${completed ? '✓ ' : ''}${escapeHtml(item.hora_inicio)}${item.termina_dia_seguinte ? ` · ${tr('schedule.next_day')}` : ''}${status}</span><strong>${item.codigo ? `<b class="workout-code-inline">${escapeHtml(item.codigo)}</b> ` : ''}${escapeHtml(item.titulo)}</strong>${item.foco ? `<small>${escapeHtml(item.foco)}</small>` : ''}</button>${menu}</article>`;
+        const status = item.acompanhamento_disponivel === false ? '' : tr('planning.status.' + state);
+        const code = item.codigo ? `<b class="workout-code-inline">${escapeHtml(item.codigo)}</b>` : '';
+        return `<article class="monthly-event is-recurring schedule-month-recurring${classes}"${drag} data-occurrence-workout="${escapeHtml(item.idtreino)}" data-occurrence-original="${escapeHtml(item.data_original)}" data-occurrence-date="${escapeHtml(item.data_treino)}" data-occurrence-title="${escapeHtml(item.titulo)}" data-planned-date="${escapeHtml(item.data_planejada || item.data_treino)}" data-planned-time="${escapeHtml(item.hora_planejada || item.hora_inicio)}" data-realized-date="${escapeHtml(item.data_realizada || '')}" data-realized-time="${escapeHtml(item.hora_realizada || '')}" data-activity-id="${escapeHtml(item.idregistro || '')}" data-completed="${completed ? '1' : '0'}"><button type="button" class="schedule-month-event-main" data-preview-workout="${escapeHtml(item.idtreino)}" data-workout-date="${escapeHtml(item.data_treino)}"><span class="schedule-month-event-meta">${completed ? '✓ ' : ''}${escapeHtml(item.hora_inicio)}${item.termina_dia_seguinte ? ` · ${tr('schedule.next_day')}` : ''}</span><strong>${code}<span class="schedule-month-event-title">${escapeHtml(item.titulo)}</span></strong>${status ? `<small class="schedule-month-event-status">${escapeHtml(status)}</small>` : ''}</button>${menu}</article>`;
     };
-    const plannedGhostMarkup = item => `<article class="monthly-event is-recurring is-plan-ghost" data-planned-date="${escapeHtml(item.data_planejada || '')}" data-planned-time="${escapeHtml(item.hora_planejada || '')}" data-realized-date="${escapeHtml(item.data_realizada || '')}" data-realized-time="${escapeHtml(item.hora_realizada || '')}" data-completed="1"><button type="button" class="schedule-month-event-main" data-preview-workout="${escapeHtml(item.idtreino)}" data-workout-date="${escapeHtml(item.data_planejada || '')}" data-occurrence-original="${escapeHtml(item.data_original || '')}"><span>${escapeHtml(item.hora_planejada || '')} ${escapeHtml(tr('schedule.planned_badge'))}</span><strong>${item.codigo ? `<b class="workout-code-inline">${escapeHtml(item.codigo)}</b> ` : ''}${escapeHtml(item.titulo)}</strong></button></article>`;
+    const plannedGhostMarkup = item => {
+        const code = item.codigo ? `<b class="workout-code-inline">${escapeHtml(item.codigo)}</b>` : '';
+        return `<article class="monthly-event is-recurring is-plan-ghost" data-planned-date="${escapeHtml(item.data_planejada || '')}" data-planned-time="${escapeHtml(item.hora_planejada || '')}" data-realized-date="${escapeHtml(item.data_realizada || '')}" data-realized-time="${escapeHtml(item.hora_realizada || '')}" data-completed="1"><button type="button" class="schedule-month-event-main" data-preview-workout="${escapeHtml(item.idtreino)}" data-workout-date="${escapeHtml(item.data_planejada || '')}" data-occurrence-original="${escapeHtml(item.data_original || '')}"><span class="schedule-month-event-meta">${escapeHtml(item.hora_planejada || '')}</span><strong>${code}<span class="schedule-month-event-title">${escapeHtml(item.titulo)}</span></strong><small class="schedule-month-event-status">${escapeHtml(tr('schedule.planned_badge'))}</small></button></article>`;
+    };
     const renderMonth = (key, data) => {
         if (!monthGrid) return;
         const range = monthRange(key);

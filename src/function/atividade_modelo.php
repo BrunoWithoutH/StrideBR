@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/activity_sport_context.php';
+require_once __DIR__ . '/marketing.php';
 
 
 function atividadeGerarId(int $length = 21): string
@@ -1716,6 +1717,10 @@ function atividadeSalvarRegistro(PDO $pdo, string $idUsuario, array $payload, ?s
             }
         } catch (Throwable $preferenceError) {
             error_log('StrideBR activity preference after save: ' . $preferenceError->getMessage());
+        }
+
+        if (!$isUpdate) {
+            stridebr_marketing_activation($pdo, $idUsuario);
         }
 
         return $idRegistro;
