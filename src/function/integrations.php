@@ -607,12 +607,16 @@ function stridebr_integrations_disconnect(PDO $pdo, string $userId, string $prov
 {
     $connection = stridebr_integrations_get($pdo, $userId, $providerId);
     if ($providerId === 'strava' && is_array($connection)) {
-        $token = stridebr_integrations_decrypt((string) ($connection['access_token_enc'] ?? ''));
+        $strava = stridebr_integrations_provider('strava');
+        $refreshToken = stridebr_integrations_decrypt((string) ($connection['refresh_token_enc'] ?? ''));
+        $token = $refreshToken ?: stridebr_integrations_decrypt((string) ($connection['access_token_enc'] ?? ''));
         if ($token) {
             try {
+                $body = ['token' => $token];
+                if ($refreshToken) $body['token_type_hint'] = 'refresh_token';
                 stridebr_integrations_http('POST', 'https://www.strava.com/oauth/revoke', [
-                    'headers' => ['Authorization: Bearer ' . $token, 'Accept: application/json'],
-                    'body' => [],
+                    'headers' => ['Authorization: Basic ' . base64_encode((string) $strava['client_id'] . ':' . (string) $strava['client_secret']), 'Accept: application/json', 'Content-Type: application/x-www-form-urlencoded'],
+                    'body' => $body,
                 ]);
             } catch (Throwable) {
             }
@@ -1033,6 +1037,148 @@ function stridebr_integrations_strava_retry(array $response): int
         if ((int) ($caps[1] ?? 0) > 0 && (int) ($used[1] ?? 0) >= (int) $caps[1] - 5) return max(900, strtotime('tomorrow UTC') - time() + 60);
     }
     return 900;
+}
+
+/** Webhook helpers deliberately retain only the documented event fields. */
+function stridebr_strava_webhook_config(): array
+{
+    return [
+        'verify_token' => trim((string) (getenv('STRAVA_WEBHOOK_VERIFY_TOKEN') ?: '')),
+        'signing_secret' => trim((string) (getenv('STRAVA_WEBHOOK_SIGNING_SECRET') ?: '')),
+        'subscription_id' => trim((string) (getenv('STRAVA_WEBHOOK_SUBSCRIPTION_ID') ?: '')),
+    ];
+}
+
+function stridebr_strava_webhook_verify_signature(string $raw, ?string $header, ?int $now = null): bool
+{
+    $secret = stridebr_strava_webhook_config()['signing_secret'];
+    if ($secret === '' || !is_string($header) || $header === '') return false;
+    $parts = [];
+    foreach (explode(',', $header) as $part) {
+        [$key, $value] = array_pad(explode('=', trim($part), 2), 2, '');
+        if (in_array($key, ['t', 'v1'], true) && $value !== '') $parts[$key] = $value;
+    }
+    if (!isset($parts['t'], $parts['v1']) || !ctype_digit($parts['t']) || !preg_match('/^[a-f0-9]{64}$/i', $parts['v1'])) return false;
+    $now ??= time();
+    if (abs($now - (int) $parts['t']) > 300) return false;
+    $expected = hash_hmac('sha256', $parts['t'] . '.' . $raw, $secret);
+    return hash_equals($expected, strtolower($parts['v1']));
+}
+
+function stridebr_strava_webhook_event(array $input): ?array
+{
+    $objectType = $input['object_type'] ?? null; $aspect = $input['aspect_type'] ?? null;
+    foreach (['object_id', 'owner_id', 'subscription_id', 'event_time'] as $key) if (!is_int($input[$key] ?? null) && !ctype_digit((string) ($input[$key] ?? ''))) return null;
+    if (!is_string($objectType) || !in_array($objectType, ['activity', 'athlete'], true) || !is_string($aspect) || !in_array($aspect, ['create', 'update', 'delete'], true)) return null;
+    $updates = $input['updates'] ?? [];
+    if (!is_array($updates) || ($updates !== [] && array_is_list($updates))) return null;
+    $allowed = $objectType === 'activity' ? ['title', 'type', 'private'] : ['authorized'];
+    foreach ($updates as $key => $value) if (!in_array($key, $allowed, true) || (!is_scalar($value) && $value !== null)) return null;
+    if ($objectType === 'athlete' && !($aspect === 'update' && ($updates['authorized'] ?? null) === 'false')) return null;
+    ksort($updates, SORT_STRING);
+    $event = ['provider'=>'strava','subscription_id'=>(string) $input['subscription_id'],'owner_external_id'=>(string) $input['owner_id'],'object_type'=>$objectType,'object_id'=>(string) $input['object_id'],'aspect_type'=>$aspect,'event_time'=>(int) $input['event_time'],'updates'=>$updates];
+    $event['fingerprint'] = hash('sha256', json_encode($event, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
+    return $event;
+}
+
+function stridebr_strava_webhook_enqueue(PDO $pdo, array $event): void
+{
+    $stmt = $pdo->prepare("INSERT INTO integracao_webhook_eventos (provider, subscription_id, owner_external_id, object_type, object_id, aspect_type, event_time, updates, fingerprint, signature_verified) VALUES ('strava', :subscription, :owner, :type, :object, :aspect, :time, CAST(:updates AS jsonb), :fingerprint, :signed) ON CONFLICT (fingerprint) DO NOTHING");
+    $stmt->execute([':subscription'=>$event['subscription_id'], ':owner'=>$event['owner_external_id'], ':type'=>$event['object_type'], ':object'=>$event['object_id'], ':aspect'=>$event['aspect_type'], ':time'=>$event['event_time'], ':updates'=>json_encode($event['updates'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), ':fingerprint'=>$event['fingerprint'], ':signed'=>!empty($event['signature_verified'])]);
+}
+
+function stridebr_integrations_lock_key(string $userId, string $provider): string { return 'integration:' . $userId . ':' . $provider; }
+function stridebr_integrations_try_lock(PDO $pdo, string $userId, string $provider): bool { $stmt=$pdo->prepare('SELECT pg_try_advisory_lock(hashtextextended(:key, 0))'); $stmt->execute([':key'=>stridebr_integrations_lock_key($userId,$provider)]); return (bool)$stmt->fetchColumn(); }
+function stridebr_integrations_unlock(PDO $pdo, string $userId, string $provider): void { $stmt=$pdo->prepare('SELECT pg_advisory_unlock(hashtextextended(:key, 0))'); $stmt->execute([':key'=>stridebr_integrations_lock_key($userId,$provider)]); }
+function stridebr_integrations_provider_cooldown(PDO $pdo, string $provider): int { $stmt=$pdo->prepare("SELECT MAX(COALESCE((metadados->'sync'->>'rate_limit_until')::bigint,0)) FROM integracoes_usuario WHERE provedor=:provider"); $stmt->execute([':provider'=>$provider]); return (int)$stmt->fetchColumn(); }
+function stridebr_integrations_provider_cooldown_set(PDO $pdo, string $provider, int $until): void { $stmt=$pdo->prepare("UPDATE integracoes_usuario SET metadados = metadados || jsonb_build_object('sync', COALESCE(metadados->'sync','{}'::jsonb) || jsonb_build_object('rate_limit_until', CAST(:until AS bigint))) WHERE provedor=:provider"); $stmt->execute([':until'=>$until,':provider'=>$provider]); }
+
+function stridebr_strava_webhook_connection(PDO $pdo, string $ownerId): ?array
+{
+    $stmt = $pdo->prepare("SELECT * FROM integracoes_usuario WHERE provedor = 'strava' AND usuario_externo_id = :owner LIMIT 2");
+    $stmt->execute([':owner'=>$ownerId]); $rows = $stmt->fetchAll();
+    if (count($rows) > 1) throw new RuntimeException('Ambiguous external owner.');
+    return $rows[0] ?? null;
+}
+
+function stridebr_strava_webhook_fetch_activity(PDO $pdo, array $connection, string $objectId): array
+{
+    $userId = (string) $connection['idusuario'];
+    [$connection, $token] = stridebr_integrations_connection_token($pdo, $userId, 'strava', $connection);
+    $provider = stridebr_integrations_provider('strava');
+    $response = stridebr_integrations_http('GET', $provider['api_base_url'] . '/activities/' . rawurlencode($objectId), ['headers'=>['Authorization: Bearer ' . $token, 'Accept: application/json']]);
+    if (!is_array($response['json']) || (string) ($response['json']['id'] ?? '') !== $objectId) throw new StridebrIntegrationError('detail', 'invalid_response', $response['status']);
+    return ['activity'=>stridebr_integrations_normalize_strava($response['json']), 'cooldown'=>stridebr_integrations_strava_rate_low($response) ? stridebr_integrations_strava_retry($response) : 0];
+}
+
+function stridebr_strava_webhook_update_activity(PDO $pdo, string $userId, string $externalId, array $activity, array $updates): void
+{
+    // Existing imported record only; never changes manual activity or another provider.
+    $setPrivacy = array_key_exists('private', $updates) && $updates['private'] === 'true';
+    $existing = $pdo->prepare("SELECT idregistro FROM registros_atividade WHERE idusuario=:user AND origem_provedor='strava' AND id_externo=:external AND excluido_em IS NULL LIMIT 1"); $existing->execute([':user'=>$userId,':external'=>$externalId]); $id = $existing->fetchColumn(); if (!$id) return;
+    if (array_key_exists('type', $updates)) {
+        // Reuse the same modality resolver used during import; only classification changes.
+        require_once __DIR__ . '/activity_file_exchange.php';
+        $modalidade = atividadeArquivoModalidade($pdo, $userId, stridebr_integrations_sport_slug('strava', (string) $activity['sport']));
+        $pdo->prepare('UPDATE registros_atividade SET idmodelo=:model, idmodalidade=:modality, data_atualizacao=NOW() WHERE idregistro=:id AND idusuario=:user')->execute([':model'=>$modalidade['idmodelo'], ':modality'=>$modalidade['idmodalidade'], ':id'=>$id, ':user'=>$userId]);
+    }
+    $stmt = $pdo->prepare("UPDATE registros_atividade SET titulo = CASE WHEN :title_update THEN :title ELSE titulo END, data_inicio = :start, data_fim = :end, visibilidade = CASE WHEN :private THEN 'privado' ELSE visibilidade END, data_atualizacao = NOW() WHERE idregistro=:id AND idusuario = :user AND origem_provedor = 'strava' AND id_externo = :external AND excluido_em IS NULL");
+    $start = new DateTimeImmutable((string) $activity['start_at']); $duration = (int) ($activity['duration_s'] ?? 0);
+    $stmt->execute([':title'=>(string) $activity['title'], ':title_update'=>array_key_exists('title',$updates), ':start'=>$start->setTimezone(new DateTimeZone('America/Sao_Paulo'))->format('Y-m-d H:i:s'), ':end'=>$duration > 0 ? $start->modify('+' . $duration . ' seconds')->setTimezone(new DateTimeZone('America/Sao_Paulo'))->format('Y-m-d H:i:s') : null, ':private'=>$setPrivacy, ':id'=>$id, ':user'=>$userId, ':external'=>$externalId]);
+}
+
+function stridebr_strava_webhook_process(PDO $pdo, array $event): string
+{
+    $connection = stridebr_strava_webhook_connection($pdo, (string) $event['owner_external_id']);
+    if (!$connection) return 'ignored';
+    $userId = (string) $connection['idusuario']; $updates = is_array($event['updates'] ?? null) ? $event['updates'] : (json_decode((string) ($event['updates'] ?? '{}'), true) ?: []); $signed = stridebr_db_bool($event['signature_verified'] ?? false);
+    if (!stridebr_integrations_try_lock($pdo, $userId, 'strava')) throw new StridebrIntegrationError('lock', 'busy', null, 15);
+    try {
+        $cooldown = stridebr_integrations_provider_cooldown($pdo, 'strava');
+        if ($cooldown > time()) throw new StridebrIntegrationError('rate_limit', 'rate_limit', 429, $cooldown - time());
+        if ($event['object_type'] === 'athlete') {
+            if (!$signed) {
+                // A valid token proves a forged deauthorization event; 401 confirms actual revocation.
+                try { [, $token] = stridebr_integrations_connection_token($pdo, $userId, 'strava', $connection); stridebr_integrations_http('GET', stridebr_integrations_provider('strava')['api_base_url'] . '/athlete', ['headers'=>['Authorization: Bearer '.$token]]); return 'ignored'; }
+                catch (StridebrIntegrationError $e) { if ($e->httpStatus !== 401) throw $e; }
+            }
+            $stmt = $pdo->prepare("UPDATE integracoes_usuario SET status='revogado', access_token_enc=NULL, refresh_token_enc=NULL, token_expira_em=NULL, metadados=jsonb_set(metadados, '{sync}', '{}'::jsonb, true), ultimo_erro=NULL, atualizado_em=NOW() WHERE idusuario=:user AND provedor='strava' AND usuario_externo_id=:owner");
+            $stmt->execute([':user'=>$userId, ':owner'=>$event['owner_external_id']]); return 'complete';
+        }
+        if ($event['aspect_type'] === 'delete' && !$signed) {
+            // Only 404/410 from the owner's token confirms an unsigned deletion.
+            try { stridebr_strava_webhook_fetch_activity($pdo, $connection, (string)$event['object_id']); return 'ignored'; }
+            catch (StridebrIntegrationError $e) { if (!in_array($e->httpStatus, [404,410], true)) throw $e; }
+        }
+        if ($event['aspect_type'] === 'delete') {
+            $stmt = $pdo->prepare("UPDATE registros_atividade SET excluido_em=NOW(), data_atualizacao=NOW() WHERE idusuario=:user AND origem_provedor='strava' AND id_externo=:external AND excluido_em IS NULL");
+            $stmt->execute([':user'=>$userId, ':external'=>$event['object_id']]); return 'complete';
+        }
+        if (!stridebr_integrations_eligible($connection, 'webhook')) return 'ignored';
+        $fetched = stridebr_strava_webhook_fetch_activity($pdo, $connection, (string) $event['object_id']); $activity = $fetched['activity'];
+        if ($event['aspect_type'] === 'update' && stridebr_integrations_duplicate($pdo, $userId, 'strava', (string) $event['object_id'])) stridebr_strava_webhook_update_activity($pdo, $userId, (string) $event['object_id'], $activity, $updates);
+        else stridebr_integrations_store_activity($pdo, $userId, 'strava', $activity);
+        if ($fetched['cooldown'] > 0) stridebr_integrations_provider_cooldown_set($pdo, 'strava', time() + $fetched['cooldown']);
+        return 'complete';
+    } catch (StridebrIntegrationError $error) {
+        if ($error->internalCode === 'rate_limit') {
+            // A real 429 applies to every athlete in this Strava app, not only this queue item.
+            stridebr_integrations_provider_cooldown_set($pdo, 'strava', time() + max(900, $error->retryAfter));
+        }
+        if ($error->internalCode === 'reauthorize') {
+            // Match the normal sync state so the runner and future webhook work do not retry a revoked token.
+            $state = stridebr_integrations_metadata($connection)['sync'] ?? [];
+            $state['started_at'] = null;
+            $state['last_attempt_at'] = time();
+            $state['retry_at'] = 0;
+            $state['reauthorize'] = true;
+            $state['error_code'] = 'reauthorize';
+            stridebr_integrations_sync_state($pdo, $userId, 'strava', $state);
+            $stmt = $pdo->prepare("UPDATE integracoes_usuario SET status='erro', ultimo_erro='reauthorize', atualizado_em=NOW() WHERE idusuario=:user AND provedor='strava' AND usuario_externo_id=:owner");
+            $stmt->execute([':user' => $userId, ':owner' => $event['owner_external_id']]);
+        }
+        throw $error;
+    } finally { stridebr_integrations_unlock($pdo, $userId, 'strava'); }
 }
 
 function stridebr_integrations_find_coordinates(mixed $value, array &$out): void
@@ -1476,17 +1622,12 @@ function stridebr_integrations_sync_suunto(PDO $pdo, string $userId, array $conn
 
 function stridebr_integrations_sync_detailed(PDO $pdo, string $userId, string $providerId, string $trigger = 'manual'): array
 {
-    $lockKey = 'integration:' . $userId . ':' . $providerId;
-    $lock = $pdo->prepare('SELECT pg_try_advisory_lock(hashtextextended(:key, 0))');
-    $lock->execute([':key' => $lockKey]);
-    if (!stridebr_db_bool($lock->fetchColumn())) return stridebr_integrations_result() + ['skipped' => 'busy'];
+    if (!stridebr_integrations_try_lock($pdo, $userId, $providerId)) return stridebr_integrations_result() + ['skipped' => 'busy'];
     try {
         // Re-read after acquiring the lock: the other process may have refreshed/synchronized.
         $connection = stridebr_integrations_get($pdo, $userId, $providerId);
         if (!$connection || !stridebr_integrations_eligible($connection, $trigger)) return stridebr_integrations_result() + ['skipped' => 'not_due'];
-        $cooldown = $pdo->prepare("SELECT MAX(COALESCE((metadados->'sync'->>'rate_limit_until')::bigint, 0)) FROM integracoes_usuario WHERE provedor = :provider");
-        $cooldown->execute([':provider' => $providerId]);
-        if ((int) $cooldown->fetchColumn() > time()) return stridebr_integrations_result() + ['skipped' => 'provider_backoff'];
+        if (stridebr_integrations_provider_cooldown($pdo, $providerId) > time()) return stridebr_integrations_result() + ['skipped' => 'provider_backoff'];
         $connection['_sync_trigger'] = $trigger;
         $started = time();
         $state = stridebr_integrations_metadata($connection)['sync'] ?? [];
@@ -1530,8 +1671,7 @@ function stridebr_integrations_sync_detailed(PDO $pdo, string $userId, string $p
         ]);
         return $result + stridebr_integrations_result();
     } finally {
-        $unlock = $pdo->prepare('SELECT pg_advisory_unlock(hashtextextended(:key, 0))');
-        $unlock->execute([':key' => $lockKey]);
+        stridebr_integrations_unlock($pdo, $userId, $providerId);
     }
 }
 

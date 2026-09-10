@@ -1,0 +1,32 @@
+<?php
+
+declare(strict_types=1);
+
+$root = dirname(__DIR__, 2);
+putenv('STRIDEBR_APP_ENV=development');
+putenv('STRAVA_WEBHOOK_VERIFY_TOKEN=test-verify-token');
+putenv('STRAVA_WEBHOOK_SIGNING_SECRET=test-signing-secret');
+require_once $root . '/src/includes/app.php';
+require_once $root . '/src/function/integrations.php';
+$checks = 0;
+$assert = static function (bool $value, string $message) use (&$checks): void { $checks++; if (!$value) throw new RuntimeException($message); };
+$raw = '{"aspect_type":"create","event_time":1700000000,"object_id":123,"object_type":"activity","owner_id":456,"subscription_id":789}';
+$timestamp = 1700000001;
+$signature = hash_hmac('sha256', $timestamp . '.' . $raw, 'test-signing-secret');
+$assert(stridebr_strava_webhook_verify_signature($raw, "t={$timestamp},v1={$signature}", $timestamp + 20), 'assinatura Strava válida rejeitada');
+$assert(!stridebr_strava_webhook_verify_signature($raw, "t={$timestamp},v1=" . str_repeat('0', 64), $timestamp), 'assinatura inválida aceita');
+$assert(!stridebr_strava_webhook_verify_signature($raw, "t={$timestamp},v1={$signature}", $timestamp + 301), 'replay antigo aceito');
+$event = stridebr_strava_webhook_event(json_decode($raw, true, 512, JSON_THROW_ON_ERROR));
+$assert(is_array($event) && strlen((string) $event['fingerprint']) === 64, 'evento create válido/fingerprint falhou');
+$assert($event['fingerprint'] === stridebr_strava_webhook_event(json_decode($raw, true, 512, JSON_THROW_ON_ERROR))['fingerprint'], 'fingerprint precisa ser determinístico');
+$update = stridebr_strava_webhook_event(['aspect_type'=>'update','event_time'=>1700000002,'object_id'=>123,'object_type'=>'activity','owner_id'=>456,'subscription_id'=>789,'updates'=>['title'=>'Novo']]);
+$assert(is_array($update) && $update['fingerprint'] !== $event['fingerprint'], 'update distinto não pode deduplicar create');
+$assert(stridebr_strava_webhook_event(['aspect_type'=>'update','event_time'=>1,'object_id'=>1,'object_type'=>'athlete','owner_id'=>1,'subscription_id'=>1,'updates'=>['authorized'=>'false']]) !== null, 'deauth oficial rejeitado');
+$assert(stridebr_strava_webhook_event(['aspect_type'=>'update','event_time'=>1,'object_id'=>1,'object_type'=>'activity','owner_id'=>1,'subscription_id'=>1,'updates'=>['unexpected'=>'x']]) === null, 'campo não documentado aceito');
+$endpoint = (string) file_get_contents($root . '/public/webhooks/strava.php');
+$worker = (string) file_get_contents($root . '/scripts/process_strava_webhooks.php');
+$migration = (string) file_get_contents($root . '/src/database/migrations/20260909_strava_webhooks.sql');
+$assert(str_contains($endpoint, "file_get_contents('php://input'") && str_contains($endpoint, 'HTTP_X_STRAVA_SIGNATURE') && !str_contains($endpoint, 'session_start'), 'endpoint precisa usar raw body, assinatura e nenhuma sessão');
+$assert(str_contains($worker, 'FOR UPDATE SKIP LOCKED') && str_contains($worker, 'attempts=attempts+1'), 'worker precisa reivindicar concorrentemente');
+$assert(str_contains($migration, 'uq_integracao_webhook_eventos_fingerprint') && str_contains($migration, 'ix_integracao_webhook_eventos_due'), 'fila precisa de idempotência e índice de consumo');
+printf("✓ Strava webhooks: %d assertions\n", $checks);

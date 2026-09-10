@@ -17,6 +17,9 @@ STRIDEBR_INTEGRATIONS_SECRET=
 ```dotenv
 STRAVA_CLIENT_ID=
 STRAVA_CLIENT_SECRET=
+STRAVA_WEBHOOK_VERIFY_TOKEN=
+STRAVA_WEBHOOK_SIGNING_SECRET=
+STRAVA_WEBHOOK_SUBSCRIPTION_ID=
 ```
 
 Callback:
@@ -171,7 +174,8 @@ serviço de sincronização. Este documento não instala cron nem realiza deploy
 - COROS: sincronização manual, fora do runner periódico, inclusive quando se passa
   `--provider=coros`. O comportamento existente de importação após conexão permanece.
 - Apenas conexões habilitadas, conectadas ou com erro recuperável e prazo vencido
-  são selecionadas. A última sincronização completa deve ter pelo menos 15 minutos.
+  são selecionadas. Para Strava, após webhook, a reconciliação exige 6 horas; os
+  outros providers periódicos preservam o mínimo de 15 minutos.
 - Tokens só são renovados quando a conexão elegível vai sincronizar e o token vence
   em até 120 segundos. Não há renovação em massa nem polling pelo navegador.
 - PostgreSQL mantém uma trava por usuário/provedor entre processos e containers.
@@ -198,15 +202,20 @@ O diagnóstico usa `provider`, `stage`, `external_activity_id`, `http_status`,
 `exception_type`, `error_code` e, em falhas PostgreSQL, `sqlstate`. Não registra
 mensagem bruta da exceção, payload, cabeçalho Authorization ou credenciais.
 
-### Evolução para webhook do Strava
+### Webhook Strava em produção
 
-A persistência e normalização são reutilizáveis, separadas do gatilho periódico.
-Um futuro consumidor de webhook deve reutilizar as mesmas travas, deduplicação e
-backoff, com validação da assinatura/assinatura de eventos conforme o contrato
-oficial, validação de assinatura de subscription quando aplicável e tratamento
-explícito de criação/alteração/exclusão e revogação. Nenhum endpoint ou subscription
-incompleto foi criado. Antes dessa etapa, confirmar as regras atuais de verificação
-e entrega na [documentação oficial de webhooks](https://developers.strava.com/docs/webhooks/).
+Arquitetura: `Strava -> /webhooks/strava.php -> integracao_webhook_eventos (PostgreSQL) -> scripts/process_strava_webhooks.php -> importador existente`. O endpoint somente valida e enfileira; o worker importa a atividade específica fora da request. Webhook é o caminho principal, “Sincronizar agora” continua, e a reconciliação Strava é fallback a cada aproximadamente 6 horas.
+
+1. Gere `STRAVA_WEBHOOK_VERIFY_TOKEN` forte e separado.
+2. Configure `STRAVA_WEBHOOK_SIGNING_SECRET` somente se o Strava fornecer um signing secret utilizável para seu app. A documentação oficial mostra a verificação, mas não documenta atualmente como esse secret é disponibilizado; ele é opcional e nunca deve ser substituído por OAuth ou segredo de criptografia.
+3. Configure as variáveis, faça deploy e rode migrations.
+4. Teste o GET challenge em `https://stridebr.com.br/webhooks/strava.php` sem expor token.
+5. Rode `php scripts/strava_webhook.php status`, então `php scripts/strava_webhook.php create`.
+6. Configure o ID retornado como `STRAVA_WEBHOOK_SUBSCRIPTION_ID`, faça novo deploy e valide evento real.
+7. Agende `php scripts/process_strava_webhooks.php --limit=50` a cada minuto e `php scripts/sync_integrations.php --provider=strava` em `0 */6 * * *`.
+8. Monitore eventos `failed` e logs sanitizados; a CLI nunca imprime secrets.
+
+Quando o signing secret existe, o callback verifica `X-Strava-Signature` no raw body no formato `t=<unix>,v1=<hex>`, usando HMAC-SHA256 de `t.rawBody` e janela de 5 minutos. Sem ele, exige obrigatoriamente o ID da subscription configurada; create/update confirmam a atividade pela API do atleta, e delete/deauth exigem confirmação adicional antes de mutação. A subscription é única por app e nunca é criada automaticamente no deploy. Referências: [webhooks](https://developers.strava.com/docs/webhooks/), [exemplo de assinatura](https://developers.strava.com/docs/webhookexample/), [autenticação](https://developers.strava.com/docs/authentication/) e [rate limits](https://developers.strava.com/docs/rate-limits/).
 
 Referências: [API de atividades](https://developers.strava.com/docs/reference/),
 [limites de requisição](https://developers.strava.com/docs/rate-limits/).
