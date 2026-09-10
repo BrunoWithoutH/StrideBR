@@ -46,6 +46,12 @@ function stridebr_integrations_periodic_providers(): array
     return ['strava', 'polar', 'google_health', 'suunto'];
 }
 
+function stridebr_integrations_periodic_interval(string $provider): int
+{
+    // Strava webhooks are primary; the periodic runner is only reconciliation.
+    return $provider === 'strava' ? 21600 : 900;
+}
+
 function stridebr_integrations_eligible(array $connection, string $trigger = 'periodic', ?int $now = null): bool
 {
     $now ??= time();
@@ -56,7 +62,7 @@ function stridebr_integrations_eligible(array $connection, string $trigger = 'pe
     if (!empty($sync['reauthorize'])) return false;
     if ((int) ($sync['retry_at'] ?? 0) > $now) return false;
     if (($connection['status'] ?? '') === 'erro' && !isset($sync['retry_at']) && (strtotime((string) ($connection['atualizado_em'] ?? '')) ?: 0) + 900 > $now) return false;
-    if ($trigger === 'periodic' && (strtotime((string) ($connection['ultima_sincronizacao_em'] ?? '')) ?: 0) + 900 > $now) return false;
+    if ($trigger === 'periodic' && (strtotime((string) ($connection['ultima_sincronizacao_em'] ?? '')) ?: 0) + stridebr_integrations_periodic_interval((string) ($connection['provedor'] ?? '')) > $now) return false;
     return true;
 }
 
@@ -91,7 +97,7 @@ function stridebr_integrations_due_connections(PDO $pdo, string $providerFilter 
     $readyProviders = stridebr_integrations_periodic_providers();
     if ($providerFilter !== '' && !in_array($providerFilter, $readyProviders, true)) return [];
     $limit = max(1, min(5000, $limit));
-    $where = ["(status = 'conectado' OR (status = 'erro' AND atualizado_em < NOW() - INTERVAL '15 minutes'))", 'sincronizar_atividades = TRUE', "(ultima_sincronizacao_em IS NULL OR ultima_sincronizacao_em <= NOW() - INTERVAL '15 minutes')", "COALESCE((metadados->'sync'->>'retry_at')::bigint, 0) <= EXTRACT(EPOCH FROM NOW())", "COALESCE((metadados->'sync'->>'reauthorize')::boolean, FALSE) = FALSE"];
+    $where = ["(status = 'conectado' OR (status = 'erro' AND atualizado_em < NOW() - INTERVAL '15 minutes'))", 'sincronizar_atividades = TRUE', "(ultima_sincronizacao_em IS NULL OR ultima_sincronizacao_em <= NOW() - CASE WHEN provedor = 'strava' THEN INTERVAL '6 hours' ELSE INTERVAL '15 minutes' END)", "COALESCE((metadados->'sync'->>'retry_at')::bigint, 0) <= EXTRACT(EPOCH FROM NOW())", "COALESCE((metadados->'sync'->>'reauthorize')::boolean, FALSE) = FALSE"];
     $params = [];
     if ($providerFilter !== '') {
         $where[] = 'provedor = :provedor';

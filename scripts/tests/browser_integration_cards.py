@@ -26,7 +26,7 @@ try:
         page = browser.new_page()
         errors = []; page.on('pageerror',lambda e: errors.append(str(e)))
         for locale in ['pt-BR','en']:
-            for width in [360,390,768,1280]:
+            for width in [360,375,390,620,679,680,681,768,1024,1440]:
                 for theme in ['light','dark']:
                     page.set_viewport_size({'width':width,'height':1000})
                     page.goto(f'http://127.0.0.1:8097/__integration_cards?lang={locale}')
@@ -42,6 +42,18 @@ try:
                     manual = strava.locator('[data-integration-sync] button')
                     assert manual.evaluate('e=>getComputedStyle(e).appearance') == 'none'; checks += 1
                     assert manual.bounding_box()['height'] >= 40; checks += 1
+                    connect = page.locator('[data-integration-provider=suunto] .integration-button')
+                    assert abs(manual.bounding_box()['height'] - connect.bounding_box()['height']) < 1; checks += 1
+                    more = strava.locator('.integration-more').bounding_box()
+                    assert abs(more['width'] - more['height']) < 1 and abs(more['height'] - manual.bounding_box()['height']) < 1; checks += 1
+                    if width > 680:
+                        garmin = page.locator('[data-integration-provider=garmin]').bounding_box()
+                        strava_box = strava.bounding_box()
+                        assert abs(garmin['y'] - strava_box['y']) < 1 and abs(garmin['height'] - strava_box['height']) < 1; checks += 1
+                    else:
+                        cards = page.locator('.integration-card').all()
+                        assert all(card.bounding_box()['width'] <= width for card in cards); checks += 1
+                        assert all(card.evaluate('e=>getComputedStyle(e).minHeight') == '0px' for card in cards); checks += 1
                     assert not strava.locator('.integration-disconnect button').is_visible(); checks += 1
                     strava.locator('.integration-menu > summary').click()
                     assert strava.locator('.integration-disconnect button').is_visible(); checks += 1

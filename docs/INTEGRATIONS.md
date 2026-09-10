@@ -6,7 +6,7 @@ O StrideBR usa uma camada única de conexões externas. Tokens de usuário são 
 
 | Provedor | Estado Web | Entrada de atividades | Observações |
 | --- | --- | --- | --- |
-| Strava | Implementado | Sim | OAuth, refresh sob demanda, detalhes, rota/laps quando disponíveis e deduplicação |
+| Strava | Implementado | Sim | OAuth, webhook com assinatura quando disponibilizada, fila PostgreSQL, refresh sob demanda, detalhes, rota/laps e deduplicação |
 | Polar | Implementado em AccessLink API v4 | Sim | OAuth atual, refresh sob demanda, sessões de treino, rotas, estatísticas e laps quando disponíveis |
 | Google Health | Implementado | Sim | Substitui a integração Fitbit Web legada; importa exercícios e tenta TCX para GPS/dados detalhados quando autorizado |
 | COROS | Implementado via MCP | Sim | OAuth por discovery/PKCE do MCP oficial; FIT quando disponível e detalhe MCP como fallback; sincronização manual |
@@ -56,7 +56,7 @@ activity:read_all
 
 O access token é renovado individualmente quando está próximo do vencimento. A sincronização lista atividades recentes, consulta detalhe somente para atividades ainda não importadas, reaproveita rota/laps/dispositivo quando retornados e interrompe enriquecimento adicional quando os headers de rate limit indicam proximidade do limite. A deduplicação ocorre antes da persistência.
 
-O aplicativo Strava de produção ainda está sujeito à capacidade/review configurada externamente. Webhooks podem ser adicionados no futuro, mas não foram criados nesta RC.
+O aplicativo Strava de produção ainda está sujeito à capacidade/review configurada externamente. Webhooks são o caminho principal: o callback só enfileira, e o worker importa a atividade específica fora da request.
 
 ## Polar AccessLink API v4
 

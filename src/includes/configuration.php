@@ -43,6 +43,8 @@ function stridebr_configuration_check(bool $filesystem = true): array
         if ($provider === 'SUUNTO') $configured = $configured && getenv('SUUNTO_SUBSCRIPTION_KEY');
         $status[$provider] = $configured ? 'configured' : 'optional/not configured';
     }
+    $webhookConfigured = trim((string) getenv('STRAVA_WEBHOOK_VERIFY_TOKEN')) !== '' && trim((string) getenv('STRAVA_WEBHOOK_SUBSCRIPTION_ID')) !== '';
+    $status['STRAVA_WEBHOOK'] = $webhookConfigured ? 'configured' : 'optional/not configured';
     $status['COROS'] = strlen((string) getenv('STRIDEBR_INTEGRATIONS_SECRET')) >= 32 && filter_var((string) (getenv('COROS_MCP_URL') ?: 'https://mcp.coros.com/mcp'), FILTER_VALIDATE_URL) ? 'configured' : 'optional/not configured';
     $googleRedirect = trim((string) getenv('GOOGLE_OAUTH_REDIRECT_URI'));
     if ($googleRedirect !== '') {
