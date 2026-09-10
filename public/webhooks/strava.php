@@ -2,9 +2,8 @@
 
 declare(strict_types=1);
 
-// app.php supplies shared helpers only; this endpoint never starts a session or CSRF flow.
+// This public endpoint intentionally bypasses app.php: that bootstrap starts PHP sessions.
 require_once dirname(__DIR__, 2) . '/src/includes/environment.php';
-require_once dirname(__DIR__, 2) . '/src/includes/app.php';
 require_once dirname(__DIR__, 2) . '/src/function/integrations.php';
 
 ini_set('display_errors', '0');
@@ -12,9 +11,10 @@ header('X-Content-Type-Options: nosniff');
 $method = $_SERVER['REQUEST_METHOD'] ?? '';
 $config = stridebr_strava_webhook_config();
 if ($method === 'GET') {
-    $mode = (string) ($_GET['hub.mode'] ?? ''); $token = (string) ($_GET['hub.verify_token'] ?? ''); $challenge = (string) ($_GET['hub.challenge'] ?? '');
+    // PHP turns dots in query-string keys into underscores: hub.mode -> hub_mode.
+    $mode = (string) ($_GET['hub_mode'] ?? ''); $token = (string) ($_GET['hub_verify_token'] ?? ''); $challenge = (string) ($_GET['hub_challenge'] ?? '');
     if ($config['verify_token'] === '' || $mode !== 'subscribe' || $challenge === '' || !hash_equals($config['verify_token'], $token)) { http_response_code(403); exit; }
-    header('Content-Type: application/json; charset=utf-8'); echo json_encode(['hub.challenge'=>$challenge], JSON_UNESCAPED_SLASHES); exit;
+    http_response_code(200); header('Content-Type: application/json; charset=utf-8'); echo json_encode(['hub.challenge'=>$challenge], JSON_UNESCAPED_SLASHES); exit;
 }
 if ($method !== 'POST') { header('Allow: GET, POST'); http_response_code(405); exit; }
 $contentType = strtolower(trim(explode(';', (string) ($_SERVER['CONTENT_TYPE'] ?? ''))[0]));
