@@ -204,10 +204,10 @@ function stridebr_integrations_https_url(string $url): bool
 function stridebr_integrations_metadata(array $connection): array
 {
     $meta = $connection['metadados'] ?? [];
-    if (is_array($meta)) return $meta;
+    if (is_array($meta)) return array_is_list($meta) ? [] : $meta;
     if (!is_string($meta) || trim($meta) === '') return [];
     $decoded = json_decode($meta, true);
-    return is_array($decoded) ? $decoded : [];
+    return is_array($decoded) && !array_is_list($decoded) ? $decoded : [];
 }
 
 function stridebr_integrations_scope_set(string|array|null $scope): array
@@ -588,7 +588,12 @@ function stridebr_integrations_save_token(PDO $pdo, string $userId, string $prov
             access_token_enc = EXCLUDED.access_token_enc,
             refresh_token_enc = COALESCE(EXCLUDED.refresh_token_enc, integracoes_usuario.refresh_token_enc),
             token_expira_em = EXCLUDED.token_expira_em, escopos = CASE WHEN EXCLUDED.escopos <> '' THEN EXCLUDED.escopos ELSE integracoes_usuario.escopos END,
-            metadados = integracoes_usuario.metadados || EXCLUDED.metadados, ultimo_erro = NULL, atualizado_em = NOW()
+            metadados =
+                (CASE WHEN jsonb_typeof(integracoes_usuario.metadados) = 'object' THEN integracoes_usuario.metadados
+                      WHEN jsonb_typeof(integracoes_usuario.metadados) = 'array' AND jsonb_array_length(integracoes_usuario.metadados) > 0 THEN jsonb_build_object('_legacy_array', integracoes_usuario.metadados)
+                      ELSE '{}'::jsonb END)
+                || EXCLUDED.metadados,
+            ultimo_erro = NULL, atualizado_em = NOW()
         RETURNING *"
     );
     $stmt->execute([
@@ -598,7 +603,7 @@ function stridebr_integrations_save_token(PDO $pdo, string $userId, string $prov
         ':access' => stridebr_integrations_encrypt((string) $token['access_token']),
         ':refresh' => stridebr_integrations_encrypt(trim((string) ($token['refresh_token'] ?? '')) ?: null),
         ':expira' => $expiresAt, ':escopos' => $scope,
-        ':metadados' => json_encode($metadata, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+        ':metadados' => $metadata === [] ? '{}' : json_encode($metadata, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
     ]);
     return $stmt->fetch() ?: [];
 }
@@ -1091,7 +1096,7 @@ function stridebr_integrations_lock_key(string $userId, string $provider): strin
 function stridebr_integrations_try_lock(PDO $pdo, string $userId, string $provider): bool { $stmt=$pdo->prepare('SELECT pg_try_advisory_lock(hashtextextended(:key, 0))'); $stmt->execute([':key'=>stridebr_integrations_lock_key($userId,$provider)]); return (bool)$stmt->fetchColumn(); }
 function stridebr_integrations_unlock(PDO $pdo, string $userId, string $provider): void { $stmt=$pdo->prepare('SELECT pg_advisory_unlock(hashtextextended(:key, 0))'); $stmt->execute([':key'=>stridebr_integrations_lock_key($userId,$provider)]); }
 function stridebr_integrations_provider_cooldown(PDO $pdo, string $provider): int { $stmt=$pdo->prepare("SELECT MAX(COALESCE((metadados->'sync'->>'rate_limit_until')::bigint,0)) FROM integracoes_usuario WHERE provedor=:provider"); $stmt->execute([':provider'=>$provider]); return (int)$stmt->fetchColumn(); }
-function stridebr_integrations_provider_cooldown_set(PDO $pdo, string $provider, int $until): void { $stmt=$pdo->prepare("UPDATE integracoes_usuario SET metadados = metadados || jsonb_build_object('sync', COALESCE(metadados->'sync','{}'::jsonb) || jsonb_build_object('rate_limit_until', CAST(:until AS bigint))) WHERE provedor=:provider"); $stmt->execute([':until'=>$until,':provider'=>$provider]); }
+function stridebr_integrations_provider_cooldown_set(PDO $pdo, string $provider, int $until): void { $stmt=$pdo->prepare("UPDATE integracoes_usuario SET metadados = (CASE WHEN jsonb_typeof(metadados) = 'object' THEN metadados WHEN jsonb_typeof(metadados) = 'array' AND jsonb_array_length(metadados) > 0 THEN jsonb_build_object('_legacy_array', metadados) ELSE '{}'::jsonb END) || jsonb_build_object('sync', COALESCE(metadados->'sync','{}'::jsonb) || jsonb_build_object('rate_limit_until', CAST(:until AS bigint))) WHERE provedor=:provider"); $stmt->execute([':until'=>$until,':provider'=>$provider]); }
 
 function stridebr_strava_webhook_connection(PDO $pdo, string $ownerId): ?array
 {
@@ -1142,7 +1147,7 @@ function stridebr_strava_webhook_process(PDO $pdo, array $event): string
                 try { [, $token] = stridebr_integrations_connection_token($pdo, $userId, 'strava', $connection); stridebr_integrations_http('GET', stridebr_integrations_provider('strava')['api_base_url'] . '/athlete', ['headers'=>['Authorization: Bearer '.$token]]); return 'ignored'; }
                 catch (StridebrIntegrationError $e) { if ($e->httpStatus !== 401) throw $e; }
             }
-            $stmt = $pdo->prepare("UPDATE integracoes_usuario SET status='revogado', access_token_enc=NULL, refresh_token_enc=NULL, token_expira_em=NULL, metadados=jsonb_set(metadados, '{sync}', '{}'::jsonb, true), ultimo_erro=NULL, atualizado_em=NOW() WHERE idusuario=:user AND provedor='strava' AND usuario_externo_id=:owner");
+            $stmt = $pdo->prepare("UPDATE integracoes_usuario SET status='revogado', access_token_enc=NULL, refresh_token_enc=NULL, token_expira_em=NULL, metadados=jsonb_set(CASE WHEN jsonb_typeof(metadados) = 'object' THEN metadados WHEN jsonb_typeof(metadados) = 'array' AND jsonb_array_length(metadados) > 0 THEN jsonb_build_object('_legacy_array', metadados) ELSE '{}'::jsonb END, '{sync}', '{}'::jsonb, true), ultimo_erro=NULL, atualizado_em=NOW() WHERE idusuario=:user AND provedor='strava' AND usuario_externo_id=:owner");
             $stmt->execute([':user'=>$userId, ':owner'=>$event['owner_external_id']]); return 'complete';
         }
         if ($event['aspect_type'] === 'delete' && !$signed) {

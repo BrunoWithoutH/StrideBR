@@ -24,6 +24,37 @@ return function (PDO $pdo): void {
         $connection = stridebr_integrations_save_token($pdo, $user, 'strava', $token);
         AlphaTest::same('conectado', $connection['status'], 'OAuth connected');
         AlphaTest::assert(stridebr_db_bool($connection['sincronizar_atividades']), 'Default activity sync ON');
+        $refreshed = stridebr_integrations_save_token($pdo, $user, 'strava', ['access_token' => 'refreshed-access-token', 'refresh_token' => 'refreshed-refresh-token', 'expires_at' => time() + 7200]);
+        AlphaTest::same('object', $pdo->query("SELECT jsonb_typeof(metadados) FROM integracoes_usuario WHERE idusuario = '$user' AND provedor = 'strava'")->fetchColumn(), 'Empty refresh metadata remains an object');
+        $refreshMetadata = stridebr_integrations_metadata($refreshed);
+        AlphaTest::same('42', (string) ($refreshMetadata['athlete']['id'] ?? ''), 'Refresh without metadata preserves existing athlete metadata');
+
+        $runtimeLegacyUser = alphaTestUser($pdo, 'integration_runtime_legacy');
+        stridebr_integrations_save_token($pdo, $runtimeLegacyUser, 'strava', $token);
+        $pdo->exec('ALTER TABLE integracoes_usuario DROP CONSTRAINT ck_integracoes_usuario_metadados_object');
+        $runtimeLegacy = $pdo->prepare("UPDATE integracoes_usuario SET metadados = CAST(:metadata AS jsonb) WHERE idusuario = :user AND provedor = 'strava'");
+        $runtimeLegacy->execute([':metadata' => '[{"athlete":{"id":91}}]', ':user' => $runtimeLegacyUser]);
+        stridebr_integrations_sync_state($pdo, $runtimeLegacyUser, 'strava', ['retry_at' => 123]);
+        $runtimeState = $pdo->prepare("SELECT metadados FROM integracoes_usuario WHERE idusuario = :user AND provedor = 'strava'");
+        $runtimeState->execute([':user' => $runtimeLegacyUser]);
+        $runtimeMetadata = json_decode((string) $runtimeState->fetchColumn(), true, 512, JSON_THROW_ON_ERROR);
+        AlphaTest::same(123, $runtimeMetadata['sync']['retry_at'] ?? null, 'sync_state repairs a legacy array root before writing sync state');
+        AlphaTest::same('91', (string) ($runtimeMetadata['_legacy_array'][0]['athlete']['id'] ?? ''), 'sync_state retains a legacy array value');
+
+        $migrationLegacyUser = alphaTestUser($pdo, 'integration_migration_legacy');
+        stridebr_integrations_save_token($pdo, $migrationLegacyUser, 'strava', $token);
+        $migrationLegacy = $pdo->prepare("UPDATE integracoes_usuario SET metadados = CAST(:metadata AS jsonb) WHERE idusuario = :user AND provedor = 'strava'");
+        $migrationLegacy->execute([':metadata' => '[{"athlete":{"id":92},"oauth":{"issuer":"https://issuer.example"}},"unstructured"]', ':user' => $migrationLegacyUser]);
+        $migrationSql = file_get_contents(dirname(__DIR__, 2) . '/src/database/migrations/20260910_integrations_metadata_object.sql');
+        $pdo->exec($migrationSql);
+        $pdo->exec($migrationSql);
+        $migrationState = $pdo->prepare("SELECT metadados FROM integracoes_usuario WHERE idusuario = :user AND provedor = 'strava'");
+        $migrationState->execute([':user' => $migrationLegacyUser]);
+        $migrationMetadata = json_decode((string) $migrationState->fetchColumn(), true, 512, JSON_THROW_ON_ERROR);
+        AlphaTest::same('92', (string) ($migrationMetadata['athlete']['id'] ?? ''), 'Migration recovers object metadata from a legacy array');
+        AlphaTest::same('https://issuer.example', (string) ($migrationMetadata['oauth']['issuer'] ?? ''), 'Migration preserves OAuth metadata from a legacy array');
+        AlphaTest::same('unstructured', (string) ($migrationMetadata['_legacy_array'][1] ?? ''), 'Migration preserves non-object legacy metadata');
+        AlphaTest::throws(fn() => $migrationLegacy->execute([':metadata' => '[]', ':user' => $migrationLegacyUser]), 'Metadata object constraint rejects a new array root');
         $result = stridebr_integrations_initial_sync($pdo, $user, 'strava');
         AlphaTest::same(1, $result['created'], 'Realistic Strava activity imports after OAuth');
         AlphaTest::same(0, $result['failed'], 'No failure');
