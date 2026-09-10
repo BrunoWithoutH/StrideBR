@@ -12,6 +12,10 @@ return function (PDO $pdo): void {
     $user->execute([':id'=>$owner]);
     $ownerRow = $user->fetch();
 
+    $login = stridebr_api_login($pdo, ['email'=>'api-owner@alpha-test.invalid', 'password'=>'Alpha-test-password-123', 'platform'=>'android']);
+    AlphaTest::same($owner, $login['user']['id'], 'Login mobile deve usar a mesma identidade do Core');
+    AlphaTest::assert(($login['tokens']['token_type'] ?? null) === 'Bearer', 'Login mobile deve emitir Bearer token');
+
     $issued = stridebr_api_issue_session($pdo, $ownerRow, ['device_id'=>'logical-device', 'device_name'=>'Alpha Android', 'platform'=>'android']);
     AlphaTest::assert(strlen($issued['access_token']) >= 32 && strlen($issued['refresh_token']) >= 48, 'Tokens opacos não foram emitidos');
     $stored = $pdo->prepare('SELECT * FROM api_sessoes WHERE access_token_hash = :hash');
