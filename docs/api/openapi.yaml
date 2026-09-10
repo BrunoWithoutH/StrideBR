@@ -1,0 +1,58 @@
+openapi: 3.0.3
+info:
+  title: StrideBR Core API
+  version: v1
+  description: API pública inicial para o futuro StrideBR App. Somente as rotas deste documento estão implementadas.
+servers:
+  - url: https://stridebr.com.br/api/v1
+paths:
+  /health:
+    get:
+      responses: { '200': { description: API disponível } }
+  /auth/login:
+    post:
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/LoginRequest' } } } }
+      responses: { '200': { description: Sessão criada }, '401': { $ref: '#/components/responses/Error' }, '422': { $ref: '#/components/responses/Error' }, '429': { $ref: '#/components/responses/Error' } }
+  /auth/refresh:
+    post:
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [refresh_token], properties: { refresh_token: { type: string } } } } } }
+      responses: { '200': { description: Tokens rotacionados }, '401': { $ref: '#/components/responses/Error' } }
+  /auth/logout:
+    post:
+      security: [{ bearerAuth: [] }]
+      responses: { '204': { description: Sessão revogada }, '401': { $ref: '#/components/responses/Error' } }
+  /me:
+    get:
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Usuário autenticado }, '401': { $ref: '#/components/responses/Error' } }
+  /activities:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
+        - { name: sport, in: query, schema: { type: string } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+      responses: { '200': { description: Atividades paginadas }, '401': { $ref: '#/components/responses/Error' } }
+  /activities/{id}:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses: { '200': { description: Detalhe da atividade }, '401': { $ref: '#/components/responses/Error' }, '404': { $ref: '#/components/responses/Error' } }
+components:
+  securitySchemes: { bearerAuth: { type: http, scheme: bearer } }
+  schemas:
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password }
+        device_id: { type: string, maxLength: 128 }
+        device_name: { type: string, maxLength: 120 }
+        platform: { type: string, enum: [android, ios, web, other] }
+  responses:
+    Error:
+      description: Erro JSON padronizado
+      content: { application/json: { schema: { type: object, properties: { error: { type: object, properties: { code: { type: string }, message: { type: string }, fields: { type: object } } } } } } }

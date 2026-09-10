@@ -94,6 +94,7 @@ php scripts/tests/test_production_theme_migrations_static.php
 php scripts/tests/test_integrations_foundation_static.php
 php scripts/tests/test_integrations_external_rc4.php
 php scripts/tests/test_strava_webhooks.php
+php scripts/tests/test_api_v1_static.php
 php scripts/tests/test_ads_placements_static.php
 php scripts/tests/test_sport_hub_monetization_static.php
 php scripts/tests/test_sport_taxonomy_energy_static.php

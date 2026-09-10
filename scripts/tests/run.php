@@ -12,6 +12,7 @@ $suites = [
     'trainer' => 'test_trainer.php', 'permissions' => 'test_permissions.php',
     'integration synchronization' => 'test_integration_sync.php',
     'Strava webhooks' => 'test_strava_webhooks_integration.php',
+    'API v1 mobile foundation' => 'test_api_v1.php',
     'SEO public sitemap' => 'test_seo_database.php',
     'product polish' => 'test_product_polish.php',
     'marketing attribution' => 'test_marketing_attribution.php',
