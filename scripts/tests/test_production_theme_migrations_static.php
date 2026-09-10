@@ -37,8 +37,8 @@ $appliedSimulation = array_values(array_unique(array_merge($current, $consolidat
 $unknownSimulation = array_values(array_diff($appliedSimulation, $current));
 $consolidatedSimulation = array_values(array_intersect($unknownSimulation, $consolidated));
 $orphanSimulation = array_values(array_diff($unknownSimulation, $consolidated));
-$assert(count($current) === 10, 'deploy atual deve possuir dez migrations: consolidação, integrações, Marketing, webhooks Strava e sessões da API v1.');
-$assert(count($appliedSimulation) === 46, 'histórico após as migrations aditivas deve totalizar 46 registros.');
+$assert(count($current) === 11, 'deploy atual deve possuir onze migrations: consolidação, integrações, Marketing, webhooks Strava, sessões da API v1 e metadata de integrações.');
+$assert(count($appliedSimulation) === 47, 'histórico após as migrations aditivas deve totalizar 47 registros.');
 $assert(count($consolidatedSimulation) === 36, 'os 36 registros sem arquivo devem ser reconhecidos como consolidados.');
 $assert($orphanSimulation === [], 'o histórico consolidado mais a migration aditiva não deve produzir registros órfãos.');
 

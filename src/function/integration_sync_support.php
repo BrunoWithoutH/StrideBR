@@ -68,7 +68,7 @@ function stridebr_integrations_eligible(array $connection, string $trigger = 'pe
 
 function stridebr_integrations_sync_state(PDO $pdo, string $userId, string $provider, array $sync): void
 {
-    $stmt = $pdo->prepare("UPDATE integracoes_usuario SET metadados = jsonb_set(metadados, '{sync}', CAST(:sync AS jsonb), true) WHERE idusuario = :usuario AND provedor = :provedor");
+    $stmt = $pdo->prepare("UPDATE integracoes_usuario SET metadados = jsonb_set(CASE WHEN jsonb_typeof(metadados) = 'object' THEN metadados WHEN jsonb_typeof(metadados) = 'array' AND jsonb_array_length(metadados) > 0 THEN jsonb_build_object('_legacy_array', metadados) ELSE '{}'::jsonb END, '{sync}', CAST(:sync AS jsonb), true) WHERE idusuario = :usuario AND provedor = :provedor");
     $stmt->execute([':sync' => json_encode($sync, JSON_THROW_ON_ERROR), ':usuario' => $userId, ':provedor' => $provider]);
 }
 
