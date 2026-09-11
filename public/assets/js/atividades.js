@@ -8263,11 +8263,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const detailCloseButton = detailDrawer?.querySelector('.activity-detail-header-actions [data-close-activity-detail]')
     const detailPlaceholder = document.querySelector('[data-detail-desktop-placeholder]')
     const bulkToggle = historyRoot?.querySelector('[data-bulk-toggle]')
+    const bulkNormal = historyRoot?.querySelector('[data-history-toolbar-normal]')
+    const bulkToolbar = historyRoot?.querySelector('[data-bulk-toolbar]')
+    const bulkDialog = historyRoot?.querySelector('[data-bulk-dialog]')
     const bulkBar = historyRoot?.querySelector('[data-bulk-bar]')
     const bulkCount = historyRoot?.querySelector('[data-bulk-count]')
     const bulkSelectVisible = historyRoot?.querySelector('[data-bulk-select-visible]')
+    const bulkEdit = historyRoot?.querySelector('[data-bulk-edit]')
     const bulkDelete = historyRoot?.querySelector('[data-bulk-delete]')
     const bulkCancel = historyRoot?.querySelector('[data-bulk-cancel]')
+    const bulkDialogCount = bulkDialog?.querySelector('.activity-bulk-dialog-head span')
     const bulkDurationMode = bulkBar?.querySelector('[data-bulk-duration-mode]')
     const bulkDurationValue = bulkBar?.querySelector('[data-bulk-duration-value]')
     const bulkDurationInput = bulkDurationValue?.querySelector('input[name="duracao_minutos"]')
@@ -8424,11 +8429,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const updateBulkUi = () => {
         if (!historyRoot) return
         historyRoot.classList.toggle('is-bulk-mode', bulkMode)
-        if (bulkBar) bulkBar.hidden = !bulkMode
-        if (bulkToggle) {
-            bulkToggle.textContent = tr(bulkMode ? 'activity.bulk_selecting' : 'common.select')
-            bulkToggle.setAttribute('aria-pressed', bulkMode ? 'true' : 'false')
-        }
+        if (bulkNormal) bulkNormal.hidden = bulkMode
+        if (bulkToolbar) bulkToolbar.hidden = !bulkMode
+        if (bulkToggle) bulkToggle.setAttribute('aria-pressed', bulkMode ? 'true' : 'false')
         historyList?.querySelectorAll('[data-history-row]').forEach(row => {
             const id = String(row.dataset.activityId || '')
             const checked = bulkSelected.has(id)
@@ -8437,7 +8440,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const input = row.querySelector('[data-bulk-row-select]')
             if (input) input.checked = checked
         })
-        if (bulkCount) bulkCount.textContent = trn('activity.bulk_selected.one', 'activity.bulk_selected.other', bulkSelected.size)
+        const selectedLabel = trn('activity.bulk_selected.one', 'activity.bulk_selected.other', bulkSelected.size)
+        if (bulkCount) bulkCount.textContent = selectedLabel
+        if (bulkDialogCount) bulkDialogCount.textContent = selectedLabel
         const loadedRows = Array.from(historyList?.querySelectorAll('[data-history-row]') || [])
         const allLoadedSelected = loadedRows.length > 0 && loadedRows.every(row => bulkSelected.has(String(row.dataset.activityId || '')))
         if (bulkSelectVisible) {
@@ -8448,9 +8453,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const submit = bulkBar?.querySelector('button[type="submit"]')
         if (submit) submit.disabled = bulkSelected.size === 0 || !bulkHasChanges()
+        if (bulkEdit) bulkEdit.disabled = bulkSelected.size === 0
         if (bulkDelete) bulkDelete.disabled = bulkSelected.size === 0
     }
-    const leaveBulkMode = () => { bulkMode = false; bulkSelected.clear(); updateBulkUi() }
+    const closeBulkDialog = () => { if (bulkDialog?.open) bulkDialog.close() }
+    const leaveBulkMode = () => { closeBulkDialog(); bulkMode = false; bulkSelected.clear(); updateBulkUi() }
+    const openBulkDialog = () => {
+        if (!bulkDialog || bulkSelected.size === 0) return
+        if (typeof bulkDialog.showModal === 'function') bulkDialog.showModal()
+        else bulkDialog.setAttribute('open', 'open')
+        requestAnimationFrame(() => bulkDialog.querySelector('select, input, button')?.focus({preventScroll: true}))
+    }
     const setRowSelected = (row, selected) => {
         const id = String(row?.dataset.activityId || '')
         if (!id) return
@@ -8518,7 +8531,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (historyStatus) historyStatus.textContent = preserveVisibleRows ? tr('activity.history.refreshing') : tr('common.loading')
             historyCursor = background ? historyCursor : null
             historyTotal = background ? historyTotal : 0
-            if (bulkSelected.size) bulkSelected.clear()
+            if (bulkSelected.size && !background) bulkSelected.clear()
             updateBulkUi()
         } else {
             historyLoadMore?.setAttribute('disabled', 'disabled')
@@ -8631,9 +8644,34 @@ document.addEventListener('DOMContentLoaded', () => {
         if (consumePendingImportRefresh({notify: true})) return
         if (event.persisted) consumePendingImportRefresh({notify: false, force: true})
     })
+
+    let lastPassiveHistoryCheckAt = Date.now()
+    let passiveHistoryRefreshRunning = false
+    const visibleHistoryIds = () => new Set(Array.from(historyList?.querySelectorAll('[data-history-row]') || []).map(row => String(row.dataset.activityId || '')).filter(Boolean))
+    const passiveHistoryRefresh = async () => {
+        if (!historyRoot || !historyList || passiveHistoryRefreshRunning || bulkMode || document.visibilityState !== 'visible') return
+        if (document.documentElement.classList.contains('activity-editor-open') || document.documentElement.classList.contains('activity-edit-open')) return
+        const now = Date.now()
+        if (now - lastPassiveHistoryCheckAt < 60000) return
+        lastPassiveHistoryCheckAt = now
+        passiveHistoryRefreshRunning = true
+        const before = visibleHistoryIds()
+        const scrollY = window.scrollY
+        try {
+            clearHistoryCache()
+            await loadHistory({background: true, preserveDetail: true})
+            const added = Array.from(visibleHistoryIds()).filter(id => !before.has(id))
+            requestAnimationFrame(() => window.scrollTo(0, scrollY))
+            if (added.length) showActivityToast(trn('activity.new_imports_available.one', 'activity.new_imports_available.other', added.length))
+        } finally {
+            passiveHistoryRefreshRunning = false
+        }
+    }
     document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') consumePendingImportRefresh({notify: true})
+        if (document.visibilityState !== 'visible') return
+        if (!consumePendingImportRefresh({notify: true})) passiveHistoryRefresh()
     })
+    window.addEventListener('focus', passiveHistoryRefresh)
 
     const detailSection = (title, body, extraClass = '') => body ? `<div class="activity-detail-section${extraClass ? ` ${extraClass}` : ''}"><h3>${escapeHtml(title)}</h3>${body}</div>` : ''
     const cleanDetailValues = (values) => (Array.isArray(values) ? values : []).filter((item) => String(item?.rotulo || '').trim() !== '' && String(item?.valor || '').trim() !== '')
@@ -9280,6 +9318,9 @@ document.addEventListener('DOMContentLoaded', () => {
     })
     bulkToggle?.addEventListener('click', () => { bulkMode = !bulkMode; if (!bulkMode) bulkSelected.clear(); updateBulkUi() })
     bulkCancel?.addEventListener('click', leaveBulkMode)
+    bulkEdit?.addEventListener('click', openBulkDialog)
+    historyRoot?.querySelectorAll('[data-bulk-dialog-close]').forEach(button => button.addEventListener('click', closeBulkDialog))
+    bulkDialog?.addEventListener('click', event => { if (event.target === bulkDialog) closeBulkDialog() })
     bulkSelectVisible?.addEventListener('click', () => {
         const rows = Array.from(historyList?.querySelectorAll('[data-history-row]') || [])
         const allSelected = rows.length > 0 && rows.every(row => bulkSelected.has(String(row.dataset.activityId || '')))

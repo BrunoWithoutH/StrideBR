@@ -15,11 +15,10 @@
         return true
     }
     const setLoading = active => {
-        const root = pageRoot()
-        if (!root) return
-        root.classList.toggle('is-progress-loading', active)
-        if (active) root.setAttribute('aria-busy', 'true')
-        else root.removeAttribute('aria-busy')
+        const region = pageRoot()?.querySelector('[data-progress-dynamic]')
+        if (!region) return
+        if (active) region.setAttribute('aria-busy', 'true')
+        else region.removeAttribute('aria-busy')
     }
     const navigate = async (target, push = true) => {
         const url = new URL(target, window.location.href)
@@ -43,7 +42,15 @@
             const next = doc.querySelector('[data-progress-page]')
             const current = pageRoot()
             if (!next || !current) throw new Error(t('progress.incomplete_response', {}, 'The Progress response was incomplete.'))
-            current.replaceWith(next)
+            const nextDynamic = next.querySelector('[data-progress-dynamic]')
+            const currentDynamic = current.querySelector('[data-progress-dynamic]')
+            if (nextDynamic && currentDynamic) {
+                currentDynamic.replaceWith(nextDynamic)
+                const currentNav = current.querySelector('.progress-sport-nav')
+                const nextNav = next.querySelector('.progress-sport-nav')
+                if (currentNav && nextNav) currentNav.replaceChildren(...nextNav.cloneNode(true).childNodes)
+            }
+            else current.replaceWith(next)
             if (doc.title) document.title = doc.title
             if (push) history.pushState({progress: true}, '', `${url.pathname}${url.search}${url.hash}`)
             requestAnimationFrame(() => window.scrollTo({top: Math.min(scrollY, document.documentElement.scrollHeight), behavior: 'auto'}))

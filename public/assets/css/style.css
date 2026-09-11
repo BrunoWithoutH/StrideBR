@@ -1056,9 +1056,9 @@ body {
     .userimage { width: 34px; height: 34px; }
     .mobile-profile-link { display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: var(--radius-circle); corner-shape: round; }
     .mobile-profile-link:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
-    .user-menu summary { display: inline-grid; place-items: center; width: 40px; height: 40px; padding: 0; }
+    .user-menu summary { display: inline-grid; place-items: center; width: 40px; height: 40px; padding: 0; border-radius:var(--radius-circle); corner-shape:round; }
     .user-menu summary > img { display: none; }
-    .mobile-more-label { display: block; color: #f8fafc; font-size: 1rem; font-weight: 800; letter-spacing: 1px; }
+    .mobile-more-label { display:block; width:20px; height:20px; color:var(--ui-text); fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
     .user-menu-content { position: fixed; top: 58px; right: 8px; min-width: 200px; z-index: var(--z-drawer); }
 
     .site-footer { margin-bottom: 0; }

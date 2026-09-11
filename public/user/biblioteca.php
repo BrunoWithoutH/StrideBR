@@ -192,7 +192,7 @@ $exerciseUndo = is_array($_SESSION['exercise_library_undo'] ?? null) && (int) ($
                 </div>
             </header>
 
-            <nav class="workout-library-tabs" aria-label="<?php echo stridebr_e(stridebr_t('library.page_title')); ?>" data-library-tabs>
+            <nav class="workout-library-tabs segmented-nav" aria-label="<?php echo stridebr_e(stridebr_t('library.page_title')); ?>" data-library-tabs>
                 <a class="<?php echo $tab === 'treinos' ? 'is-active' : ''; ?>" href="/user/biblioteca.php?tab=treinos" data-library-tab="treinos"><?php echo stridebr_e(stridebr_t('common.workouts')); ?></a>
                 <a class="<?php echo $tab === 'exercicios' ? 'is-active' : ''; ?>" href="/user/biblioteca.php?tab=exercicios" data-library-tab="exercicios"><?php echo stridebr_e(stridebr_t('common.exercises')); ?></a>
             </nav>

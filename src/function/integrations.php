@@ -465,12 +465,12 @@ function stridebr_integrations_coros_client(array $metadata): array
     return ['client_id' => $clientId, 'client_secret' => is_array($data) ? trim((string) ($data['client_secret'] ?? '')) : '', 'token_auth' => is_array($data) ? trim((string) ($data['token_endpoint_auth_method'] ?? 'none')) : 'none'];
 }
 
-function stridebr_integrations_start(string $providerId, string $returnTo = '/user/edit-profile.php#conexoes', bool $forceConsent = false): string
+function stridebr_integrations_start(string $providerId, string $returnTo = '/user/settings.php?view=connections#conexoes', bool $forceConsent = false): string
 {
     $provider = stridebr_integrations_provider($providerId);
     if (!stridebr_integrations_configured($provider)) throw new RuntimeException($provider['label'] . ' ainda não está configurado no servidor.');
     $state = bin2hex(random_bytes(24));
-    $pending = ['provider' => $providerId, 'return' => stridebr_safe_redirect($returnTo, '/user/edit-profile.php#conexoes'), 'created_at' => time()];
+    $pending = ['provider' => $providerId, 'return' => stridebr_safe_redirect($returnTo, '/user/settings.php?view=connections#conexoes'), 'created_at' => time()];
     if ($providerId === 'coros') {
         $metadata = stridebr_integrations_coros_auth_metadata((string) $provider['mcp_url']);
         $client = stridebr_integrations_coros_client($metadata);
@@ -977,18 +977,20 @@ function stridebr_integrations_normalize_strava(array $data): array
     return $activity;
 }
 
-function stridebr_integrations_sync_strava(PDO $pdo, string $userId, array $connection): array
+function stridebr_integrations_sync_strava_recent(PDO $pdo, string $userId, array $connection): array
 {
     $stage = 'token';
     try {
-        $initial = ($connection['_sync_trigger'] ?? '') === 'initial';
+        $trigger = (string) ($connection['_sync_trigger'] ?? 'manual');
+        $initial = $trigger === 'initial';
+        $manual = $trigger === 'manual';
         [$connection, $token] = stridebr_integrations_connection_token($pdo, $userId, 'strava', $connection);
         $provider = stridebr_integrations_provider('strava');
         $after = !empty($connection['ultima_sincronizacao_em']) ? max(0, strtotime((string) $connection['ultima_sincronizacao_em']) - 172800) : time() - 2592000;
         $headers = ['Authorization: Bearer ' . $token, 'Accept: application/json'];
         $result = stridebr_integrations_result();
-        $deadline = microtime(true) + ($initial ? 12 : 120);
-        $detailBudget = $initial ? 2 : 50;
+        $deadline = microtime(true) + ($initial ? 5 : ($manual ? 12 : 30));
+        $detailBudget = $initial ? 1 : ($manual ? 4 : 10);
         // Bound work per invocation. A deferred run keeps its checkpoint so older pages are retried.
         for ($page = 1; $page <= 10; $page++) {
             $stage = 'listing';
@@ -1031,6 +1033,237 @@ function stridebr_integrations_sync_strava(PDO $pdo, string $userId, array $conn
         if ($error instanceof StridebrIntegrationError) throw new StridebrIntegrationError($stage, $error->internalCode, $error->httpStatus, $error->retryAfter, $error);
         throw new StridebrIntegrationError($stage, 'provider_failed', previous: $error);
     }
+}
+
+
+function stridebr_integrations_strava_backfill_write(PDO $pdo, string $userId, array $state): void
+{
+    $stmt = $pdo->prepare("UPDATE integracoes_usuario SET metadados = jsonb_set(CASE WHEN jsonb_typeof(metadados) = 'object' THEN metadados WHEN jsonb_typeof(metadados) = 'array' AND jsonb_array_length(metadados) > 0 THEN jsonb_build_object('_legacy_array', metadados) ELSE '{}'::jsonb END, '{backfill}', CAST(:state AS jsonb), true), atualizado_em = NOW() WHERE idusuario = :user AND provedor = 'strava'");
+    $stmt->execute([':state' => json_encode($state, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR), ':user' => $userId]);
+}
+
+function stridebr_integrations_strava_backfill_initial_state(PDO $pdo, string $userId): array
+{
+    $stmt = $pdo->prepare("SELECT COUNT(*) AS total, MIN(data_inicio) AS oldest FROM registros_atividade WHERE idusuario = :user AND origem_provedor = 'strava' AND excluido_em IS NULL");
+    $stmt->execute([':user' => $userId]);
+    $row = $stmt->fetch() ?: [];
+    $oldest = trim((string) ($row['oldest'] ?? ''));
+    $oldestTs = $oldest !== '' ? strtotime($oldest) : false;
+    return [
+        'status' => 'pending',
+        'before' => $oldestTs !== false ? max(1, $oldestTs) : time() + 60,
+        'oldest_at' => $oldest !== '' ? (new DateTimeImmutable($oldest))->format(DateTimeInterface::ATOM) : null,
+        'started_at' => null,
+        'last_attempt_at' => null,
+        'last_progress_at' => null,
+        'retry_at' => 0,
+        'completed_at' => null,
+        'created' => 0,
+        'existing' => 0,
+        'failed' => 0,
+    ];
+}
+
+function stridebr_integrations_strava_backfill_state(PDO $pdo, string $userId, array $connection, bool $persist = false): array
+{
+    $meta = stridebr_integrations_metadata($connection);
+    $state = is_array($meta['backfill'] ?? null) && !array_is_list($meta['backfill']) ? $meta['backfill'] : [];
+    if ($state === []) {
+        $state = stridebr_integrations_strava_backfill_initial_state($pdo, $userId);
+        if ($persist) stridebr_integrations_strava_backfill_write($pdo, $userId, $state);
+    }
+    return $state;
+}
+
+function stridebr_integrations_strava_backfill_is_due(array $state, ?int $now = null): bool
+{
+    $now ??= time();
+    if (($state['status'] ?? 'pending') === 'completed') return false;
+    return (int) ($state['retry_at'] ?? 0) <= $now;
+}
+
+function stridebr_integrations_strava_backfill_step(PDO $pdo, string $userId, array $connection): array
+{
+    $state = stridebr_integrations_strava_backfill_state($pdo, $userId, $connection, true);
+    if (!stridebr_db_bool($connection['sincronizar_atividades'] ?? true)) return stridebr_integrations_result() + ['backfill_skipped' => 'disabled'];
+    if (!stridebr_integrations_strava_backfill_is_due($state)) return stridebr_integrations_result() + ['backfill_skipped' => 'not_due'];
+
+    $now = time();
+    $state['status'] = 'running';
+    $state['started_at'] ??= $now;
+    $state['last_attempt_at'] = $now;
+    $state['retry_at'] = 0;
+    stridebr_integrations_strava_backfill_write($pdo, $userId, $state);
+
+    $result = stridebr_integrations_result();
+    $perPage = 10;
+    $deadline = microtime(true) + 12;
+    $detailBudget = 3;
+    try {
+        [$connection, $token] = stridebr_integrations_connection_token($pdo, $userId, 'strava', $connection);
+        $provider = stridebr_integrations_provider('strava');
+        $headers = ['Authorization: Bearer ' . $token, 'Accept: application/json'];
+        $before = max(1, (int) ($state['before'] ?? ($now + 60)));
+        $url = $provider['api_base_url'] . '/athlete/activities?' . http_build_query(['before' => $before, 'page' => 1, 'per_page' => $perPage], '', '&', PHP_QUERY_RFC3986);
+        $listing = stridebr_integrations_http('GET', $url, ['headers' => $headers, 'timeout' => 20]);
+        if (!is_array($listing['json']) || !array_is_list($listing['json'])) throw new StridebrIntegrationError('backfill.listing', 'invalid_response', $listing['status'] ?? null);
+        if (stridebr_integrations_strava_rate_low($listing)) {
+            $retry = stridebr_integrations_strava_retry($listing);
+            $state['status'] = 'paused';
+            $state['retry_at'] = $now + $retry;
+            $state['pause_reason'] = 'rate_limit';
+            stridebr_integrations_strava_backfill_write($pdo, $userId, $state);
+            return $result + ['backfill_paused' => true, 'rate_limited' => true, 'retry_after' => $retry];
+        }
+        $items = $listing['json'];
+        if ($items === []) {
+            $state['status'] = 'completed';
+            $state['completed_at'] = $now;
+            $state['retry_at'] = 0;
+            unset($state['pause_reason'], $state['error_code']);
+            stridebr_integrations_strava_backfill_write($pdo, $userId, $state);
+            return $result + ['backfill_completed' => true];
+        }
+
+        $oldestTs = null;
+        $batchFailed = false;
+        foreach ($items as $item) {
+            $externalId = is_array($item) && is_scalar($item['id'] ?? null) ? (string) $item['id'] : '';
+            $startRaw = is_array($item) ? trim((string) ($item['start_date'] ?? '')) : '';
+            $startTs = $startRaw !== '' ? strtotime($startRaw) : false;
+            if ($externalId === '' || $startTs === false) {
+                $result['failed']++;
+                $batchFailed = true;
+                continue;
+            }
+            $oldestTs = $oldestTs === null ? $startTs : min($oldestTs, $startTs);
+            try {
+                if (stridebr_integrations_duplicate($pdo, $userId, 'strava', $externalId)) {
+                    $result['existing']++;
+                    continue;
+                }
+                if ($detailBudget <= 0 || microtime(true) >= $deadline) {
+                    $state['status'] = 'pending';
+                    $state['retry_at'] = $now + 900;
+                    $state['created'] = (int) ($state['created'] ?? 0) + (int) $result['created'];
+                    $state['existing'] = (int) ($state['existing'] ?? 0) + (int) $result['existing'];
+                    $state['failed'] = (int) ($state['failed'] ?? 0) + (int) $result['failed'];
+                    stridebr_integrations_strava_backfill_write($pdo, $userId, $state);
+                    return $result + ['backfill_pending' => true, 'backfill_deferred' => true];
+                }
+                $detailBudget--;
+                $detail = stridebr_integrations_http('GET', $provider['api_base_url'] . '/activities/' . rawurlencode($externalId), ['headers' => $headers, 'timeout' => max(1, min(20, (int) ceil($deadline - microtime(true))))]);
+                if (!is_array($detail['json']) || (string) ($detail['json']['id'] ?? '') !== $externalId) throw new StridebrIntegrationError('backfill.detail', 'invalid_response', $detail['status'] ?? null);
+                $activity = stridebr_integrations_normalize_strava($detail['json']);
+                $saved = stridebr_integrations_store_activity($pdo, $userId, 'strava', $activity);
+                if ($saved !== null) $result['created']++; else $result['existing']++;
+                if (stridebr_integrations_strava_rate_low($detail)) {
+                    $retry = stridebr_integrations_strava_retry($detail);
+                    $state['status'] = 'paused';
+                    $state['retry_at'] = $now + $retry;
+                    $state['pause_reason'] = 'rate_limit';
+                    $state['created'] = (int) ($state['created'] ?? 0) + (int) $result['created'];
+                    $state['existing'] = (int) ($state['existing'] ?? 0) + (int) $result['existing'];
+                    stridebr_integrations_strava_backfill_write($pdo, $userId, $state);
+                    return $result + ['backfill_paused' => true, 'rate_limited' => true, 'retry_after' => $retry];
+                }
+            } catch (Throwable $error) {
+                stridebr_integrations_log_failure('strava', 'backfill', $externalId, $error);
+                $result['failed']++;
+                $batchFailed = true;
+                if ($error instanceof StridebrIntegrationError && $error->internalCode === 'reauthorize') {
+                    $state['status'] = 'retry';
+                    $state['retry_at'] = 0;
+                    $state['error_code'] = 'reauthorize';
+                    stridebr_integrations_strava_backfill_write($pdo, $userId, $state);
+                    return $result + ['reauthorize' => true, 'hard_failed' => true];
+                }
+                if ($error instanceof StridebrIntegrationError && $error->httpStatus === 429) {
+                    $retry = max(900, $error->retryAfter);
+                    $state['status'] = 'paused';
+                    $state['retry_at'] = $now + $retry;
+                    $state['pause_reason'] = 'rate_limit';
+                    stridebr_integrations_strava_backfill_write($pdo, $userId, $state);
+                    return $result + ['backfill_paused' => true, 'rate_limited' => true, 'retry_after' => $retry];
+                }
+            }
+        }
+
+        $state['created'] = (int) ($state['created'] ?? 0) + (int) $result['created'];
+        $state['existing'] = (int) ($state['existing'] ?? 0) + (int) $result['existing'];
+        $state['failed'] = (int) ($state['failed'] ?? 0) + (int) $result['failed'];
+        if ($batchFailed || $oldestTs === null) {
+            $state['status'] = 'retry';
+            $state['retry_at'] = $now + 900;
+            $state['error_code'] = 'activity_retry';
+            stridebr_integrations_strava_backfill_write($pdo, $userId, $state);
+            return $result + ['backfill_retry' => true, 'backfill_only_failure' => true];
+        }
+
+        $state['before'] = max(1, $oldestTs - 1);
+        $state['oldest_at'] = (new DateTimeImmutable('@' . $oldestTs))->format(DateTimeInterface::ATOM);
+        $state['last_progress_at'] = $now;
+        unset($state['pause_reason'], $state['error_code']);
+        if (count($items) < $perPage) {
+            $state['status'] = 'completed';
+            $state['completed_at'] = $now;
+            $state['retry_at'] = 0;
+        } else {
+            $state['status'] = 'pending';
+            $state['retry_at'] = $now + 900;
+        }
+        stridebr_integrations_strava_backfill_write($pdo, $userId, $state);
+        return $result + ['backfill_completed' => $state['status'] === 'completed', 'backfill_pending' => $state['status'] !== 'completed'];
+    } catch (Throwable $error) {
+        stridebr_integrations_log_failure('strava', 'backfill', null, $error);
+        if ($error instanceof StridebrIntegrationError && $error->internalCode === 'reauthorize') {
+            $state['status'] = 'retry';
+            $state['retry_at'] = 0;
+            $state['error_code'] = 'reauthorize';
+            stridebr_integrations_strava_backfill_write($pdo, $userId, $state);
+            return $result + ['failed' => 1, 'reauthorize' => true, 'hard_failed' => true];
+        }
+        $state['status'] = 'retry';
+        $state['retry_at'] = $now + max(900, $error instanceof StridebrIntegrationError ? $error->retryAfter : 0);
+        $state['error_code'] = 'provider_failed';
+        stridebr_integrations_strava_backfill_write($pdo, $userId, $state);
+        return $result + ['failed' => 1, 'backfill_retry' => true, 'backfill_only_failure' => true];
+    }
+}
+
+function stridebr_integrations_strava_backfill_view(PDO $pdo, string $userId, array $connection): array
+{
+    $state = stridebr_integrations_strava_backfill_state($pdo, $userId, $connection, false);
+    $stmt = $pdo->prepare("SELECT COUNT(*) AS total, MIN(data_inicio) AS oldest FROM registros_atividade WHERE idusuario=:user AND origem_provedor='strava' AND excluido_em IS NULL");
+    $stmt->execute([':user' => $userId]);
+    $row = $stmt->fetch() ?: [];
+    return [
+        'state' => $state,
+        'total' => (int) ($row['total'] ?? 0),
+        'oldest_at' => trim((string) ($row['oldest'] ?? '')),
+    ];
+}
+
+function stridebr_integrations_sync_strava(PDO $pdo, string $userId, array $connection): array
+{
+    $trigger = (string) ($connection['_sync_trigger'] ?? 'manual');
+    $recentDue = $trigger !== 'periodic' || empty($connection['ultima_sincronizacao_em']) || (strtotime((string) $connection['ultima_sincronizacao_em']) ?: 0) + stridebr_integrations_periodic_interval('strava') <= time();
+    $result = stridebr_integrations_result();
+    if ($recentDue) {
+        $recent = stridebr_integrations_sync_strava_recent($pdo, $userId, $connection);
+        foreach (['created','existing','failed'] as $key) $result[$key] += (int) ($recent[$key] ?? 0);
+        $result += array_diff_key($recent, $result);
+        $result['recent_attempted'] = true;
+        if (!empty($recent['reauthorize']) || !empty($recent['rate_limited']) || !empty($recent['deferred']) || (int) ($recent['failed'] ?? 0) > 0) return $result;
+        $connection = stridebr_integrations_get($pdo, $userId, 'strava') ?: $connection;
+    }
+
+    $backfillState = stridebr_integrations_strava_backfill_state($pdo, $userId, $connection, true);
+    if ($trigger === 'initial' || !stridebr_integrations_strava_backfill_is_due($backfillState)) return $result + ['backfill_pending' => ($backfillState['status'] ?? 'pending') !== 'completed'];
+    $backfill = stridebr_integrations_strava_backfill_step($pdo, $userId, $connection);
+    foreach (['created','existing','failed'] as $key) $result[$key] += (int) ($backfill[$key] ?? 0);
+    foreach ($backfill as $key => $value) if (!array_key_exists($key, $result)) $result[$key] = $value;
+    return $result;
 }
 
 function stridebr_integrations_strava_retry(array $response): int
@@ -1088,8 +1321,8 @@ function stridebr_strava_webhook_event(array $input): ?array
 
 function stridebr_strava_webhook_enqueue(PDO $pdo, array $event): void
 {
-    $stmt = $pdo->prepare("INSERT INTO integracao_webhook_eventos (provider, subscription_id, owner_external_id, object_type, object_id, aspect_type, event_time, updates, fingerprint, signature_verified) VALUES ('strava', :subscription, :owner, :type, :object, :aspect, :time, CAST(:updates AS jsonb), :fingerprint, :signed) ON CONFLICT (fingerprint) DO NOTHING");
-    $stmt->execute([':subscription'=>$event['subscription_id'], ':owner'=>$event['owner_external_id'], ':type'=>$event['object_type'], ':object'=>$event['object_id'], ':aspect'=>$event['aspect_type'], ':time'=>$event['event_time'], ':updates'=>json_encode($event['updates'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), ':fingerprint'=>$event['fingerprint'], ':signed'=>!empty($event['signature_verified'])]);
+    $stmt = $pdo->prepare("INSERT INTO integracao_webhook_eventos (provider, subscription_id, owner_external_id, object_type, object_id, aspect_type, event_time, updates, fingerprint, signature_verified) VALUES ('strava', :subscription, :owner, :type, :object, :aspect, :time, CAST(:updates AS jsonb), :fingerprint, CAST(:signed AS boolean)) ON CONFLICT (fingerprint) DO NOTHING");
+    $stmt->execute([':subscription'=>$event['subscription_id'], ':owner'=>$event['owner_external_id'], ':type'=>$event['object_type'], ':object'=>$event['object_id'], ':aspect'=>$event['aspect_type'], ':time'=>$event['event_time'], ':updates'=>json_encode($event['updates'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), ':fingerprint'=>$event['fingerprint'], ':signed'=>!empty($event['signature_verified']) ? 'true' : 'false']);
 }
 
 function stridebr_integrations_lock_key(string $userId, string $provider): string { return 'integration:' . $userId . ':' . $provider; }
@@ -1656,7 +1889,9 @@ function stridebr_integrations_sync_detailed(PDO $pdo, string $userId, string $p
             $result['rate_limited'] = $result['error_code'] === 'rate_limit';
             $result['retry_after'] = $error instanceof StridebrIntegrationError ? $error->retryAfter : 0;
         }
-        $failed = (int) ($result['failed'] ?? 0) > 0;
+        $failedCount = (int) ($result['failed'] ?? 0);
+        $backfillOnlyFailure = !empty($result['backfill_only_failure']);
+        $failed = $failedCount > 0 && !$backfillOnlyFailure;
         $deferred = !empty($result['deferred']);
         $failures = $failed ? min(8, (int) ($state['failures'] ?? 0) + 1) : 0;
         $delay = max((int) ($result['retry_after'] ?? 0), $failed ? min(21600, 900 * (2 ** ($failures - 1))) : 900);
@@ -1668,9 +1903,11 @@ function stridebr_integrations_sync_detailed(PDO $pdo, string $userId, string $p
             'rate_limit_until' => !empty($result['rate_limited']) ? time() + $delay : 0,
         ];
         stridebr_integrations_sync_state($pdo, $userId, $providerId, $state);
+        if (!empty($result['rate_limited'])) stridebr_integrations_provider_cooldown_set($pdo, $providerId, time() + $delay);
+        $recentSucceeded = !empty($result['recent_attempted']) && !$failed && !$deferred;
         $stmt = $pdo->prepare("UPDATE integracoes_usuario SET ultima_sincronizacao_em = CASE WHEN :completed = 1 THEN to_timestamp(:started) ELSE ultima_sincronizacao_em END, ultimo_erro = :erro, status = :status, atualizado_em = NOW() WHERE idusuario = :usuario AND provedor = :provedor");
         $stmt->execute([
-            ':completed' => !$failed && !$deferred ? 1 : 0, ':started' => $started,
+            ':completed' => $recentSucceeded ? 1 : 0, ':started' => $started,
             ':erro' => $failed ? ($state['reauthorize'] ? 'reauthorize' : 'sync_failed') : null,
             ':status' => $failed ? 'erro' : 'conectado', ':usuario' => $userId, ':provedor' => $providerId,
         ]);

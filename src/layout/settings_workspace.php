@@ -10,7 +10,7 @@ function stridebr_settings_workspace_navigation(string $active): void
         'connections' => ['label' => stridebr_t('settings.connections'), 'href' => '/user/settings.php?view=connections'],
         'account' => ['label' => stridebr_t('account.page_title'), 'href' => '/user/account.php'],
     ];
-    echo '<nav class="settings-tabs" aria-label="' . stridebr_e(stridebr_t('nav.settings')) . '">';
+    echo '<nav class="settings-tabs segmented-nav" aria-label="' . stridebr_e(stridebr_t('nav.settings')) . '">';
     foreach ($items as $key => $item) {
         $current = $active === $key;
         echo '<a' . ($current ? ' class="is-active" aria-current="page"' : '') . ' href="' . stridebr_e($item['href']) . '">' . stridebr_e($item['label']) . '</a>';

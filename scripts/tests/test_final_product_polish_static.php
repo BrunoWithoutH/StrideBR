@@ -40,6 +40,7 @@ $events = $read('public/calendario.php');
 $friends = $read('public/user/amigos.php');
 $profile = $read('public/user/perfil.php');
 $header = $read('src/layout/header.php');
+$footer = $read('src/layout/footer.php');
 $headerCss = $read('public/assets/css/style.css');
 $agenda = $read('public/user/agenda-mensal.php');
 $pt = $read('src/i18n/pt-BR.php');
@@ -60,11 +61,11 @@ $assert(!str_contains($presenter, "['label' => stridebr_t('activity.history.code
 $assert(str_contains($activityCss, '.activity-row-strength-code') && str_contains($activityCss, 'text-overflow:ellipsis'), 'Código deve ser badge compacto e foco deve ser truncável.');
 $assert(str_contains($activityJs, 'renderStrengthPreview(item)') && str_contains($activityJs, 'activity-row-strength-focus'), 'Linhas carregadas dinamicamente devem manter a prévia compacta de força.');
 
-$assert(str_contains($activityPage, 'data-bulk-count') && str_contains($activityPage, 'activity-bulk-fields') && str_contains($activityPage, 'activity-bulk-actions'), 'Batch toolbar deve separar contagem, campos e ações.');
-$assert(str_contains($activityPage, "stridebr_t('activity.bulk_cancel_selection')") && str_contains($activityPage, 'data-bulk-delete'), 'Modo seleção deve ter saída clara e ação destrutiva separada.');
+$assert(str_contains($activityPage, 'data-bulk-toolbar') && str_contains($activityPage, 'data-bulk-edit') && str_contains($activityPage, 'data-bulk-dialog'), 'Modo seleção deve substituir o header e mover edição em lote para dialog.');
+$assert(str_contains($activityPage, 'data-bulk-cancel') && str_contains($activityPage, 'data-bulk-delete'), 'Modo seleção deve ter saída clara e ação destrutiva separada.');
 $assert(str_contains($activityJs, 'const bulkHasChanges =') && str_contains($activityJs, 'submit.disabled = bulkSelected.size === 0 || !bulkHasChanges()'), 'Aplicar deve ficar desabilitado sem seleção ou sem alteração.');
 $assert(str_contains($activityJs, "tr('activity.bulk_select_loaded_count'") && str_contains($activityJs, "tr('activity.bulk_clear_loaded'"), 'Selecionar carregadas deve ter semântica precisa.');
-$assert(str_contains($activityCss, '@media(max-width:560px)') && str_contains($activityCss, '.activity-bulk-fields') && str_contains($activityCss, '.activity-bulk-actions'), 'Batch mobile deve quebrar em blocos sem clipping.');
+$assert(str_contains($activityCss, '.activity-bulk-dialog') && str_contains($activityCss, '@media(max-width:760px)') && str_contains($activityCss, '.activity-bulk-toolbar-actions'), 'Batch mobile deve usar toolbar contextual e dialog/bottom sheet sem clipping.');
 
 $assert(str_contains($auth, 'random_int(100000, 999999)') && str_contains($auth, "stridebr_auth_create_verification_code(\$pdo, \$userId, \$email, 15, 'redefinir_senha')"), 'Reset deve usar código CSPRNG de seis dígitos por 15 minutos.');
 $assert(str_contains($auth, "hash('sha256', \$code)") && str_contains($auth, "tipo = 'redefinir_senha'"), 'Código de reset deve ser armazenado somente como hash em auth_tokens.');
@@ -105,7 +106,7 @@ $assert(str_contains($library, 'class="library-page-heading-actions"') && str_co
 $assert(str_contains($libraryJs, 'history.pushState({libraryTab: tab}') && str_contains($libraryJs, "window.addEventListener('popstate'"), 'Tabs da Biblioteca devem preservar History API.');
 $assert(str_contains($libraryCss, '.library-heading-actions[hidden]{display:none!important}') && str_contains($libraryCss, '.library-page-heading-actions{'), 'Ações inativas da Biblioteca devem obedecer hidden e não criar uma terceira coluna no heading.');
 $assert(str_contains($libraryCss, '.library-heading-actions[data-library-heading-actions="treinos"]{grid-template-columns:1fr}'), 'Ação primária de Treinos deve continuar fácil de encontrar no mobile.');
-$assert(str_contains($activityCss, '.activity-bulk-bar{') && str_contains($activityCss, 'display:flex;') && str_contains($activityCss, 'flex-wrap:wrap;') && str_contains($activityCss, '.activity-bulk-fields{flex:1 1 610px;'), 'Batch toolbar deve usar wrapping baseado no espaço real do container, sem colunas rígidas que colidam.');
+$assert(str_contains($activityCss, '.activity-bulk-toolbar{') && str_contains($activityCss, '.activity-bulk-dialog{') && str_contains($activityCss, '.activity-bulk-dialog .activity-bulk-fields{display:grid;'), 'Batch deve manter seleção no header e edição em dialog compacto.');
 $assert(str_contains($read('public/user/bibliotecaexercicios.php'), "require __DIR__ . '/biblioteca.php';") && str_contains($read('public/user/bibliotecatreinos.php'), "require __DIR__ . '/biblioteca.php';"), 'Wrappers antigos da Biblioteca devem continuar compatíveis sem páginas duplicadas.');
 
 $assert(!str_contains($trainer, "stridebr_t('trainer.open_agenda')") && !str_contains($trainer, "stridebr_t('trainer.subtitle')"), 'Heading de Treinador não deve duplicar Agenda nem carregar subtitle genérico.');
@@ -132,8 +133,8 @@ $assert(str_contains($profile, '$publicProfilesEnabled = stridebr_feature_enable
 $assert(str_contains($profile, '$isFriend && in_array($visibility, [\'amigos\', \'publico\'], true)'), 'Perfil Amigos/Público deve reconhecer amizade aceita sem abrir perfil privado.');
 $assert(str_contains($friends, 'class="person-identity-link"') && substr_count($friends, 'class="person-identity-link"') >= 3, 'Busca, solicitações e lista de amigos devem oferecer bloco de identidade clicável.');
 $assert(str_contains($friends, '<div class="person-actions"><form') && str_contains($friends, '<form method="POST" data-confirm'), 'Ações mutáveis dos cards de pessoas devem permanecer fora do link de perfil.');
-$assert(str_contains($header, 'class="mobile-profile-link"') && str_contains($header, 'class="mobile-more-label"'), 'Mobile deve separar avatar para perfil do menu Mais.');
-$assert(str_contains($headerCss, '.mobile-profile-link { display: inline-grid;') && str_contains($headerCss, '.user-menu summary > img { display: none; }'), 'Avatar mobile deve ter alvo direto e o menu deve continuar visualmente distinto.');
+$assert(str_contains($header, 'class="mobile-global-menu"') && str_contains($footer, 'class="mobile-nav-item mobile-profile-tab'), 'Mobile deve usar hamburger global no header e Perfil direto na bottom nav.');
+$assert(str_contains($header, 'data-header-menu-close') && str_contains($footer, 'class="mobile-nav-avatar"'), 'Menu global mobile deve ter backdrop fechável e a aba Perfil deve usar avatar real.');
 $assert(str_contains($libraryCss, ".schedule-month-calendar-wrap {\n        height: auto;\n        max-height: none;") && str_contains($libraryCss, 'overflow-y: visible;'), 'Mês desktop deve usar o scroll vertical do documento, sem container vertical interno.');
 $assert(str_contains($libraryCss, '.schedule-month-calendar .monthly-day:not(.is-outside):hover{background:var(--ui-surface-hover)}') && str_contains($libraryCss, 'schedule-month-empty-day{display:grid') && str_contains($libraryCss, 'color:var(--ui-faint)'), 'Estados do Mês devem usar tokens e não vazar superfícies claras no dark mode.');
 

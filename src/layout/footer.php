@@ -2,6 +2,9 @@
 require_once dirname(__DIR__) . '/function/monetization.php';
 $currentPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 $footerLoggedIn = stridebr_is_logged_in();
+$footerUsername = trim((string) ($_SESSION['Username'] ?? ''));
+$footerProfileUrl = $footerUsername !== '' ? '/u/' . rawurlencode($footerUsername) : '/user/perfil.php';
+$footerProfilePhoto = $footerLoggedIn ? stridebr_profile_photo_url((string) ($_SESSION['FotoUsuario'] ?? ''), 64) : '';
 $footerInstagramUrl = trim((string) (getenv('STRIDEBR_INSTAGRAM_URL') ?: ''));
 if ($footerInstagramUrl !== '' && (filter_var($footerInstagramUrl, FILTER_VALIDATE_URL) === false || strtolower((string) parse_url($footerInstagramUrl, PHP_URL_SCHEME)) !== 'https')) $footerInstagramUrl = '';
 $feedbackEnabled = false;
@@ -80,46 +83,11 @@ $navActive = static function (array $prefixes) use ($currentPath): string {
         </svg>
         <span><?php echo stridebr_e(stridebr_t('nav.progress')); ?></span>
     </a>
-    <button class="mobile-nav-item mobile-more-button<?php echo $navActive(['/user/amigos.php', '/user/ferramentastreino.php', '/user/settings.php', '/user/account.php', '/user/treinador.php', '/calendario.php', '/evento.php', '/admin/index.php']); ?>" type="button" data-mobile-more-toggle aria-expanded="false" aria-label="<?php echo stridebr_e(stridebr_t('nav.more_options')); ?>">
-        <svg class="mobile-nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M4 12h.01"></path>
-            <path d="M12 12h.01"></path>
-            <path d="M20 12h.01"></path>
-        </svg>
-        <span><?php echo stridebr_e(stridebr_t('nav.more')); ?></span>
-    </button>
+    <a class="mobile-nav-item mobile-profile-tab<?php echo $navActive([$footerProfileUrl, '/user/perfil.php']); ?>" href="<?php echo stridebr_e($footerProfileUrl); ?>" aria-label="<?php echo stridebr_e(stridebr_t('nav.profile_tab')); ?>">
+        <img class="mobile-nav-avatar" src="<?php echo stridebr_e($footerProfilePhoto); ?>" alt="" width="22" height="22" decoding="async">
+        <span><?php echo stridebr_e(stridebr_t('nav.profile_tab')); ?></span>
+    </a>
 </nav>
-<div class="mobile-more-sheet" data-mobile-more-sheet hidden>
-    <button class="mobile-more-backdrop" type="button" data-mobile-more-close aria-label="<?php echo stridebr_e(stridebr_t('common.close')); ?>"></button>
-    <div class="mobile-more-panel" role="dialog" aria-modal="true" aria-label="<?php echo stridebr_e(stridebr_t('nav.more_options')); ?>">
-        <div class="mobile-more-handle"></div>
-        <div class="mobile-more-header">
-            <strong><?php echo stridebr_e(stridebr_t('nav.more')); ?></strong>
-            <button class="mobile-more-close-button" type="button" data-mobile-more-close aria-label="<?php echo stridebr_e(stridebr_t('nav.close_menu')); ?>">×</button>
-        </div>
-        <a href="/user/gravar-atividade.php"><?php echo stridebr_e(stridebr_t('nav.record_gps')); ?></a>
-        <a href="/user/amigos.php"><?php echo stridebr_e(stridebr_t('nav.friends')); ?></a>
-        <a href="/user/agenda-mensal.php"><?php echo stridebr_e(stridebr_t('schedule.monthly_agenda')); ?></a>
-        <a href="/user/biblioteca.php?tab=treinos"><?php echo stridebr_e(stridebr_t('nav.library')); ?></a>
-        <a href="/user/biblioteca.php?tab=exercicios"><?php echo stridebr_e(stridebr_t('nav.library_exercises')); ?></a>
-        <a href="/user/comparar-atividades.php"><?php echo stridebr_e(stridebr_t('nav.compare_activities')); ?></a>
-        <a href="/user/importar-exportar.php"><?php echo stridebr_e(stridebr_t('nav.import_export')); ?></a>
-        <a href="/user/treinador.php"><?php echo stridebr_e(stridebr_t('nav.trainer')); ?></a>
-        <button type="button" data-quick-tools-open><?php echo stridebr_e(stridebr_t('nav.quick_tools')); ?></button>
-        <a href="/user/ferramentastreino.php"><?php echo stridebr_e(stridebr_t('nav.training_tools')); ?></a>
-        <a href="/calendario.php"><?php echo stridebr_e(stridebr_t('nav.events')); ?></a>
-        <a href="/user/edit-profile.php"><?php echo stridebr_e(stridebr_t('nav.edit_profile')); ?></a>
-        <a href="/user/settings.php"><?php echo stridebr_e(stridebr_t('nav.settings')); ?></a>
-        <a href="/user/account.php"><?php echo stridebr_e(stridebr_t('nav.security')); ?></a>
-        <a href="/pages/extras/changelog.php"><?php echo stridebr_e(stridebr_t('nav.news')); ?></a>
-
-        <?php if (stridebr_has_role('moderator')): ?><a href="/admin/index.php"><?php echo stridebr_e(stridebr_has_role('admin') ? stridebr_t('nav.administration', [], 'Administração') : stridebr_t('nav.moderation', [], 'Moderação')); ?></a><?php endif; ?>
-        <form class="mobile-more-logout" method="POST" action="/function/logout.php">
-            <?php echo stridebr_csrf_field(); ?>
-            <button type="submit"><?php echo stridebr_e(stridebr_t('nav.sign_out')); ?></button>
-        </form>
-    </div>
-</div>
 
 <?php require __DIR__ . '/quick_tools.php'; ?>
 <?php endif; ?>

@@ -16,7 +16,7 @@ $oauthError = trim((string) ($_GET['error'] ?? ''));
 $pendingAll = is_array($_SESSION['StrideBRIntegrationOAuth'] ?? null) ? $_SESSION['StrideBRIntegrationOAuth'] : [];
 $pending = $state !== '' && is_array($pendingAll[$state] ?? null) ? $pendingAll[$state] : null;
 if ($state !== '') unset($_SESSION['StrideBRIntegrationOAuth'][$state]);
-$returnTo = stridebr_safe_redirect(is_array($pending) ? (string) ($pending['return'] ?? '') : '', '/user/edit-profile.php#conexoes');
+$returnTo = stridebr_safe_redirect(is_array($pending) ? (string) ($pending['return'] ?? '') : '', '/user/settings.php?view=connections#conexoes');
 
 if ($oauthError !== '') {
     stridebr_flash('info', stridebr_t('integrations.connection_cancelled'));

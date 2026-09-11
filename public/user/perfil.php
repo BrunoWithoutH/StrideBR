@@ -161,6 +161,8 @@ if (!str_starts_with($profileMetaImage, 'http')) $profileMetaImage = stridebr_pu
                     <div class="profile-primary-action">
                         <?php if ($isSelf): ?>
                             <a class="secondary-button" href="/user/edit-profile.php"><?php echo stridebr_e(stridebr_t('profile.edit')); ?></a>
+                            <a class="secondary-button" href="/user/settings.php"><?php echo stridebr_e(stridebr_t('nav.settings')); ?></a>
+                            <a class="secondary-button" href="/user/settings.php?view=connections"><?php echo stridebr_e(stridebr_t('settings.connections')); ?></a>
                         <?php elseif ($isFriend): ?>
                             <span class="profile-friend-badge"><?php echo stridebr_e(stridebr_t('common.friends')); ?></span>
                         <?php elseif ($viewer !== ''): ?>
