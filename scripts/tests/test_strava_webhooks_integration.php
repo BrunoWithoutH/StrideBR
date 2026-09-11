@@ -18,10 +18,17 @@ return function (PDO $pdo): void {
     try {
         $user = alphaTestUser($pdo, 'strava_webhook');
         stridebr_integrations_save_token($pdo, $user, 'strava', ['access_token'=>'webhook-access','refresh_token'=>'webhook-refresh','expires_at'=>time()+7200,'athlete'=>['id'=>42]]);
+        $unsignedEvent = stridebr_strava_webhook_event(['aspect_type'=>'create','event_time'=>1699999999,'object_id'=>(int)$fixture['id']-1,'object_type'=>'activity','owner_id'=>42,'subscription_id'=>123]);
+        $unsignedEvent['signature_verified'] = false;
+        stridebr_strava_webhook_enqueue($pdo, $unsignedEvent);
+        $unsignedStored = $pdo->query("SELECT signature_verified FROM integracao_webhook_eventos WHERE fingerprint='" . $unsignedEvent['fingerprint'] . "'")->fetchColumn();
+        AlphaTest::assert($unsignedStored === false || $unsignedStored === 0 || $unsignedStored === '0' || $unsignedStored === 'f', 'signature_verified=false enqueues as PostgreSQL boolean false');
         $event = stridebr_strava_webhook_event(['aspect_type'=>'create','event_time'=>1700000000,'object_id'=>(int)$fixture['id'],'object_type'=>'activity','owner_id'=>42,'subscription_id'=>123]);
         $event['signature_verified'] = true; stridebr_strava_webhook_enqueue($pdo, $event); stridebr_strava_webhook_enqueue($pdo, $event);
-        AlphaTest::same(1, (int)$pdo->query("SELECT count(*) FROM integracao_webhook_eventos WHERE owner_external_id='42'")->fetchColumn(), 'queue fingerprint idempotency');
-        $row = $pdo->query("SELECT * FROM integracao_webhook_eventos WHERE owner_external_id='42'")->fetch();
+        AlphaTest::same(2, (int)$pdo->query("SELECT count(*) FROM integracao_webhook_eventos WHERE owner_external_id='42'")->fetchColumn(), 'queue fingerprint idempotency preserves distinct signed/unsigned events');
+        $signedStored = $pdo->query("SELECT signature_verified FROM integracao_webhook_eventos WHERE fingerprint='" . $event['fingerprint'] . "'")->fetchColumn();
+        AlphaTest::assert($signedStored === true || $signedStored === 1 || $signedStored === '1' || $signedStored === 't', 'signature_verified=true enqueues as PostgreSQL boolean true');
+        $row = $pdo->query("SELECT * FROM integracao_webhook_eventos WHERE fingerprint='" . $event['fingerprint'] . "'")->fetch();
         AlphaTest::same('complete', stridebr_strava_webhook_process($pdo, $row), 'create processes');
         AlphaTest::assert(!array_filter($calls, static fn($url)=>str_contains($url,'/athlete/activities')), 'webhook never lists activities');
         AlphaTest::assert((bool)array_filter($calls, static fn($url)=>str_contains($url,'/activities/'.$fixture['id'])), 'webhook fetches exact activity');

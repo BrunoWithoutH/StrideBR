@@ -54,6 +54,9 @@ $assert(str_contains($presenter, "'energia' => \$energy") && str_contains($prese
 $assert(str_contains($taxonomy, "tipo_unidade_padrao = 'tentativa'") && str_contains($taxonomy, "'tentativa-nula'") && str_contains($taxonomy, "'vento'") && str_contains($taxonomy, "slug = 'marca'"), 'saltos e lançamentos precisam registrar tentativas, marcas e tentativa nula/falha.');
 $assert(str_contains($activityPanelShared, "stridebr_t('activity.attempts')") && str_contains((string) file_get_contents($root . '/src/function/sport_hub.php'), 'function sportHubAthleticsDashboard'), 'atletismo precisa preservar tentativas e a camada analítica específica já existente.');
 $assert(sportHubCardioDiscipline('corrida-em-trilha') === 'run' && sportHubCardioDiscipline('ciclismo-de-estrada') === 'cycle' && sportHubCardioDiscipline('natacao-em-piscina') === 'swim', 'Cardio precisa separar corrida, ciclismo, natação e demais disciplinas de forma intuitiva.');
+$load = sportHubTrainingLoad([['duration_s'=>2880,'esforco_percebido'=>6], ['duration_s'=>1800,'esforco_percebido'=>null]]);
+$assert(abs(($load['value'] ?? 0) - 288.0) < .001 && ($load['covered'] ?? 0) === 1 && ($load['eligible'] ?? 0) === 2, 'sRPE precisa usar duração em minutos × RPE sem transformar ausência em zero.');
+$assert(sportHubProgressRenderer('corrida', 'cardio') === 'running' && sportHubProgressRenderer('ciclismo', 'cardio') === 'cycling' && sportHubProgressRenderer('musculacao', 'strength') === 'strength' && sportHubProgressRenderer('lancamento-de-dardo', 'athletics') === 'athletics', 'renderização de Progresso precisa resolver modalidades reais, mantendo família somente interna.');
 $cardioDashboard = sportHubCardioDashboard([[
     'hub_bucket' => 'cardio', 'modalidade_slug' => 'corrida', 'data_inicio' => date('c'), 'duration_s' => 1800, 'distancia_metros' => 5000, 'ganho_elevacao_m' => 40, 'calorias_kcal' => 320,
 ]]);

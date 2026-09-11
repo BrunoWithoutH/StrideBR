@@ -9,15 +9,15 @@ require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
 require_once dirname(__DIR__, 2) . '/src/function/sport_hub.php';
 require_once dirname(__DIR__, 2) . '/src/includes/sport_icons.php';
 
-$requestedPeriod = stridebr_lower(trim((string) ($_GET['period'] ?? '12w')));
+$requestedPeriod = stridebr_lower(trim((string) ($_GET['period'] ?? 'all')));
 $periodAnchor = trim((string) ($_GET['month'] ?? ''));
-$periodWindow = sportHubResolvePeriod($requestedPeriod, $periodAnchor);
-$period = (string) $periodWindow['view'];
+$periodWindow = sportHubResolvePeriod($requestedPeriod === 'all' ? '1y' : $requestedPeriod, $periodAnchor);
+$period = $requestedPeriod === 'all' ? 'all' : (string) $periodWindow['view'];
 $now = new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo'));
 $lookbackSeconds = max(0, $now->getTimestamp() - $periodWindow['previous_start']->getTimestamp());
-$activityDays = min(1500, max(90, (int) ceil($lookbackSeconds / 86400) + 14));
+$activityDays = $period === 'all' ? 36500 : min(1500, max(90, (int) ceil($lookbackSeconds / 86400) + 14));
 $activities = sportHubActivityRows($pdo, $idUsuario, $activityDays);
-$availableSports = sportHubAvailableSports($activities);
+$availableSports = sportHubNavigationSports($pdo, $idUsuario, $activities);
 
 $requestedSport = stridebr_lower(trim((string) ($_GET['sport'] ?? 'all')));
 $selectedSport = 'all';
@@ -29,7 +29,17 @@ foreach ($availableSports as $sportMeta) {
         break;
     }
 }
+$selectedFamily = (string) ($selectedSportMeta['family'] ?? 'all');
 $filteredActivities = sportHubFilterSport($activities, $selectedSport);
+if ($period === 'all') {
+    $historyStart = null;
+    foreach ($filteredActivities as $row) {
+        try { $date = new DateTimeImmutable((string) $row['data_inicio']); } catch (Throwable) { continue; }
+        if ($historyStart === null || $date < $historyStart) $historyStart = $date;
+    }
+    $historyStart ??= $now;
+    $periodWindow = ['view'=>'all', 'current_start'=>$historyStart, 'current_end'=>$now->modify('+1 second'), 'previous_start'=>$historyStart, 'previous_end'=>$historyStart, 'span_seconds'=>0, 'anchor'=>''];
+}
 $currentActivities = sportHubActivitiesInWindow($filteredActivities, $periodWindow['current_start'], $periodWindow['current_end']);
 $previousActivities = sportHubActivitiesInWindow($filteredActivities, $periodWindow['previous_start'], $periodWindow['previous_end']);
 $currentSummary = sportHubSummaryMetrics($currentActivities);
@@ -37,6 +47,18 @@ $previousSummary = sportHubSummaryMetrics($previousActivities);
 $weekly = sportHubWeeklySeries($currentActivities, $periodWindow['current_start'], $periodWindow['current_end']);
 $consistencyDays = sportHubConsistencyDays($currentActivities, $periodWindow['current_start'], $periodWindow['current_end']);
 $breakdown = sportHubModalitiesBreakdown($currentActivities);
+$renderer = $selectedSport === 'all' ? 'overview' : sportHubProgressRenderer($selectedSport, $selectedFamily);
+$trainingLoad = sportHubTrainingLoad($currentActivities);
+$previousTrainingLoad = sportHubTrainingLoad($previousActivities);
+$strengthDashboard = $renderer === 'strength' ? sportHubStrengthDashboard($pdo, $idUsuario, $activities, $periodWindow, $selectedSport) : null;
+$cardioDashboard = in_array($renderer, ['running', 'cycling', 'swimming'], true) ? sportHubCardioDashboard($filteredActivities, $periodWindow) : null;
+$athleticsDashboard = $renderer === 'athletics' ? sportHubAthleticsDashboard($pdo, $idUsuario, $filteredActivities, $periodWindow) : null;
+$sessionDashboard = in_array($renderer, ['team', 'racket', 'combat'], true) ? sportHubSessionDashboard($filteredActivities, $selectedFamily, $periodWindow) : null;
+$goalsStmt = $pdo->prepare("SELECT g.nome, g.metrica, g.periodo, g.valor_alvo, m.slug AS modalidade_slug
+    FROM metas_usuario g LEFT JOIN modalidades m ON m.idmodalidade=g.idmodalidade
+    WHERE g.idusuario=:usuario AND g.ativa=TRUE AND (:sport='all' OR m.slug=:sport) ORDER BY g.data_criacao DESC LIMIT 4");
+$goalsStmt->execute([':usuario'=>$idUsuario, ':sport'=>$selectedSport]);
+$progressGoals = $goalsStmt->fetchAll();
 
 $metricAvailability = [
     'activities' => true,
@@ -44,7 +66,6 @@ $metricAvailability = [
     'distance' => $currentSummary['distance_m'] > 0 || $previousSummary['distance_m'] > 0,
     'elevation' => $currentSummary['elevation_m'] > 0 || $previousSummary['elevation_m'] > 0,
 ];
-$selectedFamily = (string) ($selectedSportMeta['family'] ?? 'all');
 $defaultMetric = 'activities';
 if ($selectedSport !== 'all') {
     if ($selectedFamily !== 'strength' && $metricAvailability['distance']) $defaultMetric = 'distance';
@@ -91,6 +112,7 @@ $metricLabels = [
     'elevation' => stridebr_t('progress.elevation'),
 ];
 $periodLabels = [
+    'all' => stridebr_t('progress.period.all'),
     '4w' => stridebr_t('progress.period.4w'),
     '12w' => stridebr_t('progress.period.12w'),
     '6m' => stridebr_t('progress.period.6m'),
@@ -98,7 +120,7 @@ $periodLabels = [
 ];
 $selectedSportLabel = $selectedSportMeta !== null
     ? stridebr_sport_name((string) $selectedSportMeta['slug'], (string) $selectedSportMeta['name'])
-    : stridebr_t('progress.all_sports');
+    : stridebr_t('progress.overview');
 $periodRangeLabel = stridebr_t('progress.range_label', [
     'start' => stridebr_format_date_short($periodWindow['current_start']),
     'end' => stridebr_format_date_short($periodWindow['current_end']->modify('-1 second')),
@@ -206,18 +228,18 @@ $flashes = stridebr_take_flashes();
             </div>
         </header>
 
+        <nav class="segmented-nav progress-sport-nav" aria-label="<?php echo stridebr_e(stridebr_t('common.sport')); ?>">
+            <a href="<?php echo stridebr_e($buildUrl(['sport' => 'all'])); ?>" class="<?php echo $selectedSport === 'all' ? 'is-active' : ''; ?>"<?php echo $selectedSport === 'all' ? ' aria-current="page"' : ''; ?>><?php echo stridebr_e(stridebr_t('progress.overview')); ?></a>
+            <?php foreach ($availableSports as $sportMeta): $slug=(string)$sportMeta['slug']; ?><a href="<?php echo stridebr_e($buildUrl(['sport' => $slug])); ?>" class="<?php echo $selectedSport === $slug ? 'is-active' : ''; ?>"<?php echo $selectedSport === $slug ? ' aria-current="page"' : ''; ?>><?php echo stridebr_e(stridebr_sport_name($slug,(string)$sportMeta['name'])); ?></a><?php endforeach; ?>
+        </nav>
+
+        <div data-progress-dynamic>
         <form class="progress-filterbar" method="GET" action="/user/progresso.php" aria-label="<?php echo stridebr_e(stridebr_t('progress.filters_aria')); ?>">
-            <div class="progress-period-presets" aria-label="<?php echo stridebr_e(stridebr_t('progress.period_aria')); ?>">
-                <?php foreach ($periodLabels as $key => $label): ?><a href="<?php echo stridebr_e($buildUrl(['period' => $key])); ?>" class="<?php echo $period === $key ? 'is-active' : ''; ?>"<?php echo $period === $key ? ' aria-current="page"' : ''; ?>><?php echo stridebr_e($label); ?></a><?php endforeach; ?>
-            </div>
-            <label class="progress-filter-select"><span><?php echo stridebr_e(stridebr_t('common.sport')); ?></span><select name="sport" data-progress-auto-submit>
-                <option value="all"<?php echo $selectedSport === 'all' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('progress.all_sports')); ?></option>
-                <?php foreach ($availableSports as $sportMeta): $slug = (string) $sportMeta['slug']; ?><option value="<?php echo stridebr_e($slug); ?>"<?php echo $selectedSport === $slug ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_sport_name($slug, (string) $sportMeta['name'])); ?></option><?php endforeach; ?>
+            <label class="progress-filter-select"><span><?php echo stridebr_e(stridebr_t('progress.period')); ?></span><select name="period" data-progress-auto-submit>
+                <?php foreach ($periodLabels as $key => $label): ?><option value="<?php echo stridebr_e($key); ?>"<?php echo $period === $key ? ' selected' : ''; ?>><?php echo stridebr_e($label); ?></option><?php endforeach; ?>
             </select></label>
-            <label class="progress-filter-select"><span><?php echo stridebr_e(stridebr_t('progress.volume_metric')); ?></span><select name="metric" data-progress-auto-submit>
-                <?php foreach ($metricLabels as $key => $label): if (empty($metricAvailability[$key])) continue; ?><option value="<?php echo stridebr_e($key); ?>"<?php echo $metric === $key ? ' selected' : ''; ?>><?php echo stridebr_e($label); ?></option><?php endforeach; ?>
-            </select></label>
-            <input type="hidden" name="period" value="<?php echo stridebr_e($period); ?>">
+            <input type="hidden" name="sport" value="<?php echo stridebr_e($selectedSport); ?>">
+            <input type="hidden" name="metric" value="<?php echo stridebr_e($metric); ?>">
             <?php if ($periodAnchor !== ''): ?><input type="hidden" name="month" value="<?php echo stridebr_e($periodAnchor); ?>"><?php endif; ?>
             <noscript><button type="submit"><?php echo stridebr_e(stridebr_t('common.apply')); ?></button></noscript>
         </form>
@@ -226,13 +248,50 @@ $flashes = stridebr_take_flashes();
 
         <?php if ($currentActivities === []): ?>
             <section class="progress-empty" aria-labelledby="progress-empty-title">
-                <div><h2 id="progress-empty-title"><?php echo stridebr_e(stridebr_t('progress.empty_title')); ?></h2><p><?php echo stridebr_e(stridebr_t('progress.empty_help')); ?></p></div>
+                <div><h2 id="progress-empty-title"><?php echo stridebr_e($selectedSport === 'all' ? stridebr_t('progress.empty_title') : stridebr_t('progress.empty_sport', ['sport' => $selectedSportLabel])); ?></h2><p><?php echo stridebr_e(stridebr_t('progress.empty_help')); ?></p></div>
                 <div><a class="progress-button is-primary" href="/user/atividades.php?new=1"><?php echo stridebr_e(stridebr_t('progress.log_activity')); ?></a><a class="progress-button" href="/user/gravar-atividade.php"><?php echo stridebr_e(stridebr_t('home.record_gps')); ?></a></div>
             </section>
         <?php else: ?>
             <section class="progress-kpi-strip" aria-label="<?php echo stridebr_e(stridebr_t('progress.summary_aria')); ?>">
                 <?php foreach ($summaryItems as $item): ?><div><span><?php echo stridebr_e($item['label']); ?></span><strong><?php echo stridebr_e($item['value']); ?></strong></div><?php endforeach; ?>
             </section>
+
+            <?php if ($trainingLoad['eligible'] > 0): ?>
+            <section class="progress-section progress-load" aria-labelledby="progress-load-title">
+                <header><div><h2 id="progress-load-title"><?php echo stridebr_e(stridebr_t('progress.training_load')); ?></h2><p><?php echo stridebr_e(stridebr_t('progress.training_load_help')); ?></p></div></header>
+                <div class="progress-kpi-strip"><div><span><?php echo stridebr_e(stridebr_t('progress.training_load')); ?></span><strong><?php echo stridebr_e(stridebr_format_number($trainingLoad['value'], 0)); ?> UA</strong><small><?php echo stridebr_e(stridebr_t('progress.rpe_coverage', ['covered'=>$trainingLoad['covered'], 'eligible'=>$trainingLoad['eligible']])); ?></small></div></div>
+            </section>
+            <?php endif; ?>
+
+            <?php if ($progressGoals !== []): ?>
+            <section class="progress-section" aria-labelledby="progress-goals-title">
+                <header><div><h2 id="progress-goals-title"><?php echo stridebr_e(stridebr_t('nav.goals')); ?></h2><p><?php echo stridebr_e(stridebr_t('progress.goals_help')); ?></p></div><a class="progress-button" href="/user/metas.php"><?php echo stridebr_e(stridebr_t('progress.open_goals')); ?></a></header>
+                <div class="progress-detail-list"><?php foreach ($progressGoals as $goal): ?><article><strong><?php echo stridebr_e(trim((string)($goal['nome'] ?? '')) ?: ($metricLabels[(string)$goal['metrica']] ?? (string)$goal['metrica'])); ?></strong><span><?php echo stridebr_e(stridebr_format_number((float)$goal['valor_alvo'], 1)); ?></span><small><?php echo stridebr_e(stridebr_t('progress.goal_period.' . (string)$goal['periodo'])); ?></small></article><?php endforeach; ?></div>
+            </section>
+            <?php endif; ?>
+
+            <?php if ($renderer === 'strength' && is_array($strengthDashboard)): ?>
+            <section class="progress-section" aria-labelledby="progress-exercises-title">
+                <header><div><h2 id="progress-exercises-title"><?php echo stridebr_e(stridebr_t('progress.exercise_evolution')); ?></h2><p><?php echo stridebr_e(stridebr_t('progress.exercise_evolution_help')); ?></p></div></header>
+                <div class="progress-detail-list">
+                <?php foreach (array_slice((array) ($strengthDashboard['exercises'] ?? []), 0, 8) as $exercise): ?><article><strong><?php echo stridebr_e((string) ($exercise['nome'] ?? '')); ?></strong><span><?php if (is_numeric($exercise['latest_load'] ?? null)): ?><?php echo stridebr_e(stridebr_t('progress.last_session')); ?> · <?php echo stridebr_e(stridebr_format_number((float)$exercise['latest_load'], 1)); ?> kg<?php endif; ?></span><?php if (is_numeric($exercise['best_e1rm'] ?? null)): ?><small><?php echo stridebr_e(stridebr_t('progress.estimated_1rm')); ?> · <?php echo stridebr_e(stridebr_format_number((float)$exercise['best_e1rm'], 1)); ?> kg · <?php echo stridebr_e(stridebr_t('progress.estimated')); ?></small><?php endif; ?></article><?php endforeach; ?>
+                </div>
+            </section>
+            <?php elseif (in_array($renderer, ['running','cycling','swimming'], true) && is_array($cardioDashboard)): $discipline = $renderer === 'running' ? 'run' : ($renderer === 'cycling' ? 'cycle' : 'swim'); $cardio = (array) (($cardioDashboard['summary'][$discipline]['current'] ?? [])); ?>
+            <section class="progress-section" aria-labelledby="progress-performance-title">
+                <header><div><h2 id="progress-performance-title"><?php echo stridebr_e(stridebr_t('progress.sport_performance')); ?></h2><p><?php echo stridebr_e(stridebr_t('progress.performance_context')); ?></p></div></header>
+                <div class="progress-kpi-strip">
+                    <?php if (is_numeric($cardio['best_pace_s'] ?? null) && $renderer !== 'cycling'): ?><div><span><?php echo stridebr_e(stridebr_t('progress.best_record')); ?></span><strong><?php echo stridebr_e($fmtDuration((float)$cardio['best_pace_s'])); ?><?php echo $renderer === 'swimming' ? '/100 m' : '/km'; ?></strong></div><?php endif; ?>
+                    <?php if (is_numeric($cardio['avg_speed_kmh'] ?? null) && $renderer === 'cycling'): ?><div><span><?php echo stridebr_e(stridebr_t('progress.avg_speed')); ?></span><strong><?php echo stridebr_e(stridebr_format_number((float)$cardio['avg_speed_kmh'], 1)); ?> km/h</strong></div><?php endif; ?>
+                    <?php if (is_numeric($cardio['avg_hr_bpm'] ?? null)): ?><div><span><?php echo stridebr_e(stridebr_t('progress.avg_hr')); ?></span><strong><?php echo stridebr_e(stridebr_format_number((float)$cardio['avg_hr_bpm'], 0)); ?> bpm</strong></div><?php endif; ?>
+                    <?php if (is_numeric($cardio['avg_power_w'] ?? null)): ?><div><span><?php echo stridebr_e(stridebr_t('progress.avg_power')); ?></span><strong><?php echo stridebr_e(stridebr_format_number((float)$cardio['avg_power_w'], 0)); ?> W</strong></div><?php endif; ?>
+                </div>
+            </section>
+            <?php elseif ($renderer === 'athletics' && is_array($athleticsDashboard)): ?>
+            <section class="progress-section" aria-labelledby="progress-events-title"><header><div><h2 id="progress-events-title"><?php echo stridebr_e(stridebr_t('progress.by_event')); ?></h2><p><?php echo stridebr_e(stridebr_t('progress.athletics_training_note')); ?></p></div></header><div class="progress-detail-list"><?php foreach (array_merge((array)($athleticsDashboard['track'] ?? []),(array)($athleticsDashboard['field'] ?? [])) as $event): ?><article><strong><?php echo stridebr_e((string)($event['nome'] ?? '')); ?></strong><span><?php echo stridebr_e(stridebr_t('progress.best_record')); ?></span><small><?php echo stridebr_e(stridebr_format_number((float)($event['best_mark'] ?? $event['best_time_s'] ?? 0), 2)); ?></small></article><?php endforeach; ?></div></section>
+            <?php elseif (in_array($renderer, ['team','racket','combat'], true) && is_array($sessionDashboard)): ?>
+            <section class="progress-section" aria-labelledby="progress-session-title"><header><div><h2 id="progress-session-title"><?php echo stridebr_e($selectedSportLabel); ?></h2><p><?php echo stridebr_e(stridebr_t('progress.recent_details_help')); ?></p></div></header></section>
+            <?php endif; ?>
 
             <section class="progress-section" aria-labelledby="progress-consistency-title">
                 <header><div><h2 id="progress-consistency-title"><?php echo stridebr_e(stridebr_t('progress.consistency')); ?></h2><p><?php echo stridebr_e(stridebr_tn('progress.active_days_count.one', 'progress.active_days_count.other', (int) $currentSummary['active_days'], ['count' => (int) $currentSummary['active_days']])); ?></p></div></header>
@@ -314,6 +373,7 @@ $flashes = stridebr_take_flashes();
             </details>
             <?php endif; ?>
         <?php endif; ?>
+        </div>
     </div>
     <div class="progress-tooltip" data-progress-tooltip-popover role="tooltip" hidden></div>
 </main>

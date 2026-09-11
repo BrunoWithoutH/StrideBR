@@ -24,7 +24,10 @@
             const button = form.querySelector('button');
             button.disabled = true;
             button.textContent = card.dataset.syncingLabel;
-            card.querySelector('.integration-status').textContent = card.dataset.syncingLabel;
+            const status = card.querySelector('.integration-status');
+            if (status) status.textContent = card.dataset.syncingLabel;
+            const stravaState = card.querySelector('.integration-strava-state strong');
+            if (stravaState) stravaState.textContent = card.dataset.syncingLabel;
             card.setAttribute('aria-busy', 'true');
         });
     });

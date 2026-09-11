@@ -10,7 +10,7 @@ require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
 require_once dirname(__DIR__, 2) . '/src/function/integrations.php';
 
 $provider = stridebr_lower(trim((string) ($_GET['provider'] ?? '')));
-$returnTo = stridebr_safe_redirect((string) ($_GET['return'] ?? ''), '/user/edit-profile.php#conexoes');
+$returnTo = stridebr_safe_redirect((string) ($_GET['return'] ?? ''), '/user/settings.php?view=connections#conexoes');
 
 try {
     $forceConsent = !empty($_GET['reauthorize']);

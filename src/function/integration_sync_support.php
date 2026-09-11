@@ -56,13 +56,22 @@ function stridebr_integrations_eligible(array $connection, string $trigger = 'pe
 {
     $now ??= time();
     if (!in_array($connection['status'] ?? '', ['conectado', 'erro'], true)) return false;
-    if ($trigger === 'periodic' && !in_array($connection['provedor'] ?? '', stridebr_integrations_periodic_providers(), true)) return false;
-    if ($trigger !== 'manual' && !stridebr_db_bool($connection['sincronizar_atividades'] ?? true)) return false;
-    $sync = stridebr_integrations_metadata($connection)['sync'] ?? [];
+    $provider = (string) ($connection['provedor'] ?? '');
+    if ($trigger === 'periodic' && !in_array($provider, stridebr_integrations_periodic_providers(), true)) return false;
+    if (!stridebr_db_bool($connection['sincronizar_atividades'] ?? true)) return false;
+    $metadata = stridebr_integrations_metadata($connection);
+    $sync = is_array($metadata['sync'] ?? null) ? $metadata['sync'] : [];
     if (!empty($sync['reauthorize'])) return false;
     if ((int) ($sync['retry_at'] ?? 0) > $now) return false;
     if (($connection['status'] ?? '') === 'erro' && !isset($sync['retry_at']) && (strtotime((string) ($connection['atualizado_em'] ?? '')) ?: 0) + 900 > $now) return false;
-    if ($trigger === 'periodic' && (strtotime((string) ($connection['ultima_sincronizacao_em'] ?? '')) ?: 0) + stridebr_integrations_periodic_interval((string) ($connection['provedor'] ?? '')) > $now) return false;
+    if ($trigger === 'periodic') {
+        $recentDue = (strtotime((string) ($connection['ultima_sincronizacao_em'] ?? '')) ?: 0) + stridebr_integrations_periodic_interval($provider) <= $now;
+        if ($provider === 'strava') {
+            $backfill = is_array($metadata['backfill'] ?? null) ? $metadata['backfill'] : [];
+            $backfillDue = ($backfill['status'] ?? 'pending') !== 'completed' && (int) ($backfill['retry_at'] ?? 0) <= $now;
+            if (!$recentDue && !$backfillDue) return false;
+        } elseif (!$recentDue) return false;
+    }
     return true;
 }
 
@@ -76,10 +85,14 @@ function stridebr_integrations_feedback(array $result, string $provider): array
 {
     $messages = [];
     if (($result['created'] ?? 0) > 0) $messages[] = stridebr_t($result['created'] === 1 ? 'integrations.imported_one' : 'integrations.imported_many', ['count' => $result['created']]);
-    if (($result['failed'] ?? 0) > 0) {
+    if (!empty($result['backfill_only_failure'])) {
+        $messages[] = stridebr_t('integrations.waiting');
+    } elseif (($result['failed'] ?? 0) > 0) {
         $messages[] = stridebr_t($result['failed'] === 1 ? 'integrations.failed_one' : 'integrations.failed_many', ['count' => $result['failed'], 'provider' => $provider]);
         $messages[] = stridebr_t('integrations.try_later');
-    } elseif (!empty($result['deferred']) || !empty($result['skipped'])) {
+    } elseif (($result['skipped'] ?? '') === 'busy') {
+        $messages[] = stridebr_t('integrations.already_running');
+    } elseif (!empty($result['deferred']) || !empty($result['skipped']) || !empty($result['backfill_paused']) || !empty($result['backfill_retry'])) {
         $messages[] = stridebr_t('integrations.waiting');
     } elseif ($messages === []) {
         $messages[] = stridebr_t('integrations.up_to_date');
@@ -97,7 +110,14 @@ function stridebr_integrations_due_connections(PDO $pdo, string $providerFilter 
     $readyProviders = stridebr_integrations_periodic_providers();
     if ($providerFilter !== '' && !in_array($providerFilter, $readyProviders, true)) return [];
     $limit = max(1, min(5000, $limit));
-    $where = ["(status = 'conectado' OR (status = 'erro' AND atualizado_em < NOW() - INTERVAL '15 minutes'))", 'sincronizar_atividades = TRUE', "(ultima_sincronizacao_em IS NULL OR ultima_sincronizacao_em <= NOW() - CASE WHEN provedor = 'strava' THEN INTERVAL '6 hours' ELSE INTERVAL '15 minutes' END)", "COALESCE((metadados->'sync'->>'retry_at')::bigint, 0) <= EXTRACT(EPOCH FROM NOW())", "COALESCE((metadados->'sync'->>'reauthorize')::boolean, FALSE) = FALSE"];
+    $where = [
+        "(status = 'conectado' OR (status = 'erro' AND atualizado_em < NOW() - INTERVAL '15 minutes'))",
+        'sincronizar_atividades = TRUE',
+        "COALESCE((metadados->'sync'->>'retry_at')::bigint, 0) <= EXTRACT(EPOCH FROM NOW())",
+        "COALESCE((metadados->'sync'->>'reauthorize')::boolean, FALSE) = FALSE",
+        "(provedor <> 'strava' OR ultima_sincronizacao_em IS NULL OR ultima_sincronizacao_em <= NOW() - INTERVAL '6 hours' OR (COALESCE(metadados->'backfill'->>'status','pending') <> 'completed' AND COALESCE((metadados->'backfill'->>'retry_at')::bigint,0) <= EXTRACT(EPOCH FROM NOW())))",
+        "(provedor = 'strava' OR ultima_sincronizacao_em IS NULL OR ultima_sincronizacao_em <= NOW() - INTERVAL '15 minutes')",
+    ];
     $params = [];
     if ($providerFilter !== '') {
         $where[] = 'provedor = :provedor';
@@ -115,8 +135,8 @@ function stridebr_integrations_due_connections(PDO $pdo, string $providerFilter 
         $where[] = 'idusuario = :usuario';
         $params[':usuario'] = $userFilter;
     }
-    
-    $stmt = $pdo->prepare('SELECT idusuario, provedor FROM integracoes_usuario WHERE ' . implode(' AND ', $where) . ' ORDER BY COALESCE(ultima_sincronizacao_em, to_timestamp(0)) ASC LIMIT ' . $limit);
+    $order = "CASE WHEN provedor='strava' AND COALESCE(metadados->'backfill'->>'status','pending') <> 'completed' THEN COALESCE((metadados->'backfill'->>'last_attempt_at')::bigint,0) ELSE EXTRACT(EPOCH FROM COALESCE(ultima_sincronizacao_em,to_timestamp(0))) END ASC";
+    $stmt = $pdo->prepare('SELECT idusuario, provedor FROM integracoes_usuario WHERE ' . implode(' AND ', $where) . ' ORDER BY ' . $order . ' LIMIT ' . $limit);
     $stmt->execute($params);
     return $stmt->fetchAll();
 }

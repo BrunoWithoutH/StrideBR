@@ -57,8 +57,8 @@ function sportHubResolvePeriod(string $view = '12w', string $anchor = ''): array
 
 function sportHubActivityRows(PDO $pdo, string $userId, int $days = 370): array
 {
-    $days = max(30, min(1500, $days));
-    $stmt = $pdo->prepare("SELECT ra.idregistro, ra.titulo, ra.data_inicio, ra.data_fim, ra.origem_provedor, ra.dispositivo_origem,
+    $days = max(30, min(36500, $days));
+    $stmt = $pdo->prepare("SELECT ra.idregistro, ra.titulo, ra.data_inicio, ra.data_fim, ra.origem_provedor, ra.dispositivo_origem, ra.esforco_percebido,
         m.nome AS modalidade_nome, m.slug AS modalidade_slug, m.categoria, m.familia_hub,
         COALESCE(NULLIF(r.distancia_metros, 0), metric.distancia_m, 0) AS distancia_metros, COALESCE(NULLIF(r.ganho_elevacao_m, 0), metric.elevacao_m, 0) AS ganho_elevacao_m,
         COALESCE(ra.calorias_externas, ra.calorias_ativas_estimadas, 0) AS calorias_kcal,
@@ -130,6 +130,61 @@ function sportHubAvailableSports(array $activities): array
     }
     uasort($sports, static fn(array $a, array $b): int => [$b['count'], $a['name']] <=> [$a['count'], $b['name']]);
     return array_values($sports);
+}
+
+/** Navigation is based on both a user's chosen modalities and recorded history. */
+function sportHubNavigationSports(PDO $pdo, string $userId, array $activities): array
+{
+    $sports = [];
+    foreach (sportHubAvailableSports($activities) as $sport) $sports[(string) $sport['slug']] = $sport + ['active' => false];
+    try {
+        $stmt = $pdo->prepare("SELECT m.slug, m.nome, m.categoria, m.familia_hub
+            FROM modalidades_usuario mu JOIN modalidades m ON m.idmodalidade=mu.idmodalidade
+            WHERE mu.idusuario=:usuario AND COALESCE(mu.ativo, FALSE)=TRUE");
+        $stmt->execute([':usuario' => $userId]);
+        foreach ($stmt->fetchAll() as $row) {
+            $slug = stridebr_lower(trim((string) $row['slug']));
+            if ($slug === '') continue;
+            $sports[$slug] = ($sports[$slug] ?? [
+                'slug' => $slug, 'name' => (string) $row['nome'],
+                'family' => sportHubBucket((string) $row['categoria'], $slug, (string) $row['familia_hub']), 'count' => 0,
+            ]) + ['active' => true];
+            $sports[$slug]['active'] = true;
+        }
+    } catch (PDOException $error) {
+        if (!in_array($error->getCode(), ['42P01', '42703'], true)) throw $error;
+    }
+    uasort($sports, static fn(array $a, array $b): int => [empty($b['active']) ? 0 : 1, (int) ($b['count'] ?? 0), $a['name']] <=> [empty($a['active']) ? 0 : 1, (int) ($a['count'] ?? 0), $b['name']]);
+    return array_values($sports);
+}
+
+function sportHubTrainingLoad(array $activities): array
+{
+    $total = 0.0; $covered = 0; $eligible = 0;
+    foreach ($activities as $row) {
+        $duration = max(0.0, (float) ($row['duration_s'] ?? 0));
+        if ($duration <= 0) continue;
+        $eligible++;
+        $rpe = $row['esforco_percebido'] ?? null;
+        if (!is_numeric($rpe) || (float) $rpe < 1 || (float) $rpe > 10) continue;
+        $covered++;
+        $total += ($duration / 60) * (float) $rpe;
+    }
+    return ['value' => $total, 'covered' => $covered, 'eligible' => $eligible, 'coverage' => $eligible > 0 ? $covered / $eligible : null];
+}
+
+function sportHubProgressRenderer(string $slug, string $family): string
+{
+    $slug = stridebr_lower($slug);
+    if (in_array($slug, ['corrida', 'corrida-em-esteira'], true)) return 'running';
+    if (in_array($slug, ['ciclismo', 'ciclismo-indoor', 'mountain-bike'], true)) return 'cycling';
+    if (in_array($slug, ['natacao', 'aguas-abertas'], true)) return 'swimming';
+    if (in_array($slug, ['musculacao', 'powerlifting', 'levantamento-olimpico'], true)) return 'strength';
+    if ($family === 'athletics') return 'athletics';
+    if ($family === 'team') return 'team';
+    if ($family === 'racket') return 'racket';
+    if ($family === 'combat') return 'combat';
+    return 'fallback';
 }
 
 function sportHubFilterSport(array $activities, string $sport = 'all'): array
@@ -342,7 +397,7 @@ function sportHubDecodeGroups(mixed $raw): array
     return is_array($decoded) ? array_values(array_filter(array_map('strval', $decoded))) : [];
 }
 
-function sportHubStrengthDashboard(PDO $pdo, string $userId, array $activities, ?array $periodWindow = null): array
+function sportHubStrengthDashboard(PDO $pdo, string $userId, array $activities, ?array $periodWindow = null, string $sportSlug = ''): array
 {
     $sets = sportHubStrengthSets($pdo, $userId);
     $now = new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo'));
@@ -350,7 +405,8 @@ function sportHubStrengthDashboard(PDO $pdo, string $userId, array $activities, 
     $currentStart = $periodWindow['current_start'];
     $currentEnd = $periodWindow['current_end'];
     $previousStart = $periodWindow['previous_start'];
-    $strengthActivities = array_values(array_filter($activities, static fn(array $row): bool => ($row['hub_bucket'] ?? '') === 'strength'));
+    $strengthActivities = array_values(array_filter($activities, static fn(array $row): bool => ($row['hub_bucket'] ?? '') === 'strength' && ($sportSlug === '' || stridebr_lower((string) ($row['modalidade_slug'] ?? '')) === $sportSlug)));
+    $allowedActivityIds = array_fill_keys(array_map(static fn(array $row): string => (string) ($row['idregistro'] ?? ''), $strengthActivities), true);
     $summary = [
         'current' => ['workouts' => 0, 'duration_s' => 0.0, 'sets' => 0, 'reps' => 0, 'volume_kg' => 0.0, 'prs' => 0],
         'previous' => ['workouts' => 0, 'duration_s' => 0.0, 'sets' => 0, 'reps' => 0, 'volume_kg' => 0.0, 'prs' => 0],
@@ -368,6 +424,7 @@ function sportHubStrengthDashboard(PDO $pdo, string $userId, array $activities, 
     $exerciseGroups = [];
     $muscles = [];
     foreach ($sets as $row) {
+        if ($sportSlug !== '' && !isset($allowedActivityIds[(string) ($row['idregistro'] ?? '')])) continue;
         if (!stridebr_db_bool($row['concluida'] ?? true)) continue;
         $date = new DateTimeImmutable((string) $row['data_inicio']);
         if ($date >= $currentEnd) continue;

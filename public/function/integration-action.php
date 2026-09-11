@@ -11,7 +11,7 @@ require_once dirname(__DIR__, 2) . '/src/function/integrations.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') stridebr_error_document(405);
 stridebr_verify_csrf();
-$returnTo = stridebr_safe_redirect((string) ($_POST['return'] ?? ''), '/user/edit-profile.php#conexoes');
+$returnTo = stridebr_safe_redirect((string) ($_POST['return'] ?? ''), '/user/settings.php?view=connections#conexoes');
 $provider = stridebr_lower(trim((string) ($_POST['provider'] ?? '')));
 $action = trim((string) ($_POST['action'] ?? ''));
 

@@ -9,13 +9,21 @@ return function (PDO $pdo): void {
     $fixture = json_decode(file_get_contents(__DIR__ . '/fixtures/strava_activity.json'), true, 512, JSON_THROW_ON_ERROR);
     $calls = [];
     $items = [$fixture];
+    $backfillItems = [];
     $status = 200;
-    $GLOBALS['stridebr_integrations_http_mock'] = static function ($method, $url, $options) use (&$calls, &$items, &$status): array {
+    $GLOBALS['stridebr_integrations_http_mock'] = static function ($method, $url, $options) use (&$calls, &$items, &$backfillItems, &$status): array {
         $calls[] = $url;
         if (str_contains($url, '/oauth/token')) return ['json' => ['access_token' => 'synthetic-access-token', 'refresh_token' => 'synthetic-refresh-token', 'expires_at' => time() + 7200, 'athlete' => ['id' => 42, 'firstname' => 'Atleta', 'lastname' => 'Teste']]];
-        if (str_contains($url, '/athlete/activities')) return ['json' => $items];
+        if (str_contains($url, '/athlete/activities')) {
+            if (!str_contains($url, 'before=')) return ['json' => $items];
+            parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
+            $before = (int) ($query['before'] ?? PHP_INT_MAX);
+            $eligible = array_values(array_filter($backfillItems, static fn(array $item): bool => (strtotime((string) ($item['start_date'] ?? '')) ?: PHP_INT_MAX) < $before));
+            usort($eligible, static fn(array $a, array $b): int => (strtotime((string) $b['start_date']) ?: 0) <=> (strtotime((string) $a['start_date']) ?: 0));
+            return ['json' => array_slice($eligible, 0, 10)];
+        }
         if ($status !== 200) return ['status' => $status, 'headers' => ['retry-after' => ['1800']], 'json' => ['message' => 'synthetic-access-token synthetic-refresh-token synthetic-only-credential-for-tests-12345678 Authorization: SECRET']];
-        foreach ($items as $item) if (str_ends_with($url, '/' . $item['id'])) return ['json' => $item];
+        foreach (array_merge($items, $backfillItems) as $item) if (str_ends_with($url, '/' . $item['id'])) return ['json' => $item];
         throw new RuntimeException('Unexpected fixture request');
     };
     try {
@@ -40,6 +48,12 @@ return function (PDO $pdo): void {
         $runtimeMetadata = json_decode((string) $runtimeState->fetchColumn(), true, 512, JSON_THROW_ON_ERROR);
         AlphaTest::same(123, $runtimeMetadata['sync']['retry_at'] ?? null, 'sync_state repairs a legacy array root before writing sync state');
         AlphaTest::same('91', (string) ($runtimeMetadata['_legacy_array'][0]['athlete']['id'] ?? ''), 'sync_state retains a legacy array value');
+        $runtimeLegacy->execute([':metadata' => '[{"athlete":{"id":93}}]', ':user' => $runtimeLegacyUser]);
+        stridebr_integrations_strava_backfill_write($pdo, $runtimeLegacyUser, ['status' => 'pending', 'before' => 123456789]);
+        $runtimeState->execute([':user' => $runtimeLegacyUser]);
+        $runtimeBackfillMetadata = json_decode((string) $runtimeState->fetchColumn(), true, 512, JSON_THROW_ON_ERROR);
+        AlphaTest::same(123456789, (int) ($runtimeBackfillMetadata['backfill']['before'] ?? 0), 'backfill writer repairs a legacy array root before writing checkpoint');
+        AlphaTest::same('93', (string) ($runtimeBackfillMetadata['_legacy_array'][0]['athlete']['id'] ?? ''), 'backfill writer retains legacy array metadata');
 
         $migrationLegacyUser = alphaTestUser($pdo, 'integration_migration_legacy');
         stridebr_integrations_save_token($pdo, $migrationLegacyUser, 'strava', $token);
@@ -130,7 +144,7 @@ return function (PDO $pdo): void {
         AlphaTest::assert(stridebr_integrations_eligible($connection), 'Connected due eligible');
         $connection['sincronizar_atividades'] = false;
         AlphaTest::assert(!stridebr_integrations_eligible($connection), 'OFF excluded');
-        AlphaTest::assert(stridebr_integrations_eligible($connection, 'manual'), 'OFF retains manual fallback');
+        AlphaTest::assert(!stridebr_integrations_eligible($connection, 'manual'), 'OFF blocks manual activity sync and preserves checkpoint');
         $connection['sincronizar_atividades'] = true; $connection['provedor'] = 'coros';
         AlphaTest::assert(!stridebr_integrations_eligible($connection), 'COROS excluded from polling');
         AlphaTest::assert(stridebr_integrations_eligible($connection, 'manual'), 'COROS keeps manual');
@@ -154,9 +168,90 @@ return function (PDO $pdo): void {
         $result = stridebr_integrations_sync_detailed($pdo, $user, 'strava', 'periodic');
         AlphaTest::same(1, $result['existing'], 'Eligible expired connection still deduplicates');
         AlphaTest::same($refreshBefore + 1, count(array_filter($calls, static fn($url) => str_contains($url, '/oauth/token'))), 'Only eligible expired token refreshed once');
+        $backfillUser = alphaTestUser($pdo, 'integration_backfill');
+        $backfillToken = $token;
+        $backfillToken['athlete'] = ['id' => 77, 'firstname' => 'Historico'];
+        stridebr_integrations_save_token($pdo, $backfillUser, 'strava', $backfillToken);
+        $items = [];
+        $backfillItems = [];
+        $baseTs = strtotime('2025-12-31 12:00:00 UTC');
+        for ($i = 0; $i < 12; $i++) {
+            $history = $fixture;
+            $history['id'] = (int) $fixture['id'] + 1000 + $i;
+            $history['start_date'] = gmdate(DATE_ATOM, $baseTs - ($i * 86400));
+            $history['name'] = 'History ' . $i;
+            $backfillItems[] = $history;
+        }
+        $backfillConnection = stridebr_integrations_get($pdo, $backfillUser, 'strava');
+        $initialBackfill = stridebr_integrations_strava_backfill_state($pdo, $backfillUser, $backfillConnection, true);
+        $initialCursor = (int) $initialBackfill['before'];
+        $firstBackfill = stridebr_integrations_strava_backfill_step($pdo, $backfillUser, $backfillConnection);
+        AlphaTest::same(3, (int) $firstBackfill['created'], 'Backfill limits detail work per step');
+        $afterFirst = stridebr_integrations_strava_backfill_state($pdo, $backfillUser, stridebr_integrations_get($pdo, $backfillUser, 'strava'), false);
+        AlphaTest::same($initialCursor, (int) $afterFirst['before'], 'Partial batch does not advance temporal checkpoint');
+        AlphaTest::assert(!empty($firstBackfill['backfill_deferred']), 'Partial batch is resumable');
+        for ($attempt = 0; $attempt < 12; $attempt++) {
+            $state = stridebr_integrations_strava_backfill_state($pdo, $backfillUser, stridebr_integrations_get($pdo, $backfillUser, 'strava'), false);
+            if (($state['status'] ?? '') === 'completed') break;
+            $state['retry_at'] = 0;
+            stridebr_integrations_strava_backfill_write($pdo, $backfillUser, $state);
+            stridebr_integrations_strava_backfill_step($pdo, $backfillUser, stridebr_integrations_get($pdo, $backfillUser, 'strava'));
+        }
+        $finalBackfill = stridebr_integrations_strava_backfill_state($pdo, $backfillUser, stridebr_integrations_get($pdo, $backfillUser, 'strava'), false);
+        AlphaTest::same('completed', $finalBackfill['status'], 'Backfill eventually completes');
+        AlphaTest::same(12, (int) $pdo->query("SELECT count(*) FROM registros_atividade WHERE idusuario='{$backfillUser}' AND origem_provedor='strava'")->fetchColumn(), 'Backfill imports full synthetic history exactly once');
+        $manualCheckpoint = (int) ($finalBackfill['before'] ?? 0);
+        $manualResult = stridebr_integrations_sync_detailed($pdo, $backfillUser, 'strava', 'manual');
+        $manualState = stridebr_integrations_strava_backfill_state($pdo, $backfillUser, stridebr_integrations_get($pdo, $backfillUser, 'strava'), false);
+        AlphaTest::same($manualCheckpoint, (int) ($manualState['before'] ?? 0), 'Manual sync does not reset completed checkpoint');
+        AlphaTest::assert(empty($manualResult['backfill_pending']), 'Completed history stays completed');
+
+        $disabledState = $finalBackfill;
+        $disabledState['status'] = 'pending';
+        $disabledState['before'] = 1234567890;
+        $disabledState['retry_at'] = 0;
+        stridebr_integrations_strava_backfill_write($pdo, $backfillUser, $disabledState);
+        $pdo->exec("UPDATE integracoes_usuario SET sincronizar_atividades=FALSE WHERE idusuario='{$backfillUser}' AND provedor='strava'");
+        $disabledResult = stridebr_integrations_strava_backfill_step($pdo, $backfillUser, stridebr_integrations_get($pdo, $backfillUser, 'strava'));
+        AlphaTest::same('disabled', $disabledResult['backfill_skipped'] ?? null, 'Disabled activity sync pauses backfill');
+        $disabledAfter = stridebr_integrations_strava_backfill_state($pdo, $backfillUser, stridebr_integrations_get($pdo, $backfillUser, 'strava'), false);
+        AlphaTest::same(1234567890, (int) $disabledAfter['before'], 'Disabled sync preserves backfill checkpoint');
+        $pdo->exec("UPDATE integracoes_usuario SET sincronizar_atividades=TRUE, ultima_sincronizacao_em=NOW() WHERE idusuario='{$backfillUser}' AND provedor='strava'");
+
+        $oldAccount = alphaTestUser($pdo, 'integration_old_account');
+        $oldToken = $token; $oldToken['athlete'] = ['id' => 78];
+        stridebr_integrations_save_token($pdo, $oldAccount, 'strava', $oldToken);
+        $pdo->exec("UPDATE integracoes_usuario SET ultima_sincronizacao_em=NOW() WHERE idusuario='{$oldAccount}' AND provedor='strava'");
+        AlphaTest::same(1, count(stridebr_integrations_due_connections($pdo, 'strava', $oldAccount)), 'Existing connection without backfill metadata is automatically due');
+
+        $fairA = alphaTestUser($pdo, 'integration_fair_a');
+        $fairB = alphaTestUser($pdo, 'integration_fair_b');
+        foreach ([[$fairA, 81, 100], [$fairB, 82, 200]] as [$fairUser, $athlete, $lastAttempt]) {
+            $fairToken = $token; $fairToken['athlete'] = ['id' => $athlete];
+            stridebr_integrations_save_token($pdo, $fairUser, 'strava', $fairToken);
+            $pdo->exec("UPDATE integracoes_usuario SET ultima_sincronizacao_em=NOW() WHERE idusuario='{$fairUser}' AND provedor='strava'");
+            $fairState = stridebr_integrations_strava_backfill_initial_state($pdo, $fairUser);
+            $fairState['last_attempt_at'] = $lastAttempt;
+            $fairState['retry_at'] = 0;
+            stridebr_integrations_strava_backfill_write($pdo, $fairUser, $fairState);
+        }
+        $fairDue = stridebr_integrations_due_connections($pdo, 'strava', '', 1);
+        AlphaTest::same($fairA, (string) ($fairDue[0]['idusuario'] ?? ''), 'Runner fairness prioritizes least recently attempted Strava backfill');
+
+        $rateUser = alphaTestUser($pdo, 'integration_backfill_rate');
+        $rateToken = $token; $rateToken['athlete'] = ['id' => 79];
+        stridebr_integrations_save_token($pdo, $rateUser, 'strava', $rateToken);
+        $rateHistory = $fixture; $rateHistory['id'] = (int) $fixture['id'] + 5000; $rateHistory['start_date'] = gmdate(DATE_ATOM, strtotime('2024-01-01 UTC'));
+        $backfillItems = [$rateHistory]; $status = 429;
+        $rateResult = stridebr_integrations_strava_backfill_step($pdo, $rateUser, stridebr_integrations_get($pdo, $rateUser, 'strava'));
+        AlphaTest::assert(!empty($rateResult['backfill_paused']) && !empty($rateResult['rate_limited']), 'Backfill pauses on Strava rate limit');
+        $rateState = stridebr_integrations_strava_backfill_state($pdo, $rateUser, stridebr_integrations_get($pdo, $rateUser, 'strava'), false);
+        AlphaTest::same('paused', $rateState['status'], 'Rate-limited backfill state is persisted');
+        AlphaTest::assert((int) $rateState['retry_at'] > time(), 'Rate-limited backfill has a future retry');
+        $status = 200; $backfillItems = [];
+
         $empty = stridebr_integrations_feedback(['created'=>0,'existing'=>0,'failed'=>0], 'Strava');
         AlphaTest::same('success', $empty[0], 'No new activities is successful');
-
 
         foreach (['pt-BR', 'en'] as $locale) {
             stridebr_set_locale($locale, false);

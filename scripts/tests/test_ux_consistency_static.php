@@ -50,7 +50,7 @@ $assert(str_contains($account, "stridebr_settings_workspace_heading(stridebr_t('
 $assert(!str_contains($calendar, 'migration de eventos'), 'estado público de Eventos não deve expor migration.');
 $assert(!str_contains($goals, 'Aplique as migrations'), 'estado público de Metas não deve expor migration.');
 $assert(str_contains($footer, "stridebr_t('nav.activities')"), 'label mobile de Atividades deve caber sem depender de fonte minúscula.');
-$assert(str_contains($footer, "stridebr_t('nav.import_export')"), 'navegação deve usar a chave semântica de Importar e exportar.');
+$assert(!str_contains($footer, "stridebr_t('nav.import_export')"), 'Importar e exportar pertence ao contexto de Atividades, não ao menu global mobile.');
 $assert(str_contains($activities, "stridebr_t('activity.import_export')") || str_contains($activities, '>Importar e exportar<'), 'toolbar de atividades deve usar “Importar e exportar”.');
 $assert(str_contains($landing, 'Cronogramas, atividades, progresso, rotas e privacidade no mesmo lugar.'), 'landing deve listar capacidades concretas.');
 $assert(!is_file($root . '/docs/design/UX_WRITING_GUIDE.md'), 'guia interno do assistente não deve ficar no projeto.');

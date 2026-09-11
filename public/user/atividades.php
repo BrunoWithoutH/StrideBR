@@ -479,27 +479,45 @@ $recentes = array_slice($recentes, 0, 5);
         </section>
         <section class="activity-history" id="historico" data-activity-history data-initial-state="<?php echo stridebr_e($initialHistoryState); ?>" data-initial-cursor="<?php echo stridebr_e($initialHistoryCursor); ?>" data-initial-total="<?php echo $initialHistoryTotal; ?>">
             <div class="activity-history-toolbar">
-                <div>
-                    <h2><?php echo stridebr_e(stridebr_t('activity.history')); ?></h2>
-                    <span><?php echo stridebr_e(stridebr_t('activity.recent_first')); ?></span>
+                <div class="activity-history-toolbar-normal" data-history-toolbar-normal>
+                    <div class="activity-history-heading-copy">
+                        <h2><?php echo stridebr_e(stridebr_t('activity.history')); ?></h2>
+                        <span><?php echo stridebr_e(stridebr_t('activity.recent_first')); ?></span>
+                    </div>
+                    <div class="activity-history-filters">
+                        <input type="search" placeholder="<?php echo stridebr_e(stridebr_t('activity.search')); ?>" data-history-search autocomplete="off">
+                        <?php echo sportPickerRenderSelect($catalogo, ['name' => 'history_sport', 'value_key' => 'slug', 'empty_label' => stridebr_t('activity.all_sports'), 'native_attributes' => ['data-history-sport' => true]]); ?>
+                        <button type="button" class="activity-secondary-button activity-bulk-toggle" data-bulk-toggle aria-pressed="false"><?php echo stridebr_e(stridebr_t('activity.select')); ?></button>
+                    </div>
                 </div>
-                <div class="activity-history-filters">
-                    <input type="search" placeholder="<?php echo stridebr_e(stridebr_t('activity.search')); ?>" data-history-search autocomplete="off">
-                    <?php echo sportPickerRenderSelect($catalogo, ['name' => 'history_sport', 'value_key' => 'slug', 'empty_label' => stridebr_t('activity.all_sports'), 'native_attributes' => ['data-history-sport' => true]]); ?>
-                    <button type="button" class="activity-secondary-button activity-bulk-toggle" data-bulk-toggle><?php echo stridebr_e(stridebr_t('activity.select')); ?></button>
+                <div class="activity-bulk-toolbar" data-bulk-toolbar hidden>
+                    <strong data-bulk-count><?php echo stridebr_e(stridebr_t('activity.bulk_selected.none')); ?></strong>
+                    <div class="activity-bulk-toolbar-actions">
+                        <button type="button" class="activity-secondary-button" data-bulk-select-visible><?php echo stridebr_e(stridebr_t('activity.bulk_select_loaded')); ?></button>
+                        <button type="button" class="activity-secondary-button" data-bulk-edit disabled><?php echo stridebr_e(stridebr_t('activity.bulk_edit')); ?></button>
+                        <button type="button" class="activity-secondary-button is-danger" data-bulk-delete disabled><?php echo stridebr_e(stridebr_t('activity.bulk_delete')); ?></button>
+                        <button type="button" class="activity-secondary-button" data-bulk-cancel><?php echo stridebr_e(stridebr_t('common.cancel')); ?></button>
+                    </div>
                 </div>
             </div>
-            <form class="activity-bulk-bar" data-bulk-bar hidden>
-                <?php echo stridebr_csrf_field(); ?>
-                <div class="activity-bulk-count"><strong data-bulk-count><?php echo stridebr_e(stridebr_t('activity.bulk_selected.none')); ?></strong><button type="button" data-bulk-select-visible><?php echo stridebr_e(stridebr_t('activity.bulk_select_loaded')); ?></button></div>
-                <div class="activity-bulk-fields">
-                    <div class="activity-bulk-sport-field"><span><?php echo stridebr_e(stridebr_t('activity.modality')); ?></span><?php echo sportPickerRenderSelect($catalogo, ['name' => 'idmodalidade', 'empty_label' => stridebr_t('activity.keep_value'), 'native_attributes' => ['data-bulk-sport' => true]]); ?></div>
-                    <label><?php echo stridebr_e(stridebr_t('common.duration')); ?> <span class="activity-bulk-duration" data-bulk-duration-control><select name="duracao_modo" data-bulk-duration-mode><option value="keep"><?php echo stridebr_e(stridebr_t('activity.keep_value')); ?></option><option value="set"><?php echo stridebr_e(stridebr_t('activity.set_value')); ?></option><option value="clear"><?php echo stridebr_e(stridebr_t('common.clear')); ?></option></select><span data-bulk-duration-value hidden><input type="number" name="duracao_minutos" min="1" max="1440" inputmode="numeric" placeholder="120"><small>min</small></span></span></label>
-                    <label><?php echo stridebr_e(stridebr_t('activity.visibility')); ?><select name="visibilidade"><option value=""><?php echo stridebr_e(stridebr_t('activity.keep_value')); ?></option><option value="privado"><?php echo stridebr_e(stridebr_t('activity.only_me')); ?></option><option value="amigos"><?php echo stridebr_e(stridebr_t('common.friends')); ?></option><option value="publico"><?php echo stridebr_e(stridebr_t('common.public')); ?></option></select></label>
-                    <button type="submit" class="activity-primary-action" disabled><?php echo stridebr_e(stridebr_t('common.apply')); ?></button>
-                </div>
-                <div class="activity-bulk-actions"><button type="button" class="activity-secondary-button" data-bulk-cancel><?php echo stridebr_e(stridebr_t('activity.bulk_cancel_selection')); ?></button><button type="button" class="activity-secondary-button is-danger" data-bulk-delete><?php echo stridebr_e(stridebr_t('activity.bulk_delete')); ?></button></div>
-            </form>
+            <dialog class="activity-bulk-dialog" data-bulk-dialog aria-labelledby="activity-bulk-dialog-title">
+                <form class="activity-bulk-dialog-form" data-bulk-bar>
+                    <?php echo stridebr_csrf_field(); ?>
+                    <header class="activity-bulk-dialog-head">
+                        <div><span><?php echo stridebr_e(stridebr_t('activity.bulk_selected.none')); ?></span><h3 id="activity-bulk-dialog-title"><?php echo stridebr_e(stridebr_t('activity.bulk_edit_title')); ?></h3></div>
+                        <button type="button" class="icon-button" data-bulk-dialog-close aria-label="<?php echo stridebr_e(stridebr_t('common.close')); ?>">×</button>
+                    </header>
+                    <div class="activity-bulk-fields">
+                        <div class="activity-bulk-sport-field"><span><?php echo stridebr_e(stridebr_t('activity.modality')); ?></span><?php echo sportPickerRenderSelect($catalogo, ['name' => 'idmodalidade', 'empty_label' => stridebr_t('activity.keep_value'), 'native_attributes' => ['data-bulk-sport' => true]]); ?></div>
+                        <label><?php echo stridebr_e(stridebr_t('common.duration')); ?> <span class="activity-bulk-duration" data-bulk-duration-control><select name="duracao_modo" data-bulk-duration-mode><option value="keep"><?php echo stridebr_e(stridebr_t('activity.keep_value')); ?></option><option value="set"><?php echo stridebr_e(stridebr_t('activity.set_value')); ?></option><option value="clear"><?php echo stridebr_e(stridebr_t('common.clear')); ?></option></select><span data-bulk-duration-value hidden><input type="number" name="duracao_minutos" min="1" max="1440" inputmode="numeric" placeholder="120"><small>min</small></span></span></label>
+                        <label><?php echo stridebr_e(stridebr_t('activity.visibility')); ?><select name="visibilidade"><option value=""><?php echo stridebr_e(stridebr_t('activity.keep_value')); ?></option><option value="privado"><?php echo stridebr_e(stridebr_t('activity.only_me')); ?></option><option value="amigos"><?php echo stridebr_e(stridebr_t('common.friends')); ?></option><option value="publico"><?php echo stridebr_e(stridebr_t('common.public')); ?></option></select></label>
+                    </div>
+                    <footer class="activity-bulk-dialog-actions">
+                        <button type="button" class="activity-secondary-button" data-bulk-dialog-close><?php echo stridebr_e(stridebr_t('common.cancel')); ?></button>
+                        <button type="submit" class="activity-primary-action" disabled><?php echo stridebr_e(stridebr_t('common.apply')); ?></button>
+                    </footer>
+                </form>
+            </dialog>
             <div class="activity-history-skeleton" data-history-skeleton aria-label="<?php echo stridebr_e(stridebr_t('activity.loading_history_aria')); ?>" hidden>
                 <?php for ($i = 0; $i < 5; $i++): ?>
                     <div class="activity-history-skeleton-row"><span></span><i></i><div><b></b><em></em></div><small></small></div>
