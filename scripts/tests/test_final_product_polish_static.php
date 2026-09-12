@@ -118,9 +118,9 @@ $assert(str_contains($trainer, "stridebr_t('trainer.as_athlete')") === false && 
 foreach (['progress.question_consistency','progress.consistency_help_product','progress.question_volume','progress.question_trend','progress.question_sports','progress.modalities_help','progress.question_compare','progress.period_comparison_help'] as $key) {
     $assert(!str_contains($progress, $key) && !str_contains($pt, "'{$key}'") && !str_contains($en, "'{$key}'"), "Copy decorativa {$key} deve ser removida da UI e dos locales.");
 }
-$assert(str_contains($progress, 'progress.active_days_count.one') && str_contains($progress, 'progress.active_days_count.other'), 'Consistência deve mostrar somente contagem compacta de dias ativos.');
+$assert(str_contains($progress, 'progress.active_weeks_summary') && str_contains($progress, 'progress.consistency_weeks_aria') && str_contains($progress, 'sportHubConsistencySummary'), 'Consistência deve usar semanas ou meses do intervalo, com resumo compacto.');
 $assert(str_contains($progressCss, 'height:220px') && str_contains($progressCss, 'max-height:260px'), 'Gráficos de Progresso devem ficar mais densos sem desaparecer.');
-$assert(str_contains($progress, 'progress-comparison-list') && !preg_match('/is-positive|is-negative|success|danger/i', substr($progress, strpos($progress, 'progress-comparison-list')) ?: ''), 'Comparação entre períodos deve permanecer semanticamente neutra.');
+$assert(str_contains($progress, "!empty(\$periodWindow['has_previous'])") && str_contains($progress, "stridebr_t('progress.vs_previous_period')") && !preg_match('/is-positive|is-negative|success|danger/i', $progress), 'Comparações factuais devem existir apenas quando há período anterior e permanecer semanticamente neutras.');
 $assert(str_contains($progressJs, 'AbortController') && str_contains($progressJs, 'history.pushState'), 'Progresso deve preservar navegação parcial existente.');
 
 $assert(!str_contains($home, 'home.active_goals_help'), 'Ajuda redundante das metas ativas deve sair da Home.');

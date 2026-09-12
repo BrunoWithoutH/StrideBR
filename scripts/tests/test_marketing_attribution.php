@@ -69,8 +69,8 @@ return function (PDO $pdo): void {
     AlphaTest::same(1, $metrics['signup_iniciados'], 'Campanha contabiliza signup iniciado');
     AlphaTest::same(1, $metrics['signup_concluidos'], 'Campanha contabiliza signup concluído');
     AlphaTest::same(1, $metrics['ativacoes'], 'Campanha contabiliza ativação');
-    AlphaTest::same(100.0, $metrics['conversao_cadastro'], 'Conversão visita cadastro calculada');
-    AlphaTest::same(100.0, $metrics['conversao_ativacao'], 'Conversão cadastro ativação calculada');
+    AlphaTest::assert(abs((float) $metrics['conversao_cadastro'] - 100.0) < 0.0001, 'Conversão visita cadastro calculada');
+    AlphaTest::assert(abs((float) $metrics['conversao_ativacao'] - 100.0) < 0.0001, 'Conversão cadastro ativação calculada');
 
     $placementMetrics = stridebr_marketing_placements_with_metrics($pdo, $campaignId);
     $row = array_values(array_filter($placementMetrics, static fn(array $item): bool => (string) $item['idplacement'] === $placementId))[0] ?? null;

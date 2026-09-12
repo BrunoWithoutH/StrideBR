@@ -12,6 +12,7 @@ require_once dirname(__DIR__, 2) . '/src/function/atividade_modelo.php';
 require_once dirname(__DIR__, 2) . '/src/function/atividade_presenter.php';
 require_once dirname(__DIR__, 2) . '/src/function/strength_activity.php';
 require_once dirname(__DIR__, 2) . '/src/function/activity_energy.php';
+require_once dirname(__DIR__, 2) . '/src/function/competitions.php';
 require_once dirname(__DIR__, 2) . '/src/function/cronograma.php';
 require_once dirname(__DIR__, 2) . '/src/includes/sport_icons.php';
 require_once dirname(__DIR__, 2) . '/src/layout/activity_unit_route.php';
@@ -113,6 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'ocultar_inicio_m' => $_POST['ocultar_inicio_m'] ?? null,
                 'ocultar_fim_m' => $_POST['ocultar_fim_m'] ?? null,
                 'esforco_percebido' => $_POST['esforco_percebido'] ?? '',
+                'idcompeticao' => $_POST['idcompeticao'] ?? ($registro['idcompeticao'] ?? ''),
                 'equipamentos' => is_array($_POST['equipamentos'] ?? null) ? $_POST['equipamentos'] : [],
                 'record_values' => $recordValues,
                 'unidades' => $unidades,
@@ -362,6 +364,13 @@ foreach ($unitFields as $field) {
             $activityEditorEquipmentLoaded = true;
             $activityEditorObservations = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string) ($_POST['observacoes'] ?? '') : (string) ($registro['observacoes'] ?? '');
             $activityEditorVisibility = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string) ($_POST['visibilidade'] ?? 'privado') : (string) ($registro['visibilidade'] ?? 'privado');
+            $activityEditorCompetition = $_SERVER['REQUEST_METHOD'] === 'POST' ? trim((string) ($_POST['idcompeticao'] ?? '')) : trim((string) ($registro['idcompeticao'] ?? ''));
+            $activityCompetitionDate = $_SERVER['REQUEST_METHOD'] === 'POST' ? trim((string) ($_POST['data'] ?? '')) : $inicio->format('Y-m-d');
+            $activityEditorCompetitions = competitionNearby($pdo, $idUsuario, $activityCompetitionDate, 12);
+            if ($activityEditorCompetition !== '' && !array_filter($activityEditorCompetitions, static fn(array $item): bool => (string)($item['idcompeticao']??'') === $activityEditorCompetition)) {
+                $currentCompetition = competitionGet($pdo, $idUsuario, $activityEditorCompetition);
+                if (is_array($currentCompetition)) array_unshift($activityEditorCompetitions, $currentCompetition);
+            }
             require dirname(__DIR__, 2) . '/src/layout/activity_log_details.php';
             ?>
 

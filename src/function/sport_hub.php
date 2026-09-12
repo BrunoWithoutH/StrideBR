@@ -14,15 +14,32 @@ function sportHubBucket(string $category, string $slug, string $family = ''): st
     return sportCatalogFamilyKey($family, $category, $slug);
 }
 
-function sportHubResolvePeriod(string $view = '12w', string $anchor = ''): array
+function sportHubResolvePeriod(string $view = '12w', string $anchor = '', ?DateTimeImmutable $historyStart = null): array
 {
     $timezone = new DateTimeZone('America/Sao_Paulo');
     $now = new DateTimeImmutable('now', $timezone);
-    $currentMonth = $now->modify('first day of this month')->setTime(0, 0);
     $aliases = ['month' => '4w', '3m' => '12w', '12m' => '1y'];
     $view = $aliases[$view] ?? $view;
-    $valid = ['4w', '12w', '6m', '1y'];
-    if (!in_array($view, $valid, true)) $view = '12w';
+
+    if ($view === 'all') {
+        $start = $historyStart?->setTimezone($timezone) ?? $now;
+        if ($start > $now) $start = $now;
+        return [
+            'view' => 'all',
+            'months' => 0,
+            'anchor' => '',
+            'anchor_start' => null,
+            'current_start' => $start,
+            'current_end' => $now->modify('+1 second'),
+            'previous_start' => null,
+            'previous_end' => null,
+            'span_seconds' => max(0, $now->getTimestamp() - $start->getTimestamp()),
+            'has_previous' => false,
+        ];
+    }
+
+    if (!in_array($view, ['4w', '12w', '6m', '1y'], true)) $view = '12w';
+    $currentMonth = $now->modify('first day of this month')->setTime(0, 0);
     $anchorStart = $currentMonth;
     if (preg_match('/^\d{4}-\d{2}$/', $anchor) === 1) {
         try {
@@ -52,12 +69,31 @@ function sportHubResolvePeriod(string $view = '12w', string $anchor = ''): array
         'previous_start' => $previousStart,
         'previous_end' => $previousEnd,
         'span_seconds' => $spanSeconds,
+        'has_previous' => true,
     ];
 }
 
-function sportHubActivityRows(PDO $pdo, string $userId, int $days = 370): array
+function sportHubPeriodForDate(DateTimeImmutable $date, array $periodWindow): ?string
 {
-    $days = max(30, min(36500, $days));
+    $currentStart = $periodWindow['current_start'];
+    $currentEnd = $periodWindow['current_end'];
+    if ($date >= $currentStart && $date < $currentEnd) return 'current';
+    if (empty($periodWindow['has_previous'])) return null;
+    $previousStart = $periodWindow['previous_start'] ?? null;
+    $previousEnd = $periodWindow['previous_end'] ?? null;
+    if ($previousStart instanceof DateTimeImmutable && $previousEnd instanceof DateTimeImmutable && $date >= $previousStart && $date < $previousEnd) return 'previous';
+    return null;
+}
+
+function sportHubActivityRows(PDO $pdo, string $userId, ?int $days = 370): array
+{
+    $whereDate = '';
+    $params = [':usuario' => $userId];
+    if ($days !== null) {
+        $days = max(30, min(36500, $days));
+        $whereDate = " AND ra.data_inicio >= NOW() - (CAST(:dias AS integer) * INTERVAL '1 day')";
+        $params[':dias'] = $days;
+    }
     $stmt = $pdo->prepare("SELECT ra.idregistro, ra.titulo, ra.data_inicio, ra.data_fim, ra.origem_provedor, ra.dispositivo_origem, ra.esforco_percebido,
         m.nome AS modalidade_nome, m.slug AS modalidade_slug, m.categoria, m.familia_hub,
         COALESCE(NULLIF(r.distancia_metros, 0), metric.distancia_m, 0) AS distancia_metros, COALESCE(NULLIF(r.ganho_elevacao_m, 0), metric.elevacao_m, 0) AS ganho_elevacao_m,
@@ -101,10 +137,9 @@ function sportHubActivityRows(PDO $pdo, string $userId, int $days = 370): array
             LEFT JOIN campos_modelo_opcoes o ON o.idcampo = va.idcampo AND o.idopcao = va.idopcao
             WHERE va.idregistro = ra.idregistro
         ) perf ON TRUE
-        WHERE ra.idusuario = :usuario AND ra.excluido_em IS NULL AND ra.status = 'concluido'
-          AND ra.data_inicio >= NOW() - (CAST(:dias AS integer) * INTERVAL '1 day')
+        WHERE ra.idusuario = :usuario AND ra.excluido_em IS NULL AND ra.status = 'concluido'{$whereDate}
         ORDER BY ra.data_inicio DESC");
-    $stmt->execute([':usuario' => $userId, ':dias' => $days]);
+    $stmt->execute($params);
     $rows = $stmt->fetchAll();
     foreach ($rows as &$row) {
         $row['hub_bucket'] = sportHubBucket((string) ($row['categoria'] ?? ''), (string) ($row['modalidade_slug'] ?? ''), (string) ($row['familia_hub'] ?? ''));
@@ -132,30 +167,203 @@ function sportHubAvailableSports(array $activities): array
     return array_values($sports);
 }
 
-/** Navigation is based on both a user's chosen modalities and recorded history. */
-function sportHubNavigationSports(PDO $pdo, string $userId, array $activities): array
+function sportHubNavigationSports(PDO $pdo, string $userId, array $activities = []): array
 {
     $sports = [];
-    foreach (sportHubAvailableSports($activities) as $sport) $sports[(string) $sport['slug']] = $sport + ['active' => false];
     try {
-        $stmt = $pdo->prepare("SELECT m.slug, m.nome, m.categoria, m.familia_hub
-            FROM modalidades_usuario mu JOIN modalidades m ON m.idmodalidade=mu.idmodalidade
-            WHERE mu.idusuario=:usuario AND COALESCE(mu.ativo, FALSE)=TRUE");
+        $stmt = $pdo->prepare("SELECT m.idmodalidade, m.slug, m.nome, m.categoria, m.familia_hub,
+                COUNT(ra.idregistro) AS history_count,
+                MIN(ra.data_inicio) AS first_activity,
+                MAX(ra.data_inicio) AS last_activity,
+                COALESCE(MAX(b.benchmark_count),0) AS benchmark_count,
+                MAX(b.first_benchmark) AS first_benchmark,
+                MAX(b.last_benchmark) AS last_benchmark,
+                COALESCE(BOOL_OR(COALESCE(mu.ativo, FALSE)), FALSE) AS active
+            FROM modalidades m
+            LEFT JOIN registros_atividade ra ON ra.idmodalidade=m.idmodalidade AND ra.idusuario=:usuario_atividade AND ra.excluido_em IS NULL AND ra.status='concluido'
+            LEFT JOIN modalidades_usuario mu ON mu.idmodalidade=m.idmodalidade AND mu.idusuario=:usuario_modalidade
+            LEFT JOIN (
+                SELECT idmodalidade,COUNT(*) AS benchmark_count,MIN(data_resultado) AS first_benchmark,MAX(data_resultado) AS last_benchmark
+                FROM benchmarks_usuario
+                WHERE idusuario=:usuario_benchmark AND excluido_progresso=FALSE
+                GROUP BY idmodalidade
+            ) b ON b.idmodalidade=m.idmodalidade
+            GROUP BY m.idmodalidade, m.slug, m.nome, m.categoria, m.familia_hub
+            HAVING COUNT(ra.idregistro) > 0 OR COALESCE(MAX(b.benchmark_count),0) > 0 OR COALESCE(BOOL_OR(COALESCE(mu.ativo, FALSE)), FALSE)=TRUE");
+        $stmt->execute([':usuario_atividade' => $userId, ':usuario_modalidade' => $userId, ':usuario_benchmark' => $userId]);
+        foreach ($stmt->fetchAll() as $row) {
+            $slug = stridebr_lower(trim((string) ($row['slug'] ?? '')));
+            if ($slug === '') continue;
+            $family = sportHubBucket((string) ($row['categoria'] ?? ''), $slug, (string) ($row['familia_hub'] ?? ''));
+            $activityCount = (int) ($row['history_count'] ?? 0);
+            $benchmarkCount = (int) ($row['benchmark_count'] ?? 0);
+            $firstActivity = trim((string) ($row['first_activity'] ?? ''));
+            $firstBenchmark = trim((string) ($row['first_benchmark'] ?? ''));
+            $lastActivity = trim((string) ($row['last_activity'] ?? ''));
+            $lastBenchmark = trim((string) ($row['last_benchmark'] ?? ''));
+            $firstHistory = $firstActivity;
+            if ($firstBenchmark !== '' && ($firstHistory === '' || $firstBenchmark < substr($firstHistory, 0, 10))) $firstHistory = $firstBenchmark;
+            $lastHistory = $lastActivity;
+            if ($lastBenchmark !== '' && ($lastHistory === '' || $lastBenchmark > substr($lastHistory, 0, 10))) $lastHistory = $lastBenchmark;
+            $item = [
+                'idmodalidade' => (string) ($row['idmodalidade'] ?? ''),
+                'idmodalidade' => (string) ($row['idmodalidade'] ?? ''),
+                'slug' => $slug,
+                'name' => (string) ($row['nome'] ?? $slug),
+                'family' => $family,
+                'count' => $activityCount,
+                'history_count' => $activityCount + $benchmarkCount,
+                'activity_history_count' => $activityCount,
+                'benchmark_count' => $benchmarkCount,
+                'first_activity' => $firstActivity !== '' ? $firstActivity : null,
+                'last_activity' => $lastActivity !== '' ? $lastActivity : null,
+                'first_history' => $firstHistory !== '' ? $firstHistory : null,
+                'last_history' => $lastHistory !== '' ? $lastHistory : null,
+                'active' => stridebr_db_bool($row['active'] ?? false),
+                'has_history' => ($activityCount + $benchmarkCount) > 0,
+            ];
+            if ($family !== 'athletics') {
+                $sports[$slug] = $item;
+                continue;
+            }
+            if (!isset($sports['atletismo'])) {
+                $sports['atletismo'] = [
+                    'idmodalidade' => null,
+                    'slug' => 'atletismo',
+                    'name' => stridebr_t('progress.athletics'),
+                    'family' => 'athletics',
+                    'count' => 0,
+                    'history_count' => 0,
+                    'activity_history_count' => 0,
+                    'benchmark_count' => 0,
+                    'first_activity' => null,
+                    'last_activity' => null,
+                    'active' => false,
+                    'has_history' => false,
+                    'synthetic' => true,
+                    'event_count' => 0,
+                ];
+            }
+            $athletics = &$sports['atletismo'];
+            $athletics['count'] += $item['count'];
+            $athletics['history_count'] += $item['history_count'];
+            $athletics['activity_history_count'] += $item['activity_history_count'];
+            $athletics['benchmark_count'] += $item['benchmark_count'];
+            $athletics['has_history'] = $athletics['history_count'] > 0;
+            $athletics['event_count']++;
+            $athletics['active'] = $athletics['active'] || $item['active'];
+            if ($item['first_activity'] !== null && ($athletics['first_activity'] === null || strcmp((string) $item['first_activity'], (string) $athletics['first_activity']) < 0)) $athletics['first_activity'] = $item['first_activity'];
+            if ($item['last_activity'] !== null && ($athletics['last_activity'] === null || strcmp((string) $item['last_activity'], (string) $athletics['last_activity']) > 0)) $athletics['last_activity'] = $item['last_activity'];
+            unset($athletics);
+        }
+    } catch (PDOException $error) {
+        if (!in_array($error->getCode(), ['42P01', '42703'], true)) throw $error;
+        foreach (sportHubAvailableSports($activities) as $sport) {
+            $sports[(string) $sport['slug']] = $sport + [
+                'idmodalidade' => null,
+                'history_count' => (int) ($sport['count'] ?? 0),
+                'activity_history_count' => (int) ($sport['count'] ?? 0),
+                'benchmark_count' => 0,
+                'first_activity' => null,
+                'last_activity' => null,
+                'first_history' => null,
+                'last_history' => null,
+                'active' => false,
+                'has_history' => (int) ($sport['count'] ?? 0) > 0,
+            ];
+        }
+    }
+    uasort($sports, static function (array $a, array $b): int {
+        $active = (int) !empty($b['active']) <=> (int) !empty($a['active']);
+        if ($active !== 0) return $active;
+        $history = (int) ($b['history_count'] ?? 0) <=> (int) ($a['history_count'] ?? 0);
+        if ($history !== 0) return $history;
+        return strnatcasecmp((string) ($a['name'] ?? ''), (string) ($b['name'] ?? ''));
+    });
+    return array_values($sports);
+}
+
+function sportHubHistoryStart(array $sports, string $sport = 'all', string $event = ''): ?DateTimeImmutable
+{
+    $candidate = '';
+    if ($event !== '') {
+        foreach ($sports as $meta) {
+            if ((string) ($meta['slug'] ?? '') !== $event) continue;
+            $candidate = trim((string) ($meta['first_activity'] ?? ''));
+            break;
+        }
+    } elseif ($sport !== 'all') {
+        foreach ($sports as $meta) {
+            if ((string) ($meta['slug'] ?? '') !== $sport) continue;
+            $candidate = trim((string) ($meta['first_activity'] ?? ''));
+            break;
+        }
+    } else {
+        foreach ($sports as $meta) {
+            $first = trim((string) ($meta['first_activity'] ?? ''));
+            if ($first !== '' && ($candidate === '' || $first < $candidate)) $candidate = $first;
+        }
+    }
+    if ($candidate === '') return null;
+    try {
+        return new DateTimeImmutable($candidate, new DateTimeZone('America/Sao_Paulo'));
+    } catch (Throwable) {
+        return null;
+    }
+}
+
+function sportHubAthleticsEvents(PDO $pdo, string $userId): array
+{
+    $events = [];
+    try {
+        $stmt = $pdo->prepare("SELECT m.idmodalidade, m.slug, m.nome, m.categoria, m.familia_hub,
+                COUNT(ra.idregistro) AS history_count,
+                MIN(ra.data_inicio) AS first_activity,
+                MAX(ra.data_inicio) AS last_activity,
+                COALESCE(BOOL_OR(COALESCE(mu.ativo, FALSE)), FALSE) AS active
+            FROM modalidades m
+            LEFT JOIN registros_atividade ra ON ra.idmodalidade=m.idmodalidade AND ra.idusuario=:usuario AND ra.excluido_em IS NULL AND ra.status='concluido'
+            LEFT JOIN modalidades_usuario mu ON mu.idmodalidade=m.idmodalidade AND mu.idusuario=:usuario
+            WHERE m.familia_hub='athletics'
+            GROUP BY m.idmodalidade, m.slug, m.nome, m.categoria, m.familia_hub
+            HAVING COUNT(ra.idregistro) > 0 OR COALESCE(BOOL_OR(COALESCE(mu.ativo, FALSE)), FALSE)=TRUE");
         $stmt->execute([':usuario' => $userId]);
         foreach ($stmt->fetchAll() as $row) {
-            $slug = stridebr_lower(trim((string) $row['slug']));
+            $slug = stridebr_lower(trim((string) ($row['slug'] ?? '')));
             if ($slug === '') continue;
-            $sports[$slug] = ($sports[$slug] ?? [
-                'slug' => $slug, 'name' => (string) $row['nome'],
-                'family' => sportHubBucket((string) $row['categoria'], $slug, (string) $row['familia_hub']), 'count' => 0,
-            ]) + ['active' => true];
-            $sports[$slug]['active'] = true;
+            $events[] = [
+                'slug' => $slug,
+                'name' => (string) ($row['nome'] ?? $slug),
+                'family' => 'athletics',
+                'history_count' => (int) ($row['history_count'] ?? 0),
+                'has_history' => (int) ($row['history_count'] ?? 0) > 0,
+                'first_activity' => $row['first_activity'] ?? null,
+                'last_activity' => $row['last_activity'] ?? null,
+                'active' => stridebr_db_bool($row['active'] ?? false),
+            ];
         }
     } catch (PDOException $error) {
         if (!in_array($error->getCode(), ['42P01', '42703'], true)) throw $error;
     }
-    uasort($sports, static fn(array $a, array $b): int => [empty($b['active']) ? 0 : 1, (int) ($b['count'] ?? 0), $a['name']] <=> [empty($a['active']) ? 0 : 1, (int) ($a['count'] ?? 0), $b['name']]);
-    return array_values($sports);
+    usort($events, static function (array $a, array $b): int {
+        $active = (int) !empty($b['active']) <=> (int) !empty($a['active']);
+        if ($active !== 0) return $active;
+        $last = strcmp((string) ($b['last_activity'] ?? ''), (string) ($a['last_activity'] ?? ''));
+        if ($last !== 0) return $last;
+        return strnatcasecmp((string) $a['name'], (string) $b['name']);
+    });
+    return $events;
+}
+
+function sportHubFirstHistoryDate(array $sports): ?DateTimeImmutable
+{
+    $first = null;
+    foreach ($sports as $sport) {
+        if (empty($sport['first_activity'])) continue;
+        try { $date = new DateTimeImmutable((string) $sport['first_activity']); } catch (Throwable) { continue; }
+        if ($first === null || $date < $first) $first = $date;
+    }
+    return $first;
 }
 
 function sportHubTrainingLoad(array $activities): array
@@ -187,10 +395,17 @@ function sportHubProgressRenderer(string $slug, string $family): string
     return 'fallback';
 }
 
-function sportHubFilterSport(array $activities, string $sport = 'all'): array
+function sportHubFilterSport(array $activities, string $sport = 'all', string $event = ''): array
 {
     $sport = stridebr_lower(trim($sport));
+    $event = stridebr_lower(trim($event));
     if ($sport === '' || $sport === 'all') return array_values($activities);
+    if ($sport === 'atletismo') {
+        return array_values(array_filter($activities, static function (array $row) use ($event): bool {
+            if ((string) ($row['hub_bucket'] ?? '') !== 'athletics') return false;
+            return $event === '' || stridebr_lower((string) ($row['modalidade_slug'] ?? '')) === $event;
+        }));
+    }
     return array_values(array_filter($activities, static fn(array $row): bool => stridebr_lower((string) ($row['modalidade_slug'] ?? '')) === $sport));
 }
 
@@ -262,6 +477,220 @@ function sportHubWeeklySeries(array $activities, DateTimeImmutable $start, DateT
     return array_values($series);
 }
 
+function sportHubAdaptiveSeries(array $activities, array $periodWindow): array
+{
+    $start = $periodWindow['current_start'];
+    $end = $periodWindow['current_end'];
+    $view = (string) ($periodWindow['view'] ?? '12w');
+    $spanDays = max(1.0, ($end->getTimestamp() - $start->getTimestamp()) / 86400);
+    $granularity = match ($view) {
+        '4w', '12w' => 'week',
+        '6m', '1y' => 'month',
+        'all' => $spanDays <= 730 ? 'month' : ($spanDays <= 1826 ? 'quarter' : 'year'),
+        default => 'month',
+    };
+    $buckets = [];
+    $cursor = $start;
+    while ($cursor < $end) {
+        $next = match ($granularity) {
+            'week' => $cursor->modify('+7 days'),
+            'month' => $cursor->modify('+1 month'),
+            'quarter' => $cursor->modify('+3 months'),
+            default => $cursor->modify('+1 year'),
+        };
+        if ($next > $end) $next = $end;
+        $buckets[] = [
+            'start' => $cursor,
+            'end' => $next,
+            'activities' => 0,
+            'duration_s' => 0.0,
+            'distance_m' => 0.0,
+            'elevation_m' => 0.0,
+            'duration_known' => false,
+            'distance_known' => false,
+            'elevation_known' => false,
+            'sports' => [],
+        ];
+        if ($next <= $cursor) break;
+        $cursor = $next;
+    }
+    foreach ($activities as $row) {
+        try { $date = new DateTimeImmutable((string) ($row['data_inicio'] ?? '')); } catch (Throwable) { continue; }
+        if ($date < $start || $date >= $end) continue;
+        foreach ($buckets as &$bucket) {
+            if ($date < $bucket['start'] || $date >= $bucket['end']) continue;
+            $duration = max(0.0, (float) ($row['duration_s'] ?? 0));
+            $distance = max(0.0, (float) ($row['distancia_metros'] ?? 0));
+            $elevation = max(0.0, (float) ($row['ganho_elevacao_m'] ?? 0));
+            $bucket['activities']++;
+            $bucket['duration_s'] += $duration;
+            $bucket['distance_m'] += $distance;
+            $bucket['elevation_m'] += $elevation;
+            if ($duration > 0) $bucket['duration_known'] = true;
+            if ($distance > 0) $bucket['distance_known'] = true;
+            if ($elevation > 0) $bucket['elevation_known'] = true;
+            $slug = stridebr_lower((string) ($row['modalidade_slug'] ?? ''));
+            if ($slug !== '') $bucket['sports'][$slug] = ($bucket['sports'][$slug] ?? 0) + 1;
+            break;
+        }
+        unset($bucket);
+    }
+    return ['granularity' => $granularity, 'buckets' => $buckets];
+}
+
+function sportHubConsistencySummary(array $activities, array $periodWindow): array
+{
+    $timezone = new DateTimeZone('America/Sao_Paulo');
+    $view = (string) ($periodWindow['view'] ?? '12w');
+    $end = $periodWindow['current_end'];
+    $start = $periodWindow['current_start'];
+    $unit = in_array($view, ['6m', '1y'], true) ? 'month' : 'week';
+    $recentOnly = false;
+    if ($view === 'all') {
+        $unit = 'week';
+        $start = $end->modify('-12 weeks');
+        $recentOnly = true;
+    }
+    $units = [];
+    $cursor = $start;
+    while ($cursor < $end) {
+        $next = $unit === 'month' ? $cursor->modify('+1 month') : $cursor->modify('+7 days');
+        if ($next > $end) $next = $end;
+        $units[] = ['start' => $cursor, 'end' => $next, 'active' => false, 'activities' => 0];
+        if ($next <= $cursor) break;
+        $cursor = $next;
+    }
+    foreach ($activities as $row) {
+        try { $date = (new DateTimeImmutable((string) ($row['data_inicio'] ?? '')))->setTimezone($timezone); } catch (Throwable) { continue; }
+        if ($date < $start || $date >= $end) continue;
+        foreach ($units as &$bucket) {
+            if ($date < $bucket['start'] || $date >= $bucket['end']) continue;
+            $bucket['active'] = true;
+            $bucket['activities']++;
+            break;
+        }
+        unset($bucket);
+    }
+    $active = count(array_filter($units, static fn(array $bucket): bool => !empty($bucket['active'])));
+    return ['unit' => $unit, 'active' => $active, 'total' => count($units), 'recent_only' => $recentOnly, 'units' => $units];
+}
+
+function sportHubSportsPeriodSummary(array $inventory, array $activities): array
+{
+    $bySlug = [];
+    foreach ($inventory as $meta) {
+        $slug = (string) ($meta['slug'] ?? '');
+        if ($slug === '') continue;
+        $bySlug[$slug] = $meta + ['activities' => 0, 'duration_s' => 0.0, 'distance_m' => 0.0, 'last_period_activity' => ''];
+    }
+    foreach ($activities as $row) {
+        $slug = stridebr_lower((string) ($row['modalidade_slug'] ?? ''));
+        if (($row['hub_bucket'] ?? '') === 'athletics') $slug = 'atletismo';
+        if ($slug === '' || !isset($bySlug[$slug])) continue;
+        $bySlug[$slug]['activities']++;
+        $bySlug[$slug]['duration_s'] += max(0.0, (float) ($row['duration_s'] ?? 0));
+        $bySlug[$slug]['distance_m'] += max(0.0, (float) ($row['distancia_metros'] ?? 0));
+        $date = (string) ($row['data_inicio'] ?? '');
+        if ($date !== '' && ($bySlug[$slug]['last_period_activity'] === '' || $date > $bySlug[$slug]['last_period_activity'])) $bySlug[$slug]['last_period_activity'] = $date;
+    }
+    uasort($bySlug, static function (array $a, array $b): int {
+        $periodCmp = ((int) ($b['activities'] ?? 0)) <=> ((int) ($a['activities'] ?? 0));
+        if ($periodCmp !== 0) return $periodCmp;
+        $activeCmp = (empty($b['active']) ? 0 : 1) <=> (empty($a['active']) ? 0 : 1);
+        if ($activeCmp !== 0) return $activeCmp;
+        return strcmp((string) ($b['last_activity'] ?? ''), (string) ($a['last_activity'] ?? ''));
+    });
+    return array_values($bySlug);
+}
+
+function sportHubBucketMode(array $periodWindow): string
+{
+    $view = (string) ($periodWindow['view'] ?? '12w');
+    if (in_array($view, ['4w', '12w'], true)) return 'week';
+    if (in_array($view, ['6m', '1y'], true)) return 'month';
+    $start = $periodWindow['current_start'] ?? null;
+    $end = $periodWindow['current_end'] ?? null;
+    if (!$start instanceof DateTimeImmutable || !$end instanceof DateTimeImmutable) return 'month';
+    $days = max(0.0, ($end->getTimestamp() - $start->getTimestamp()) / 86400);
+    if ($days <= 731) return 'month';
+    if ($days <= 1827) return 'quarter';
+    return 'year';
+}
+
+function sportHubPeriodSeries(array $activities, array $periodWindow): array
+{
+    $start = $periodWindow['current_start'];
+    $end = $periodWindow['current_end'];
+    $mode = sportHubBucketMode($periodWindow);
+    if ($mode === 'week') return sportHubWeeklySeries($activities, $start, $end);
+    $series = [];
+    $cursor = $start;
+    $step = $mode === 'year' ? '+1 year' : ($mode === 'quarter' ? '+3 months' : '+1 month');
+    while ($cursor < $end && count($series) < 240) {
+        $bucketEnd = $cursor->modify($step);
+        if ($bucketEnd > $end) $bucketEnd = $end;
+        $series[] = [
+            'index' => count($series),
+            'start' => $cursor,
+            'end' => $bucketEnd,
+            'activities' => 0,
+            'duration_s' => 0.0,
+            'distance_m' => 0.0,
+            'elevation_m' => 0.0,
+            'duration_known' => false,
+            'distance_known' => false,
+            'elevation_known' => false,
+            'sports' => [],
+            'mode' => $mode,
+        ];
+        $cursor = $bucketEnd;
+    }
+    foreach ($activities as $row) {
+        try { $date = new DateTimeImmutable((string) ($row['data_inicio'] ?? '')); } catch (Throwable) { continue; }
+        if ($date < $start || $date >= $end) continue;
+        foreach ($series as &$bucket) {
+            if ($date < $bucket['start'] || $date >= $bucket['end']) continue;
+            $duration = max(0.0, (float) ($row['duration_s'] ?? 0));
+            $distance = max(0.0, (float) ($row['distancia_metros'] ?? 0));
+            $elevation = max(0.0, (float) ($row['ganho_elevacao_m'] ?? 0));
+            $bucket['activities']++;
+            $bucket['duration_s'] += $duration;
+            $bucket['distance_m'] += $distance;
+            $bucket['elevation_m'] += $elevation;
+            if ($duration > 0) $bucket['duration_known'] = true;
+            if ($distance > 0) $bucket['distance_known'] = true;
+            if ($elevation > 0) $bucket['elevation_known'] = true;
+            $slug = stridebr_lower((string) ($row['modalidade_slug'] ?? ''));
+            if ($slug !== '') $bucket['sports'][$slug] = ($bucket['sports'][$slug] ?? 0) + 1;
+            break;
+        }
+        unset($bucket);
+    }
+    return $series;
+}
+
+function sportHubConsistencyWeeks(array $activities, DateTimeImmutable $start, DateTimeImmutable $end): array
+{
+    $weeks = [];
+    $cursor = $start;
+    while ($cursor < $end && count($weeks) < 260) {
+        $weeks[$cursor->format('Y-m-d')] = 0;
+        $cursor = $cursor->modify('+7 days');
+    }
+    foreach ($activities as $row) {
+        try { $date = new DateTimeImmutable((string) ($row['data_inicio'] ?? '')); } catch (Throwable) { continue; }
+        if ($date < $start || $date >= $end) continue;
+        $index = (int) floor(($date->getTimestamp() - $start->getTimestamp()) / 604800);
+        $key = $start->modify('+' . ($index * 7) . ' days')->format('Y-m-d');
+        if (array_key_exists($key, $weeks)) $weeks[$key]++;
+    }
+    return [
+        'weeks' => $weeks,
+        'active_weeks' => count(array_filter($weeks, static fn(int $count): bool => $count > 0)),
+        'total_weeks' => count($weeks),
+    ];
+}
+
 function sportHubConsistencyDays(array $activities, DateTimeImmutable $start, DateTimeImmutable $end): array
 {
     $days = [];
@@ -303,7 +732,8 @@ function sportHubOverview(array $activities, ?array $periodWindow = null): array
     $periodWindow ??= sportHubResolvePeriod();
     $currentStart = $periodWindow['current_start'];
     $currentEnd = $periodWindow['current_end'];
-    $previousStart = $periodWindow['previous_start'];
+    $hasPrevious = !empty($periodWindow['has_previous']) && $periodWindow['previous_start'] instanceof DateTimeImmutable;
+    $previousStart = $hasPrevious ? $periodWindow['previous_start'] : null;
     $result = [];
     foreach (array_merge(['all'], array_keys(sportHubFamilies())) as $bucket) {
         $result[$bucket] = [
@@ -313,7 +743,7 @@ function sportHubOverview(array $activities, ?array $periodWindow = null): array
     }
     foreach ($activities as $row) {
         $date = new DateTimeImmutable((string) $row['data_inicio']);
-        $period = $date >= $currentStart && $date < $currentEnd ? 'current' : ($date >= $previousStart && $date < $currentStart ? 'previous' : null);
+        $period = $date >= $currentStart && $date < $currentEnd ? 'current' : ($hasPrevious && $date >= $previousStart && $date < $currentStart ? 'previous' : null);
         if ($period === null) continue;
         $targets = ['all'];
         $bucket = (string) ($row['hub_bucket'] ?? 'other');
@@ -341,41 +771,44 @@ function sportHubActiveFamilies(array $activities): array
     return $active;
 }
 
-function sportHubStrengthSets(PDO $pdo, string $userId): array
+function sportHubStrengthSets(PDO $pdo, string $userId, ?DateTimeImmutable $from = null, ?DateTimeImmutable $to = null): array
 {
     $rows = [];
+    $filters = [];
+    $params = [':usuario' => $userId];
+    if ($from instanceof DateTimeImmutable) { $filters[] = 'ra.data_inicio >= :inicio'; $params[':inicio'] = $from->format('Y-m-d H:i:sP'); }
+    if ($to instanceof DateTimeImmutable) { $filters[] = 'ra.data_inicio < :fim'; $params[':fim'] = $to->format('Y-m-d H:i:sP'); }
+    $filter = $filters === [] ? '' : ' AND ' . implode(' AND ', $filters);
     try {
         $stmt = $pdo->prepare("SELECT sa.idserie, sa.idregistro, sa.idexercicio, sa.nome_exercicio, sa.ordem_serie, sa.carga_kg, sa.repeticoes, sa.concluida,
             ra.data_inicio, e.grupos_musculares_primarios, e.grupos_musculares_secundarios
             FROM series_exercicio_atividade sa
             JOIN registros_atividade ra ON ra.idregistro = sa.idregistro
             LEFT JOIN exercicios e ON e.idexercicio = sa.idexercicio
-            WHERE ra.idusuario = :usuario AND ra.excluido_em IS NULL AND ra.status = 'concluido'
-              AND ra.data_inicio >= NOW() - INTERVAL '48 months'
+            WHERE ra.idusuario = :usuario AND ra.excluido_em IS NULL AND ra.status = 'concluido'{$filter}
             ORDER BY ra.data_inicio DESC, sa.ordem_exercicio, sa.ordem_serie");
-        $stmt->execute([':usuario' => $userId]);
+        $stmt->execute($params);
         foreach ($stmt->fetchAll() as $row) {
             $row['source'] = 'normalized';
             $rows[] = $row;
         }
     } catch (PDOException $e) {
-        if ($e->getCode() !== '42P01' && $e->getCode() !== '42703') throw $e;
+        if (!in_array($e->getCode(), ['42P01', '42703'], true)) throw $e;
     }
-
-    $legacy = $pdo->prepare("SELECT st.idserie, ra.idregistro, se.idexercicio, se.nome_snapshot AS nome_exercicio, st.numero AS ordem_serie,
-        st.carga_realizada, st.repeticoes_realizadas, st.concluida, ra.data_inicio,
-        e.grupos_musculares_primarios, e.grupos_musculares_secundarios
-        FROM sessoes_treino_series st
-        JOIN sessoes_treino_exercicios se ON se.idsessao_exercicio = st.idsessao_exercicio
-        JOIN sessoes_treino s ON s.idsessao = se.idsessao
-        JOIN registros_atividade ra ON ra.idregistro = s.idregistro_atividade
-        LEFT JOIN exercicios e ON e.idexercicio = se.idexercicio
-        WHERE s.idusuario = :usuario AND s.status = 'concluido' AND st.concluida = TRUE
-          AND ra.excluido_em IS NULL AND ra.data_inicio >= NOW() - INTERVAL '48 months'
-          AND NOT EXISTS (SELECT 1 FROM series_exercicio_atividade sa WHERE sa.idregistro = ra.idregistro)
-        ORDER BY ra.data_inicio DESC, se.ordem, st.numero");
     try {
-        $legacy->execute([':usuario' => $userId]);
+        $legacy = $pdo->prepare("SELECT st.idserie, ra.idregistro, se.idexercicio, se.nome_snapshot AS nome_exercicio, st.numero AS ordem_serie,
+            st.carga_realizada, st.repeticoes_realizadas, st.concluida, ra.data_inicio,
+            e.grupos_musculares_primarios, e.grupos_musculares_secundarios
+            FROM sessoes_treino_series st
+            JOIN sessoes_treino_exercicios se ON se.idsessao_exercicio = st.idsessao_exercicio
+            JOIN sessoes_treino s ON s.idsessao = se.idsessao
+            JOIN registros_atividade ra ON ra.idregistro = s.idregistro_atividade
+            LEFT JOIN exercicios e ON e.idexercicio = se.idexercicio
+            WHERE s.idusuario = :usuario AND s.status = 'concluido' AND st.concluida = TRUE
+              AND ra.excluido_em IS NULL{$filter}
+              AND NOT EXISTS (SELECT 1 FROM series_exercicio_atividade sa WHERE sa.idregistro = ra.idregistro)
+            ORDER BY ra.data_inicio DESC, se.ordem, st.numero");
+        $legacy->execute($params);
         foreach ($legacy->fetchAll() as $row) {
             $loadRaw = str_replace(',', '.', trim((string) ($row['carga_realizada'] ?? '')));
             $repsRaw = trim((string) ($row['repeticoes_realizadas'] ?? ''));
@@ -385,7 +818,7 @@ function sportHubStrengthSets(PDO $pdo, string $userId): array
             $rows[] = $row;
         }
     } catch (PDOException $e) {
-        if ($e->getCode() !== '42P01' && $e->getCode() !== '42703') throw $e;
+        if (!in_array($e->getCode(), ['42P01', '42703'], true)) throw $e;
     }
     return $rows;
 }
@@ -399,22 +832,20 @@ function sportHubDecodeGroups(mixed $raw): array
 
 function sportHubStrengthDashboard(PDO $pdo, string $userId, array $activities, ?array $periodWindow = null, string $sportSlug = ''): array
 {
-    $sets = sportHubStrengthSets($pdo, $userId);
-    $now = new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo'));
     $periodWindow ??= sportHubResolvePeriod();
     $currentStart = $periodWindow['current_start'];
     $currentEnd = $periodWindow['current_end'];
-    $previousStart = $periodWindow['previous_start'];
+    $hasPrevious = !empty($periodWindow['has_previous']) && $periodWindow['previous_start'] instanceof DateTimeImmutable;
+    $previousStart = $hasPrevious ? $periodWindow['previous_start'] : null;
+    $sets = sportHubStrengthSets($pdo, $userId, $hasPrevious ? $previousStart : $currentStart, $currentEnd);
     $strengthActivities = array_values(array_filter($activities, static fn(array $row): bool => ($row['hub_bucket'] ?? '') === 'strength' && ($sportSlug === '' || stridebr_lower((string) ($row['modalidade_slug'] ?? '')) === $sportSlug)));
     $allowedActivityIds = array_fill_keys(array_map(static fn(array $row): string => (string) ($row['idregistro'] ?? ''), $strengthActivities), true);
-    $summary = [
-        'current' => ['workouts' => 0, 'duration_s' => 0.0, 'sets' => 0, 'reps' => 0, 'volume_kg' => 0.0, 'prs' => 0],
-        'previous' => ['workouts' => 0, 'duration_s' => 0.0, 'sets' => 0, 'reps' => 0, 'volume_kg' => 0.0, 'prs' => 0],
-    ];
+    $base = ['workouts' => 0, 'duration_s' => 0.0, 'sets' => 0, 'reps' => 0, 'volume_kg' => 0.0];
+    $summary = ['current' => $base, 'previous' => $base];
     $activityIds = ['current' => [], 'previous' => []];
     foreach ($strengthActivities as $row) {
         $date = new DateTimeImmutable((string) $row['data_inicio']);
-        $period = $date >= $currentStart && $date < $currentEnd ? 'current' : ($date >= $previousStart && $date < $currentStart ? 'previous' : null);
+        $period = $date >= $currentStart && $date < $currentEnd ? 'current' : ($hasPrevious && $date >= $previousStart && $date < $currentStart ? 'previous' : null);
         if ($period === null) continue;
         $activityIds[$period][(string) $row['idregistro']] = true;
         $summary[$period]['duration_s'] += (float) ($row['duration_s'] ?? 0);
@@ -422,121 +853,95 @@ function sportHubStrengthDashboard(PDO $pdo, string $userId, array $activities, 
     foreach (['current', 'previous'] as $period) $summary[$period]['workouts'] = count($activityIds[$period]);
 
     $exerciseGroups = [];
-    $muscles = [];
+    $directMuscles = [];
+    $secondaryMuscles = [];
     foreach ($sets as $row) {
         if ($sportSlug !== '' && !isset($allowedActivityIds[(string) ($row['idregistro'] ?? '')])) continue;
         if (!stridebr_db_bool($row['concluida'] ?? true)) continue;
         $date = new DateTimeImmutable((string) $row['data_inicio']);
         if ($date >= $currentEnd) continue;
-        $period = $date >= $currentStart && $date < $currentEnd ? 'current' : ($date >= $previousStart && $date < $currentStart ? 'previous' : null);
+        $period = $date >= $currentStart && $date < $currentEnd ? 'current' : ($hasPrevious && $date >= $previousStart && $date < $currentStart ? 'previous' : null);
+        if ($period === null) continue;
         $load = is_numeric($row['carga_kg'] ?? null) ? max(0.0, (float) $row['carga_kg']) : null;
         $reps = is_numeric($row['repeticoes'] ?? null) ? max(0, (int) $row['repeticoes']) : null;
-        if ($period !== null) {
-            $summary[$period]['sets']++;
-            if ($reps !== null) $summary[$period]['reps'] += $reps;
-            if ($load !== null && $reps !== null) $summary[$period]['volume_kg'] += $load * $reps;
-        }
+        $summary[$period]['sets']++;
+        if ($reps !== null) $summary[$period]['reps'] += $reps;
+        if ($load !== null && $reps !== null) $summary[$period]['volume_kg'] += $load * $reps;
+
         $key = trim((string) ($row['idexercicio'] ?? '')) ?: stridebr_lower(trim((string) ($row['nome_exercicio'] ?? 'Exercício')));
-        $exerciseGroups[$key] ??= ['nome' => (string) ($row['nome_exercicio'] ?? 'Exercício'), 'sessions' => [], 'best_load' => null, 'best_e1rm' => null, 'sets' => 0, 'volume' => 0.0];
+        $exerciseGroups[$key] ??= [
+            'nome' => (string) ($row['nome_exercicio'] ?? 'Exercício'),
+            'latest_date' => null,
+            'sessions' => [],
+            'current' => ['best_load' => null, 'best_e1rm' => null, 'best_e1rm_source' => null, 'volume' => 0.0, 'sets' => 0],
+            'previous' => ['best_load' => null, 'best_e1rm' => null, 'best_e1rm_source' => null, 'volume' => 0.0, 'sets' => 0],
+        ];
+        $group = &$exerciseGroups[$key];
+        $group[$period]['sets']++;
         $day = $date->format('Y-m-d');
-        $exerciseGroups[$key]['sessions'][$day] ??= ['date' => $day, 'max_load' => null, 'best_e1rm' => null, 'volume' => 0.0, 'sets' => 0, 'reps' => 0];
-        $exerciseGroups[$key]['sets']++;
-        $exerciseGroups[$key]['sessions'][$day]['sets']++;
-        if ($reps !== null) $exerciseGroups[$key]['sessions'][$day]['reps'] += $reps;
+        if ($group['latest_date'] === null || $day > $group['latest_date']) $group['latest_date'] = $day;
+        $group['sessions'][$day] ??= ['date' => $day, 'max_load' => null, 'best_e1rm' => null, 'best_e1rm_source' => null, 'volume' => 0.0, 'sets' => 0, 'reps' => 0];
+        $group['sessions'][$day]['sets']++;
+        if ($reps !== null) $group['sessions'][$day]['reps'] += $reps;
         if ($load !== null) {
-            $exerciseGroups[$key]['best_load'] = $exerciseGroups[$key]['best_load'] === null ? $load : max($exerciseGroups[$key]['best_load'], $load);
-            $exerciseGroups[$key]['sessions'][$day]['max_load'] = $exerciseGroups[$key]['sessions'][$day]['max_load'] === null ? $load : max($exerciseGroups[$key]['sessions'][$day]['max_load'], $load);
+            $group[$period]['best_load'] = $group[$period]['best_load'] === null ? $load : max((float) $group[$period]['best_load'], $load);
+            $group['sessions'][$day]['max_load'] = $group['sessions'][$day]['max_load'] === null ? $load : max((float) $group['sessions'][$day]['max_load'], $load);
             if ($reps !== null && $reps > 0) {
                 $volume = $load * $reps;
-                $exerciseGroups[$key]['volume'] += $volume;
-                $exerciseGroups[$key]['sessions'][$day]['volume'] += $volume;
+                $group[$period]['volume'] += $volume;
+                $group['sessions'][$day]['volume'] += $volume;
                 if ($reps <= 12) {
                     $e1rm = $load * (1 + ($reps / 30));
-                    $exerciseGroups[$key]['best_e1rm'] = $exerciseGroups[$key]['best_e1rm'] === null ? $e1rm : max($exerciseGroups[$key]['best_e1rm'], $e1rm);
-                    $exerciseGroups[$key]['sessions'][$day]['best_e1rm'] = $exerciseGroups[$key]['sessions'][$day]['best_e1rm'] === null ? $e1rm : max($exerciseGroups[$key]['sessions'][$day]['best_e1rm'], $e1rm);
+                    $source = ['load_kg' => $load, 'reps' => $reps, 'date' => $day, 'idregistro' => (string) ($row['idregistro'] ?? '')];
+                    if ($group[$period]['best_e1rm'] === null || $e1rm > $group[$period]['best_e1rm']) {
+                        $group[$period]['best_e1rm'] = $e1rm;
+                        $group[$period]['best_e1rm_source'] = $source;
+                    }
+                    if ($group['sessions'][$day]['best_e1rm'] === null || $e1rm > $group['sessions'][$day]['best_e1rm']) {
+                        $group['sessions'][$day]['best_e1rm'] = $e1rm;
+                        $group['sessions'][$day]['best_e1rm_source'] = $source;
+                    }
                 }
             }
         }
         if ($period === 'current') {
-            foreach (sportHubDecodeGroups($row['grupos_musculares_primarios'] ?? []) as $group) $muscles[$group] = ($muscles[$group] ?? 0) + 1;
-            foreach (sportHubDecodeGroups($row['grupos_musculares_secundarios'] ?? []) as $group) $muscles[$group] = ($muscles[$group] ?? 0) + .5;
+            foreach (sportHubDecodeGroups($row['grupos_musculares_primarios'] ?? []) as $muscle) $directMuscles[$muscle] = ($directMuscles[$muscle] ?? 0) + 1;
+            foreach (sportHubDecodeGroups($row['grupos_musculares_secundarios'] ?? []) as $muscle) $secondaryMuscles[$muscle] = ($secondaryMuscles[$muscle] ?? 0) + 1;
         }
+        unset($group);
     }
 
-    $progress = [];
-    $recentCutoff = $currentEnd->modify('-42 days')->format('Y-m-d');
-    $priorCutoff = $currentEnd->modify('-84 days')->format('Y-m-d');
+    $percent = static fn(?float $current, ?float $previous): ?float => $current !== null && $previous !== null && $previous > 0 ? (($current - $previous) / $previous) * 100.0 : null;
+    $exercises = [];
     foreach ($exerciseGroups as $key => $data) {
         $sessions = array_values($data['sessions']);
-        usort($sessions, static fn(array $a, array $b): int => strcmp($b['date'], $a['date']));
-        $latest = $sessions[0] ?? null;
-        $previous = $sessions[1] ?? null;
-        $recentBestLoad = $priorBestLoad = $recentBestE1rm = $priorBestE1rm = null;
-        $recentVolume = $priorVolume = 0.0;
-        foreach ($sessions as $session) {
-            $day = (string) ($session['date'] ?? '');
-            if ($day >= $recentCutoff) {
-                if (is_numeric($session['max_load'] ?? null)) $recentBestLoad = $recentBestLoad === null ? (float) $session['max_load'] : max($recentBestLoad, (float) $session['max_load']);
-                if (is_numeric($session['best_e1rm'] ?? null)) $recentBestE1rm = $recentBestE1rm === null ? (float) $session['best_e1rm'] : max($recentBestE1rm, (float) $session['best_e1rm']);
-                $recentVolume += (float) ($session['volume'] ?? 0);
-            } elseif ($day >= $priorCutoff) {
-                if (is_numeric($session['max_load'] ?? null)) $priorBestLoad = $priorBestLoad === null ? (float) $session['max_load'] : max($priorBestLoad, (float) $session['max_load']);
-                if (is_numeric($session['best_e1rm'] ?? null)) $priorBestE1rm = $priorBestE1rm === null ? (float) $session['best_e1rm'] : max($priorBestE1rm, (float) $session['best_e1rm']);
-                $priorVolume += (float) ($session['volume'] ?? 0);
-            }
-        }
-        $ascending = array_reverse($sessions);
-        $runningBestLoad = null;
-        $runningBestE1rm = null;
-        $currentPrs = 0;
-        $previousPrs = 0;
-        foreach ($ascending as $session) {
-            $day = (string) ($session['date'] ?? '');
-            $isPr = false;
-            if (is_numeric($session['max_load'] ?? null) && ($runningBestLoad === null || (float) $session['max_load'] > $runningBestLoad + .0001)) {
-                $runningBestLoad = (float) $session['max_load'];
-                $isPr = true;
-            }
-            if (is_numeric($session['best_e1rm'] ?? null) && ($runningBestE1rm === null || (float) $session['best_e1rm'] > $runningBestE1rm + .0001)) {
-                $runningBestE1rm = (float) $session['best_e1rm'];
-                $isPr = true;
-            }
-            if (!$isPr) continue;
-            if ($day >= $currentStart->format('Y-m-d') && $day < $currentEnd->format('Y-m-d')) $currentPrs++;
-            elseif ($day >= $previousStart->format('Y-m-d') && $day < $currentStart->format('Y-m-d')) $previousPrs++;
-        }
-        $summary['current']['prs'] += $currentPrs;
-        $summary['previous']['prs'] += $previousPrs;
-        $percent = static function (?float $current, ?float $previous): ?float {
-            return $current !== null && $previous !== null && $previous > 0 ? (($current - $previous) / $previous) * 100.0 : null;
-        };
-        $progress[] = [
+        usort($sessions, static fn(array $a, array $b): int => strcmp((string) $b['date'], (string) $a['date']));
+        $current = $data['current'];
+        $previous = $data['previous'];
+        if ((int) $current['sets'] === 0 && (int) $previous['sets'] === 0) continue;
+        $exercises[] = [
             'key' => (string) $key,
             'nome' => $data['nome'],
-            'best_load' => $data['best_load'],
-            'best_e1rm' => $data['best_e1rm'],
-            'sets' => $data['sets'],
-            'volume' => $data['volume'],
-            'latest_load' => $latest['max_load'] ?? null,
-            'previous_load' => $previous['max_load'] ?? null,
-            'latest_is_pr' => $latest !== null && is_numeric($latest['max_load'] ?? null) && $data['best_load'] !== null && abs((float) $latest['max_load'] - (float) $data['best_load']) < .0001,
-            'recent_best_load' => $recentBestLoad,
-            'prior_best_load' => $priorBestLoad,
-            'load_trend_pct' => $percent($recentBestLoad, $priorBestLoad),
-            'e1rm_trend_pct' => $percent($recentBestE1rm, $priorBestE1rm),
-            'volume_trend_pct' => $priorVolume > 0 ? (($recentVolume - $priorVolume) / $priorVolume) * 100.0 : null,
-            'recent_volume' => $recentVolume,
-            'prior_volume' => $priorVolume,
+            'latest_date' => $data['latest_date'],
+            'current_sets' => $current['sets'],
+            'current_volume' => $current['volume'],
+            'current_best_load' => $current['best_load'],
+            'current_best_e1rm' => $current['best_e1rm'],
+            'current_best_e1rm_source' => $current['best_e1rm_source'],
+            'previous_sets' => $previous['sets'],
+            'previous_volume' => $previous['volume'],
+            'previous_best_load' => $previous['best_load'],
+            'previous_best_e1rm' => $previous['best_e1rm'],
+            'previous_best_e1rm_source' => $previous['best_e1rm_source'],
+            'load_trend_pct' => $hasPrevious ? $percent($current['best_load'], $previous['best_load']) : null,
+            'e1rm_trend_pct' => $hasPrevious ? $percent($current['best_e1rm'], $previous['best_e1rm']) : null,
+            'volume_trend_pct' => $hasPrevious && $previous['volume'] > 0 ? (($current['volume'] - $previous['volume']) / $previous['volume']) * 100.0 : null,
             'history' => array_reverse(array_slice($sessions, 0, 8)),
         ];
     }
-    usort($progress, static function (array $a, array $b): int {
-        $aDate = end($a['history'])['date'] ?? '';
-        $bDate = end($b['history'])['date'] ?? '';
-        return strcmp($bDate, $aDate);
-    });
-    arsort($muscles);
-
+    usort($exercises, static fn(array $a, array $b): int => strcmp((string) $b['latest_date'], (string) $a['latest_date']));
+    arsort($directMuscles);
+    arsort($secondaryMuscles);
     $calendar = [];
     foreach ($strengthActivities as $row) {
         $date = (new DateTimeImmutable((string) $row['data_inicio']))->setTimezone(new DateTimeZone('America/Sao_Paulo'));
@@ -544,7 +949,14 @@ function sportHubStrengthDashboard(PDO $pdo, string $userId, array $activities, 
         $day = $date->format('Y-m-d');
         $calendar[$day] = ($calendar[$day] ?? 0) + 1;
     }
-    return ['summary' => $summary, 'exercises' => array_slice($progress, 0, 24), 'muscles' => $muscles, 'calendar' => $calendar];
+    return [
+        'summary' => $summary,
+        'exercises' => array_slice($exercises, 0, 48),
+        'direct_muscles' => $directMuscles,
+        'secondary_muscles' => $secondaryMuscles,
+        'calendar' => $calendar,
+        'has_previous' => $hasPrevious,
+    ];
 }
 
 function sportHubCardioDiscipline(string $slug): string
@@ -584,48 +996,29 @@ function sportHubCardioDashboard(array $activities, ?array $periodWindow = null)
     $periodWindow ??= sportHubResolvePeriod();
     $currentStart = $periodWindow['current_start'];
     $currentEnd = $periodWindow['current_end'];
-    $previousStart = $periodWindow['previous_start'];
-    $weekAnchor = $currentEnd->modify('-1 second');
-    $weekStart = $weekAnchor->modify('monday this week')->setTime(0, 0)->modify('-7 weeks');
+    $hasPrevious = !empty($periodWindow['has_previous']) && $periodWindow['previous_start'] instanceof DateTimeImmutable;
+    $previousStart = $hasPrevious ? $periodWindow['previous_start'] : null;
     $summary = [];
-    $weekly = [];
     $recent = [];
     $active = [];
     foreach ($definitions as $key => $definition) {
         $base = [
-            'activities' => 0,
-            'duration_s' => 0.0,
-            'distance_m' => 0.0,
-            'elevation_m' => 0.0,
-            'calories_kcal' => 0.0,
-            'best_pace_s' => null,
-            'best_speed_kmh' => null,
-            'longest_distance_m' => 0.0,
-            'hr_weighted' => 0.0,
-            'hr_weight_s' => 0.0,
-            'max_hr_bpm' => null,
-            'cadence_weighted' => 0.0,
-            'cadence_weight_s' => 0.0,
-            'power_weighted' => 0.0,
-            'power_weight_s' => 0.0,
+            'activities' => 0, 'active_days' => 0, 'duration_s' => 0.0, 'distance_m' => 0.0, 'elevation_m' => 0.0, 'calories_kcal' => 0.0,
+            'best_pace_s' => null, 'best_speed_kmh' => null, 'longest_distance_m' => 0.0,
+            'hr_weighted' => 0.0, 'hr_weight_s' => 0.0, 'max_hr_bpm' => null,
+            'cadence_weighted' => 0.0, 'cadence_weight_s' => 0.0, 'power_weighted' => 0.0, 'power_weight_s' => 0.0, 'days' => [],
         ];
         $summary[$key] = ['current' => $base, 'previous' => $base];
-        $weekly[$key] = [];
         $recent[$key] = [];
     }
-    for ($i = 0; $i < 8; $i++) {
-        $start = $weekStart->modify('+' . $i . ' weeks');
-        foreach ($definitions as $key => $_) {
-            $weekly[$key][$start->format('Y-m-d')] = ['distance_m' => 0.0, 'duration_s' => 0.0, 'activities' => 0, 'calories_kcal' => 0.0];
-        }
-    }
-
     foreach ($activities as $row) {
         if (($row['hub_bucket'] ?? '') !== 'cardio') continue;
         $discipline = sportHubCardioDiscipline((string) ($row['modalidade_slug'] ?? ''));
         $active[$discipline] = ($active[$discipline] ?? 0) + 1;
         $date = new DateTimeImmutable((string) $row['data_inicio']);
         if ($date >= $currentEnd) continue;
+        $period = $date >= $currentStart && $date < $currentEnd ? 'current' : ($hasPrevious && $date >= $previousStart && $date < $currentStart ? 'previous' : null);
+        if ($period === null) continue;
         $duration = max(0.0, (float) ($row['duration_s'] ?? 0));
         $distance = max(0.0, (float) ($row['distancia_metros'] ?? 0));
         $elevation = max(0.0, (float) ($row['ganho_elevacao_m'] ?? 0));
@@ -634,134 +1027,83 @@ function sportHubCardioDashboard(array $activities, ?array $periodWindow = null)
         $maxHr = is_numeric($row['fc_maxima_bpm'] ?? null) ? max(0.0, (float) $row['fc_maxima_bpm']) : null;
         $cadence = is_numeric($row['cadencia_media'] ?? null) ? max(0.0, (float) $row['cadencia_media']) : null;
         $power = is_numeric($row['potencia_media_w'] ?? null) ? max(0.0, (float) $row['potencia_media_w']) : null;
-        $paceUnit = $discipline === 'swim' ? 100.0 : 1000.0;
-        $pace = $duration > 0 && $distance > 0 ? $duration / ($distance / $paceUnit) : null;
-        $speed = $duration > 0 && $distance > 0 ? ($distance / 1000.0) / ($duration / 3600.0) : null;
-        $period = $date >= $currentStart && $date < $currentEnd ? 'current' : ($date >= $previousStart && $date < $currentStart ? 'previous' : null);
-        $targets = ['all', $discipline];
-        foreach ($targets as $target) {
-            if ($period !== null) {
-                $data = &$summary[$target][$period];
-                $data['activities']++;
-                $data['duration_s'] += $duration;
-                $data['distance_m'] += $distance;
-                $data['elevation_m'] += $elevation;
-                $data['calories_kcal'] += $calories;
-                $data['longest_distance_m'] = max((float) $data['longest_distance_m'], $distance);
-                if ($duration > 0 && $distance > 0) {
-                    $minimumDistance = $discipline === 'swim' ? 100.0 : ($discipline === 'cycle' || $discipline === 'skating' ? 1000.0 : 500.0);
-                    if ($distance >= $minimumDistance) {
-                        if ($data['best_pace_s'] === null || $pace < $data['best_pace_s']) $data['best_pace_s'] = $pace;
-                        if ($data['best_speed_kmh'] === null || $speed > $data['best_speed_kmh']) $data['best_speed_kmh'] = $speed;
-                    }
-                }
-                $weight = max(60.0, $duration);
-                if ($avgHr !== null && $avgHr > 0) {
-                    $data['hr_weighted'] += $avgHr * $weight;
-                    $data['hr_weight_s'] += $weight;
-                }
-                if ($maxHr !== null && $maxHr > 0) $data['max_hr_bpm'] = $data['max_hr_bpm'] === null ? $maxHr : max((float) $data['max_hr_bpm'], $maxHr);
-                if ($cadence !== null && $cadence > 0) {
-                    $data['cadence_weighted'] += $cadence * $weight;
-                    $data['cadence_weight_s'] += $weight;
-                }
-                if ($power !== null && $power > 0) {
-                    $data['power_weighted'] += $power * $weight;
-                    $data['power_weight_s'] += $weight;
-                }
-                unset($data);
-            }
-            if ($date >= $weekStart) {
-                $weekOffset = (int) floor(($date->getTimestamp() - $weekStart->getTimestamp()) / 604800);
-                if ($weekOffset >= 0 && $weekOffset < 8) {
-                    $key = $weekStart->modify('+' . $weekOffset . ' weeks')->format('Y-m-d');
-                    $weekly[$target][$key]['activities']++;
-                    $weekly[$target][$key]['duration_s'] += $duration;
-                    $weekly[$target][$key]['distance_m'] += $distance;
-                    $weekly[$target][$key]['calories_kcal'] += $calories;
-                }
-            }
-            if (count($recent[$target]) < 16) {
+        $pace = $distance > 0 && $duration > 0 ? $duration / ($distance / ($discipline === 'swim' ? 100.0 : 1000.0)) : null;
+        $speed = $distance > 0 && $duration > 0 ? ($distance / 1000.0) / ($duration / 3600.0) : null;
+        foreach (['all', $discipline] as $target) {
+            $data = &$summary[$target][$period];
+            $data['activities']++;
+            $data['duration_s'] += $duration;
+            $data['distance_m'] += $distance;
+            $data['elevation_m'] += $elevation;
+            $data['calories_kcal'] += $calories;
+            $data['longest_distance_m'] = max($data['longest_distance_m'], $distance);
+            $data['days'][$date->format('Y-m-d')] = true;
+            if ($pace !== null && ($data['best_pace_s'] === null || $pace < $data['best_pace_s'])) $data['best_pace_s'] = $pace;
+            if ($speed !== null && ($data['best_speed_kmh'] === null || $speed > $data['best_speed_kmh'])) $data['best_speed_kmh'] = $speed;
+            $weight = $duration > 0 ? $duration : 1.0;
+            if ($avgHr !== null && $avgHr > 0) { $data['hr_weighted'] += $avgHr * $weight; $data['hr_weight_s'] += $weight; }
+            if ($maxHr !== null && $maxHr > 0) $data['max_hr_bpm'] = $data['max_hr_bpm'] === null ? $maxHr : max((float) $data['max_hr_bpm'], $maxHr);
+            if ($cadence !== null && $cadence > 0) { $data['cadence_weighted'] += $cadence * $weight; $data['cadence_weight_s'] += $weight; }
+            if ($power !== null && $power > 0) { $data['power_weighted'] += $power * $weight; $data['power_weight_s'] += $weight; }
+            unset($data);
+            if ($period === 'current' && count($recent[$target]) < 16) {
                 $recent[$target][] = [
-                    'idregistro' => (string) ($row['idregistro'] ?? ''),
-                    'date' => (string) $row['data_inicio'],
+                    'idregistro' => (string) ($row['idregistro'] ?? ''), 'date' => (string) $row['data_inicio'],
                     'title' => stridebr_present_activity_title((string) ($row['titulo'] ?? $row['modalidade_nome'] ?? stridebr_t('activity.activity')), (string) ($row['modalidade_slug'] ?? ''), (string) ($row['modalidade_nome'] ?? '')),
                     'sport' => stridebr_sport_name((string) ($row['modalidade_slug'] ?? ''), (string) ($row['modalidade_nome'] ?? stridebr_t('activity.activity'))),
-                    'distance_m' => $distance,
-                    'duration_s' => $duration,
-                    'pace_s' => $pace,
-                    'speed_kmh' => $speed,
-                    'elevation_m' => $elevation,
-                    'avg_hr_bpm' => $avgHr,
-                    'max_hr_bpm' => $maxHr,
-                    'cadence' => $cadence,
-                    'power_w' => $power,
-                    'calories_kcal' => $calories,
+                    'distance_m' => $distance, 'duration_s' => $duration, 'pace_s' => $pace, 'speed_kmh' => $speed, 'elevation_m' => $elevation,
+                    'avg_hr_bpm' => $avgHr, 'max_hr_bpm' => $maxHr, 'cadence' => $cadence, 'power_w' => $power, 'calories_kcal' => $calories,
                     'provider' => trim((string) ($row['origem_provedor'] ?? '')),
                 ];
             }
         }
     }
-
     foreach ($summary as &$periods) {
         foreach ($periods as &$data) {
+            $data['active_days'] = count($data['days']);
             $data['avg_speed_kmh'] = $data['duration_s'] > 0 && $data['distance_m'] > 0 ? ($data['distance_m'] / 1000.0) / ($data['duration_s'] / 3600.0) : null;
             $data['avg_pace_km_s'] = $data['distance_m'] > 0 ? $data['duration_s'] / ($data['distance_m'] / 1000.0) : null;
             $data['avg_pace_100m_s'] = $data['distance_m'] > 0 ? $data['duration_s'] / ($data['distance_m'] / 100.0) : null;
             $data['avg_hr_bpm'] = $data['hr_weight_s'] > 0 ? $data['hr_weighted'] / $data['hr_weight_s'] : null;
             $data['avg_cadence'] = $data['cadence_weight_s'] > 0 ? $data['cadence_weighted'] / $data['cadence_weight_s'] : null;
             $data['avg_power_w'] = $data['power_weight_s'] > 0 ? $data['power_weighted'] / $data['power_weight_s'] : null;
-            unset($data['hr_weighted'], $data['hr_weight_s'], $data['cadence_weighted'], $data['cadence_weight_s'], $data['power_weighted'], $data['power_weight_s']);
+            unset($data['days'], $data['hr_weighted'], $data['hr_weight_s'], $data['cadence_weighted'], $data['cadence_weight_s'], $data['power_weighted'], $data['power_weight_s']);
         }
         unset($data);
     }
     unset($periods);
-
+    $percent = static fn(?float $current, ?float $previous): ?float => $current !== null && $previous !== null && $previous > 0 ? (($current - $previous) / $previous) * 100.0 : null;
     $trends = [];
     foreach ($definitions as $key => $definition) {
-        $weeks = array_values($weekly[$key]);
-        $older = array_slice($weeks, 0, 4);
-        $newer = array_slice($weeks, 4, 4);
-        $sum = static function (array $items, string $metric): float {
-            $total = 0.0;
-            foreach ($items as $item) $total += (float) ($item[$metric] ?? 0);
-            return $total;
-        };
-        $oldDistance = $sum($older, 'distance_m');
-        $newDistance = $sum($newer, 'distance_m');
-        $oldDuration = $sum($older, 'duration_s');
-        $newDuration = $sum($newer, 'duration_s');
-        $oldActivities = $sum($older, 'activities');
-        $newActivities = $sum($newer, 'activities');
-        $oldPace = $oldDistance > 0 ? $oldDuration / ($oldDistance / ($key === 'swim' ? 100.0 : 1000.0)) : null;
-        $newPace = $newDistance > 0 ? $newDuration / ($newDistance / ($key === 'swim' ? 100.0 : 1000.0)) : null;
-        $oldSpeed = $oldDuration > 0 ? ($oldDistance / 1000.0) / ($oldDuration / 3600.0) : null;
-        $newSpeed = $newDuration > 0 ? ($newDistance / 1000.0) / ($newDuration / 3600.0) : null;
-        $pct = static function (?float $current, ?float $previous, bool $lowerBetter = false): ?float {
-            if ($current === null || $previous === null || $previous <= 0) return null;
-            $delta = (($current - $previous) / $previous) * 100.0;
-            return $lowerBetter ? -$delta : $delta;
-        };
+        $current = $summary[$key]['current'];
+        $previous = $summary[$key]['previous'];
         $trends[$key] = [
-            'distance_pct' => $pct($newDistance, $oldDistance),
-            'duration_pct' => $pct($newDuration, $oldDuration),
-            'activities_pct' => $pct($newActivities, $oldActivities),
-            'pace_pct' => $pct($newPace, $oldPace, true),
-            'speed_pct' => $pct($newSpeed, $oldSpeed),
-            'current_distance_m' => $newDistance,
-            'previous_distance_m' => $oldDistance,
-            'current_duration_s' => $newDuration,
-            'previous_duration_s' => $oldDuration,
+            'distance_pct' => $hasPrevious ? $percent((float) $current['distance_m'], (float) $previous['distance_m']) : null,
+            'duration_pct' => $hasPrevious ? $percent((float) $current['duration_s'], (float) $previous['duration_s']) : null,
+            'activities_pct' => $hasPrevious ? $percent((float) $current['activities'], (float) $previous['activities']) : null,
+            'pace_pct' => $hasPrevious ? $percent(is_numeric($current['avg_pace_km_s'] ?? null) ? (float) $current['avg_pace_km_s'] : null, is_numeric($previous['avg_pace_km_s'] ?? null) ? (float) $previous['avg_pace_km_s'] : null) : null,
+            'speed_pct' => $hasPrevious ? $percent(is_numeric($current['avg_speed_kmh'] ?? null) ? (float) $current['avg_speed_kmh'] : null, is_numeric($previous['avg_speed_kmh'] ?? null) ? (float) $previous['avg_speed_kmh'] : null) : null,
+            'current_distance_m' => $current['distance_m'], 'previous_distance_m' => $previous['distance_m'],
+            'current_duration_s' => $current['duration_s'], 'previous_duration_s' => $previous['duration_s'],
         ];
     }
-
     $activeDefinitions = ['all' => $definitions['all']];
     foreach ($definitions as $key => $definition) if ($key !== 'all' && ($active[$key] ?? 0) > 0) $activeDefinitions[$key] = $definition;
-    return ['summary' => $summary, 'weekly' => $weekly, 'recent' => $recent, 'trends' => $trends, 'active' => $activeDefinitions];
+    return ['summary' => $summary, 'recent' => $recent, 'trends' => $trends, 'active' => $activeDefinitions, 'has_previous' => $hasPrevious];
 }
 
-function sportHubAthleticsDashboard(PDO $pdo, string $userId, array $activities, ?array $periodWindow = null): array
+function sportHubAthleticsDashboard(PDO $pdo, string $userId, array $activities, ?array $periodWindow = null, string $eventSlug = ''): array
 {
+    $periodWindow ??= sportHubResolvePeriod();
+    $currentStart = $periodWindow['current_start'];
+    $currentEnd = $periodWindow['current_end'];
+    $eventSlug = stridebr_lower(trim($eventSlug));
+    $allowedSlugs = [];
+    foreach ($activities as $row) {
+        if (($row['hub_bucket'] ?? '') !== 'athletics') continue;
+        $slug = stridebr_lower((string) ($row['modalidade_slug'] ?? ''));
+        if ($slug !== '') $allowedSlugs[$slug] = true;
+    }
     $rows = [];
     try {
         $stmt = $pdo->prepare("SELECT ra.idregistro, ra.data_inicio, m.nome AS modalidade_nome, m.slug AS modalidade_slug,
@@ -776,33 +1118,34 @@ function sportHubAthleticsDashboard(PDO $pdo, string $userId, array $activities,
             LEFT JOIN campos_modelo c ON c.idcampo = va.idcampo
             WHERE ra.idusuario = :usuario AND ra.excluido_em IS NULL AND ra.status = 'concluido'
               AND m.familia_hub = 'athletics' AND ua.tipo_unidade = 'tentativa'
-              AND ra.data_inicio >= NOW() - INTERVAL '48 months'
+              AND ra.data_inicio >= :inicio AND ra.data_inicio < :fim
             GROUP BY ra.idregistro, ra.data_inicio, m.nome, m.slug, ua.idunidade_atividade, ua.ordem
             ORDER BY ra.data_inicio DESC, ua.ordem");
-        $stmt->execute([':usuario' => $userId]);
+        $stmt->execute([
+            ':usuario' => $userId,
+            ':inicio' => $currentStart->format('Y-m-d H:i:sP'),
+            ':fim' => $currentEnd->format('Y-m-d H:i:sP'),
+        ]);
         $rows = $stmt->fetchAll();
     } catch (PDOException $e) {
-        if ($e->getCode() !== '42P01' && $e->getCode() !== '42703') throw $e;
+        if (!in_array($e->getCode(), ['42P01', '42703'], true)) throw $e;
     }
 
-    $periodWindow ??= sportHubResolvePeriod();
-    $currentStart = $periodWindow['current_start'];
-    $currentEnd = $periodWindow['current_end'];
     $events = [];
     $currentAttempts = 0;
     $currentValid = 0;
     foreach ($rows as $row) {
-        $slug = (string) ($row['modalidade_slug'] ?? '');
+        $slug = stridebr_lower((string) ($row['modalidade_slug'] ?? ''));
         if ($slug === '') continue;
-        $date = new DateTimeImmutable((string) $row['data_inicio']);
-        if ($date >= $currentEnd) continue;
+        if ($eventSlug !== '' && $slug !== $eventSlug) continue;
+        if ($eventSlug === '' && $allowedSlugs !== [] && !isset($allowedSlugs[$slug])) continue;
         $invalid = stridebr_db_bool($row['tentativa_nula'] ?? false);
         $mark = is_numeric($row['marca_m'] ?? null) ? max(0.0, (float) $row['marca_m']) : null;
         $wind = is_numeric($row['vento_m_s'] ?? null) ? (float) $row['vento_m_s'] : null;
         $event = &$events[$slug];
         if (!is_array($event ?? null)) {
             $event = [
-                'nome' => (string) ($row['modalidade_nome'] ?? 'Prova'),
+                'nome' => (string) ($row['modalidade_nome'] ?? stridebr_t('progress.event')),
                 'sessions' => [],
                 'attempts' => 0,
                 'valid_attempts' => 0,
@@ -815,13 +1158,13 @@ function sportHubAthleticsDashboard(PDO $pdo, string $userId, array $activities,
             ];
         }
         $event['attempts']++;
-        $sessionId = (string) $row['idregistro'];
-        $event['sessions'][$sessionId] = true;
-        if ($date >= $currentStart && $date < $currentEnd) $currentAttempts++;
+        $currentAttempts++;
+        $sessionId = (string) ($row['idregistro'] ?? '');
+        if ($sessionId !== '') $event['sessions'][$sessionId] = true;
         if (!$invalid && $mark !== null && $mark > 0) {
             $event['valid_attempts']++;
-            if ($date >= $currentStart && $date < $currentEnd) $currentValid++;
-            $day = $date->format('Y-m-d');
+            $currentValid++;
+            $day = substr((string) ($row['data_inicio'] ?? ''), 0, 10);
             $event['history'][$day] ??= ['date' => $day, 'best_mark' => null];
             if ($event['history'][$day]['best_mark'] === null || $mark > $event['history'][$day]['best_mark']) $event['history'][$day]['best_mark'] = $mark;
             if ($event['latest_mark'] === null) $event['latest_mark'] = $mark;
@@ -829,8 +1172,8 @@ function sportHubAthleticsDashboard(PDO $pdo, string $userId, array $activities,
                 $event['best_mark'] = $mark;
                 $event['best_wind'] = $wind;
             }
-            $windSensitive = in_array($slug, ['salto-em-distancia','salto-triplo'], true);
-            $legalWind = !$windSensitive || $wind === null || $wind <= 2.0;
+            $windSensitive = in_array($slug, ['salto-em-distancia', 'salto-triplo'], true);
+            $legalWind = !$windSensitive || ($wind !== null && $wind <= 2.0);
             if ($legalWind && ($event['best_legal_mark'] === null || $mark > $event['best_legal_mark'])) {
                 $event['best_legal_mark'] = $mark;
                 $event['best_legal_wind'] = $wind;
@@ -842,10 +1185,11 @@ function sportHubAthleticsDashboard(PDO $pdo, string $userId, array $activities,
     $fieldEvents = [];
     foreach ($events as $slug => $event) {
         $history = array_values($event['history']);
-        usort($history, static fn(array $a, array $b): int => strcmp($a['date'], $b['date']));
+        usort($history, static fn(array $a, array $b): int => strcmp((string) $a['date'], (string) $b['date']));
         $fieldEvents[] = [
             'slug' => $slug,
             'nome' => $event['nome'],
+            'direction' => 'higher',
             'sessions' => count($event['sessions']),
             'attempts' => $event['attempts'],
             'valid_attempts' => $event['valid_attempts'],
@@ -853,36 +1197,38 @@ function sportHubAthleticsDashboard(PDO $pdo, string $userId, array $activities,
             'best_wind' => $event['best_wind'],
             'best_legal_mark' => $event['best_legal_mark'],
             'best_legal_wind' => $event['best_legal_wind'],
-            'wind_aided_best' => in_array($slug, ['salto-em-distancia','salto-triplo'], true) && $event['best_wind'] !== null && (float) $event['best_wind'] > 2.0,
+            'wind_aided_best' => in_array($slug, ['salto-em-distancia', 'salto-triplo'], true) && $event['best_wind'] !== null && (float) $event['best_wind'] > 2.0,
             'latest_mark' => $event['latest_mark'],
-            'history' => array_slice($history, -10),
+            'history' => array_slice($history, -12),
         ];
     }
     usort($fieldEvents, static function (array $a, array $b): int {
-        $aDate = end($a['history'])['date'] ?? '';
-        $bDate = end($b['history'])['date'] ?? '';
+        $aDate = (string) (($a['history'][array_key_last($a['history'])]['date'] ?? ''));
+        $bDate = (string) (($b['history'][array_key_last($b['history'])]['date'] ?? ''));
         return strcmp($bDate, $aDate);
     });
 
-    $athleticsActivities = array_values(array_filter($activities, static fn(array $row): bool => ($row['hub_bucket'] ?? '') === 'athletics'));
-    $eventsPracticed = [];
     $timedSlugs = [
         'atletismo-60m', 'atletismo-100m', 'atletismo-200m', 'atletismo-400m', 'atletismo-800m', 'atletismo-1500m', 'atletismo-milha',
         'atletismo-3000m', 'atletismo-5000m', 'atletismo-10000m', '60m-com-barreiras', '100m-com-barreiras', '110m-com-barreiras',
         '400m-com-barreiras', '3000m-com-obstaculos', 'revezamento-4x100m', 'revezamento-4x400m',
     ];
+    $eventsPracticed = [];
     $track = [];
-    foreach ($athleticsActivities as $row) {
-        $date = new DateTimeImmutable((string) $row['data_inicio']);
-        if ($date >= $currentEnd) continue;
-        $slug = (string) ($row['modalidade_slug'] ?? '');
-        if ($slug !== '' && $date >= $currentStart && $date < $currentEnd) $eventsPracticed[$slug] = true;
+    foreach ($activities as $row) {
+        if (($row['hub_bucket'] ?? '') !== 'athletics') continue;
+        try { $date = new DateTimeImmutable((string) ($row['data_inicio'] ?? '')); } catch (Throwable) { continue; }
+        if ($date < $currentStart || $date >= $currentEnd) continue;
+        $slug = stridebr_lower((string) ($row['modalidade_slug'] ?? ''));
+        if ($slug === '') continue;
+        $eventsPracticed[$slug] = true;
         if (!in_array($slug, $timedSlugs, true)) continue;
-        $duration = (float) ($row['duration_s'] ?? 0);
+        $duration = max(0.0, (float) ($row['duration_s'] ?? 0));
         if ($duration <= 0) continue;
         $track[$slug] ??= [
             'slug' => $slug,
-            'nome' => (string) ($row['modalidade_nome'] ?? 'Prova'),
+            'nome' => (string) ($row['modalidade_nome'] ?? stridebr_t('progress.event')),
+            'direction' => 'lower',
             'best_time_s' => null,
             'latest_time_s' => null,
             'best_legal_time_s' => null,
@@ -899,16 +1245,23 @@ function sportHubAthleticsDashboard(PDO $pdo, string $userId, array $activities,
             $track[$slug]['best_time_s'] = $duration;
             $track[$slug]['best_wind_m_s'] = $wind;
         }
-        $windSensitive = in_array($slug, ['atletismo-100m','atletismo-200m','100m-com-barreiras','110m-com-barreiras'], true);
-        if ((!$windSensitive || $wind === null || $wind <= 2.0) && ($track[$slug]['best_legal_time_s'] === null || $duration < $track[$slug]['best_legal_time_s'])) $track[$slug]['best_legal_time_s'] = $duration;
+        $windSensitive = in_array($slug, ['atletismo-100m', 'atletismo-200m', '100m-com-barreiras', '110m-com-barreiras'], true);
+        $legalWind = !$windSensitive || ($wind !== null && $wind <= 2.0);
+        if ($legalWind && ($track[$slug]['best_legal_time_s'] === null || $duration < $track[$slug]['best_legal_time_s'])) $track[$slug]['best_legal_time_s'] = $duration;
         if ($reaction !== null && ($track[$slug]['best_reaction_s'] === null || $reaction < $track[$slug]['best_reaction_s'])) $track[$slug]['best_reaction_s'] = $reaction;
-        $track[$slug]['history'][] = ['date' => substr((string) $row['data_inicio'], 0, 10), 'time_s' => $duration, 'wind_m_s' => $wind, 'reaction_s' => $reaction];
+        $track[$slug]['history'][] = ['date' => substr((string) ($row['data_inicio'] ?? ''), 0, 10), 'time_s' => $duration, 'wind_m_s' => $wind, 'reaction_s' => $reaction];
     }
-    unset($eventsPracticed['']);
     $trackRecords = array_values($track);
-    foreach ($trackRecords as &$record) $record['history'] = array_reverse(array_slice($record['history'], 0, 10));
+    foreach ($trackRecords as &$record) {
+        usort($record['history'], static fn(array $a, array $b): int => strcmp((string) $a['date'], (string) $b['date']));
+        $record['history'] = array_slice($record['history'], -12);
+    }
     unset($record);
-    usort($trackRecords, static fn(array $a, array $b): int => strcmp((string) ($b['history'][array_key_last($b['history'])]['date'] ?? ''), (string) ($a['history'][array_key_last($a['history'])]['date'] ?? '')));
+    usort($trackRecords, static function (array $a, array $b): int {
+        $aDate = (string) (($a['history'][array_key_last($a['history'])]['date'] ?? ''));
+        $bDate = (string) (($b['history'][array_key_last($b['history'])]['date'] ?? ''));
+        return strcmp($bDate, $aDate);
+    });
 
     return [
         'field_events' => $fieldEvents,
@@ -919,46 +1272,15 @@ function sportHubAthleticsDashboard(PDO $pdo, string $userId, array $activities,
     ];
 }
 
-
 function sportHubSessionDashboard(array $activities, string $bucket, ?array $periodWindow = null): array
 {
     $periodWindow ??= sportHubResolvePeriod();
     $currentStart = $periodWindow['current_start'];
     $currentEnd = $periodWindow['current_end'];
-    $previousStart = $periodWindow['previous_start'];
-    $now = $currentEnd->modify('-1 second');
-    $base = [
-        'activities' => 0,
-        'duration_s' => 0.0,
-        'matches' => 0,
-        'wins' => 0,
-        'draws' => 0,
-        'losses' => 0,
-        'rounds' => 0,
-        'score_for' => 0,
-        'score_against' => 0,
-        'score_samples' => 0,
-        'points_total' => 0.0,
-        'points_samples' => 0,
-        'best_score' => null,
-    ];
-    $summary = ['current' => $base, 'previous' => $base];
-    $weekStart = $now->modify('monday this week')->setTime(0, 0);
-    $weeks = [];
-    for ($index = 7; $index >= 0; $index--) {
-        $start = $weekStart->modify('-' . $index . ' weeks');
-        $key = $start->format('Y-m-d');
-        $weeks[$key] = [
-            'start' => $key,
-            'label' => $start->format('d/m'),
-            'activities' => 0,
-            'duration_s' => 0.0,
-            'matches' => 0,
-            'wins' => 0,
-            'rounds' => 0,
-            'points' => 0.0,
-        ];
-    }
+    $hasPrevious = !empty($periodWindow['has_previous']) && $periodWindow['previous_start'] instanceof DateTimeImmutable;
+    $previousStart = $hasPrevious ? $periodWindow['previous_start'] : null;
+    $base = ['activities'=>0,'duration_s'=>0.0,'matches'=>0,'wins'=>0,'draws'=>0,'losses'=>0,'rounds'=>0,'score_for'=>0,'score_against'=>0,'score_samples'=>0,'points_total'=>0.0,'points_samples'=>0,'best_score'=>null];
+    $summary = ['current'=>$base,'previous'=>$base];
     $recent = [];
     $sports = [];
     $sessionTypes = [];
@@ -967,7 +1289,7 @@ function sportHubSessionDashboard(array $activities, string $bucket, ?array $per
         if (($row['hub_bucket'] ?? '') !== $bucket) continue;
         $date = new DateTimeImmutable((string) $row['data_inicio']);
         if ($date >= $currentEnd) continue;
-        $period = $date >= $currentStart && $date < $currentEnd ? 'current' : ($date >= $previousStart && $date < $currentStart ? 'previous' : null);
+        $period = $date >= $currentStart && $date < $currentEnd ? 'current' : ($hasPrevious && $date >= $previousStart && $date < $currentStart ? 'previous' : null);
         $type = stridebr_lower(trim((string) ($row['tipo_sessao'] ?? '')));
         $result = stridebr_lower(trim((string) ($row['resultado'] ?? '')));
         $format = stridebr_lower(trim((string) ($row['formato_jogo'] ?? '')));
@@ -977,15 +1299,6 @@ function sportHubSessionDashboard(array $activities, string $bucket, ?array $per
         $scoreAgainst = is_numeric($row['placar_contra'] ?? null) ? max(0, (int) $row['placar_contra']) : null;
         $points = is_numeric($row['pontuacao'] ?? null) ? (float) $row['pontuacao'] : null;
         $isMatch = in_array($type, ['partida','jogo','amistoso','luta','competicao'], true);
-        $activityWeek = $date->modify('monday this week')->setTime(0, 0)->format('Y-m-d');
-        if (isset($weeks[$activityWeek])) {
-            $weeks[$activityWeek]['activities']++;
-            $weeks[$activityWeek]['duration_s'] += $duration;
-            if ($isMatch) $weeks[$activityWeek]['matches']++;
-            if ($result === 'vitoria') $weeks[$activityWeek]['wins']++;
-            $weeks[$activityWeek]['rounds'] += $rounds;
-            if ($points !== null) $weeks[$activityWeek]['points'] += $points;
-        }
         if ($period !== null) {
             $data = &$summary[$period];
             $data['activities']++;
@@ -995,39 +1308,21 @@ function sportHubSessionDashboard(array $activities, string $bucket, ?array $per
             elseif ($result === 'empate') $data['draws']++;
             elseif ($result === 'derrota') $data['losses']++;
             $data['rounds'] += $rounds;
-            if ($scoreFor !== null && $scoreAgainst !== null) {
-                $data['score_for'] += $scoreFor;
-                $data['score_against'] += $scoreAgainst;
-                $data['score_samples']++;
-            }
-            if ($points !== null) {
-                $data['points_total'] += $points;
-                $data['points_samples']++;
-                $data['best_score'] = $data['best_score'] === null ? $points : max((float) $data['best_score'], $points);
-            }
+            if ($scoreFor !== null && $scoreAgainst !== null) { $data['score_for'] += $scoreFor; $data['score_against'] += $scoreAgainst; $data['score_samples']++; }
+            if ($points !== null) { $data['points_total'] += $points; $data['points_samples']++; $data['best_score'] = $data['best_score'] === null ? $points : max((float) $data['best_score'], $points); }
             unset($data);
         }
+        if ($period !== 'current') continue;
         $sport = stridebr_sport_name((string) ($row['modalidade_slug'] ?? ''), trim((string) ($row['modalidade_nome'] ?? stridebr_t('activity.activity'))));
         $sports[$sport] = ($sports[$sport] ?? 0) + 1;
         if ($type !== '') $sessionTypes[$type] = ($sessionTypes[$type] ?? 0) + 1;
         if ($format !== '') $formats[$format] = ($formats[$format] ?? 0) + 1;
         if (count($recent) < 12) {
             $recent[] = [
-                'idregistro' => (string) ($row['idregistro'] ?? ''),
-                'date' => (string) ($row['data_inicio'] ?? ''),
-                'title' => stridebr_present_activity_title((string) ($row['titulo'] ?? $sport), (string) ($row['modalidade_slug'] ?? ''), (string) ($row['modalidade_nome'] ?? '')),
-                'sport' => $sport,
-                'duration_s' => $duration,
-                'type' => $type,
-                'format' => $format,
-                'result' => $result,
-                'opponent' => trim((string) ($row['adversario'] ?? '')),
-                'score' => trim((string) ($row['placar'] ?? '')),
-                'score_for' => $scoreFor,
-                'score_against' => $scoreAgainst,
-                'position' => trim((string) ($row['posicao'] ?? '')),
-                'rounds' => $rounds,
-                'points' => $points,
+                'idregistro'=>(string)($row['idregistro']??''),'date'=>(string)($row['data_inicio']??''),
+                'title'=>stridebr_present_activity_title((string)($row['titulo']??$sport),(string)($row['modalidade_slug']??''),(string)($row['modalidade_nome']??'')),
+                'sport'=>$sport,'duration_s'=>$duration,'type'=>$type,'format'=>$format,'result'=>$result,'opponent'=>trim((string)($row['adversario']??'')),
+                'score'=>trim((string)($row['placar']??'')),'score_for'=>$scoreFor,'score_against'=>$scoreAgainst,'position'=>trim((string)($row['posicao']??'')),'rounds'=>$rounds,'points'=>$points,
             ];
         }
     }
@@ -1039,10 +1334,8 @@ function sportHubSessionDashboard(array $activities, string $bucket, ?array $per
         $data['avg_score'] = (int) $data['points_samples'] > 0 ? (float) $data['points_total'] / (int) $data['points_samples'] : null;
     }
     unset($data);
-    arsort($sports);
-    arsort($sessionTypes);
-    arsort($formats);
-    return ['summary' => $summary, 'recent' => $recent, 'sports' => $sports, 'session_types' => $sessionTypes, 'formats' => $formats, 'weeks' => array_values($weeks)];
+    arsort($sports); arsort($sessionTypes); arsort($formats);
+    return ['summary'=>$summary,'recent'=>$recent,'sports'=>$sports,'session_types'=>$sessionTypes,'formats'=>$formats,'has_previous'=>$hasPrevious];
 }
 
 function sportHubSessionTypeLabel(string $value): string

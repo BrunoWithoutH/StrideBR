@@ -37,13 +37,7 @@ foreach ($events as $event) {
         $pdo->prepare("UPDATE integracao_webhook_eventos SET status=:status, processed_at=NOW(), last_error_code=NULL WHERE id IN ({$placeholders}) AND status='processing'")->execute([':status'=>$outcome === 'ignored' ? 'ignored' : 'complete']);
         if ($outcome === 'ignored') $ignored++; else $complete++;
     } catch (Throwable $error) {
-        $attempts = (int) $event['attempts'] + 1;
-        $code = $error instanceof StridebrIntegrationError ? $error->internalCode : 'provider_failed';
-        $retry = $error instanceof StridebrIntegrationError ? max(0, $error->retryAfter) : 0;
-        $terminal = $attempts >= 8 || $code === 'reauthorize';
-        $seconds = $retry ?: min(21600, 60 * (2 ** min(8, $attempts)));
-        $stmt = $pdo->prepare("UPDATE integracao_webhook_eventos SET status=:status, retry_at=NOW() + (:seconds * INTERVAL '1 second'), processed_at=CASE WHEN :terminal THEN NOW() ELSE NULL END, last_error_code=:code WHERE id=:id AND status='processing'");
-        foreach ($event['_ids'] ?? [$event['id']] as $id) $stmt->execute([':status'=>$terminal ? 'failed' : 'pending', ':seconds'=>$seconds, ':terminal'=>$terminal, ':code'=>substr($code, 0, 64), ':id'=>$id]);
+        stridebr_strava_webhook_record_failure($pdo, $event, $error);
         stridebr_integrations_log_failure('strava', 'webhook_worker', (string) ($event['object_id'] ?? ''), $error); $failed++;
     }
 }

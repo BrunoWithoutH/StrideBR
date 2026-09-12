@@ -29,6 +29,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     routePrivacyToggle?.addEventListener('click', () => setRoutePrivacyExpanded(routePrivacyToggle.getAttribute('aria-expanded') !== 'true'))
     const activityDateInput = form?.querySelector('input[name="data"]')
+    const activityCompetitionSelect = form?.querySelector('select[name="idcompeticao"]')
+    const activityCompetitionDateWarning = form?.querySelector('[data-competition-date-warning]')
+    const syncCompetitionDateWarning = () => {
+        if (!activityCompetitionDateWarning || !activityCompetitionSelect || !activityDateInput) return
+        const option = activityCompetitionSelect.selectedOptions[0]
+        const date = String(activityDateInput.value || '').trim()
+        const start = String(option?.dataset.competitionStart || '').trim()
+        const end = String(option?.dataset.competitionEnd || start).trim() || start
+        activityCompetitionDateWarning.hidden = !(date && start && (date < start || date > end))
+    }
     const activityClockField = form?.querySelector('[data-clock-field]')
     let writingAutomaticActivityTitle = false
     const modelPanelsHost = document.querySelector('[data-activity-model-panels-host]')
@@ -1595,7 +1605,9 @@ document.addEventListener('DOMContentLoaded', () => {
         activityTitleEditButton.setAttribute('aria-expanded', opening ? 'true' : 'false')
         if (opening) requestAnimationFrame(() => activityTitleInput?.focus())
     })
-    activityDateInput?.addEventListener('change', () => syncAutomaticActivityTitle())
+    activityDateInput?.addEventListener('change', () => { syncAutomaticActivityTitle(); syncCompetitionDateWarning() })
+    activityCompetitionSelect?.addEventListener('change', syncCompetitionDateWarning)
+    syncCompetitionDateWarning()
     activityClockField?.addEventListener('change', () => syncAutomaticActivityTitle())
     activityClockField?.addEventListener('input', () => syncAutomaticActivityTitle())
     activityClockField?.addEventListener('activity:valuechange', () => syncAutomaticActivityTitle())

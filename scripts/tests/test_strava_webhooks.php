@@ -42,8 +42,13 @@ $assert(stridebr_strava_webhook_event(['aspect_type'=>'update','event_time'=>1,'
 $assert(stridebr_strava_webhook_event(['aspect_type'=>'update','event_time'=>1,'object_id'=>1,'object_type'=>'activity','owner_id'=>1,'subscription_id'=>1,'updates'=>['unexpected'=>'x']]) === null, 'campo não documentado aceito');
 $endpoint = (string) file_get_contents($root . '/public/webhooks/strava.php');
 $worker = (string) file_get_contents($root . '/scripts/process_strava_webhooks.php');
+$integrations = (string) file_get_contents($root . '/src/function/integrations.php');
 $migration = (string) file_get_contents($root . '/src/database/migrations/20260909_strava_webhooks.sql');
 $assert(str_contains($endpoint, "file_get_contents('php://input'") && str_contains($endpoint, 'HTTP_X_STRAVA_SIGNATURE') && str_contains($endpoint, "\$_GET['hub_mode']") && !str_contains($endpoint, "includes/app.php"), 'endpoint precisa usar raw body, assinatura, chaves PHP normalizadas e nenhum bootstrap de sessão');
 $assert(str_contains($worker, 'FOR UPDATE SKIP LOCKED') && str_contains($worker, 'attempts=attempts+1'), 'worker precisa reivindicar concorrentemente');
+$assert(str_contains($integrations, 'CAST(:title_update AS boolean)') && str_contains($integrations, "':title_update'=>\$titleUpdate ? 'true' : 'false'"), 'update de título precisa bind boolean PostgreSQL seguro');
+$assert(str_contains($integrations, 'CAST(:private AS boolean)') && str_contains($integrations, "':private'=>\$setPrivacy ? 'true' : 'false'"), 'update de privacidade precisa bind boolean PostgreSQL seguro');
+$assert(str_contains($integrations, 'CAST(:terminal AS boolean)') && str_contains($integrations, "':terminal'=>\$terminal ? 'true' : 'false'"), 'falha do worker precisa bind terminal PostgreSQL seguro');
+$assert(str_contains($worker, 'stridebr_strava_webhook_record_failure($pdo, $event, $error)') && !str_contains($worker, "':terminal'=>\$terminal"), 'worker precisa usar transição de falha segura sem binding boolean cru');
 $assert(str_contains($migration, 'uq_integracao_webhook_eventos_fingerprint') && str_contains($migration, 'ix_integracao_webhook_eventos_due'), 'fila precisa de idempotência e índice de consumo');
 printf("✓ Strava webhooks: %d assertions\n", $checks);

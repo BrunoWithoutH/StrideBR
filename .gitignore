@@ -38,3 +38,6 @@ backups/
 *.zip
 *.tmp
 *.bak
+# Python bytecode/cache
+__pycache__/
+*.py[cod]

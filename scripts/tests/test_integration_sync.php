@@ -130,10 +130,14 @@ return function (PDO $pdo): void {
         AlphaTest::same('not_due', $manualBackoff['skipped'] ?? null, 'Manual sync cannot bypass provider backoff');
         AlphaTest::same($callsBeforeBackoffManual, count($calls), 'Manual backoff performs no provider HTTP request');
         stridebr_integrations_sync_state($pdo, $user, 'strava', []);
+        stridebr_integrations_provider_cooldown_set($pdo, 'strava', time() - 1);
         $pdo->exec("UPDATE integracoes_usuario SET status='conectado' WHERE idusuario='$user'");
         $status = 401;
         $result = stridebr_integrations_sync_detailed($pdo, $user, 'strava');
-        AlphaTest::assert($result['reauthorize'], '401 requires reauthorization');
+        AlphaTest::assert(($result['reauthorize'] ?? false) === true, '401 requires reauthorization');
+        $reauthConnection = stridebr_integrations_get($pdo, $user, 'strava');
+        $reauthState = stridebr_integrations_metadata($reauthConnection ?? [])['sync'] ?? [];
+        AlphaTest::assert(($reauthState['reauthorize'] ?? false) === true, 'Reauthorization requirement persists in sync state for UI and future runners');
         $callsBeforeReauthManual = count($calls);
         $manualReauth = stridebr_integrations_sync_detailed($pdo, $user, 'strava', 'manual');
         AlphaTest::same('not_due', $manualReauth['skipped'] ?? null, 'Manual sync cannot bypass reauthorization');
@@ -224,19 +228,57 @@ return function (PDO $pdo): void {
         $pdo->exec("UPDATE integracoes_usuario SET ultima_sincronizacao_em=NOW() WHERE idusuario='{$oldAccount}' AND provedor='strava'");
         AlphaTest::same(1, count(stridebr_integrations_due_connections($pdo, 'strava', $oldAccount)), 'Existing connection without backfill metadata is automatically due');
 
-        $fairA = alphaTestUser($pdo, 'integration_fair_a');
-        $fairB = alphaTestUser($pdo, 'integration_fair_b');
-        foreach ([[$fairA, 81, 100], [$fairB, 82, 200]] as [$fairUser, $athlete, $lastAttempt]) {
+        $pdo->exec("UPDATE integracoes_usuario SET sincronizar_atividades=FALSE WHERE idusuario LIKE 'alpha_test_%' AND provedor='strava'");
+        $fairCandidates = [];
+        foreach ([
+            ['integration_fair_never', 81, null, 0],
+            ['integration_fair_old', 82, 100, 0],
+            ['integration_fair_recent', 83, 200, 0],
+            ['integration_fair_cooldown', 84, null, time() + 3600],
+        ] as [$suffix, $athlete, $lastAttempt, $retryAt]) {
+            $fairUser = alphaTestUser($pdo, $suffix);
+            $fairCandidates[$suffix] = $fairUser;
             $fairToken = $token; $fairToken['athlete'] = ['id' => $athlete];
             stridebr_integrations_save_token($pdo, $fairUser, 'strava', $fairToken);
             $pdo->exec("UPDATE integracoes_usuario SET ultima_sincronizacao_em=NOW() WHERE idusuario='{$fairUser}' AND provedor='strava'");
             $fairState = stridebr_integrations_strava_backfill_initial_state($pdo, $fairUser);
             $fairState['last_attempt_at'] = $lastAttempt;
-            $fairState['retry_at'] = 0;
+            $fairState['retry_at'] = $retryAt;
             stridebr_integrations_strava_backfill_write($pdo, $fairUser, $fairState);
         }
-        $fairDue = stridebr_integrations_due_connections($pdo, 'strava', '', 1);
-        AlphaTest::same($fairA, (string) ($fairDue[0]['idusuario'] ?? ''), 'Runner fairness prioritizes least recently attempted Strava backfill');
+
+        $fairDue = stridebr_integrations_due_connections($pdo, 'strava', '', 4);
+        $fairIds = array_map(static fn(array $row): string => (string) ($row['idusuario'] ?? ''), $fairDue);
+        AlphaTest::same($fairCandidates['integration_fair_never'], $fairIds[0] ?? '', 'Runner fairness prioritizes a never-attempted eligible backfill');
+        AlphaTest::same($fairCandidates['integration_fair_old'], $fairIds[1] ?? '', 'Runner fairness then prioritizes the least recently attempted backfill');
+        AlphaTest::same($fairCandidates['integration_fair_recent'], $fairIds[2] ?? '', 'Runner fairness leaves the most recently attempted eligible backfill after older candidates');
+        AlphaTest::assert(!in_array($fairCandidates['integration_fair_cooldown'], $fairIds, true), 'Runner fairness excludes a backfill candidate still in cooldown');
+
+        $neverState = stridebr_integrations_strava_backfill_state($pdo, $fairCandidates['integration_fair_never'], stridebr_integrations_get($pdo, $fairCandidates['integration_fair_never'], 'strava'), false);
+        $neverState['last_attempt_at'] = 300;
+        stridebr_integrations_strava_backfill_write($pdo, $fairCandidates['integration_fair_never'], $neverState);
+        $oldState = stridebr_integrations_strava_backfill_state($pdo, $fairCandidates['integration_fair_old'], stridebr_integrations_get($pdo, $fairCandidates['integration_fair_old'], 'strava'), false);
+        $oldState['last_attempt_at'] = 300;
+        stridebr_integrations_strava_backfill_write($pdo, $fairCandidates['integration_fair_old'], $oldState);
+        $recentState = stridebr_integrations_strava_backfill_state($pdo, $fairCandidates['integration_fair_recent'], stridebr_integrations_get($pdo, $fairCandidates['integration_fair_recent'], 'strava'), false);
+        $recentState['last_attempt_at'] = 400;
+        stridebr_integrations_strava_backfill_write($pdo, $fairCandidates['integration_fair_recent'], $recentState);
+
+        $tieDue = stridebr_integrations_due_connections($pdo, 'strava', '', 2);
+        $tieIds = array_map(static fn(array $row): string => (string) ($row['idusuario'] ?? ''), $tieDue);
+        sort($tieIds);
+        $expectedTie = [$fairCandidates['integration_fair_never'], $fairCandidates['integration_fair_old']];
+        sort($expectedTie);
+        AlphaTest::same($expectedTie, $tieIds, 'Equal fairness timestamps may use either order but both tied candidates precede newer attempts');
+
+        $firstTieUser = (string) (($tieDue[0]['idusuario'] ?? ''));
+        $firstTieConnection = stridebr_integrations_get($pdo, $firstTieUser, 'strava');
+        $firstTieState = stridebr_integrations_strava_backfill_state($pdo, $firstTieUser, $firstTieConnection ?? [], false);
+        $firstTieState['last_attempt_at'] = 500;
+        stridebr_integrations_strava_backfill_write($pdo, $firstTieUser, $firstTieState);
+        $nextDue = stridebr_integrations_due_connections($pdo, 'strava', '', 1);
+        $otherTieUser = $firstTieUser === $fairCandidates['integration_fair_never'] ? $fairCandidates['integration_fair_old'] : $fairCandidates['integration_fair_never'];
+        AlphaTest::same($otherTieUser, (string) ($nextDue[0]['idusuario'] ?? ''), 'Updating the selected tie candidate lets the other tied candidate run next without starvation');
 
         $rateUser = alphaTestUser($pdo, 'integration_backfill_rate');
         $rateToken = $token; $rateToken['athlete'] = ['id' => 79];
