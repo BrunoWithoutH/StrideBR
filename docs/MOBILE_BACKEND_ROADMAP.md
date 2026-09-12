@@ -5,12 +5,12 @@
 - API `/api/v1` JSON-only, respostas e erros consistentes.
 - Sessões mobile opacas por dispositivo, rotação de refresh e revogação.
 - Identidade única com o Core/Web e futura compatibilidade com Teams.
-- `me` e histórico/detalhe de atividades com ownership e paginação.
+- `me`, histórico/detalhe de atividades e publicação GPS idempotente com ownership e paginação.
 
 ## Próximas entregas do Core
 
-- Criação, edição, remoção e idempotência persistente de atividades; contrato de
-  upload GPX/TCX/FIT e envio de GPS/streams do app.
+- Edição/remoção de atividades e contratos de upload GPX/TCX/FIT. A publicação de
+  gravação GPS do app já faz parte da API v1.
 - Treinos, biblioteca, exercícios, agenda e cronogramas.
 - Perfil/preferências/privacidade, equipamentos, metas/progresso/recordes e status
   seguro de integrações.

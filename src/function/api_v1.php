@@ -89,9 +89,24 @@ function stridebr_api_json_input(int $maxBytes = 65536): array
     return $data;
 }
 
-function stridebr_api_bearer_token(): ?string
+function stridebr_api_authorization_header(): string
 {
     $header = trim((string) ($_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? ''));
+    if ($header !== '') return $header;
+    if (function_exists('getallheaders')) {
+        $headers = getallheaders();
+        if (is_array($headers)) {
+            foreach ($headers as $name => $value) {
+                if (strcasecmp((string) $name, 'Authorization') === 0) return trim((string) $value);
+            }
+        }
+    }
+    return '';
+}
+
+function stridebr_api_bearer_token(): ?string
+{
+    $header = stridebr_api_authorization_header();
     if (!preg_match('/^Bearer[ ]+([A-Za-z0-9_-]{32,256})$/D', $header, $match)) return null;
     return $match[1];
 }
@@ -116,6 +131,12 @@ function stridebr_api_user(PDO $pdo): array
     }
     $pdo->prepare('UPDATE api_sessoes SET ultimo_uso_em = NOW() WHERE idsessao = :id')->execute([':id' => $user['idsessao']]);
     return $user;
+}
+
+function stridebr_api_logout(PDO $pdo, string $sessionId): void
+{
+    $stmt = $pdo->prepare('UPDATE api_sessoes SET revogado_em = COALESCE(revogado_em, NOW()) WHERE idsessao = :id');
+    $stmt->execute([':id' => $sessionId]);
 }
 
 function stridebr_api_user_payload(array $user): array
@@ -194,6 +215,193 @@ function stridebr_api_refresh(PDO $pdo, array $payload): array
         if ($pdo->inTransaction()) $pdo->rollBack();
         throw $e;
     }
+}
+
+
+function stridebr_api_idempotency_key(): string
+{
+    $key = trim((string) ($_SERVER['HTTP_IDEMPOTENCY_KEY'] ?? ''));
+    if ($key === '' && function_exists('getallheaders')) {
+        $headers = getallheaders();
+        if (is_array($headers)) {
+            foreach ($headers as $name => $value) {
+                if (strcasecmp((string) $name, 'Idempotency-Key') === 0) {
+                    $key = trim((string) $value);
+                    break;
+                }
+            }
+        }
+    }
+    if (strlen($key) < 8 || strlen($key) > 128 || preg_match('/^[A-Za-z0-9._:-]+$/D', $key) !== 1) {
+        throw new InvalidArgumentException('Idempotency-Key inválida. Use entre 8 e 128 caracteres ASCII seguros.');
+    }
+    return $key;
+}
+
+function stridebr_api_activity_mobile_recording(PDO $pdo, string $userId, array $payload, string $idempotencyKey): array
+{
+    require_once __DIR__ . '/gps_web.php';
+    $sport = trim((string) ($payload['sport'] ?? ''));
+    if ($sport === '') throw new InvalidArgumentException('Informe a modalidade em sport.');
+    $selected = null;
+    foreach (gpsWebRouteModalities($pdo, $userId) as $candidate) {
+        if ((string) ($candidate['idmodalidade'] ?? '') === $sport || (string) ($candidate['slug'] ?? '') === $sport) {
+            $selected = $candidate;
+            break;
+        }
+    }
+    if ($selected === null) throw new InvalidArgumentException('A modalidade informada não está disponível para gravação GPS.');
+
+    $startedRaw = trim((string) ($payload['started_at'] ?? ''));
+    $endedRaw = trim((string) ($payload['ended_at'] ?? ''));
+    if ($startedRaw === '' || $endedRaw === '') throw new InvalidArgumentException('started_at e ended_at são obrigatórios.');
+    foreach ([$startedRaw, $endedRaw] as $timestamp) {
+        if (preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/D', $timestamp) !== 1) {
+            throw new InvalidArgumentException('started_at e ended_at devem usar ISO 8601 com offset.');
+        }
+    }
+    try {
+        $started = new DateTimeImmutable($startedRaw);
+        $ended = new DateTimeImmutable($endedRaw);
+    } catch (Throwable) {
+        throw new InvalidArgumentException('started_at e ended_at devem usar ISO 8601 com offset.');
+    }
+    if ($ended < $started) throw new InvalidArgumentException('ended_at não pode ser anterior a started_at.');
+
+    $metrics = is_array($payload['metrics'] ?? null) ? $payload['metrics'] : [];
+    $gps = is_array($payload['gps'] ?? null) ? $payload['gps'] : [];
+    $privacy = is_array($payload['privacy'] ?? null) ? $payload['privacy'] : [];
+    foreach (['distance_m', 'duration_s', 'elevation_gain_m', 'elevation_min_m', 'elevation_max_m'] as $field) {
+        if (array_key_exists($field, $metrics) && $metrics[$field] !== null && !is_numeric($metrics[$field])) {
+            throw new InvalidArgumentException('metrics.' . $field . ' precisa ser numérico.');
+        }
+    }
+    foreach (['measured_distance_m', 'accuracy_avg_m', 'accuracy_best_m', 'accuracy_worst_m'] as $field) {
+        if (array_key_exists($field, $gps) && $gps[$field] !== null && !is_numeric($gps[$field])) {
+            throw new InvalidArgumentException('gps.' . $field . ' precisa ser numérico.');
+        }
+    }
+    foreach (['hide_route_start_m', 'hide_route_end_m'] as $field) {
+        if (array_key_exists($field, $privacy) && filter_var($privacy[$field], FILTER_VALIDATE_INT) === false) {
+            throw new InvalidArgumentException('privacy.' . $field . ' precisa ser inteiro.');
+        }
+        if (array_key_exists($field, $privacy) && ((int) $privacy[$field] < 0 || (int) $privacy[$field] > 10000)) {
+            throw new InvalidArgumentException('privacy.' . $field . ' deve ficar entre 0 e 10000 metros.');
+        }
+    }
+    $points = is_array($gps['points'] ?? null) ? $gps['points'] : [];
+    if ($points === []) throw new InvalidArgumentException('gps.points é obrigatório.');
+
+    $duration = is_numeric($metrics['duration_s'] ?? null)
+        ? (float) $metrics['duration_s']
+        : max(0.001, (float) ($ended->format('U.u') - $started->format('U.u')));
+    if ($duration <= 0) throw new InvalidArgumentException('metrics.duration_s precisa ser maior que zero.');
+
+    $recordingKey = hash('sha256', "mobile-v1\0" . $userId . "\0" . $idempotencyKey);
+    $recording = [
+        'recording_id' => $recordingKey,
+        'idmodalidade' => (string) $selected['idmodalidade'],
+        'title' => trim((string) ($payload['title'] ?? '')),
+        'notes' => trim((string) ($payload['notes'] ?? '')),
+        'visibility' => trim((string) ($payload['visibility'] ?? '')),
+        'effort' => $payload['perceived_effort'] ?? '',
+        'started_at_ms' => (int) round((float) $started->format('U.u') * 1000),
+        'ended_at_ms' => (int) round((float) $ended->format('U.u') * 1000),
+        'duration_s' => $duration,
+        'distance_m' => $metrics['distance_m'] ?? null,
+        'elevation_gain_m' => $metrics['elevation_gain_m'] ?? null,
+        'elevation_min_m' => $metrics['elevation_min_m'] ?? null,
+        'elevation_max_m' => $metrics['elevation_max_m'] ?? null,
+        'measured_distance_m' => $gps['measured_distance_m'] ?? null,
+        'points' => $points,
+        'segments' => is_array($payload['segments'] ?? null) ? $payload['segments'] : [],
+        'hide_route_start_m' => $privacy['hide_route_start_m'] ?? 0,
+        'hide_route_end_m' => $privacy['hide_route_end_m'] ?? 0,
+        'points_received' => $gps['points_received'] ?? count($points),
+        'points_rejected' => $gps['points_rejected'] ?? 0,
+        'accuracy_avg_m' => $gps['accuracy_avg_m'] ?? null,
+        'accuracy_best_m' => $gps['accuracy_best_m'] ?? null,
+        'accuracy_worst_m' => $gps['accuracy_worst_m'] ?? null,
+        'visibility_gaps' => $gps['visibility_gaps'] ?? 0,
+        'user_adjusted' => !empty($payload['user_adjusted']),
+    ];
+    return $recording;
+}
+
+function stridebr_api_create_activity(PDO $pdo, string $userId, array $payload, string $idempotencyKey): array
+{
+    require_once __DIR__ . '/gps_web.php';
+    $recording = stridebr_api_activity_mobile_recording($pdo, $userId, $payload, $idempotencyKey);
+    $recordingKey = gpsWebRecordingKey($recording);
+    $existing = gpsWebFindExistingRecording($pdo, $userId, $recordingKey);
+    if ($existing !== null) {
+        return ['id' => $existing, 'activity' => stridebr_api_activity_detail($pdo, $existing, $userId), 'reused' => true];
+    }
+
+    $activityPayload = gpsWebBuildActivityPayload($pdo, $userId, $recording);
+    $meta = $activityPayload['_gps_meta'];
+    unset($activityPayload['_gps_meta']);
+    $pdo->beginTransaction();
+    try {
+        $id = atividadeSalvarRegistro($pdo, $userId, $activityPayload);
+        gpsWebSaveMetadata($pdo, $id, $meta);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        if ($e instanceof PDOException && $e->getCode() === '23505') {
+            $existing = gpsWebFindExistingRecording($pdo, $userId, $recordingKey);
+            if ($existing !== null) {
+                return ['id' => $existing, 'activity' => stridebr_api_activity_detail($pdo, $existing, $userId), 'reused' => true];
+            }
+        }
+        throw $e;
+    }
+    return ['id' => $id, 'activity' => stridebr_api_activity_detail($pdo, $id, $userId), 'reused' => false];
+}
+
+function stridebr_api_list_activities(PDO $pdo, string $userId, array $filters = []): array
+{
+    $page = max(1, min(100000, (int) ($filters['page'] ?? 1)));
+    $limit = max(1, min(100, (int) ($filters['limit'] ?? 25)));
+    $where = ['ra.idusuario = :user', 'ra.excluido_em IS NULL'];
+    $params = [':user' => $userId];
+    $sport = trim((string) ($filters['sport'] ?? ''));
+    if ($sport !== '') {
+        $where[] = 'm.slug = :sport';
+        $params[':sport'] = $sport;
+    }
+    $from = trim((string) ($filters['from'] ?? ''));
+    if ($from !== '') {
+        try { $from = (new DateTimeImmutable($from))->format(DateTimeInterface::ATOM); }
+        catch (Throwable) { throw new InvalidArgumentException('Parâmetro from inválido.'); }
+        $where[] = 'ra.data_inicio >= :from';
+        $params[':from'] = $from;
+    }
+    $to = trim((string) ($filters['to'] ?? ''));
+    if ($to !== '') {
+        try { $to = (new DateTimeImmutable($to))->format(DateTimeInterface::ATOM); }
+        catch (Throwable) { throw new InvalidArgumentException('Parâmetro to inválido.'); }
+        $where[] = 'ra.data_inicio < :to';
+        $params[':to'] = $to;
+    }
+    $q = trim((string) ($filters['q'] ?? ''));
+    if ($q !== '') {
+        $where[] = 'ra.titulo ILIKE :q';
+        $params[':q'] = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $q) . '%';
+    }
+    $condition = implode(' AND ', $where);
+    $count = $pdo->prepare("SELECT COUNT(*) FROM registros_atividade ra JOIN modalidades m ON m.idmodalidade = ra.idmodalidade WHERE $condition");
+    $count->execute($params);
+    $total = (int) $count->fetchColumn();
+    $stmt = $pdo->prepare("SELECT ra.idregistro, ra.idmodalidade, ra.titulo, ra.data_inicio, ra.data_fim, ra.status, ra.visibilidade, ra.origem, ra.esforco_percebido, m.nome AS modalidade_nome, m.slug AS modalidade_slug FROM registros_atividade ra JOIN modalidades m ON m.idmodalidade=ra.idmodalidade WHERE $condition ORDER BY ra.data_inicio DESC, ra.idregistro DESC LIMIT :limit OFFSET :offset");
+    foreach ($params as $key => $value) $stmt->bindValue($key, $value);
+    $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $stmt->bindValue(':offset', ($page - 1) * $limit, PDO::PARAM_INT);
+    $stmt->execute();
+    return [
+        'data' => array_map('stridebr_api_activity_summary', $stmt->fetchAll()),
+        'pagination' => ['page'=>$page, 'limit'=>$limit, 'total'=>$total, 'total_pages'=>(int) ceil($total / $limit)],
+    ];
 }
 
 function stridebr_api_activity_summary(array $row): array

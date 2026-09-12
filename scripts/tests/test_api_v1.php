@@ -40,6 +40,51 @@ return function (PDO $pdo): void {
     AlphaTest::assert(str_contains((string)$detail['started_at'], 'T'), 'Datas da API devem usar ISO 8601');
     AlphaTest::same([], stridebr_api_activity_detail($pdo, $otherActivity, $owner), 'Detalhe não pode expor atividade de outro usuário');
     AlphaTest::same([], stridebr_api_activity_detail($pdo, 'nao-existe', $owner), 'Detalhe inexistente deve ser vazio no domínio');
+    $routeModel = alphaTestRouteModel($pdo);
+    $routeSport = $pdo->prepare('SELECT m.idmodalidade, m.slug FROM modelos_modalidade mm JOIN modalidades m ON m.idmodalidade = mm.idmodalidade WHERE mm.idmodelo = :id');
+    $routeSport->execute([':id'=>$routeModel]);
+    $routeSportRow = $routeSport->fetch();
+    AlphaTest::assert((bool)$routeSportRow, 'Modalidade de rota seed ausente');
+    $mobilePayload = [
+        'sport'=>(string)$routeSportRow['slug'],
+        'title'=>'Alpha Android GPS',
+        'notes'=>'mobile api integration',
+        'visibility'=>'privado',
+        'perceived_effort'=>6,
+        'started_at'=>'2026-09-11T10:00:00-03:00',
+        'ended_at'=>'2026-09-11T10:10:00-03:00',
+        'metrics'=>['distance_m'=>1000.0, 'duration_s'=>600.0, 'elevation_gain_m'=>10.0],
+        'gps'=>['points'=>[['lat'=>-27.3581,'lon'=>-53.3942],['lat'=>-27.3582,'lon'=>-53.3939]], 'measured_distance_m'=>995.0],
+        'privacy'=>['hide_route_start_m'=>0, 'hide_route_end_m'=>0],
+    ];
+    $created = stridebr_api_create_activity($pdo, $owner, $mobilePayload, 'alpha-mobile-idem-0001');
+    AlphaTest::assert(empty($created['reused']), 'Primeira publicação mobile não pode ser marcada como reutilizada');
+    AlphaTest::assert((string)($created['activity']['origin'] ?? '') === 'gps', 'Atividade publicada pelo Android precisa manter origem GPS');
+    AlphaTest::same($owner, (string)$pdo->query("SELECT idusuario FROM registros_atividade WHERE idregistro = " . $pdo->quote((string)$created['id']))->fetchColumn(), 'Atividade mobile precisa pertencer ao usuário autenticado');
+    $again = stridebr_api_create_activity($pdo, $owner, $mobilePayload, 'alpha-mobile-idem-0001');
+    AlphaTest::assert(!empty($again['reused']), 'Reenvio com a mesma Idempotency-Key precisa reutilizar atividade');
+    AlphaTest::same((string)$created['id'], (string)$again['id'], 'Idempotência não pode gerar segundo ID');
+    $duplicates = $pdo->prepare("SELECT COUNT(*) FROM registros_atividade WHERE idusuario = :user AND titulo = 'Alpha Android GPS'");
+    $duplicates->execute([':user'=>$owner]);
+    AlphaTest::same(1, (int)$duplicates->fetchColumn(), 'Reenvio mobile não pode duplicar atividade');
+    AlphaTest::same([], stridebr_api_activity_detail($pdo, (string)$created['id'], $other), 'Outro usuário não pode abrir atividade criada pelo mobile');
+
+    $listed = stridebr_api_list_activities($pdo, $owner, ['page'=>1, 'limit'=>100]);
+    AlphaTest::assert((bool)array_filter($listed['data'], static fn(array $item): bool => (string)$item['id'] === (string)$created['id']), 'GET activities precisa listar atividade publicada pelo mobile');
+    $filteredSport = stridebr_api_list_activities($pdo, $owner, ['sport'=>(string)$routeSportRow['slug'], 'q'=>'Alpha Android']);
+    AlphaTest::same(1, count(array_filter($filteredSport['data'], static fn(array $item): bool => (string)$item['id'] === (string)$created['id'])), 'Filtros sport/q precisam encontrar atividade mobile');
+    $otherList = stridebr_api_list_activities($pdo, $other, ['q'=>'Alpha Android GPS']);
+    AlphaTest::same(0, count($otherList['data']), 'Listagem nunca pode vazar atividade de outro usuário');
+
+    $logoutTokens = stridebr_api_issue_session($pdo, $ownerRow, ['platform'=>'android']);
+    $logoutLookup = $pdo->prepare('SELECT idsessao FROM api_sessoes WHERE access_token_hash = :hash');
+    $logoutLookup->execute([':hash'=>stridebr_api_token_hash($logoutTokens['access_token'])]);
+    $logoutSessionId = (string)$logoutLookup->fetchColumn();
+    stridebr_api_logout($pdo, $logoutSessionId);
+    $logoutCheck = $pdo->prepare('SELECT revogado_em FROM api_sessoes WHERE idsessao = :id');
+    $logoutCheck->execute([':id'=>$logoutSessionId]);
+    AlphaTest::assert($logoutCheck->fetchColumn() !== null, 'Logout precisa revogar a sessão mobile');
+
     $payload = stridebr_api_user_payload($ownerRow);
     AlphaTest::assert(!array_key_exists('senhausuario', $payload) && !array_key_exists('sessao_versao', $payload), 'Serializador de usuário não pode expor campos internos');
 };

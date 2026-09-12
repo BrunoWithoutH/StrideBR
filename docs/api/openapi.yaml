@@ -2,13 +2,16 @@ openapi: 3.0.3
 info:
   title: StrideBR Core API
   version: v1
-  description: API pública inicial para o futuro StrideBR App. Somente as rotas deste documento estão implementadas.
+  description: API pública v1 usada pelo StrideBR App. Somente as rotas deste documento estão implementadas.
 servers:
   - url: https://stridebr.com.br/api/v1
 paths:
   /health:
     get:
       responses: { '200': { description: API disponível } }
+  /meta:
+    get:
+      responses: { '200': { description: Metadados públicos da API } }
   /auth/login:
     post:
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/LoginRequest' } } } }
@@ -34,7 +37,25 @@ paths:
         - { name: sport, in: query, schema: { type: string } }
         - { name: from, in: query, schema: { type: string, format: date-time } }
         - { name: to, in: query, schema: { type: string, format: date-time } }
+        - { name: q, in: query, schema: { type: string } }
       responses: { '200': { description: Atividades paginadas }, '401': { $ref: '#/components/responses/Error' } }
+    post:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 8, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GpsActivityCreateRequest' }
+      responses:
+        '201': { description: Atividade GPS criada }
+        '200': { description: Reenvio idempotente; atividade existente retornada }
+        '401': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   /activities/{id}:
     get:
       security: [{ bearerAuth: [] }]
@@ -52,6 +73,34 @@ components:
         device_id: { type: string, maxLength: 128 }
         device_name: { type: string, maxLength: 120 }
         platform: { type: string, enum: [android, ios, web, other] }
+    GpsActivityCreateRequest:
+      type: object
+      required: [sport, started_at, ended_at, gps]
+      properties:
+        sport: { type: string }
+        title: { type: string, maxLength: 255 }
+        notes: { type: string }
+        visibility: { type: string, enum: [privado, amigos, publico] }
+        perceived_effort: { type: integer, minimum: 1, maximum: 10 }
+        started_at: { type: string, format: date-time }
+        ended_at: { type: string, format: date-time }
+        metrics: { type: object }
+        gps:
+          type: object
+          required: [points]
+          properties:
+            points:
+              type: array
+              minItems: 2
+              maxItems: 2000
+              items:
+                type: object
+                required: [lat, lon]
+                properties:
+                  lat: { type: number, minimum: -90, maximum: 90 }
+                  lon: { type: number, minimum: -180, maximum: 180 }
+        privacy: { type: object }
+        segments: { type: array }
   responses:
     Error:
       description: Erro JSON padronizado
