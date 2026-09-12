@@ -3710,7 +3710,7 @@ body {
     .session-set-table-head { padding-inline: 5px; margin-top: 10px; }
     .session-set-table-head > span:first-child { font-size: 0; text-align: center; }
     .session-set-table-head > span:first-child::after { content: "#"; font-size: .68rem; }
-    .session-set-row { padding: 4px; }
+    .session-set-row { padding: 6px; }
     .session-set-row label > span { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
     .session-set-row input { height: 44px; padding-inline: 7px; font-size: 16px; }
     .session-set-check { width: 44px; height: 44px; }

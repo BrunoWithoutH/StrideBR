@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/activity_sport_context.php';
 require_once __DIR__ . '/marketing.php';
+require_once __DIR__ . '/competitions.php';
 
 
 function atividadeGerarId(int $length = 21): string
@@ -1251,6 +1252,7 @@ function atividadeSalvarRegistro(PDO $pdo, string $idUsuario, array $payload, ?s
     $hasUnitRoutes = stridebr_db_table_exists($pdo, 'rotas_unidades_atividade');
     $hasGeneralRoutes = stridebr_db_table_exists($pdo, 'rotas_atividade');
     $hasEquipmentLinks = stridebr_db_table_exists($pdo, 'registros_atividade_equipamentos');
+    $hasCompetitionLink = stridebr_db_column_exists($pdo, 'registros_atividade', 'idcompeticao');
     foreach ($unidades as $index => $unitPayload) {
         if (!is_array($unitPayload)) $unitPayload = ['values' => []];
         $unitPayload['idmodalidade'] = trim((string) ($unitPayload['idmodalidade'] ?? '')) ?: (string) $modelo['idmodalidade'];
@@ -1403,6 +1405,10 @@ function atividadeSalvarRegistro(PDO $pdo, string $idUsuario, array $payload, ?s
         $esforco = (int) $esforcoRaw;
     }
 
+    $competitionId = trim((string) ($payload['idcompeticao'] ?? ''));
+    if ($hasCompetitionLink && $competitionId !== '') competitionValidateOwned($pdo, $idUsuario, $competitionId);
+    if (!$hasCompetitionLink) $competitionId = '';
+
     $equipamentos = array_values(array_unique(array_filter(array_map(
         static fn(mixed $id): string => trim((string) $id),
         is_array($payload['equipamentos'] ?? null) ? $payload['equipamentos'] : []
@@ -1423,6 +1429,7 @@ function atividadeSalvarRegistro(PDO $pdo, string $idUsuario, array $payload, ?s
             }
             $updateSql = 'UPDATE registros_atividade SET idmodalidade = :modalidade, idmodelo = :modelo, titulo = :titulo, observacoes = :observacoes, data_inicio = :inicio, data_fim = :fim, status = :status, visibilidade = :visibilidade, esforco_percebido = :esforco, ocultar_inicio_m = :ocultar_inicio, ocultar_fim_m = :ocultar_fim';
             if ($hasRecordSegments) $updateSql .= ', usa_trechos = :usa_trechos';
+            if ($hasCompetitionLink) $updateSql .= ', idcompeticao = :competicao';
             $updateSql .= ', data_atualizacao = NOW() WHERE idregistro = :id AND idusuario = :usuario AND excluido_em IS NULL';
             $stmt = $pdo->prepare($updateSql);
             $updateParams = [
@@ -1441,6 +1448,7 @@ function atividadeSalvarRegistro(PDO $pdo, string $idUsuario, array $payload, ?s
                 ':usuario' => $idUsuario,
             ];
             if ($hasRecordSegments) $updateParams[':usa_trechos'] = $segmentsEnabled ? 1 : 0;
+            if ($hasCompetitionLink) $updateParams[':competicao'] = $competitionId !== '' ? $competitionId : null;
             $stmt->execute($updateParams);
             $pdo->prepare('DELETE FROM valores_atividade WHERE idregistro = :id')->execute([':id' => $idRegistro]);
             $pdo->prepare('DELETE FROM unidades_atividade WHERE idregistro = :id')->execute([':id' => $idRegistro]);
@@ -1448,6 +1456,10 @@ function atividadeSalvarRegistro(PDO $pdo, string $idUsuario, array $payload, ?s
             $idRegistro = atividadeGerarId();
             $recordColumns = ['idregistro', 'idusuario', 'idmodalidade', 'idmodelo', 'idcronograma', 'idtreino_cronograma', 'data_ocorrencia_origem', 'data_ocorrencia_planejada', 'hora_ocorrencia_planejada', 'titulo', 'observacoes', 'data_inicio', 'data_fim', 'status', 'visibilidade', 'origem', 'esforco_percebido', 'ocultar_inicio_m', 'ocultar_fim_m'];
             $recordValuesSql = [':id', ':usuario', ':modalidade', ':modelo', ':cronograma', ':treino', ':ocorrencia_origem', ':ocorrencia_planejada', ':hora_ocorrencia_planejada', ':titulo', ':observacoes', ':inicio', ':fim', ':status', ':visibilidade', ':origem', ':esforco', ':ocultar_inicio', ':ocultar_fim'];
+            if ($hasCompetitionLink) {
+                $recordColumns[] = 'idcompeticao';
+                $recordValuesSql[] = ':competicao';
+            }
             if ($hasRecordSegments) {
                 $recordColumns[] = 'usa_trechos';
                 $recordValuesSql[] = ':usa_trechos';
@@ -1474,6 +1486,7 @@ function atividadeSalvarRegistro(PDO $pdo, string $idUsuario, array $payload, ?s
                 ':ocultar_inicio' => $ocultarInicioM,
                 ':ocultar_fim' => $ocultarFimM,
             ];
+            if ($hasCompetitionLink) $insertParams[':competicao'] = $competitionId !== '' ? $competitionId : null;
             if ($hasRecordSegments) $insertParams[':usa_trechos'] = $segmentsEnabled ? 1 : 0;
             $stmt->execute($insertParams);
         }
@@ -1753,11 +1766,12 @@ function atividadeCarregarRegistro(PDO $pdo, string $idRegistro, string $idUsuar
     $stmt = $pdo->prepare(
         "SELECT ra.*, m.nome AS modalidade_nome, m.slug AS modalidade_slug, m.icone AS modalidade_icone, m.metrica_derivada, m.familia_hub AS modalidade_familia_hub, m.permite_rota,
                 mm.nome AS modelo_nome, mm.slug AS modelo_slug, mm.tipo_unidade_padrao, mm.rotulo_unidade, mm.permite_multiplas_unidades,
-                tc.codigo AS treino_codigo, tc.foco AS treino_foco, tc.titulo AS treino_titulo
+                tc.codigo AS treino_codigo, tc.foco AS treino_foco, tc.titulo AS treino_titulo, c.nome AS competicao_nome
          FROM registros_atividade ra
          JOIN modalidades m ON m.idmodalidade = ra.idmodalidade
          JOIN modelos_modalidade mm ON mm.idmodelo = ra.idmodelo
          LEFT JOIN treinos_cronograma tc ON tc.idtreino = ra.idtreino_cronograma
+         LEFT JOIN competicoes_usuario c ON c.idcompeticao = ra.idcompeticao
          WHERE ra.idregistro = :id AND ra.idusuario = :usuario AND ra.excluido_em IS NULL LIMIT 1"
     );
     $stmt->execute([':id' => $idRegistro, ':usuario' => $idUsuario]);

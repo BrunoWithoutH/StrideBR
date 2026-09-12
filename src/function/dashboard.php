@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/activity_sport_context.php';
+require_once __DIR__ . '/benchmark_goals.php';
 
 function dashboardGerarId(int $length = 21): string
 {
@@ -32,6 +33,14 @@ function dashboardMetasDisponiveis(PDO $pdo): bool
                     AND EXISTS (
                         SELECT 1 FROM information_schema.columns
                         WHERE table_schema='stridebr' AND table_name='metas_usuario' AND column_name='idexercicio'
+                    )
+                    AND EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_schema='stridebr' AND table_name='metas_usuario' AND column_name='tipo_meta'
+                    )
+                    AND EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_schema='stridebr' AND table_name='metas_conclusoes' AND column_name='idbenchmark'
                     )"
         )->fetchColumn();
         $available = stridebr_db_bool($value);
@@ -104,6 +113,17 @@ function dashboardNormalizarDataMeta(?string $value): ?string
 
 function dashboardValidarMeta(PDO $pdo, string $idUsuario, array $payload, ?string $idMeta = null): array
 {
+    $existing = null;
+    if ($idMeta !== null) {
+        $check = $pdo->prepare('SELECT * FROM metas_usuario WHERE idmeta = :meta AND idusuario = :usuario LIMIT 1');
+        $check->execute([':meta' => $idMeta, ':usuario' => $idUsuario]);
+        $existing = $check->fetch();
+        if (!is_array($existing)) throw new InvalidArgumentException(stridebr_t('goals.error.not_found'));
+    }
+    $tipoMeta = (string) ($existing['tipo_meta'] ?? ($payload['tipo_meta'] ?? 'metrica'));
+    if ($tipoMeta === 'benchmark') return benchmarkGoalNormalizeInput($pdo, $idUsuario, $payload, is_array($existing) ? $existing : null);
+    if ($tipoMeta !== 'metrica') throw new InvalidArgumentException(stridebr_t('goals.error.invalid_goal_type'));
+
     $metrica = trim((string) ($payload['metrica'] ?? ''));
     $periodo = trim((string) ($payload['periodo'] ?? ''));
     $idModalidade = trim((string) ($payload['idmodalidade'] ?? '')) ?: null;
@@ -113,82 +133,41 @@ function dashboardValidarMeta(PDO $pdo, string $idUsuario, array $payload, ?stri
     $dataInicio = dashboardNormalizarDataMeta($payload['data_inicio'] ?? null);
     $dataFim = dashboardNormalizarDataMeta($payload['data_fim'] ?? null);
 
-    if (!in_array($metrica, dashboardMetricasMeta(), true)) {
-        throw new InvalidArgumentException(stridebr_t('goals.error.invalid_metric'));
-    }
-    if (!in_array($periodo, dashboardPeriodosMeta(), true)) {
-        throw new InvalidArgumentException(stridebr_t('goals.error.invalid_period'));
-    }
-    if (!is_numeric($valorRaw) || (float) $valorRaw <= 0) {
-        throw new InvalidArgumentException(stridebr_t('goals.error.target_positive'));
-    }
+    if (!in_array($metrica, dashboardMetricasMeta(), true)) throw new InvalidArgumentException(stridebr_t('goals.error.invalid_metric'));
+    if (!in_array($periodo, dashboardPeriodosMeta(), true)) throw new InvalidArgumentException(stridebr_t('goals.error.invalid_period'));
+    if (!is_numeric($valorRaw) || (float) $valorRaw <= 0) throw new InvalidArgumentException(stridebr_t('goals.error.target_positive'));
 
     $valor = (float) $valorRaw;
-    $limites = [
-        'distancia' => 100000.0,
-        'duracao' => 1000000.0,
-        'atividades' => 10000.0,
-        'elevacao' => 10000000.0,
-        'dias_ativos' => 10000.0,
-        'carga_maxima' => 100000.0,
-    ];
-    if ($valor > $limites[$metrica]) {
-        throw new InvalidArgumentException(stridebr_t('goals.error.target_too_large'));
-    }
-    if (in_array($metrica, ['atividades', 'dias_ativos'], true) && floor($valor) !== $valor) {
-        throw new InvalidArgumentException(stridebr_t('goals.error.integer_required'));
-    }
-    if ($nome !== null && stridebr_length($nome) > 80) {
-        throw new InvalidArgumentException(stridebr_t('goals.error.name_too_long'));
-    }
+    $limites = ['distancia'=>100000.0,'duracao'=>1000000.0,'atividades'=>10000.0,'elevacao'=>10000000.0,'dias_ativos'=>10000.0,'carga_maxima'=>100000.0];
+    if ($valor > $limites[$metrica]) throw new InvalidArgumentException(stridebr_t('goals.error.target_too_large'));
+    if (in_array($metrica, ['atividades', 'dias_ativos'], true) && floor($valor) !== $valor) throw new InvalidArgumentException(stridebr_t('goals.error.integer_required'));
+    if ($nome !== null && stridebr_length($nome) > 80) throw new InvalidArgumentException(stridebr_t('goals.error.name_too_long'));
 
     if ($periodo === 'personalizado') {
-        if ($dataInicio === null || $dataFim === null) {
-            throw new InvalidArgumentException(stridebr_t('goals.error.custom_dates'));
-        }
-        if ($dataFim < $dataInicio) {
-            throw new InvalidArgumentException(stridebr_t('goals.error.end_before_start'));
-        }
-        $inicio = new DateTimeImmutable($dataInicio);
-        $fim = new DateTimeImmutable($dataFim);
-        if ($inicio->diff($fim)->days > 3660) {
-            throw new InvalidArgumentException(stridebr_t('goals.error.max_ten_years'));
-        }
-        if ($metrica === 'dias_ativos' && $valor > ((int) $inicio->diff($fim)->days + 1)) {
-            throw new InvalidArgumentException(stridebr_t('goals.error.active_days_period'));
-        }
+        if ($dataInicio === null || $dataFim === null) throw new InvalidArgumentException(stridebr_t('goals.error.custom_dates'));
+        if ($dataFim < $dataInicio) throw new InvalidArgumentException(stridebr_t('goals.error.end_before_start'));
+        $inicio = new DateTimeImmutable($dataInicio); $fim = new DateTimeImmutable($dataFim);
+        if ($inicio->diff($fim)->days > 3660) throw new InvalidArgumentException(stridebr_t('goals.error.max_ten_years'));
+        if ($metrica === 'dias_ativos' && $valor > ((int) $inicio->diff($fim)->days + 1)) throw new InvalidArgumentException(stridebr_t('goals.error.active_days_period'));
     } elseif ($periodo === 'continuo') {
         $dataInicio ??= (new DateTimeImmutable('today', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d');
         $dataFim = null;
     } else {
-        $dataInicio = null;
-        $dataFim = null;
+        $dataInicio = null; $dataFim = null;
         if ($metrica === 'dias_ativos') {
-            $maxDias = match ($periodo) {
-                'semanal' => 7,
-                'mensal' => 31,
-                default => 366,
-            };
-            if ($valor > $maxDias) {
-                throw new InvalidArgumentException(stridebr_t('goals.error.active_days_period'));
-            }
+            $maxDias = match ($periodo) {'semanal'=>7,'mensal'=>31,default=>366};
+            if ($valor > $maxDias) throw new InvalidArgumentException(stridebr_t('goals.error.active_days_period'));
         }
     }
 
     if ($idModalidade !== null) {
-        $check = $pdo->prepare(
-            'SELECT 1 FROM modalidades WHERE idmodalidade = :modalidade AND ativo = TRUE AND (idusuario IS NULL OR idusuario = :usuario)'
-        );
+        $check = $pdo->prepare('SELECT 1 FROM modalidades WHERE idmodalidade = :modalidade AND ativo = TRUE AND (idusuario IS NULL OR idusuario = :usuario)');
         $check->execute([':modalidade' => $idModalidade, ':usuario' => $idUsuario]);
-        if (!$check->fetchColumn()) {
-            throw new InvalidArgumentException(stridebr_t('goals.error.invalid_sport'));
-        }
+        if (!$check->fetchColumn()) throw new InvalidArgumentException(stridebr_t('goals.error.invalid_sport'));
     }
 
     if ($metrica === 'carga_maxima') {
-        if ($idExercicio === null) {
-            throw new InvalidArgumentException(stridebr_t('goals.error.choose_exercise'));
-        }
+        if ($idExercicio === null) throw new InvalidArgumentException(stridebr_t('goals.error.choose_exercise'));
         $checkExercise = $pdo->prepare('SELECT 1 FROM exercicios WHERE idexercicio = :exercicio AND ativo = TRUE AND (idusuario IS NULL OR idusuario = :usuario)');
         $checkExercise->execute([':exercicio' => $idExercicio, ':usuario' => $idUsuario]);
         if (!$checkExercise->fetchColumn()) throw new InvalidArgumentException(stridebr_t('goals.error.invalid_exercise'));
@@ -196,81 +175,37 @@ function dashboardValidarMeta(PDO $pdo, string $idUsuario, array $payload, ?stri
         $idExercicio = null;
     }
 
-    if ($idMeta !== null) {
-        $check = $pdo->prepare('SELECT 1 FROM metas_usuario WHERE idmeta = :meta AND idusuario = :usuario LIMIT 1');
-        $check->execute([':meta' => $idMeta, ':usuario' => $idUsuario]);
-        if (!$check->fetchColumn()) {
-            throw new InvalidArgumentException(stridebr_t('goals.error.not_found'));
-        }
-    }
-
     return [
-        'metrica' => $metrica,
-        'periodo' => $periodo,
-        'idmodalidade' => $idModalidade,
-        'idexercicio' => $idExercicio,
-        'nome' => $nome,
-        'valor_alvo' => $valor,
-        'data_inicio' => $dataInicio,
-        'data_fim' => $dataFim,
+        'tipo_meta'=>'metrica','metrica'=>$metrica,'periodo'=>$periodo,'idmodalidade'=>$idModalidade,'idexercicio'=>$idExercicio,'nome'=>$nome,'valor_alvo'=>$valor,'data_inicio'=>$dataInicio,'data_fim'=>$dataFim,
+        'benchmark_tipo'=>null,'benchmark_distancia_m'=>null,'benchmark_referencia_nome_snapshot'=>null,'valor_inicial'=>null,'data_valor_inicial'=>null,'idbenchmark_inicial'=>null,
     ];
 }
 
 function dashboardCriarMeta(PDO $pdo, string $idUsuario, array $payload): void
 {
-    if (!dashboardMetasDisponiveis($pdo)) {
-        throw new RuntimeException(stridebr_t('goals.error.migration_missing'));
-    }
-
+    if (!dashboardMetasDisponiveis($pdo)) throw new RuntimeException(stridebr_t('goals.error.migration_missing'));
     $dados = dashboardValidarMeta($pdo, $idUsuario, $payload);
     $count = $pdo->prepare('SELECT COUNT(*) FROM metas_usuario WHERE idusuario = :usuario AND ativa = TRUE');
     $count->execute([':usuario' => $idUsuario]);
-    if ((int) $count->fetchColumn() >= 12) {
-        throw new InvalidArgumentException(stridebr_t('goals.error.max_active'));
-    }
-
-    $stmt = $pdo->prepare(
-        'INSERT INTO metas_usuario (idmeta, idusuario, idmodalidade, idexercicio, nome, metrica, periodo, valor_alvo, data_inicio, data_fim)
-         VALUES (:id, :usuario, :modalidade, :exercicio, :nome, :metrica, :periodo, :valor, :inicio, :fim)'
-    );
+    if ((int) $count->fetchColumn() >= 12) throw new InvalidArgumentException(stridebr_t('goals.error.max_active'));
+    $stmt = $pdo->prepare('INSERT INTO metas_usuario (idmeta,idusuario,idmodalidade,idexercicio,nome,tipo_meta,metrica,periodo,valor_alvo,data_inicio,data_fim,benchmark_tipo,benchmark_distancia_m,benchmark_referencia_nome_snapshot,valor_inicial,data_valor_inicial,idbenchmark_inicial) VALUES (:id,:usuario,:modalidade,:exercicio,:nome,:tipo_meta,:metrica,:periodo,:valor,:inicio,:fim,:benchmark_tipo,:benchmark_distancia,:snapshot,:valor_inicial,:data_valor_inicial,:benchmark_inicial)');
     $stmt->execute([
-        ':id' => dashboardGerarId(),
-        ':usuario' => $idUsuario,
-        ':modalidade' => $dados['idmodalidade'],
-        ':exercicio' => $dados['idexercicio'],
-        ':nome' => $dados['nome'],
-        ':metrica' => $dados['metrica'],
-        ':periodo' => $dados['periodo'],
-        ':valor' => $dados['valor_alvo'],
-        ':inicio' => $dados['data_inicio'],
-        ':fim' => $dados['data_fim'],
+        ':id'=>dashboardGerarId(),':usuario'=>$idUsuario,':modalidade'=>$dados['idmodalidade'],':exercicio'=>$dados['idexercicio'],':nome'=>$dados['nome'],':tipo_meta'=>$dados['tipo_meta'],':metrica'=>$dados['metrica'],':periodo'=>$dados['periodo'],':valor'=>$dados['valor_alvo'],':inicio'=>$dados['data_inicio'],':fim'=>$dados['data_fim'],':benchmark_tipo'=>$dados['benchmark_tipo'],':benchmark_distancia'=>$dados['benchmark_distancia_m'],':snapshot'=>$dados['benchmark_referencia_nome_snapshot'],':valor_inicial'=>$dados['valor_inicial'],':data_valor_inicial'=>$dados['data_valor_inicial'],':benchmark_inicial'=>$dados['idbenchmark_inicial'],
     ]);
 }
 
 function dashboardEditarMeta(PDO $pdo, string $idUsuario, string $idMeta, array $payload): void
 {
-    if (!dashboardMetasDisponiveis($pdo)) {
-        throw new RuntimeException(stridebr_t('goals.error.migration_missing'));
-    }
+    if (!dashboardMetasDisponiveis($pdo)) throw new RuntimeException(stridebr_t('goals.error.migration_missing'));
     $dados = dashboardValidarMeta($pdo, $idUsuario, $payload, $idMeta);
-    $stmt = $pdo->prepare(
-        'UPDATE metas_usuario
-         SET idmodalidade = :modalidade, idexercicio = :exercicio, nome = :nome, metrica = :metrica, periodo = :periodo,
-             valor_alvo = :valor, data_inicio = :inicio, data_fim = :fim, data_atualizacao = NOW()
-         WHERE idmeta = :meta AND idusuario = :usuario'
-    );
+    $stmt = $pdo->prepare('UPDATE metas_usuario SET idmodalidade=:modalidade,idexercicio=:exercicio,nome=:nome,tipo_meta=:tipo_meta,metrica=:metrica,periodo=:periodo,valor_alvo=:valor,data_inicio=:inicio,data_fim=:fim,benchmark_tipo=:benchmark_tipo,benchmark_distancia_m=:benchmark_distancia,benchmark_referencia_nome_snapshot=:snapshot,valor_inicial=:valor_inicial,data_valor_inicial=:data_valor_inicial,idbenchmark_inicial=:benchmark_inicial,data_atualizacao=NOW() WHERE idmeta=:meta AND idusuario=:usuario');
     $stmt->execute([
-        ':modalidade' => $dados['idmodalidade'],
-        ':exercicio' => $dados['idexercicio'],
-        ':nome' => $dados['nome'],
-        ':metrica' => $dados['metrica'],
-        ':periodo' => $dados['periodo'],
-        ':valor' => $dados['valor_alvo'],
-        ':inicio' => $dados['data_inicio'],
-        ':fim' => $dados['data_fim'],
-        ':meta' => $idMeta,
-        ':usuario' => $idUsuario,
+        ':modalidade'=>$dados['idmodalidade'],':exercicio'=>$dados['idexercicio'],':nome'=>$dados['nome'],':tipo_meta'=>$dados['tipo_meta'],':metrica'=>$dados['metrica'],':periodo'=>$dados['periodo'],':valor'=>$dados['valor_alvo'],':inicio'=>$dados['data_inicio'],':fim'=>$dados['data_fim'],':benchmark_tipo'=>$dados['benchmark_tipo'],':benchmark_distancia'=>$dados['benchmark_distancia_m'],':snapshot'=>$dados['benchmark_referencia_nome_snapshot'],':valor_inicial'=>$dados['valor_inicial'],':data_valor_inicial'=>$dados['data_valor_inicial'],':benchmark_inicial'=>$dados['idbenchmark_inicial'],':meta'=>$idMeta,':usuario'=>$idUsuario,
     ]);
+    if ($dados['tipo_meta'] === 'benchmark') {
+        $goal = array_merge(['idmeta'=>$idMeta,'idusuario'=>$idUsuario], $dados);
+        benchmarkGoalEvaluate($pdo, $idUsuario, $goal, true);
+    }
 }
 
 function dashboardArquivarMeta(PDO $pdo, string $idUsuario, string $idMeta): bool
@@ -287,13 +222,9 @@ function dashboardArquivarMeta(PDO $pdo, string $idUsuario, string $idMeta): boo
 
 function dashboardReativarMeta(PDO $pdo, string $idUsuario, string $idMeta): bool
 {
-    if (!dashboardMetasDisponiveis($pdo)) {
-        return false;
-    }
-    $stmt = $pdo->prepare(
-        'UPDATE metas_usuario SET ativa = TRUE, arquivada_em = NULL, data_atualizacao = NOW() WHERE idmeta = :meta AND idusuario = :usuario AND ativa = FALSE'
-    );
-    $stmt->execute([':meta' => $idMeta, ':usuario' => $idUsuario]);
+    if (!dashboardMetasDisponiveis($pdo)) return false;
+    $stmt = $pdo->prepare("UPDATE metas_usuario SET ativa=TRUE,arquivada_em=NULL,data_atualizacao=NOW() WHERE idmeta=:meta AND idusuario=:usuario AND ativa=FALSE AND NOT (tipo_meta='benchmark' AND concluida_em IS NOT NULL)");
+    $stmt->execute([':meta'=>$idMeta,':usuario'=>$idUsuario]);
     return $stmt->rowCount() === 1;
 }
 
@@ -376,6 +307,7 @@ function dashboardCargaMaximaMeta(PDO $pdo, string $idUsuario, string $idExercic
 
 function dashboardCalcularProgressoMeta(PDO $pdo, string $idUsuario, array $meta): array
 {
+    if ((string) ($meta['tipo_meta'] ?? 'metrica') === 'benchmark') return benchmarkGoalEvaluate($pdo, $idUsuario, $meta, true);
     [$inicio, $fim] = dashboardPeriodoMeta($meta);
     if ((string) ($meta['metrica'] ?? '') === 'carga_maxima') {
         $progresso = dashboardCargaMaximaMeta($pdo, $idUsuario, (string) ($meta['idexercicio'] ?? ''), $inicio, $fim);
@@ -504,8 +436,8 @@ function dashboardListarMetas(PDO $pdo, string $idUsuario, bool $somenteAtivas =
         return [];
     }
 
-    $sql = "SELECT g.idmeta, g.idmodalidade, g.idexercicio, g.nome, g.metrica, g.periodo, g.valor_alvo,
-                   g.ativa, g.data_inicio, g.data_fim, g.data_criacao, g.data_atualizacao, g.concluida_em, g.arquivada_em,
+    $sql = "SELECT g.idmeta,g.idmodalidade,g.idexercicio,g.nome,g.tipo_meta,g.metrica,g.periodo,g.valor_alvo,g.benchmark_tipo,g.benchmark_distancia_m,g.benchmark_referencia_nome_snapshot,g.valor_inicial,g.data_valor_inicial,g.idbenchmark_inicial,
+                   g.ativa,g.data_inicio,g.data_fim,g.data_criacao,g.data_atualizacao,g.concluida_em,g.arquivada_em,
                    m.nome AS modalidade_nome, m.slug AS modalidade_slug, e.nome AS exercicio_nome
             FROM metas_usuario g
             LEFT JOIN modalidades m ON m.idmodalidade = g.idmodalidade
@@ -530,8 +462,8 @@ function dashboardListarConclusoesMetas(PDO $pdo, string $idUsuario, int $limite
 {
     try {
         $stmt = $pdo->prepare(
-            "SELECT c.idconclusao, c.idmeta, c.periodo_inicio, c.periodo_fim, c.valor_atingido, c.atingida_em,
-                    g.nome, g.metrica, g.periodo, g.valor_alvo, g.idexercicio, m.nome AS modalidade_nome, m.slug AS modalidade_slug, e.nome AS exercicio_nome
+            "SELECT c.idconclusao,c.idmeta,c.periodo_inicio,c.periodo_fim,c.valor_atingido,c.atingida_em,c.idbenchmark,c.data_resultado,
+                    g.nome,g.tipo_meta,g.metrica,g.periodo,g.valor_alvo,g.idexercicio,g.benchmark_tipo,g.benchmark_distancia_m,g.benchmark_referencia_nome_snapshot,m.nome AS modalidade_nome,m.slug AS modalidade_slug,e.nome AS exercicio_nome
              FROM metas_conclusoes c
              JOIN metas_usuario g ON g.idmeta = c.idmeta
              LEFT JOIN modalidades m ON m.idmodalidade = g.idmodalidade
@@ -605,6 +537,7 @@ function dashboardMetaPeriodo(string $periodo): string
 
 function dashboardMetaTitulo(array $meta): string
 {
+    if ((string) ($meta['tipo_meta'] ?? 'metrica') === 'benchmark') return benchmarkGoalTitle($meta);
     $nome = trim((string) ($meta['nome'] ?? ''));
     if ($nome !== '') {
         return $nome;
@@ -616,6 +549,9 @@ function dashboardMetaTitulo(array $meta): string
 
 function dashboardMetaPrazoLabel(array $meta): string
 {
+    if ((string) ($meta['tipo_meta'] ?? 'metrica') === 'benchmark' && !empty($meta['atingida']) && is_array($meta['benchmark_evidence'] ?? null) && !empty($meta['benchmark_evidence']['data_resultado'])) {
+        return stridebr_t('goals.benchmark.completed_on', ['date' => stridebr_format_date((string) $meta['benchmark_evidence']['data_resultado'])]);
+    }
     if (($meta['periodo'] ?? '') === 'personalizado' && !empty($meta['data_inicio']) && !empty($meta['data_fim'])) {
         $inicio = new DateTimeImmutable((string) $meta['data_inicio']);
         $fim = new DateTimeImmutable((string) $meta['data_fim']);
@@ -632,6 +568,31 @@ function dashboardMetaPrazoLabel(array $meta): string
     }
     return dashboardMetaPeriodo((string) ($meta['periodo'] ?? 'semanal'));
 }
+
+function dashboardMetaCompactValue(array $meta): string
+{
+    if ((string) ($meta['tipo_meta'] ?? 'metrica') === 'benchmark') {
+        $type = (string) ($meta['benchmark_tipo'] ?? '');
+        $target = benchmarkFormatValue($type, (float) ($meta['valor_alvo'] ?? 0), is_numeric($meta['benchmark_distancia_m'] ?? null) ? (float) $meta['benchmark_distancia_m'] : null);
+        $best = is_array($meta['benchmark_best'] ?? null) ? $meta['benchmark_best'] : null;
+        if ($best === null) return match ($type) {
+            'one_rm' => stridebr_t('goals.benchmark.no_one_rm'),
+            'ftp' => stridebr_t('goals.benchmark.no_ftp'),
+            'css' => stridebr_t('goals.benchmark.no_css'),
+            'distance_time' => stridebr_t('goals.benchmark.no_test'),
+            default => stridebr_t('goals.benchmark.no_result'),
+        };
+        $value = benchmarkFormatValue($type, (float) $best['valor_canonico'], is_numeric($meta['benchmark_distancia_m'] ?? null) ? (float) $meta['benchmark_distancia_m'] : null);
+        return match ($type) {
+            'css' => stridebr_t('goals.benchmark.compact_css', ['value' => $value, 'target' => $target]),
+            'distance_time' => stridebr_t('goals.benchmark.compact_best_target', ['best' => $value, 'target' => $target]),
+            default => stridebr_t('goals.benchmark.compact_value_target', ['value' => $value, 'target' => $target]),
+        };
+    }
+    $metric = (string) ($meta['metrica'] ?? 'atividades');
+    return stridebr_format_number((float) ($meta['progresso'] ?? 0), 1) . ' / ' . stridebr_format_number((float) ($meta['valor_alvo'] ?? 0), 1) . ' ' . dashboardMetaUnidade($metric);
+}
+
 
 function dashboardAtividadeSemanaApresentar(array $atividade, ?string $locale = null): array
 {
@@ -908,6 +869,42 @@ function dashboardPreferenciasUsuario(PDO $pdo, string $idUsuario): array
     $stmt->execute([':usuario' => $idUsuario]);
     $raw = $stmt->fetchColumn();
     return is_array($raw) ? $raw : (json_decode((string) ($raw ?: '{}'), true) ?: []);
+}
+
+function dashboardPreferenciasProgress(PDO $pdo, string $idUsuario): array
+{
+    $allowed = ['all', '4w', '12w', '6m', '1y'];
+    $prefs = dashboardPreferenciasUsuario($pdo, $idUsuario);
+    $progress = is_array($prefs['progress'] ?? null) ? $prefs['progress'] : [];
+    $period = stridebr_lower(trim((string) ($progress['period'] ?? 'all')));
+    if (!in_array($period, $allowed, true)) $period = 'all';
+    return ['period' => $period];
+}
+
+function dashboardSalvarPreferenciasProgress(PDO $pdo, string $idUsuario, string $period): array
+{
+    $allowed = ['all', '4w', '12w', '6m', '1y'];
+    $period = stridebr_lower(trim($period));
+    if (!in_array($period, $allowed, true)) throw new InvalidArgumentException(stridebr_t('progress.invalid_period'));
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare('SELECT preferenciasusuario FROM usuarios WHERE idusuario = :usuario FOR UPDATE');
+        $stmt->execute([':usuario' => $idUsuario]);
+        $raw = $stmt->fetchColumn();
+        $prefs = is_array($raw) ? $raw : (json_decode((string) ($raw ?: '{}'), true) ?: []);
+        $existing = is_array($prefs['progress'] ?? null) ? $prefs['progress'] : [];
+        $prefs['progress'] = array_merge($existing, ['period' => $period]);
+        $update = $pdo->prepare('UPDATE usuarios SET preferenciasusuario = CAST(:prefs AS jsonb) WHERE idusuario = :usuario');
+        $update->execute([
+            ':prefs' => json_encode($prefs, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+            ':usuario' => $idUsuario,
+        ]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+    return ['period' => $period];
 }
 
 function dashboardPreferenciasHome(PDO $pdo, string $idUsuario): array

@@ -5,57 +5,164 @@ import sys
 try:
     from playwright.sync_api import sync_playwright
 except Exception as exc:
-    print(f"Playwright indisponível: {exc}", file=sys.stderr); sys.exit(2)
+    print(f"Playwright indisponível: {exc}", file=sys.stderr)
+    sys.exit(2)
 
-ROOT=Path(__file__).resolve().parents[2]
-HTML='''<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"></head><body><main class="progress-page" data-progress-page><div class="progress-shell">
-<header class="progress-heading"><div><span class="progress-eyebrow">Progresso</span><h1>Como você está treinando</h1><p>Consistência, volume e tendências com os dados já registrados.</p></div></header>
-<form class="progress-filterbar" action="/user/progresso.php"><nav class="progress-period-presets" aria-label="Período"><a href="?period=4w" class="is-active">4 semanas</a><a href="?period=12w">12 semanas</a><a href="?period=6m">6 meses</a><a href="?period=1y">1 ano</a></nav><label class="progress-filter-select"><span>Modalidade</span><select name="sport" data-progress-auto-submit><option>Todos os esportes</option><option>Corrida</option></select></label><label class="progress-filter-select"><span>Métrica</span><select name="metric" data-progress-auto-submit><option>Distância</option></select></label></form>
-<section class="progress-kpi-strip" aria-label="Resumo"><div><span>ATIVIDADES</span><strong>14</strong></div><div><span>TEMPO</span><strong>9h 42min</strong></div><div><span>DISTÂNCIA</span><strong>76,4 km</strong></div><div><span>DIAS ATIVOS</span><strong>11</strong></div></section>
-<section class="progress-section"><header><div><span class="progress-section-question">Tenho mantido frequência?</span><h2>Consistência</h2><p>Presença de atividades ao longo do período.</p></div></header><div class="progress-consistency-wrap"><div class="progress-consistency-grid" role="list" aria-label="Dias com atividade">'''+''.join(f'<button type="button" class="progress-consistency-day {"is-active" if i in [1,3,4,8,10,14,17,18,22,24,27] else ""}" data-progress-tooltip="{i+1} ago: {"1 atividade · Corrida" if i in [1,3,8] else "Nenhuma atividade"}" aria-label="Dia {i+1}" role="listitem"></button>' for i in range(28))+'''</div></div><div class="progress-consistency-legend"><span><i></i>Sem atividade</span><span><i class="is-active"></i>Atividade registrada</span></div></section>
-<section class="progress-section"><header><div><span class="progress-section-question">Quanto volume houve?</span><h2>Volume</h2><p>32,4 km nas últimas 4 semanas</p></div><strong class="progress-section-unit">Distância · Corrida</strong></header><div class="progress-bar-chart" style="--progress-week-count:4" role="group" aria-label="Distância semanal, Corrida"><div class="progress-zero-line"></div>
-<div class="progress-bar-column"><button class="progress-bar-hit" data-progress-tooltip="10–16 ago · 3 atividades · 8,2 km · 45 min" aria-label="10–16 ago · 3 atividades · 8,2 km"><span class="progress-bar" style="height:52%"></span></button><small>10 ago</small></div>
-<div class="progress-bar-column"><button class="progress-bar-hit" data-progress-tooltip="17–23 ago · 4 atividades · 10,1 km · 56 min" aria-label="17–23 ago · 4 atividades · 10,1 km"><span class="progress-bar" style="height:64%"></span></button><small>17 ago</small></div>
-<div class="progress-bar-column"><button class="progress-bar-hit is-missing" data-progress-tooltip="24–30 ago · 2 atividades · sem distância" aria-label="24–30 ago · 2 atividades · sem distância"><span class="progress-bar" style="height:0%"></span></button><small>24 ago</small></div>
-<div class="progress-bar-column"><button class="progress-bar-hit" data-progress-tooltip="31 ago–6 set · 5 atividades · 14,1 km · 1h12" aria-label="31 ago–6 set · 5 atividades · 14,1 km"><span class="progress-bar" style="height:88%"></span></button><small>31 ago</small></div></div><p class="progress-chart-note">— indica atividade sem essa métrica registrada.</p></section>
-<section class="progress-section"><header><div><span class="progress-section-question">Como o volume mudou?</span><h2>Tendência</h2><p>Distância semanal ao longo do período.</p></div></header><div class="progress-line-chart-wrap"><svg class="progress-line-chart" viewBox="0 0 1000 270" role="img" aria-label="Tendência de distância semanal"><line x1="28" y1="225" x2="972" y2="225" class="progress-chart-axis"/><line x1="28" y1="122" x2="972" y2="122" class="progress-chart-grid"/><polyline class="progress-line-path" points="28,180 260,150"/><polyline class="progress-line-path" points="730,130 972,80"/><circle class="progress-line-point" cx="28" cy="180" r="8" tabindex="0" data-progress-tooltip="10–16 ago · 8,2 km" aria-label="10–16 ago, 8,2 km"/><circle class="progress-line-point" cx="972" cy="80" r="8" tabindex="0" data-progress-tooltip="31 ago–6 set · 14,1 km" aria-label="31 ago–6 set, 14,1 km"/></svg></div></section>
-<section class="progress-section"><header><div><span class="progress-section-question">Quais modalidades pratiquei?</span><h2>Modalidades</h2></div></header><div class="progress-sport-list"><a class="progress-sport-row" href="#"><span class="progress-sport-icon">●</span><span><strong>Corrida</strong><small>8 atividades</small></span><span class="progress-sport-values"><strong>52,4 km</strong><small>5h18</small></span><span>›</span></a><a class="progress-sport-row" href="#"><span class="progress-sport-icon">■</span><span><strong>Musculação</strong><small>6 atividades</small></span><span class="progress-sport-values"><small>4h24</small></span><span>›</span></a></div></section>
-<section class="progress-section"><header><div><span class="progress-section-question">Como este período se compara?</span><h2>Comparação</h2></div></header><div class="progress-comparison-list"><div><span>DISTÂNCIA</span><strong>52,4 km</strong><small>+8,2 km · período anterior</small></div><div><span>ATIVIDADES</span><strong>14</strong><small>+2 · período anterior</small></div><div><span>TEMPO</span><strong>9h42</strong><small>−32 min · período anterior</small></div></div></section>
-<details class="progress-disclosure"><summary>Tendências por modalidade <span>Ver mais</span></summary><div class="progress-small-multiples"><article><header><span class="progress-sport-icon">●</span><div><strong>Corrida</strong><small>Distância</small></div></header><div class="progress-mini-bars"><i style="height:40%"></i><i style="height:70%"></i><i style="height:55%"></i><i style="height:85%"></i></div></article><article><header><span class="progress-sport-icon">■</span><div><strong>Musculação</strong><small>Atividades</small></div></header><div class="progress-mini-bars"><i style="height:55%"></i><i style="height:45%"></i><i style="height:75%"></i><i style="height:60%"></i></div></article></div></details>
-</div><div class="progress-tooltip" data-progress-tooltip-popover role="tooltip" hidden></div></main></body></html>'''
+ROOT = Path(__file__).resolve().parents[2]
+STYLE = ROOT / 'public/assets/css/style.css'
+INSIGHTS = ROOT / 'public/assets/css/product-insights.css'
+CSS = ROOT / 'public/assets/css/sport-hub.css'
+UI_REFRESH = ROOT / 'public/assets/css/ui-refresh.css'
+JS = ROOT / 'public/assets/js/progresso.js'
+SPORTS = [
+    'Corrida', 'Musculação', 'Ciclismo', 'Natação', 'Atletismo', 'Futebol', 'Karatê',
+    'Tênis', 'Caminhada', 'Dardos', 'Escalada', 'Esqui', 'Yoga', 'Vôlei', 'Basquete',
+    'Jiu-jitsu', 'Badminton', 'Remo', 'Triatlo', 'Handebol',
+]
+
+
+def nav(selected='Visão geral', athletics=False):
+    visible = ['Corrida', 'Musculação', 'Ciclismo', 'Natação', 'Atletismo']
+    if selected not in ('Visão geral', *visible):
+        visible = [selected] + visible[:4]
+    direct = ''.join(
+        f'<a href="/user/progresso.php?sport={name.lower()}" class="progress-priority-tab{(" is-mobile-primary" if index < 2 or name == selected else "")}{(" is-active" if name == selected else "")}"{(" aria-current=\"page\"" if name == selected else "")}>{name}</a>'
+        for index, name in enumerate(visible)
+    )
+    overflow = [name for name in SPORTS if name not in visible]
+    current = '' if selected == 'Visão geral' else f'<a class="progress-nav-current-item" href="#" aria-current="page"><span>{selected}</span></a>'
+    mobile_extra = ''.join(f'<a class="is-mobile-only" href="#"><span>{name}</span></a>' for name in visible[2:])
+    rest = ''.join(f'<a href="#"><span>{name}</span></a>' for name in overflow)
+    return f'''<nav class="segmented-nav progress-sport-nav" aria-label="Esporte"><a href="#" class="progress-overview-tab{(" is-active" if selected == "Visão geral" else "")}">Visão geral</a>{direct}<details class="progress-nav-more" data-progress-nav-more><summary>Mais</summary><div class="progress-nav-menu">{current}{mobile_extra}{rest}</div></details></nav>'''
+
+
+def event_nav():
+    visible = ['100 m', '200 m', 'Dardo', 'Peso', 'Salto em distância']
+    rest = ['400 m', '800 m', '1.500 m', 'Disco', 'Martelo', 'Salto em altura']
+    direct = ''.join(f'<a href="#" class="progress-priority-tab{(" is-mobile-primary" if i < 2 else "")}{(" is-active" if i == 0 else "")}">{name}</a>' for i, name in enumerate(visible))
+    mobile_extra = ''.join(f'<a class="is-mobile-only" href="#"><span>{name}</span></a>' for name in visible[2:])
+    overflow = ''.join(f'<a href="#"><span>{name}</span></a>' for name in rest)
+    return f'''<nav class="sport-subtabs progress-event-nav"><a href="#" class="progress-event-summary-tab">Resumo</a>{direct}<details class="progress-nav-more" data-progress-nav-more><summary>Mais</summary><div class="progress-nav-menu"><a class="progress-nav-current-item" href="#" aria-current="page"><span>100 m</span></a>{mobile_extra}{overflow}</div></details></nav>'''
+
+
+def sport_rows():
+    rows = []
+    for index, name in enumerate(SPORTS):
+        empty = index >= 8
+        info = 'Última atividade: 18/06/2026' if empty else f'{18 - min(index, 12)} atividades'
+        values = '' if empty else f'<strong>{118 - index * 4},4 km</strong><small>{12 - min(index, 8)}h 40min</small>'
+        rows.append(f'''<a href="#" class="progress-sport-row{(" is-period-empty" if empty else "")}"><span class="progress-sport-icon">○</span><span><strong>{name}</strong><small>{info}</small></span><span class="progress-sport-values">{values}</span><span class="progress-row-chevron">›</span></a>''')
+    first = ''.join(rows[:7])
+    rest = ''.join(rows[7:])
+    return f'''<div class="progress-sport-list">{first}<details class="progress-list-disclosure" data-test-sports-disclosure><summary><span class="is-closed">+ {len(rows)-7} a mais</span><span class="is-open">Mostrar menos</span></summary><div class="progress-sport-list progress-sport-list-extra">{rest}</div></details></div>'''
+
+
+def distribution():
+    rows = []
+    for i, name in enumerate(SPORTS[:10]):
+        share = max(3, 32 - i * 3)
+        rows.append(f'<div><span><strong>{name}</strong><small>{max(1, 12-i)}h 20min</small></span><div><i style="width:{share}%"></i></div><b>{share}%</b></div>')
+    return f'''<div class="progress-distribution-list">{''.join(rows[:6])}</div><details class="progress-list-disclosure progress-distribution-disclosure"><summary><span class="is-closed">+ 4 a mais</span><span class="is-open">Mostrar menos</span></summary><div class="progress-distribution-list progress-distribution-extra">{''.join(rows[6:])}</div></details>'''
+
+
+def common(body, sport='Visão geral', period='Todo o histórico', theme='light', athletics=False):
+    return f'''<!doctype html><html lang="pt-BR" data-theme="{theme}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>*,*:before,*:after{{box-sizing:border-box}}</style></head><body><div class="container-fluid"><main class="main-content progress-page" data-progress-page><div class="progress-shell"><header class="progress-heading"><div><span class="progress-eyebrow">PROGRESSO</span><h1>Progresso</h1></div></header>{nav(sport)}<div data-progress-dynamic>{event_nav() if athletics else ''}<form class="progress-filterbar" action="/user/progresso.php" data-progress-preference-url="/api/progress-preferences.php" data-progress-csrf-token="fixture"><label class="progress-filter-select"><span>Período</span><select name="period" data-progress-auto-submit data-progress-period-select><option selected>{period}</option></select></label><input type="hidden" name="sport" value="all"></form><div class="progress-context-line"><strong>{sport}</strong><span>Desde 03/02/2021</span></div>{body}</div></div><div class="progress-tooltip" data-progress-tooltip-popover role="tooltip" hidden></div></main></div><footer class="site-footer"><div class="footer-inner"><div class="footer-top"><div class="footer-brand"><strong>StrideBR</strong><p>Dados esportivos.</p></div><div class="footer-column"><h4>Produto</h4><a href="#">Sobre</a></div></div></div></footer><nav class="mobile-bottom-nav" aria-label="Navegação"><a class="mobile-nav-item">Início</a><a class="mobile-nav-item">Treino</a><a class="mobile-nav-item">Atividades</a><a class="mobile-nav-item is-active">Progresso</a><a class="mobile-nav-item">Perfil</a></nav><div class="global-tools" data-global-tools><div class="floating-utility-dock"><div class="pinned-tools"><button class="pinned-tool-chip">00:45</button></div><button class="quick-tools-launcher" aria-label="Ferramentas">+</button></div></div></body></html>'''
+
+
+def overview(theme='light'):
+    highlights = '''<section class="progress-section" data-order="highlights"><header><div><h2>Destaques</h2></div></header><div class="progress-highlight-grid"><article><span>Maior distância registrada</span><strong>18,4 km</strong></article><article><span>Volume do período</span><strong>+12%</strong><small>vs. período anterior</small></article></div></section>'''
+    body = f'''<section class="progress-section progress-summary-section" data-order="summary"><header><div><h2>Resumo do período</h2></div></header><div class="progress-kpi-strip"><div><span>Dias ativos</span><strong>42</strong></div><div><span>Atividades</span><strong>68</strong></div><div><span>Tempo em atividade</span><strong>61h 20min</strong></div><div><span>Esportes praticados</span><strong>14</strong></div></div></section>{highlights}<section class="progress-section" data-order="sports"><header><div><h2>Seus esportes</h2></div></header>{sport_rows()}</section><section class="progress-section progress-goals-section" data-order="goals"><header><div><h2>Metas</h2></div><a class="progress-button">Abrir metas</a></header><div class="progress-goal-list"><article><div><strong>Correr 100 km</strong><small>Mensal</small></div><div><span>72 / 100 km</span><progress max="100" value="72"></progress></div></article></div></section><section class="progress-section" data-order="consistency"><header><div><h2>Consistência</h2><p>Atividade em 10 de 12 semanas</p></div></header><div class="progress-consistency-band">{''.join('<span class="is-active"></span>' if i not in (4,9) else '<span></span>' for i in range(12))}</div></section><section class="progress-section" data-order="distribution"><header><div><h2>Distribuição da prática</h2><p>Participação no tempo total de atividade do período.</p></div></header>{distribution()}</section>'''
+    return common(body, theme=theme)
+
+
+def running(theme='light'):
+    bars = ''.join(f'<div class="progress-bar-column"><button type="button" class="progress-bar-hit" data-progress-tooltip="Semana {i+1} · {5+i},2 km"><span class="progress-bar" style="height:{35+i*10}%"></span></button><small>{i+1}/8</small></div>' for i in range(8))
+    body = f'''<section class="progress-section progress-summary-section"><header><div><h2>Resumo do período</h2></div></header><div class="progress-kpi-strip"><div><span>Distância</span><strong>28,4 km</strong></div><div><span>Tempo</span><strong>2h 51min</strong></div><div><span>Corridas</span><strong>5</strong></div><div><span>Dias ativos</span><strong>5</strong></div></div></section><section class="progress-section"><header><div><h2>Distância</h2></div><div class="progress-chart-controls"><nav class="progress-chart-switch"><a class="is-active">Distância</a><a>Tempo</a></nav><strong class="progress-section-unit">4 semanas</strong></div></header><div class="progress-bar-chart" style="--progress-week-count:8">{bars}</div></section><section class="progress-section progress-load"><header><div><h2>Carga de treino</h2></div></header><div class="progress-kpi-strip"><div><span>Carga de treino</span><strong>1240 UA</strong><small>RPE registrado em 4 de 5 atividades</small></div></div></section>'''
+    return common(body, sport='Corrida', period='4 semanas', theme=theme)
+
+
+def strength(theme='light'):
+    body = '''<section class="progress-section progress-summary-section"><header><div><h2>Resumo do período</h2></div></header><div class="progress-kpi-strip"><div><span>Treinos</span><strong>9</strong></div><div><span>Séries</span><strong>146</strong></div><div><span>Repetições</span><strong>1120</strong></div><div><span>Volume de carga</span><strong>42.380 kg</strong></div></div></section><section class="progress-section"><header><div><h2>Progresso por exercício</h2></div></header><label class="progress-exercise-search"><span>Buscar exercício</span><input type="search" data-progress-exercise-search></label><div class="strength-exercise-list" data-progress-exercise-list><article data-progress-exercise="supino reto"><div><strong>Supino reto</strong><small>Última atividade: 09/09/2026</small></div><div class="strength-exercise-values"><span><small>1RM estimado</small><b>88,7 kg</b><small>Estimado a partir de 70 kg × 8 · Epley</small></span></div></article><article data-progress-exercise="agachamento"><div><strong>Agachamento</strong></div><div class="strength-exercise-values"><span><small>Melhor carga</small><b>100 kg</b></span></div></article></div></section>'''
+    return common(body, sport='Musculação', period='12 semanas', theme=theme)
+
+
+def athletics(theme='light'):
+    body = '''<section class="progress-section progress-summary-section"><header><div><h2>Resumo do período</h2></div></header><div class="progress-kpi-strip"><div><span>Sessões</span><strong>7</strong></div><div><span>Provas praticadas</span><strong>8</strong></div><div><span>Tentativas</span><strong>14</strong></div><div><span>Marcas válidas</span><strong>11</strong></div></div></section><section class="progress-section"><header><div><h2>Por prova</h2></div></header><div class="athletics-record-grid"><article><div><strong>100 m</strong><small>3 sessões</small></div><div class="athletics-record-value"><span>Melhor tempo registrado</span><b>12,84 s</b></div></article><article><div><strong>Dardo</strong><small>2 sessões</small></div><div class="athletics-record-value"><span>Melhor marca registrada</span><b>38,42 m</b></div></article></div></section>'''
+    return common(body, sport='Atletismo', period='6 meses', theme=theme, athletics=True)
+
 
 with sync_playwright() as p:
-    browser=p.chromium.launch(headless=True, executable_path='/usr/bin/chromium', args=['--no-sandbox'])
-    desktop=browser.new_page(viewport={'width':1440,'height':1000})
-    desktop.set_content(HTML)
-    desktop.add_style_tag(path=str(ROOT/'public/assets/css/sport-hub.css'))
-    desktop.add_script_tag(path=str(ROOT/'public/assets/js/progresso.js'))
-    errors=[]; desktop.on('pageerror',lambda e:errors.append(str(e)))
-    n=0
-    def check(value,msg):
-        nonlocal_dummy=None
-        global n
-        n+=1
-        if not value: raise AssertionError(msg)
-    check(desktop.locator('.progress-bar-chart').get_attribute('role')=='group','gráfico interativo não achata botões como role=img')
-    zero=desktop.locator('.progress-zero-line').bounding_box(); bars=desktop.locator('.progress-bar-hit').all()
-    check(all(abs((b.bounding_box()['y']+b.bounding_box()['height'])-zero['y']) <= 2 for b in bars),'barras de magnitude terminam na linha zero')
-    check(desktop.locator('.progress-line-path').count()==2,'dado ausente quebra a linha em segmentos')
-    desktop.locator('.progress-bar-hit').nth(0).hover(); desktop.wait_for_timeout(30)
-    check(not desktop.locator('[data-progress-tooltip-popover]').is_hidden(),'hover mostra tooltip completo no desktop')
-    check('3 atividades' in desktop.locator('[data-progress-tooltip-popover]').inner_text(),'tooltip inclui contexto factual')
-    desktop.locator('.progress-line-point').nth(0).focus(); desktop.wait_for_timeout(20)
-    check('8,2 km' in desktop.locator('[data-progress-tooltip-popover]').inner_text(),'foco por teclado revela detalhe')
-    desktop.click('body', position={'x':5,'y':5}); check(desktop.locator('[data-progress-tooltip-popover]').is_hidden(),'tooltip pode ser dispensado')
-    check(not errors,'sem erros JS no desktop')
+    browser = p.chromium.launch(headless=True, executable_path='/usr/bin/chromium', args=['--no-sandbox'])
+    checks = 0
 
-    mobile=browser.new_page(viewport={'width':390,'height':844})
-    mobile.set_content(HTML); mobile.add_style_tag(path=str(ROOT/'public/assets/css/sport-hub.css')); mobile.add_script_tag(path=str(ROOT/'public/assets/js/progresso.js'))
-    check(mobile.locator('.progress-filterbar').bounding_box()['width'] <= 390,'filtros cabem no mobile sem reduzir controles a microbotões')
-    mobile.locator('.progress-bar-hit').nth(1).scroll_into_view_if_needed(); mobile.wait_for_timeout(30); mobile.locator('.progress-bar-hit').nth(1).click(); mobile.wait_for_timeout(10)
-    check(not mobile.locator('[data-progress-tooltip-popover]').is_hidden(),'toque abre tooltip no mobile')
-    mobile.locator('.progress-disclosure').evaluate('el=>el.open=true')
-    grid=mobile.locator('.progress-small-multiples').evaluate("el=>getComputedStyle(el).gridTemplateColumns")
-    check(' ' not in grid.strip(),'small multiples viram uma coluna no mobile')
-    check(mobile.locator('.progress-kpi-strip').evaluate("el=>getComputedStyle(el).overflowX") in ['auto','scroll'],'KPIs densos podem rolar horizontalmente em vez de esmagar')
-    browser.close(); print(f'✓ browser progress product UX: {n} assertions')
+    def check(value, message):
+        global checks
+        checks += 1
+        if not value:
+            raise AssertionError(message)
+
+    def load(page, html):
+        page.set_content(html)
+        page.add_style_tag(path=str(STYLE))
+        page.add_style_tag(path=str(INSIGHTS))
+        page.add_style_tag(path=str(CSS))
+        page.add_style_tag(path=str(UI_REFRESH))
+        page.add_script_tag(path=str(JS))
+
+    page = browser.new_page(viewport={'width': 1440, 'height': 1000})
+    load(page, overview('light'))
+    order = [page.locator(f'[data-order="{name}"]').bounding_box()['y'] for name in ['summary', 'highlights', 'sports', 'goals', 'consistency', 'distribution']]
+    check(order == sorted(order), 'Overview mantém hierarquia principal')
+    check(page.locator('.progress-sport-nav > a:visible').count() <= 6, 'Desktop limita tabs esportivas diretas')
+    check(page.locator('.progress-sport-nav details').count() == 1, 'Desktop oferece More')
+    page.locator('.progress-sport-nav summary').click()
+    check(page.locator('.progress-sport-nav .progress-nav-menu a:visible').count() >= 15, 'More mantém esportes restantes acessíveis')
+    menu_box = page.locator('.progress-sport-nav .progress-nav-menu').bounding_box()
+    check(menu_box['x'] >= 0 and menu_box['x'] + menu_box['width'] <= 1440, 'More desktop permanece dentro da viewport')
+    check(page.locator('.progress-filterbar select[name="period"]').count() == 1 and page.locator('.progress-filterbar select[name="metric"]').count() == 0, 'Topo mantém apenas seletor de período')
+    check(page.locator('[data-order="sports"] > .progress-sport-list > .progress-sport-row').count() == 7, 'Your sports limita a lista inicial a sete')
+    page.locator('[data-test-sports-disclosure] > summary').click()
+    check(page.locator('.progress-sport-list-extra .progress-sport-row:visible').count() == len(SPORTS) - 7, 'Your sports expandido mostra todos os restantes')
+    check('nav.goals' not in page.locator('main').inner_text(), 'Nenhuma chave nav.goals vaza na UI')
+
+    page.set_content(running('dark'))
+    page.add_style_tag(path=str(STYLE)); page.add_style_tag(path=str(INSIGHTS)); page.add_style_tag(path=str(CSS)); page.add_style_tag(path=str(UI_REFRESH)); page.add_script_tag(path=str(JS))
+    check(page.locator('.progress-chart-switch').count() == 1, 'Corrida move alternância de métrica para o gráfico')
+    check(page.locator('.progress-filterbar select').count() == 1, 'Corrida não recoloca métrica no filtro global')
+    check(page.evaluate("document.documentElement.dataset.theme") == 'dark', 'Corrida renderiza em dark')
+
+    page.set_content(strength('light'))
+    page.add_style_tag(path=str(STYLE)); page.add_style_tag(path=str(INSIGHTS)); page.add_style_tag(path=str(CSS)); page.add_style_tag(path=str(UI_REFRESH)); page.add_script_tag(path=str(JS))
+    page.locator('[data-progress-exercise-search]').fill('supino')
+    check(page.locator('[data-progress-exercise="agachamento"]').get_attribute('hidden') is not None, 'Busca de exercício segue funcionando')
+
+    page.set_content(athletics('dark'))
+    page.add_style_tag(path=str(STYLE)); page.add_style_tag(path=str(INSIGHTS)); page.add_style_tag(path=str(CSS)); page.add_style_tag(path=str(UI_REFRESH)); page.add_script_tag(path=str(JS))
+    check(page.locator('.progress-event-nav > a:visible').count() <= 6, 'Atletismo limita provas diretas')
+    page.locator('.progress-event-nav summary').click()
+    check(page.locator('.progress-event-nav .progress-nav-menu a:visible').count() >= 6, 'More de Atletismo mantém provas acessíveis')
+    check(page.locator('.progress-event-nav .progress-nav-current-item[aria-current="page"]').count() == 1, 'More de Atletismo indica prova atual')
+
+    for width in [360, 390, 430, 768, 1024, 1366, 1440, 1920, 2560]:
+        height = 844 if width <= 430 else 900
+        vp = browser.new_page(viewport={'width': width, 'height': height})
+        load(vp, overview('dark' if width in (390, 1440) else 'light'))
+        check(vp.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1'), f'Overview sem overflow global em {width}px')
+        shell = vp.locator('.progress-page').bounding_box()
+        check(shell['width'] <= min(width, 1236) + 1, f'Shell respeita max-width em {width}px')
+        if width >= 1366:
+            left = shell['x']
+            right = width - (shell['x'] + shell['width'])
+            check(abs(left - right) <= 2, f'Shell centralizada em {width}px')
+        if width <= 620:
+            check(vp.locator('.progress-sport-nav > a:visible').count() <= 3, f'Mobile limita tabs diretas em {width}px')
+            vp.locator('.progress-sport-nav summary').click()
+            box = vp.locator('.progress-sport-nav .progress-nav-menu').bounding_box()
+            check(box['x'] >= 0 and box['x'] + box['width'] <= width + 1, f'More mobile cabe em {width}px')
+            menu_z = int(vp.locator('.progress-sport-nav .progress-nav-menu').evaluate("el => getComputedStyle(el).zIndex"))
+            tools_z = int(vp.locator('.floating-utility-dock').evaluate("el => getComputedStyle(el).zIndex"))
+            check(menu_z > tools_z, f'More fica acima das ferramentas flutuantes em {width}px')
+        vp.close()
+
+    browser.close()
+    print(f'✓ browser progress polish UX: {checks} assertions')

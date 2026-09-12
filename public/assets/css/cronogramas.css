@@ -1268,7 +1268,7 @@ html.schedule-actions-open {
     .week-calendar { grid-template-columns: 52px repeat(7, minmax(var(--day-min-width), 1fr)); }
     .calendar-corner, .day-header { height: 40px; font-size: .78rem; }
     .time-track span { right: 5px; font-size: .64rem; }
-    .workout-card { left: 3px; right: 3px; padding: 4px 5px; }
+    .workout-card { left: 3px; right: 3px; padding: 5px 6px; }
 
     .workout-preview { align-items: end; padding: 0; }
     .workout-preview-dialog { width: 100%; max-height: 90dvh; padding: 20px 14px 16px; border-radius: var(--radius-modal) var(--radius-modal) 0 0; }
@@ -1686,7 +1686,7 @@ html.schedule-actions-open {
         align-items: center;
         gap: 8px;
         margin: 0 0 8px;
-        padding: 7px 9px;
+        padding: 8px 10px;
         border: 1px solid var(--ui-border);
         border-radius: var(--radius-card);
         background: var(--ui-panel-soft);
@@ -2281,7 +2281,7 @@ html.calendar-quick-open{overflow:hidden}
     grid-template-columns: 30px minmax(0, 1fr);
     align-items: center;
     gap: 8px;
-    padding: 8px 9px;
+    padding: 10px 12px;
     border: 1px solid var(--ui-border);
     border-radius: var(--radius-card);
     background: var(--ui-panel);

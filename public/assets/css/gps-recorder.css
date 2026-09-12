@@ -408,7 +408,7 @@
 .gps-review-map { min-height: 240px; overflow: hidden; border-radius: var(--radius-card); background: var(--ui-panel-soft); }
 .gps-segments-review { margin-top: 18px; }
 .gps-segments-review [data-gps-segments] { display: grid; gap: 7px; margin-top: 10px; }
-.gps-segment-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 9px; padding: 8px 10px; border: 1px solid var(--ui-border-soft); border-radius: var(--radius-detail); }
+.gps-segment-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 9px; padding: 9px 12px; border: 1px solid var(--ui-border-soft); border-radius: var(--radius-detail); }
 .gps-segment-row span { color: var(--ui-muted); font-size: .78rem; }
 .gps-review-note { color: var(--ui-muted); font-size: .82rem; line-height: 1.5; }
 

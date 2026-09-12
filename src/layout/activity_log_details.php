@@ -6,6 +6,8 @@ $detailEquipmentSelectedMap = array_fill_keys($detailEquipmentSelected, true);
 $detailEquipmentLoaded = !isset($activityEditorEquipmentLoaded) || !empty($activityEditorEquipmentLoaded);
 $detailObservations = (string) ($activityEditorObservations ?? '');
 $detailVisibility = (string) ($activityEditorVisibility ?? 'privado');
+$detailCompetitions = is_array($activityEditorCompetitions ?? null) ? $activityEditorCompetitions : [];
+$detailCompetition = trim((string) ($activityEditorCompetition ?? ''));
 ?>
 <div class="activity-log-details">
     <section class="activity-effort-section" data-effort-selector>
@@ -16,7 +18,19 @@ $detailVisibility = (string) ($activityEditorVisibility ?? 'privado');
     </section>
 
     <section class="activity-enrichment-section">
-        <div class="activity-enrichment-heading"><div><strong><?php echo stridebr_e(stridebr_t('activity.details')); ?></strong></div><div class="activity-enrichment-actions"><button type="button" class="optional-field-chip" data-toggle-log-detail="equipment" aria-expanded="<?php echo $detailEquipmentSelected ? 'true' : 'false'; ?>"><?php echo stridebr_e(stridebr_t('activity.equipment_add')); ?></button></div></div>
+        <div class="activity-enrichment-heading"><div><strong><?php echo stridebr_e(stridebr_t('activity.details')); ?></strong></div><div class="activity-enrichment-actions"><button type="button" class="optional-field-chip" data-toggle-log-detail="competition" aria-expanded="<?php echo $detailCompetition !== '' ? 'true' : 'false'; ?>"><?php echo stridebr_e(stridebr_t('competitions.competition')); ?></button><button type="button" class="optional-field-chip" data-toggle-log-detail="equipment" aria-expanded="<?php echo $detailEquipmentSelected ? 'true' : 'false'; ?>"><?php echo stridebr_e(stridebr_t('activity.equipment_add')); ?></button></div></div>
+        <div class="activity-contextual-detail" data-log-detail="competition"<?php echo $detailCompetition !== '' ? '' : ' hidden'; ?>>
+            <div class="activity-detail-heading"><div><strong><?php echo stridebr_e(stridebr_t('competitions.competition')); ?></strong><span><?php echo stridebr_e(stridebr_t('competitions.activity_help')); ?></span></div><div class="activity-detail-heading-actions"><a href="/user/competicoes.php?new=1"><?php echo stridebr_e(stridebr_t('competitions.register')); ?></a><button type="button" class="activity-inline-action" data-close-log-detail="competition"><?php echo stridebr_e(stridebr_t('common.close')); ?></button></div></div>
+            <select name="idcompeticao" aria-label="<?php echo stridebr_e(stridebr_t('competitions.competition')); ?>">
+                <option value=""><?php echo stridebr_e(stridebr_t('competitions.none')); ?></option>
+                <?php foreach ($detailCompetitions as $competition): $competitionId=(string)($competition['idcompeticao']??''); ?>
+                    <option value="<?php echo stridebr_e($competitionId); ?>" data-competition-start="<?php echo stridebr_e((string)($competition['data_inicio']??'')); ?>" data-competition-end="<?php echo stridebr_e((string)($competition['data_fim']??'')); ?>"<?php echo $detailCompetition === $competitionId ? ' selected' : ''; ?>><?php echo stridebr_e((string)($competition['nome']??'')); ?> · <?php echo stridebr_e(stridebr_format_date_short(new DateTimeImmutable((string)($competition['data_inicio']??'today')))); ?></option>
+                <?php endforeach; ?>
+            </select>
+            <small class="activity-field-help"><?php echo stridebr_e(stridebr_t('competitions.link_not_automatic')); ?></small>
+            <small class="activity-field-help" data-competition-date-warning hidden><?php echo stridebr_e(stridebr_t('competitions.date_outside')); ?></small>
+        </div>
+
         <div class="activity-contextual-detail" data-log-detail="equipment"<?php echo $detailEquipmentSelected ? '' : ' hidden'; ?>>
             <div class="activity-detail-heading"><div><strong><?php echo stridebr_e(stridebr_t('activity.equipment')); ?></strong><span><?php echo stridebr_e(stridebr_t('activity.equipment_help')); ?></span></div><div class="activity-detail-heading-actions"><a href="/user/equipamentos.php"><?php echo stridebr_e(stridebr_t('activity.manage')); ?></a><button type="button" class="activity-inline-action" data-close-log-detail="equipment"><?php echo stridebr_e(stridebr_t('common.close')); ?></button></div></div>
             <div data-activity-equipment-host data-selected-equipment="<?php echo stridebr_e(implode(',', $detailEquipmentSelected)); ?>">

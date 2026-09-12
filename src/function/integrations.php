@@ -1360,9 +1360,25 @@ function stridebr_strava_webhook_update_activity(PDO $pdo, string $userId, strin
         $modalidade = atividadeArquivoModalidade($pdo, $userId, stridebr_integrations_sport_slug('strava', (string) $activity['sport']));
         $pdo->prepare('UPDATE registros_atividade SET idmodelo=:model, idmodalidade=:modality, data_atualizacao=NOW() WHERE idregistro=:id AND idusuario=:user')->execute([':model'=>$modalidade['idmodelo'], ':modality'=>$modalidade['idmodalidade'], ':id'=>$id, ':user'=>$userId]);
     }
-    $stmt = $pdo->prepare("UPDATE registros_atividade SET titulo = CASE WHEN :title_update THEN :title ELSE titulo END, data_inicio = :start, data_fim = :end, visibilidade = CASE WHEN :private THEN 'privado' ELSE visibilidade END, data_atualizacao = NOW() WHERE idregistro=:id AND idusuario = :user AND origem_provedor = 'strava' AND id_externo = :external AND excluido_em IS NULL");
+    $titleUpdate = array_key_exists('title', $updates);
+    $stmt = $pdo->prepare("UPDATE registros_atividade SET titulo = CASE WHEN CAST(:title_update AS boolean) THEN :title ELSE titulo END, data_inicio = :start, data_fim = :end, visibilidade = CASE WHEN CAST(:private AS boolean) THEN 'privado' ELSE visibilidade END, data_atualizacao = NOW() WHERE idregistro=:id AND idusuario = :user AND origem_provedor = 'strava' AND id_externo = :external AND excluido_em IS NULL");
     $start = new DateTimeImmutable((string) $activity['start_at']); $duration = (int) ($activity['duration_s'] ?? 0);
-    $stmt->execute([':title'=>(string) $activity['title'], ':title_update'=>array_key_exists('title',$updates), ':start'=>$start->setTimezone(new DateTimeZone('America/Sao_Paulo'))->format('Y-m-d H:i:s'), ':end'=>$duration > 0 ? $start->modify('+' . $duration . ' seconds')->setTimezone(new DateTimeZone('America/Sao_Paulo'))->format('Y-m-d H:i:s') : null, ':private'=>$setPrivacy, ':id'=>$id, ':user'=>$userId, ':external'=>$externalId]);
+    $stmt->execute([':title'=>(string) $activity['title'], ':title_update'=>$titleUpdate ? 'true' : 'false', ':start'=>$start->setTimezone(new DateTimeZone('America/Sao_Paulo'))->format('Y-m-d H:i:s'), ':end'=>$duration > 0 ? $start->modify('+' . $duration . ' seconds')->setTimezone(new DateTimeZone('America/Sao_Paulo'))->format('Y-m-d H:i:s') : null, ':private'=>$setPrivacy ? 'true' : 'false', ':id'=>$id, ':user'=>$userId, ':external'=>$externalId]);
+}
+
+function stridebr_strava_webhook_record_failure(PDO $pdo, array $event, Throwable $error): array
+{
+    $attempts = (int) ($event['attempts'] ?? 0) + 1;
+    $code = $error instanceof StridebrIntegrationError ? $error->internalCode : 'provider_failed';
+    $retry = $error instanceof StridebrIntegrationError ? max(0, $error->retryAfter) : 0;
+    $terminal = $attempts >= 8 || $code === 'reauthorize';
+    $seconds = $retry ?: min(21600, 60 * (2 ** min(8, $attempts)));
+    $status = $terminal ? 'failed' : 'pending';
+    $stmt = $pdo->prepare("UPDATE integracao_webhook_eventos SET status=:status, retry_at=NOW() + (:seconds * INTERVAL '1 second'), processing_started_at=NULL, processed_at=CASE WHEN CAST(:terminal AS boolean) THEN NOW() ELSE NULL END, last_error_code=:code WHERE id=:id AND status='processing'");
+    foreach ($event['_ids'] ?? [$event['id']] as $id) {
+        $stmt->execute([':status'=>$status, ':seconds'=>$seconds, ':terminal'=>$terminal ? 'true' : 'false', ':code'=>substr($code, 0, 64), ':id'=>$id]);
+    }
+    return ['status'=>$status, 'terminal'=>$terminal, 'code'=>$code, 'retry_seconds'=>$seconds];
 }
 
 function stridebr_strava_webhook_process(PDO $pdo, array $event): string

@@ -1048,8 +1048,8 @@ textarea {
 .settings-sport-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    border-top: 1px solid #e2e6ec;
-    border-left: 1px solid #e2e6ec;
+    border-top: 1px solid var(--ui-border-soft);
+    border-left: 1px solid var(--ui-border-soft);
 }
 
 .settings-sport-card {
@@ -1059,9 +1059,9 @@ textarea {
     grid-template-columns: 28px minmax(0, 1fr) auto;
     align-items: center;
     gap: 8px;
-    padding: 8px 9px;
-    border-right: 1px solid #e2e6ec;
-    border-bottom: 1px solid #e2e6ec;
+    padding: 10px 12px;
+    border-right: 1px solid var(--ui-border-soft);
+    border-bottom: 1px solid var(--ui-border-soft);
     background: var(--ui-panel);
 }
 
@@ -1070,7 +1070,7 @@ textarea {
 }
 
 .settings-sport-card.is-practiced {
-    background: #f7f8fb;
+    background: var(--ui-panel-soft);
     box-shadow: inset 2px 0 0 var(--ui-accent);
 }
 
@@ -2570,7 +2570,7 @@ input[type="submit"].is-submitting {
 @media(max-width:800px){.trainer-athlete-actions{width:100%}.trainer-prescription-modal{align-items:end;padding:0}.trainer-prescription-dialog{width:100%;max-height:94dvh;border-radius:var(--radius-modal) var(--radius-modal) 0 0}.trainer-prescription-dialog .trainer-form-grid{grid-template-columns:1fr 1fr}.trainer-prescription-dialog .trainer-form-wide{grid-column:1/-1}.trainer-invite-form{grid-template-columns:1fr}.trainer-permissions{grid-template-columns:1fr}.trainer-prescription-dialog .prescription-exercise-row{grid-template-columns:1fr 1fr 1fr 34px}}
 
 .library-more-menu{position:relative;margin-left:2px}.library-more-menu>summary{display:grid;place-items:center;width:31px;height:31px;border:1px solid var(--ui-border);border-radius:var(--radius-detail);background:var(--ui-panel);color:var(--ui-text-secondary);cursor:pointer;list-style:none;font-weight:800}.library-more-menu>summary::-webkit-details-marker{display:none}.library-more-menu>div{position:absolute;z-index:var(--z-dropdown);right:0;top:calc(100% + 4px);min-width:170px;padding:4px;border:1px solid var(--ui-border);border-radius:var(--radius-menu);background:var(--ui-panel);box-shadow:0 12px 30px rgba(15,23,42,.16)}.library-more-menu form{margin:0!important}.library-more-menu button{width:100%;min-height:30px;padding:6px 8px;border:0;border-radius:0;background:transparent;color:var(--ui-text-secondary);font:inherit;font-size:.71rem;font-weight:750;text-align:left;cursor:pointer}.library-more-menu button:hover{background:var(--ui-surface-hover)}.library-more-menu button.is-danger{color:var(--ui-danger)}.workout-library-card-actions{justify-content:flex-end}.workout-library-card-actions .library-more-menu{margin-left:0}.library-editor-dialog{width:min(980px,100%)}.library-editor-dialog .workout-library-form{grid-template-columns:minmax(0,2fr) minmax(90px,.55fr) minmax(0,1.25fr) minmax(190px,1fr)!important;gap:10px 11px}.library-editor-dialog .workout-library-form .is-wide:first-of-type{grid-column:span 2}.library-editor-dialog .workout-library-form>label:nth-of-type(4){grid-column:span 1!important}.library-editor-dialog .workout-library-form>label:nth-of-type(5),.library-editor-dialog .workout-library-propagate,.library-editor-dialog .workout-library-form-actions{grid-column:1/-1!important}.library-exercise-dialog{width:min(940px,100%)}.library-exercise-dialog .library-exercise-form{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:10px 12px}.library-exercise-dialog .library-exercise-form>label:first-of-type,.library-exercise-dialog .library-exercise-form>label:nth-of-type(2),.library-exercise-dialog .library-form-columns,.library-exercise-dialog .library-modal-actions{grid-column:1/-1}.library-exercise-dialog .library-exercise-form>label:nth-of-type(2) textarea{min-height:76px}.library-exercise-dialog .library-selector-panel{margin:0}.library-exercise-dialog .library-modal-actions{justify-content:flex-end}
-@media(min-width:980px){.library-exercise-grid-modern{display:grid;grid-template-columns:1fr!important;gap:5px}.library-exercise-grid-modern .library-exercise-card{display:grid;grid-template-columns:72px minmax(260px,1.45fr) minmax(260px,1.15fr) auto;align-items:center;gap:11px;min-height:64px;padding:8px 10px}.library-exercise-grid-modern .library-exercise-card:not(:has(.library-exercise-media)){grid-template-columns:minmax(260px,1.45fr) minmax(260px,1.15fr) auto}.library-exercise-grid-modern .library-exercise-media{width:72px;aspect-ratio:4/3}.library-exercise-main{min-width:0;display:grid;gap:3px}.library-exercise-grid-modern .library-card-top{display:flex;align-items:center;gap:7px;min-width:0}.library-exercise-grid-modern .library-card-top h2{min-width:0;flex:1}.library-exercise-grid-modern .library-exercise-description{min-height:0;-webkit-line-clamp:1;white-space:normal}.library-exercise-grid-modern .library-exercise-tags{display:grid;gap:3px}.library-exercise-grid-modern .library-exercise-tags span{display:grid;grid-template-columns:72px minmax(0,1fr);gap:6px}.library-exercise-grid-modern .library-exercise-tags b{color:var(--ui-muted);font-size:.61rem;text-transform:uppercase;letter-spacing:.025em}.library-exercise-grid-modern .library-card-actions{justify-content:flex-end;flex-wrap:nowrap;margin-top:0;padding-top:0;border-top:0}.library-exercise-grid-modern .library-card-actions form:last-child{margin-left:0}.library-exercise-grid-modern .exercise-video-link{width:max-content}}
+@media(min-width:980px){.library-exercise-grid-modern{display:grid;grid-template-columns:1fr!important;gap:5px}.library-exercise-grid-modern .library-exercise-card{display:grid;grid-template-columns:72px minmax(260px,1.45fr) minmax(260px,1.15fr) auto;align-items:center;gap:11px;min-height:64px;padding:10px 12px}.library-exercise-grid-modern .library-exercise-card:not(:has(.library-exercise-media)){grid-template-columns:minmax(260px,1.45fr) minmax(260px,1.15fr) auto}.library-exercise-grid-modern .library-exercise-media{width:72px;aspect-ratio:4/3}.library-exercise-main{min-width:0;display:grid;gap:3px}.library-exercise-grid-modern .library-card-top{display:flex;align-items:center;gap:7px;min-width:0}.library-exercise-grid-modern .library-card-top h2{min-width:0;flex:1}.library-exercise-grid-modern .library-exercise-description{min-height:0;-webkit-line-clamp:1;white-space:normal}.library-exercise-grid-modern .library-exercise-tags{display:grid;gap:3px}.library-exercise-grid-modern .library-exercise-tags span{display:grid;grid-template-columns:72px minmax(0,1fr);gap:6px}.library-exercise-grid-modern .library-exercise-tags b{color:var(--ui-muted);font-size:.61rem;text-transform:uppercase;letter-spacing:.025em}.library-exercise-grid-modern .library-card-actions{justify-content:flex-end;flex-wrap:nowrap;margin-top:0;padding-top:0;border-top:0}.library-exercise-grid-modern .library-card-actions form:last-child{margin-left:0}.library-exercise-grid-modern .exercise-video-link{width:max-content}}
 @media(max-width:760px){.library-editor-dialog,.library-exercise-dialog{max-height:calc(100dvh - max(12px,env(safe-area-inset-top)));padding-bottom:max(15px,env(safe-area-inset-bottom))!important}.library-editor-dialog .workout-library-form,.library-exercise-dialog .library-exercise-form{grid-template-columns:1fr 1fr!important}.library-editor-dialog .workout-library-form .is-wide:first-of-type{grid-column:1/-1}.library-editor-dialog .workout-library-form>label:nth-of-type(4){grid-column:1/-1!important}}
 @media(max-width:520px){.library-editor-dialog .workout-library-form,.library-exercise-dialog .library-exercise-form{grid-template-columns:1fr!important}.library-editor-dialog .workout-library-form .is-wide:first-of-type,.library-exercise-dialog .library-exercise-form>*{grid-column:1!important}}
 .agenda-actions{align-items:flex-start}.agenda-more-menu>div{right:0;top:calc(100% + 4px)}.agenda-more-menu>div>button{width:100%;min-height:30px;padding:6px 8px;border:0;border-radius:0;background:transparent;color:var(--ui-text-secondary);font:inherit;font-size:.71rem;font-weight:750;text-align:left;cursor:pointer}.agenda-more-menu>div>button:hover{background:var(--ui-surface-hover)}

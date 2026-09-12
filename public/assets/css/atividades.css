@@ -229,7 +229,7 @@
     width: 100%;
     min-height: 35px;
     margin: 0;
-    padding: 7px 9px;
+    padding: 8px 10px;
     border: 1px solid var(--ui-border);
     border-radius: var(--radius-control);
     outline: 0;
@@ -1080,7 +1080,7 @@ html[data-theme="dark"] .activity-detail-energy small {
 .activity-detail-stats > div {
     display: grid;
     gap: 3px;
-    padding: 9px;
+    padding: 10px 12px;
     background: var(--ui-panel);
 }
 
@@ -1424,7 +1424,7 @@ html.activity-detail-open body {
     align-items: center;
     gap: 8px;
     min-height: 35px;
-    padding: 7px 9px;
+    padding: 8px 10px;
     border: 1px solid var(--ui-border);
     border-radius: var(--radius-control);
     background: var(--ui-panel-soft);
@@ -1579,7 +1579,7 @@ html.activity-detail-open body {
 .activity-route-attribution { display: block; padding: 4px 10px 9px; color: var(--ui-muted); font-size: .65rem; line-height: 1.35; }
 .activity-detail-route-map { z-index: 0; height: 250px; border: 1px solid var(--ui-border); border-radius: var(--radius-card); background: var(--ui-panel-soft); }
 .activity-detail-route-metrics { display: grid; grid-template-columns: repeat(2, 1fr); margin-top: 7px; border: 1px solid var(--ui-border-soft); }
-.activity-detail-route-metrics span { display: grid; gap: 3px; padding: 8px; }
+.activity-detail-route-metrics span { display: grid; gap: 3px; padding: 9px 10px; }
 .activity-detail-route-metrics span + span { border-left: 1px solid var(--ui-border-soft); }
 .activity-detail-route-metrics small, .activity-elevation-profile > span { color: var(--ui-muted); font-size: .68rem; }
 .activity-elevation-profile { display: grid; gap: 5px; margin-top: 10px; }
@@ -2684,19 +2684,19 @@ html.activity-detail-open .floating-utility-dock{display:none!important}
   .activity-detail-section{padding:10px 12px}
   .activity-detail-section h3{margin-bottom:7px;font-size:.68rem}
   .activity-detail-section p{font-size:.77rem;line-height:1.45}
-  .activity-detail-stats>div{padding:8px 9px}
+  .activity-detail-stats>div{padding:9px 10px}
   .activity-detail-stats span{font-size:.62rem}
   .activity-detail-stats strong{font-size:.78rem}
   .activity-detail-line{padding:8px 12px}
   .activity-detail-route-map{height:190px}
   .activity-elevation-profile svg{height:92px!important}
-  .activity-detail-route-metrics span{padding:7px}
+  .activity-detail-route-metrics span{padding:8px 9px}
   .activity-strength-identity>div{padding:9px 11px}
   .activity-strength-identity span{font-size:.6rem}
   .activity-strength-identity strong{font-size:.8rem}
   .activity-strength-code strong{font-size:.96rem}
   .activity-strength-compact-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .activity-strength-compact-stats>div{padding:8px 9px}
+  .activity-strength-compact-stats>div{padding:9px 10px}
   .activity-strength-unit{padding-top:9px;padding-bottom:9px}
   .activity-detail-actions{
     position:sticky!important;
@@ -3403,7 +3403,7 @@ html[data-theme="dark"] .activity-post-save-preview{background:#0d1117}
 .activity-history-left{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-width:0;min-height:0;align-content:start}
 .activity-history-left>.activity-history{min-width:0}
 .activity-history-summary{margin:0}
-.activity-history-summary article{gap:1px;padding:8px 11px}
+.activity-history-summary article{gap:1px;padding:10px 12px}
 .activity-history-summary span{font-size:.66rem}
 .activity-history-summary strong{font-size:1.08rem;line-height:1.2}
 .activity-history-summary small{font-size:.59rem;line-height:1.2}

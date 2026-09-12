@@ -20,6 +20,23 @@
         if (active) region.setAttribute('aria-busy', 'true')
         else region.removeAttribute('aria-busy')
     }
+    const savePeriodPreference = period => {
+        if (!['all', '4w', '12w', '6m', '1y'].includes(period)) return
+        const form = pageRoot()?.querySelector('[data-progress-preference-url]')
+        const token = String(form?.dataset?.progressCsrfToken || '').trim()
+        const endpoint = String(form?.dataset?.progressPreferenceUrl || '').trim()
+        if (!token || !endpoint) return
+        const body = new FormData()
+        body.set('csrf_token', token)
+        body.set('period', period)
+        const request = window.StrideBRNet?.fetch || fetch
+        Promise.resolve(request(endpoint, {
+            method: 'POST',
+            body,
+            headers: {'Accept': 'application/json'},
+            credentials: 'same-origin'
+        }, 8000)).catch(() => {})
+    }
     const navigate = async (target, push = true) => {
         const url = new URL(target, window.location.href)
         controller?.abort()
@@ -53,6 +70,7 @@
             else current.replaceWith(next)
             if (doc.title) document.title = doc.title
             if (push) history.pushState({progress: true}, '', `${url.pathname}${url.search}${url.hash}`)
+            activateBenchmarkDialog()
             requestAnimationFrame(() => window.scrollTo({top: Math.min(scrollY, document.documentElement.scrollHeight), behavior: 'auto'}))
         } catch (error) {
             if (error?.name === 'AbortError') return
@@ -69,6 +87,55 @@
     const hideTooltip = () => {
         const tip = tooltip()
         if (tip) tip.hidden = true
+    }
+    const closeNavMenus = except => {
+        document.querySelectorAll('[data-progress-nav-more][open]').forEach(menu => {
+            if (menu !== except) menu.removeAttribute('open')
+        })
+    }
+    const syncBenchmarkOfficialContext = dialog => {
+        if (!dialog) return
+        const official = dialog.querySelector('[data-progress-reported-official]')
+        const context = dialog.querySelector('[data-progress-benchmark-context]')
+        const officialContext = dialog.querySelector('[data-progress-official-context]')
+        const competitionField = dialog.querySelector('[data-progress-benchmark-competition-field]')
+        const competition = dialog.querySelector('[data-progress-benchmark-competition]')
+        if (!context) return
+        if (official && officialContext && official.checked) {
+            context.value = 'competicao'
+            context.disabled = true
+            officialContext.disabled = false
+            if (competition) competition.required = !competition.disabled
+        } else {
+            context.disabled = false
+            if (officialContext) officialContext.disabled = true
+            if (competition) competition.required = false
+        }
+        if (competitionField) competitionField.hidden = context.value !== 'competicao'
+    }
+    const activateBenchmarkDialog = () => {
+        const dialog = pageRoot()?.querySelector('[data-progress-benchmark-dialog]')
+        if (!dialog) return
+        syncBenchmarkOfficialContext(dialog)
+        if (!dialog.dataset.progressDialogBound) {
+            dialog.dataset.progressDialogBound = '1'
+            dialog.addEventListener('close', () => {
+                const returnUrl = String(dialog.dataset.returnUrl || '').trim()
+                if (!returnUrl) return
+                const current = `${window.location.pathname}${window.location.search}${window.location.hash}`
+                const target = new URL(returnUrl, window.location.href)
+                const targetValue = `${target.pathname}${target.search}${target.hash}`
+                if (current !== targetValue) history.replaceState({progress: true}, '', targetValue)
+            })
+            dialog.addEventListener('click', event => {
+                if (event.target === dialog) dialog.close()
+            })
+            dialog.querySelector('[data-progress-benchmark-context]')?.addEventListener('change', () => syncBenchmarkOfficialContext(dialog))
+            dialog.querySelector('[data-progress-reported-official]')?.addEventListener('change', () => syncBenchmarkOfficialContext(dialog))
+        }
+        if (typeof dialog.showModal !== 'function') return
+        if (dialog.hasAttribute('open')) dialog.removeAttribute('open')
+        if (!dialog.open) dialog.showModal()
     }
     const showTooltip = target => {
         const tip = tooltip()
@@ -94,6 +161,8 @@
             return
         }
         hideTooltip()
+        const navMenu = event.target.closest?.('[data-progress-nav-more]')
+        closeNavMenus(navMenu)
         const link = event.target.closest?.('[data-progress-page] a[href]')
         if (!shouldHandleLink(link, event)) return
         event.preventDefault()
@@ -114,11 +183,24 @@
         if (event.target.closest?.('[data-progress-tooltip]')) hideTooltip()
     })
     window.addEventListener('scroll', hideTooltip, {passive: true})
-    window.addEventListener('resize', hideTooltip)
+    window.addEventListener('resize', () => {
+        hideTooltip()
+        closeNavMenus()
+    })
+    document.addEventListener('keydown', event => {
+        if (event.key !== 'Escape') return
+        const openMenu = document.querySelector('[data-progress-nav-more][open]')
+        if (!openMenu) return
+        openMenu.removeAttribute('open')
+        openMenu.querySelector('summary')?.focus()
+    })
 
     document.addEventListener('change', event => {
+        const official = event.target.closest?.('[data-progress-reported-official]')
+        if (official) syncBenchmarkOfficialContext(official.closest('[data-progress-benchmark-dialog]'))
         const control = event.target.closest?.('[data-progress-page] [data-progress-auto-submit]')
         if (!control?.form) return
+        if (control.matches('[data-progress-period-select]')) savePeriodPreference(String(control.value || ''))
         const form = control.form
         const url = new URL(form.action || '/user/progresso.php', window.location.href)
         const params = new URLSearchParams(new FormData(form))
@@ -133,7 +215,16 @@
         url.search = new URLSearchParams(new FormData(form)).toString()
         navigate(url, true)
     })
+    document.addEventListener('input', event => {
+        const input = event.target.closest?.('[data-progress-exercise-search]')
+        if (!input) return
+        const value = String(input.value || '').trim().toLocaleLowerCase()
+        document.querySelectorAll('[data-progress-exercise-list] [data-progress-exercise]').forEach(item => {
+            item.hidden = value !== '' && !String(item.dataset.progressExercise || '').includes(value)
+        })
+    })
     window.addEventListener('popstate', () => {
         if (isProgressUrl(window.location.href)) navigate(window.location.href, false)
     })
+    activateBenchmarkDialog()
 })()

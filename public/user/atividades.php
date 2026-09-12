@@ -14,6 +14,7 @@ require_once dirname(__DIR__, 2) . '/src/function/product_analytics.php';
 require_once dirname(__DIR__, 2) . '/src/function/cronograma.php';
 require_once dirname(__DIR__, 2) . '/src/function/strength_activity.php';
 require_once dirname(__DIR__, 2) . '/src/function/activity_energy.php';
+require_once dirname(__DIR__, 2) . '/src/function/competitions.php';
 require_once dirname(__DIR__, 2) . '/src/includes/sport_icons.php';
 require_once dirname(__DIR__, 2) . '/src/layout/sport_picker.php';
 require_once dirname(__DIR__, 2) . '/src/layout/activity_strength_editor.php';
@@ -135,6 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'ocultar_inicio_m' => $_POST['ocultar_inicio_m'] ?? null,
                 'ocultar_fim_m' => $_POST['ocultar_fim_m'] ?? null,
                 'esforco_percebido' => $_POST['esforco_percebido'] ?? '',
+                'idcompeticao' => $_POST['idcompeticao'] ?? '',
                 'idcronograma' => $treinoSelecionado['idcronograma'] ?? null,
                 'idtreino_cronograma' => $treinoSelecionado['idtreino'] ?? null,
                 'data_ocorrencia_origem' => $ocorrenciaPlanejada['data_ocorrencia_origem'] ?? null,
@@ -236,6 +238,8 @@ $formStrengthExercises = is_array($_POST['strength_exercises'] ?? null) ? $_POST
 $formEquipment = is_array($_POST['equipamentos'] ?? null)
     ? array_map('strval', $_POST['equipamentos'])
     : array_map(static fn(array $item): string => (string) $item['idequipamento'], (array) ($repeatRecord['equipamentos'] ?? []));
+$formCompetition = trim((string) ($_POST['idcompeticao'] ?? ''));
+$activityCompetitions = competitionNearby($pdo, $idUsuario, $formDate, 12);
 $firstModalidade = $formModalidade;
 $firstModelo = $formModelo;
 $favoritas = array_values(array_filter($catalogo, static fn(array $item): bool => !empty($item['favorita'])));
@@ -459,6 +463,8 @@ $recentes = array_slice($recentes, 0, 5);
                 $activityEditorEquipmentLoaded = $editorDetailsLoaded;
                 $activityEditorObservations = $formObservations;
                 $activityEditorVisibility = $formVisibility;
+                $activityEditorCompetition = $formCompetition;
+                $activityEditorCompetitions = $activityCompetitions;
                 require dirname(__DIR__, 2) . '/src/layout/activity_log_details.php';
                 ?>
 

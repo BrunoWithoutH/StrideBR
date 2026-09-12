@@ -41,6 +41,8 @@ function accountExportData(PDO $pdo, string $userId): array
         'modalidades_usuario' => ['SELECT mu.*,m.nome AS modalidade_nome,m.slug AS modalidade_slug FROM modalidades_usuario mu LEFT JOIN modalidades m ON m.idmodalidade=mu.idmodalidade WHERE mu.idusuario=:usuario ORDER BY m.nome', true],
         'equipamentos' => ['SELECT * FROM equipamentos_usuario WHERE idusuario=:usuario ORDER BY data_criacao', true],
         'metas' => ['SELECT * FROM metas_usuario WHERE idusuario=:usuario ORDER BY data_criacao', true],
+        'benchmarks' => ['SELECT b.*,m.nome AS modalidade_nome,m.slug AS modalidade_slug,e.nome AS exercicio_nome FROM benchmarks_usuario b JOIN modalidades m ON m.idmodalidade=b.idmodalidade LEFT JOIN exercicios e ON e.idexercicio=b.idexercicio WHERE b.idusuario=:usuario ORDER BY b.data_resultado,b.data_criacao', true],
+        'competicoes' => ['SELECT c.*,m.nome AS modalidade_nome,m.slug AS modalidade_slug,e.titulo AS evento_titulo,e.slug AS evento_slug FROM competicoes_usuario c LEFT JOIN modalidades m ON m.idmodalidade=c.idmodalidade_principal LEFT JOIN eventos_esportivos e ON e.idevento=c.idevento WHERE c.idusuario=:usuario ORDER BY c.data_inicio,c.data_criacao', true],
         'amizades_enviadas' => ['SELECT * FROM amizades WHERE idusuario_solicitante=:usuario ORDER BY data_criacao', true],
         'amizades_recebidas' => ['SELECT * FROM amizades WHERE idusuario_destino=:usuario ORDER BY data_criacao', true],
         'compartilhamentos_enviados' => ['SELECT * FROM cronograma_compartilhamentos WHERE idusuario_origem=:usuario ORDER BY data_criacao', true],
@@ -55,6 +57,8 @@ function accountExportData(PDO $pdo, string $userId): array
         $tableName = match ($key) {
             'equipamentos' => 'equipamentos_usuario',
             'metas' => 'metas_usuario',
+            'benchmarks' => 'benchmarks_usuario',
+            'competicoes' => 'competicoes_usuario',
             'amizades_enviadas', 'amizades_recebidas' => 'amizades',
             'compartilhamentos_enviados', 'compartilhamentos_recebidos' => 'cronograma_compartilhamentos',
             'feedbacks' => 'feedbacks',

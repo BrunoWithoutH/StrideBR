@@ -33,10 +33,57 @@ return function (PDO $pdo): void {
         AlphaTest::assert(!array_filter($calls, static fn($url)=>str_contains($url,'/athlete/activities')), 'webhook never lists activities');
         AlphaTest::assert((bool)array_filter($calls, static fn($url)=>str_contains($url,'/activities/'.$fixture['id'])), 'webhook fetches exact activity');
         AlphaTest::same(1, (int)$pdo->query("SELECT count(*) FROM registros_atividade WHERE idusuario='{$user}' AND origem_provedor='strava'")->fetchColumn(), 'create persists once');
-        $update = $event; $update['aspect_type']='update'; $update['event_time']++; $update['updates']=['title'=>'Changed','type'=>'Run','private'=>'true']; $update['fingerprint']=hash('sha256',json_encode(array_diff_key($update,['fingerprint'=>true,'signature_verified'=>true])));
-        $update['updates']=json_encode($update['updates']); stridebr_strava_webhook_process($pdo,$update);
+        $activityRow = $pdo->query("SELECT ra.idregistro, ra.idmodalidade, m.slug, ra.titulo, ra.visibilidade FROM registros_atividade ra JOIN modalidades m ON m.idmodalidade=ra.idmodalidade WHERE ra.idusuario='{$user}' AND ra.origem_provedor='strava'")->fetch();
+        AlphaTest::assert(is_array($activityRow), 'atividade Strava criada precisa existir para updates');
+        $pdo->prepare("UPDATE registros_atividade SET visibilidade='publico' WHERE idregistro=:id AND idusuario=:user")->execute([':id'=>$activityRow['idregistro'], ':user'=>$user]);
+
+        $fixture['name'] = 'TESTEREE';
+        $titleUpdate = $event; $titleUpdate['aspect_type']='update'; $titleUpdate['event_time']++; $titleUpdate['updates']=['title'=>'TESTEREE']; $titleUpdate['fingerprint']=hash('sha256','title-only-' . $user);
+        $titleUpdate['updates']=json_encode($titleUpdate['updates']);
+        AlphaTest::same('complete', stridebr_strava_webhook_process($pdo,$titleUpdate), 'update apenas de título processa com private ausente');
         $saved=$pdo->query("SELECT titulo,visibilidade FROM registros_atividade WHERE idusuario='{$user}' AND origem_provedor='strava'")->fetch();
-        AlphaTest::same((string)$fixture['name'], $saved['titulo'], 'update uses fetched authoritative title'); AlphaTest::same('privado',$saved['visibilidade'],'private true protects local visibility');
+        AlphaTest::same('TESTEREE', $saved['titulo'], 'título vindo do Strava atualiza registros_atividade.titulo');
+        AlphaTest::same('publico', $saved['visibilidade'], 'update de título não altera privacidade local quando private está ausente');
+
+        $privacyUpdate = $event; $privacyUpdate['aspect_type']='update'; $privacyUpdate['event_time']+=2; $privacyUpdate['updates']=['private'=>'true']; $privacyUpdate['fingerprint']=hash('sha256','privacy-' . $user);
+        $privacyUpdate['updates']=json_encode($privacyUpdate['updates']);
+        AlphaTest::same('complete', stridebr_strava_webhook_process($pdo,$privacyUpdate), 'update de privacidade processa com title_update false');
+        $saved=$pdo->query("SELECT titulo,visibilidade FROM registros_atividade WHERE idusuario='{$user}' AND origem_provedor='strava'")->fetch();
+        AlphaTest::same('TESTEREE', $saved['titulo'], 'update de privacidade não sobrescreve título');
+        AlphaTest::same('privado',$saved['visibilidade'],'private true protege visibilidade local');
+
+        $fixture['sport_type'] = 'Ride'; $fixture['type'] = 'Ride';
+        $typeUpdate = $event; $typeUpdate['aspect_type']='update'; $typeUpdate['event_time']+=3; $typeUpdate['updates']=['type'=>'Ride']; $typeUpdate['fingerprint']=hash('sha256','type-' . $user);
+        $typeUpdate['updates']=json_encode($typeUpdate['updates']);
+        AlphaTest::same('complete', stridebr_strava_webhook_process($pdo,$typeUpdate), 'update de tipo processa com booleans false');
+        $typed=$pdo->query("SELECT m.slug, ra.titulo, ra.visibilidade FROM registros_atividade ra JOIN modalidades m ON m.idmodalidade=ra.idmodalidade WHERE ra.idusuario='{$user}' AND ra.origem_provedor='strava'")->fetch();
+        AlphaTest::same('ciclismo', (string)$typed['slug'], 'update de tipo aplica modalidade autoritativa do Strava');
+        AlphaTest::same('TESTEREE', $typed['titulo'], 'update de tipo não sobrescreve título');
+
+        $failureEvent = stridebr_strava_webhook_event(['aspect_type'=>'update','event_time'=>1700000004,'object_id'=>(int)$fixture['id']+10,'object_type'=>'activity','owner_id'=>42,'subscription_id'=>123,'updates'=>['title'=>'retry']]);
+        $failureEvent['signature_verified'] = true; stridebr_strava_webhook_enqueue($pdo, $failureEvent);
+        $failureRow = $pdo->query("SELECT * FROM integracao_webhook_eventos WHERE fingerprint='" . $failureEvent['fingerprint'] . "'")->fetch();
+        $pdo->prepare("UPDATE integracao_webhook_eventos SET status='processing', processing_started_at=NOW(), attempts=attempts+1 WHERE id=:id")->execute([':id'=>$failureRow['id']]);
+        $failureState = stridebr_strava_webhook_record_failure($pdo, $failureRow, new StridebrIntegrationError('detail', 'provider_failed'));
+        AlphaTest::same('pending', $failureState['status'], 'primeira falha do worker volta para pending');
+        $failureStored=$pdo->query("SELECT status,attempts,processed_at,processing_started_at,last_error_code FROM integracao_webhook_eventos WHERE id=" . (int)$failureRow['id'])->fetch();
+        AlphaTest::same('pending', $failureStored['status'], 'evento não terminal nunca fica preso em processing');
+        AlphaTest::same('provider_failed', $failureStored['last_error_code'], 'evento não terminal registra last_error_code');
+        AlphaTest::same(null, $failureStored['processed_at'], 'evento não terminal não recebe processed_at');
+        AlphaTest::same(null, $failureStored['processing_started_at'], 'evento reagendado limpa processing_started_at');
+
+        $terminalEvent = stridebr_strava_webhook_event(['aspect_type'=>'update','event_time'=>1700000005,'object_id'=>(int)$fixture['id']+11,'object_type'=>'activity','owner_id'=>42,'subscription_id'=>123,'updates'=>['title'=>'terminal']]);
+        $terminalEvent['signature_verified'] = true; stridebr_strava_webhook_enqueue($pdo, $terminalEvent);
+        $terminalRow = $pdo->query("SELECT * FROM integracao_webhook_eventos WHERE fingerprint='" . $terminalEvent['fingerprint'] . "'")->fetch();
+        $pdo->prepare("UPDATE integracao_webhook_eventos SET status='processing', processing_started_at=NOW(), attempts=8 WHERE id=:id")->execute([':id'=>$terminalRow['id']]);
+        $terminalRow['attempts'] = 7;
+        $terminalState = stridebr_strava_webhook_record_failure($pdo, $terminalRow, new StridebrIntegrationError('detail', 'provider_failed'));
+        AlphaTest::same('failed', $terminalState['status'], 'evento terminal vira failed');
+        $terminalStored=$pdo->query("SELECT status,processed_at,last_error_code FROM integracao_webhook_eventos WHERE id=" . (int)$terminalRow['id'])->fetch();
+        AlphaTest::same('failed', $terminalStored['status'], 'status terminal persistido como failed');
+        AlphaTest::assert($terminalStored['processed_at'] !== null, 'evento terminal recebe processed_at');
+        AlphaTest::same('provider_failed', $terminalStored['last_error_code'], 'evento terminal registra last_error_code');
+
         stridebr_integrations_provider_cooldown_set($pdo,'strava',time()+300); $before=count($calls);
         try { stridebr_strava_webhook_process($pdo,$row); } catch (StridebrIntegrationError $e) { AlphaTest::same('rate_limit',$e->internalCode,'provider cooldown defers webhook'); }
         AlphaTest::same($before,count($calls),'cooldown prevents another API call');
