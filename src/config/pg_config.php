@@ -101,6 +101,7 @@ try {
 
 } catch (PDOException $e) {
     error_log('StrideBR database connection failed: ' . $e->getMessage());
+    if (defined('STRIDEBR_API_JSON') && STRIDEBR_API_JSON) throw $e;
     http_response_code(500);
     if (function_exists('stridebr_is_production') && stridebr_is_production()) {
         $errorPage = dirname(__DIR__, 2) . '/public/errors/500.php';
