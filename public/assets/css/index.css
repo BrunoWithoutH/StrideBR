@@ -2,6 +2,7 @@
 .landing-hero { display:grid; grid-template-columns:minmax(0,1.05fr) minmax(420px,.95fr); align-items:center; gap:64px; min-height:480px; }
 .landing-eyebrow { color:#596985; font-size:.7rem; font-weight:850; letter-spacing:.12em; text-transform:uppercase; }
 .landing-copy h1 { max-width:680px; margin:9px 0 14px; color:#20252b; font-size:clamp(2.6rem,6vw,5rem); line-height:.98; letter-spacing:-.055em; }
+.landing-brand-name { display:block; margin-bottom:12px; color:var(--ui-accent); font-size:clamp(.95rem,1.8vw,1.25rem); line-height:1; letter-spacing:.025em; font-weight:850; }
 .landing-copy p { max-width:620px; margin:0; color:var(--ui-muted); font-size:1rem; line-height:1.65; }
 
 .landing-actions {

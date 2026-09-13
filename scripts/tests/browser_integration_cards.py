@@ -36,8 +36,8 @@ try:
                     assert 'Atleta Teste' in strava.inner_text(); checks += 1
                     assert ('Last sync failed' if locale=='en' else 'Erro na última sincronização') in page.locator('[data-integration-provider=polar]').inner_text(); checks += 1
                     assert ('Reauthorization needed' if locale=='en' else 'Precisa reautorizar') in page.locator('[data-integration-provider=google_health]').inner_text(); checks += 1
-                    assert ('Not connected' if locale=='en' else 'Não conectado') in page.locator('[data-integration-provider=suunto]').inner_text(); checks += 1
-                    assert ('Unavailable' if locale=='en' else 'Indisponível') in page.locator('[data-integration-provider=garmin]').inner_text(); checks += 1
+                    assert ('Available to connect' if locale=='en' else 'Disponível para conectar') in page.locator('[data-integration-provider=suunto]').inner_text(); checks += 1
+                    assert ('Awaiting external access' if locale=='en' else 'Aguardando acesso externo') in page.locator('[data-integration-provider=garmin]').inner_text(); checks += 1
                     assert ('Manual sync' if locale=='en' else 'Sincronização manual') in page.locator('[data-integration-provider=coros]').inner_text(); checks += 1
                     manual = strava.locator('[data-integration-sync] button')
                     assert manual.evaluate('e=>getComputedStyle(e).appearance') == 'none'; checks += 1
@@ -46,10 +46,15 @@ try:
                     assert abs(manual.bounding_box()['height'] - connect.bounding_box()['height']) < 1; checks += 1
                     more = strava.locator('.integration-more').bounding_box()
                     assert abs(more['width'] - more['height']) < 1 and abs(more['height'] - manual.bounding_box()['height']) < 1; checks += 1
+                    marks = page.locator('.integration-provider-mark')
+                    assert all(len(marks.nth(i).inner_text().strip()) <= 2 for i in range(marks.count())); checks += 1
+                    assert page.locator('[data-integration-group=ready]').is_visible(); checks += 1
+                    assert page.locator('[data-integration-group=app]').is_visible(); checks += 1
+                    assert page.locator('[data-integration-group=external]').is_visible(); checks += 1
                     if width > 680:
                         garmin = page.locator('[data-integration-provider=garmin]').bounding_box()
                         strava_box = strava.bounding_box()
-                        assert abs(garmin['y'] - strava_box['y']) < 1 and abs(garmin['height'] - strava_box['height']) < 1; checks += 1
+                        assert garmin['height'] < strava_box['height']; checks += 1
                     else:
                         cards = page.locator('.integration-card').all()
                         assert all(card.bounding_box()['width'] <= width for card in cards); checks += 1

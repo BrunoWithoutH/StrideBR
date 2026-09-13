@@ -110,10 +110,10 @@ $assert(str_contains($activityCss, '.activity-bulk-toolbar{') && str_contains($a
 $assert(str_contains($read('public/user/bibliotecaexercicios.php'), "require __DIR__ . '/biblioteca.php';") && str_contains($read('public/user/bibliotecatreinos.php'), "require __DIR__ . '/biblioteca.php';"), 'Wrappers antigos da Biblioteca devem continuar compatíveis sem páginas duplicadas.');
 
 $assert(!str_contains($trainer, "stridebr_t('trainer.open_agenda')") && !str_contains($trainer, "stridebr_t('trainer.subtitle')"), 'Heading de Treinador não deve duplicar Agenda nem carregar subtitle genérico.');
-$assert(str_contains($trainerLayout, "stridebr_t('trainer.subtitle')") && str_contains($trainerLayout, "stridebr_t('trainer.permissions_help')"), 'Copy de privacidade deve viver no contexto de permissões.');
+$assert(str_contains($trainerLayout, "stridebr_t('trainer.manage_permissions')") && str_contains($trainerLayout, 'trainer-permission-summary'), 'Permissões do atleta devem usar resumo compacto e edição progressiva no próprio contexto.');
 $assert(str_contains($trainer, 'data-trainer-athlete-link') && str_contains($trainerJs, 'replaceAthleteWorkspace') && str_contains($trainerJs, 'history.pushState({trainerAthlete: true}'), 'Troca de atleta deve atualizar workspace sem reload quando JS está disponível.');
 $assert(str_contains($trainerJs, "window.addEventListener('popstate'") && str_contains($trainerJs, 'window.location.assign(athleteLink.href)'), 'Trainer deve suportar Back/Forward e fallback de link real.');
-$assert(str_contains($trainer, "stridebr_t('trainer.as_athlete')") === false && str_contains($trainerLayout, "stridebr_t('trainer.as_athlete')"), 'Como atleta deve ser uma seção única, não duplicada no shell.');
+$assert(str_contains($trainer, "stridebr_t('trainer.as_athlete')") && str_contains($trainer, "stridebr_t('trainer.as_coach')") && str_contains($trainerLayout, "stridebr_t('trainer.manage_permissions')"), 'Treinador deve separar explicitamente os contextos Como atleta e Como treinador sem duplicar o editor de permissões.');
 
 foreach (['progress.question_consistency','progress.consistency_help_product','progress.question_volume','progress.question_trend','progress.question_sports','progress.modalities_help','progress.question_compare','progress.period_comparison_help'] as $key) {
     $assert(!str_contains($progress, $key) && !str_contains($pt, "'{$key}'") && !str_contains($en, "'{$key}'"), "Copy decorativa {$key} deve ser removida da UI e dos locales.");

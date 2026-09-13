@@ -324,8 +324,15 @@ function stridebr_api_activity_mobile_recording(PDO $pdo, string $userId, array 
         'accuracy_worst_m' => $gps['accuracy_worst_m'] ?? null,
         'visibility_gaps' => $gps['visibility_gaps'] ?? 0,
         'user_adjusted' => !empty($payload['user_adjusted']),
+        'client_source' => 'app',
     ];
     return $recording;
+}
+
+function stridebr_api_mark_mobile_activity_source(PDO $pdo, string $activityId, string $userId): void
+{
+    $stmt = $pdo->prepare("UPDATE registros_atividade SET origem_provedor = 'stridebr_android' WHERE idregistro = :id AND idusuario = :user AND origem = 'gps' AND origem_provedor IS NULL");
+    $stmt->execute([':id' => $activityId, ':user' => $userId]);
 }
 
 function stridebr_api_create_activity(PDO $pdo, string $userId, array $payload, string $idempotencyKey): array
@@ -335,6 +342,7 @@ function stridebr_api_create_activity(PDO $pdo, string $userId, array $payload, 
     $recordingKey = gpsWebRecordingKey($recording);
     $existing = gpsWebFindExistingRecording($pdo, $userId, $recordingKey);
     if ($existing !== null) {
+        stridebr_api_mark_mobile_activity_source($pdo, $existing, $userId);
         return ['id' => $existing, 'activity' => stridebr_api_activity_detail($pdo, $existing, $userId), 'reused' => true];
     }
 
@@ -344,6 +352,7 @@ function stridebr_api_create_activity(PDO $pdo, string $userId, array $payload, 
     $pdo->beginTransaction();
     try {
         $id = atividadeSalvarRegistro($pdo, $userId, $activityPayload);
+        stridebr_api_mark_mobile_activity_source($pdo, $id, $userId);
         gpsWebSaveMetadata($pdo, $id, $meta);
         $pdo->commit();
     } catch (Throwable $e) {
@@ -351,6 +360,7 @@ function stridebr_api_create_activity(PDO $pdo, string $userId, array $payload, 
         if ($e instanceof PDOException && $e->getCode() === '23505') {
             $existing = gpsWebFindExistingRecording($pdo, $userId, $recordingKey);
             if ($existing !== null) {
+                stridebr_api_mark_mobile_activity_source($pdo, $existing, $userId);
                 return ['id' => $existing, 'activity' => stridebr_api_activity_detail($pdo, $existing, $userId), 'reused' => true];
             }
         }

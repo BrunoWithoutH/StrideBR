@@ -59,7 +59,7 @@ try {
 
     $page = [
         'title' => 'StrideBR — Treinos, atividades e evolução esportiva',
-        'description' => 'StrideBR é uma plataforma brasileira para registrar atividades físicas.',
+        'description' => 'StrideBR é uma plataforma esportiva brasileira, livre e open source, para planejar treinos, registrar atividades físicas e acompanhar evolução.',
         'path' => '/?utm_source=test',
         'locale' => 'pt-BR',
         'structured' => stridebr_seo_brand_data('pt-BR'),
@@ -67,12 +67,18 @@ try {
     $html = stridebr_seo_head($page);
     $doc = $parse($html);
     $assert($doc['title'] === [$page['title']], 'Home title');
+    $assert(str_starts_with($doc['title'][0] ?? '', 'StrideBR'), 'Home title starts with exact brand');
+    $assert(str_contains($meta($doc, 'description')[0] ?? '', 'StrideBR'), 'Home description contains exact brand');
+    $assert(count($doc['jsonld']) === 1, 'Single brand JSON-LD block');
+    $assert(count($meta($doc, 'keywords')) === 0, 'No meta keywords');
     foreach (['description','robots','twitter:card','twitter:title','twitter:description','twitter:image','twitter:image:alt'] as $name) $assert(count($meta($doc, $name)) === 1, 'Single meta ' . $name);
     foreach (['type','title','description','url','site_name','image','image:width','image:height','image:type','image:alt','locale'] as $key) $assert(count($meta($doc, 'og:' . $key)) === 1, 'Single OG ' . $key);
     $assert(count($link($doc, 'canonical')) === 1, 'Single canonical');
     $assert($link($doc, 'canonical')[0] === 'https://stridebr.com.br/', 'Canonical ignores host and query');
     $assert($meta($doc, 'og:url')[0] === 'https://stridebr.com.br/', 'OG URL canonical');
     $assert($meta($doc, 'og:site_name')[0] === 'StrideBR', 'Brand');
+    $assert(($meta($doc, 'og:title')[0] ?? '') === $page['title'], 'Open Graph title preserves exact brand title');
+    $assert(($meta($doc, 'twitter:title')[0] ?? '') === $page['title'], 'Twitter title preserves exact brand title');
     $assert($meta($doc, 'twitter:card')[0] === 'summary_large_image', 'Large card');
     $ogImageUrl = 'https://stridebr.com.br/assets/img/branding/stridebr-og-20260909.png';
     $assert($meta($doc, 'og:image')[0] === $ogImageUrl, 'Versioned absolute OG image');
@@ -87,6 +93,9 @@ try {
     }
     $assert(($organization['sameAs'] ?? []) === ['https://www.instagram.com/stridebr.app/', 'https://github.com/BrunoWithoutH/StrideBR'], 'Official organization profiles');
     $assert(($organization['url'] ?? null) === 'https://stridebr.com.br/', 'Organization canonical domain');
+    $assert(($website['url'] ?? null) === 'https://stridebr.com.br/', 'WebSite canonical domain');
+    $assert(str_starts_with((string) ($organization['description'] ?? ''), 'StrideBR'), 'Organization description starts with exact brand');
+    $assert(str_contains((string) ($organization['description'] ?? ''), 'plataforma esportiva brasileira'), 'Organization description identifies the product');
     $assert(($schema['@graph'][1]['inLanguage'] ?? null) === 'pt-BR', 'Brand schema language');
     $assert(!str_contains($html, 'SearchAction') && !str_contains($html, 'twitter:site'), 'No invented search or account');
     $assert(count($meta($doc, 'google-site-verification')) === 0 && count($meta($doc, 'msvalidate.01')) === 0, 'Empty verification omitted');
@@ -156,6 +165,21 @@ try {
     }
     $indexSource = file_get_contents(dirname(__DIR__,2).'/public/index.php');
     $assert(str_contains($indexSource, 'stridebr_html_lang()') && str_contains($indexSource, "'locale' => stridebr_locale()"), 'Home locale remains dynamic');
+    $homeH1 = '';
+    if (preg_match('#<h1\b[^>]*>(.*?)</h1>#is', $indexSource, $homeH1Match)) $homeH1 = trim($decode(strip_tags($homeH1Match[1])));
+    $assert(str_contains($homeH1, 'StrideBR'), 'Public home H1 contains exact brand');
+    $assert(str_contains($indexSource, 'StrideBR é uma plataforma esportiva brasileira, livre e open source, para planejar treinos, registrar atividades físicas e acompanhar evolução.'), 'Home visible copy identifies the StrideBR entity');
+    $aboutSource = file_get_contents(dirname(__DIR__,2).'/public/pages/about/about.php');
+    $assert(str_contains($aboutSource, '<p class="static-lead">O StrideBR é uma plataforma esportiva brasileira'), 'About opens with explicit StrideBR entity description');
+    $manifest = json_decode(file_get_contents(dirname(__DIR__,2).'/public/manifest.webmanifest'), true, 512, JSON_THROW_ON_ERROR);
+    $assert(($manifest['name'] ?? null) === 'StrideBR' && ($manifest['short_name'] ?? null) === 'StrideBR', 'PWA manifest uses exact public brand');
+    $headerSource = file_get_contents(dirname(__DIR__,2).'/src/layout/header.php');
+    $footerSource = file_get_contents(dirname(__DIR__,2).'/src/layout/footer.php');
+    $assert(str_contains($headerSource, 'alt="StrideBR"') && str_contains($footerSource, 'alt="StrideBR"'), 'Primary public logo alt uses exact brand');
+    foreach ($paths as $path) {
+        $publicSource = file_get_contents(dirname(__DIR__,2).'/public'.($path === '/' ? '/index.php' : $path));
+        $assert(!preg_match('/\b(?:Stride Br|Stridebr|stride BR)\b/', $publicSource), 'Public indexable source avoids accidental brand variants');
+    }
     $readme = file_get_contents(dirname(__DIR__,2).'/README.md');
     $assert(str_contains($readme, 'https://stridebr.com.br'), 'README identifies the official site');
 

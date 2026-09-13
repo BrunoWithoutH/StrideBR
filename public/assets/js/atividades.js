@@ -8773,18 +8773,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const gpsWebDetailHtml = (activity) => {
         const gps = activity?.gps_web
         if (!gps) return ''
+        const appGps = String(gps.client_source || '') === 'app'
         const avg = Number(gps.precisao_media_m)
         const accepted = Number(gps.pontos_aceitos || 0)
         const rejected = Number(gps.pontos_rejeitados || 0)
         const gaps = Number(gps.lacunas_visibilidade || 0)
         const quality = Number.isFinite(avg)
-            ? (avg <= 15 ? tr('activity.gps.quality_good') : avg <= 30 ? tr('activity.gps.quality_fair') : tr('activity.gps.quality_low'))
+            ? (avg <= 15 ? tr(appGps ? 'activity.gps.quality_good_generic' : 'activity.gps.quality_good') : avg <= 30 ? tr(appGps ? 'activity.gps.quality_fair_generic' : 'activity.gps.quality_fair') : tr('activity.gps.quality_low'))
             : tr('activity.gps.quality_unknown')
         const precision = Number.isFinite(avg) ? tr('activity.gps.precision', {value: Math.round(avg), quality}) : tr('activity.gps.precision_unknown')
         const adjusted = gps.usuario_ajustou ? ` ${tr('activity.gps.adjusted')}` : ''
-        const interruptions = gaps > 0 ? ` ${trn('activity.gps.interruptions.one', 'activity.gps.interruptions.other', gaps)}` : ''
+        const interruptions = gaps > 0 ? ` ${appGps ? trn('activity.gps.capture_gaps.one', 'activity.gps.capture_gaps.other', gaps) : trn('activity.gps.interruptions.one', 'activity.gps.interruptions.other', gaps)}` : ''
         const filtered = rejected > 0 ? ` ${trn('activity.gps.filtered.one', 'activity.gps.filtered.other', rejected, {rejected, accepted})}` : ''
-        return `<div class="activity-gps-web-notice" role="note"><div><strong>GPS Web</strong><span>${escapeHtml(tr('activity.gps.browser_estimate'))}</span></div><p>${escapeHtml(precision + interruptions + filtered + adjusted)} ${escapeHtml(tr('activity.gps.review_if_needed'))}</p></div>`
+        const source = tr(appGps ? 'activity.gps.source_app' : 'activity.gps.source_web')
+        const estimate = tr(appGps ? 'activity.gps.gps_estimate' : 'activity.gps.browser_estimate')
+        return `<div class="activity-gps-notice" role="note"><div><strong>${escapeHtml(source)}</strong><span>${escapeHtml(estimate)}</span></div><p>${escapeHtml(precision + interruptions + filtered + adjusted)} ${escapeHtml(tr('activity.gps.review_if_needed'))}</p></div>`
     }
 
     const renderDetail = (activity) => {

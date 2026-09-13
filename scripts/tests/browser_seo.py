@@ -8,17 +8,20 @@ from html.parser import HTMLParser
 BASE = os.environ.get('STRIDEBR_TEST_BASE_URL','http://localhost:8080')
 class Document(HTMLParser):
     def __init__(self, html):
-        super().__init__(); self.metas={}; self.links={}; self.titles=[]; self.jsonld=[]; self.h1=0; self.main=0; self.current=None; self.buffer=''; self.feed(html)
+        super().__init__(); self.metas={}; self.links={}; self.titles=[]; self.jsonld=[]; self.h1=0; self.h1_texts=[]; self.main=0; self.current=None; self.buffer=''; self.h1_buffer=''; self.in_h1=False; self.feed(html)
     def handle_starttag(self,tag,attrs):
         a=dict(attrs)
         if tag=='meta': self.metas.setdefault(a.get('name',a.get('property','')),[]).append(a.get('content',''))
         if tag=='link': self.links.setdefault(a.get('rel',''),[]).append(a.get('href',''))
         if tag=='title' or (tag=='script' and a.get('type')=='application/ld+json'): self.current=tag; self.buffer=''
-        if tag=='h1': self.h1+=1
+        if tag=='h1': self.h1+=1; self.in_h1=True; self.h1_buffer=''
         if tag=='main': self.main+=1
     def handle_data(self,data):
         if self.current: self.buffer+=data
+        if self.in_h1: self.h1_buffer+=data
     def handle_endtag(self,tag):
+        if tag=='h1' and self.in_h1:
+            self.h1_texts.append(' '.join(self.h1_buffer.split())); self.in_h1=False
         if tag==self.current:
             if tag=='title': self.titles.append(self.buffer)
             else: self.jsonld.append(json.loads(self.buffer))
@@ -35,10 +38,14 @@ status,headers,html=request('/?utm_source=fixture')
 assert status==200
 home=Document(html)
 assert home.titles==['StrideBR — Treinos, atividades e evolução esportiva'];checks+=1
-assert 'plataforma brasileira' in home.metas['description'][0];checks+=1
+assert 'StrideBR' in home.metas['description'][0] and 'plataforma esportiva brasileira' in home.metas['description'][0];checks+=1
 assert home.links['canonical']==['https://stridebr.com.br/'];checks+=1
 assert home.h1==1 and home.main==1;checks+=1
-assert [x['@type'] for x in home.jsonld[0]['@graph']]==['Organization','WebSite'];checks+=1
+assert home.h1_texts and 'StrideBR' in home.h1_texts[0];checks+=1
+assert len(home.jsonld)==1 and [x['@type'] for x in home.jsonld[0]['@graph']]==['Organization','WebSite'];checks+=1
+brand_graph=home.jsonld[0]['@graph']
+assert all(x['name']=='StrideBR' and x['alternateName']=='Stride BR' for x in brand_graph);checks+=1
+assert brand_graph[0]['sameAs']==['https://www.instagram.com/stridebr.app/','https://github.com/BrunoWithoutH/StrideBR'];checks+=1
 assert 'noindex' not in headers.get('X-Robots-Tag','');checks+=1
 status,headers,xml=request('/sitemap.xml')
 assert status==200 and 'xml' in headers['Content-Type'];checks+=1

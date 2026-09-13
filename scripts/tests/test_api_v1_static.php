@@ -27,6 +27,7 @@ $assert(str_contains($helpers, 'function stridebr_api_idempotency_key') && str_c
 $assert(str_contains($helpers, 'gpsWebBuildActivityPayload') && str_contains($helpers, 'atividadeSalvarRegistro'), 'POST /activities deve reutilizar o domínio GPS/atividade existente.');
 $assert(str_contains($helpers, 'gpsWebFindExistingRecording') && str_contains($helpers, "'reused' => true"), 'Reenvio idempotente precisa reutilizar a atividade existente.');
 $assert(str_contains($helpers, "'origem' => 'gps'") || str_contains($read('src/function/gps_web.php'), "'origem' => 'gps'"), 'Atividade mobile GPS deve manter origem GPS.');
+$assert(str_contains($helpers, "origem_provedor = 'stridebr_android'") && str_contains($helpers, "'client_source' => 'app'"), 'Atividade Android precisa ser identificada como GPS do app sem reutilizar a provenance de GPS Web.');
 $assert(str_contains($htaccess, 'HTTP_AUTHORIZATION') && str_contains($helpers, 'getallheaders'), 'Authorization precisa sobreviver ao Apache e ter fallback no PHP.');
 $assert(str_contains($docs, 'POST /activities') && !str_contains($docs, 'criação/edição e importação ainda não fazem parte'), 'MOBILE_API precisa documentar a criação já implementada.');
 $assert(str_contains($openapi, 'GpsActivityCreateRequest') && str_contains($openapi, 'Idempotency-Key'), 'OpenAPI precisa documentar POST /activities e idempotência.');

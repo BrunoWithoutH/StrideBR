@@ -57,8 +57,8 @@ function stridebr_seo_brand_data(?string $locale = null): array
     $locale ??= function_exists('stridebr_locale') ? stridebr_locale() : 'pt-BR';
     $language = $locale === 'en' ? 'en' : 'pt-BR';
     $description = $locale === 'en'
-        ? 'StrideBR is a Brazilian platform for planning workouts, logging physical activities, and following sports progress.'
-        : 'StrideBR é uma plataforma brasileira para planejar treinos, registrar atividades físicas e acompanhar evolução esportiva.';
+        ? 'StrideBR is a Brazilian sports platform, free and open source, for planning workouts, logging physical activities, and following sports progress.'
+        : 'StrideBR é uma plataforma esportiva brasileira, livre e open source, para planejar treinos, registrar atividades físicas e acompanhar evolução.';
     return ['@context' => 'https://schema.org', '@graph' => [
         ['@type' => 'Organization', '@id' => $base . '#organization', 'name' => 'StrideBR', 'alternateName' => 'Stride BR', 'url' => $base,
             'description' => $description, 'areaServed' => ['@type' => 'Country', 'name' => 'Brazil'],

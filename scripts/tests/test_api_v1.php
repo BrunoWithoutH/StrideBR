@@ -60,6 +60,7 @@ return function (PDO $pdo): void {
     $created = stridebr_api_create_activity($pdo, $owner, $mobilePayload, 'alpha-mobile-idem-0001');
     AlphaTest::assert(empty($created['reused']), 'Primeira publicação mobile não pode ser marcada como reutilizada');
     AlphaTest::assert((string)($created['activity']['origin'] ?? '') === 'gps', 'Atividade publicada pelo Android precisa manter origem GPS');
+    AlphaTest::same('stridebr_android', (string)$pdo->query("SELECT origem_provedor FROM registros_atividade WHERE idregistro = " . $pdo->quote((string)$created['id']))->fetchColumn(), 'Atividade Android precisa persistir provenance GPS do app');
     AlphaTest::same($owner, (string)$pdo->query("SELECT idusuario FROM registros_atividade WHERE idregistro = " . $pdo->quote((string)$created['id']))->fetchColumn(), 'Atividade mobile precisa pertencer ao usuário autenticado');
     $again = stridebr_api_create_activity($pdo, $owner, $mobilePayload, 'alpha-mobile-idem-0001');
     AlphaTest::assert(!empty($again['reused']), 'Reenvio com a mesma Idempotency-Key precisa reutilizar atividade');

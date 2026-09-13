@@ -218,9 +218,10 @@ function gpsWebBuildActivityPayload(PDO $pdo, string $idUsuario, array $recordin
     $displayDurationS = max(0.001, round((float) ($recording['duration_s'] ?? 0), 3));
     if ($displayDurationS > 604800) throw new InvalidArgumentException('A duração da atividade é inválida.');
     $displayElevationM = is_numeric($recording['elevation_gain_m'] ?? null) ? max(0.0, (float) $recording['elevation_gain_m']) : null;
+    $clientSource = (string) ($recording['client_source'] ?? '') === 'app' ? 'app' : 'web';
     $elevationMinM = is_numeric($recording['elevation_min_m'] ?? null) ? (float) $recording['elevation_min_m'] : null;
     $elevationMaxM = is_numeric($recording['elevation_max_m'] ?? null) ? (float) $recording['elevation_max_m'] : null;
-    $elevationSource = $displayElevationM !== null ? 'gps_web_dispositivo' : null;
+    $elevationSource = $displayElevationM !== null ? ($clientSource === 'app' ? 'gps_app_dispositivo' : 'gps_web_dispositivo') : null;
     if ($displayElevationM === null) {
         try {
             $terrainElevation = atividadeConsultarElevacao($geojson, 3);

@@ -767,6 +767,7 @@ function atividadeDetalheApi(PDO $pdo, string $idRegistro, string $idUsuario): a
         $gpsRow = $gpsStmt->fetch();
         if (is_array($gpsRow)) {
             $gpsWeb = [
+                'client_source' => (string) ($registro['origem_provedor'] ?? '') === 'stridebr_android' ? 'app' : 'web',
                 'distancia_medida_m' => $gpsRow['distancia_medida_m'] !== null ? (float) $gpsRow['distancia_medida_m'] : null,
                 'distancia_final_m' => $gpsRow['distancia_final_m'] !== null ? (float) $gpsRow['distancia_final_m'] : null,
                 'duracao_s' => round((float) ($gpsRow['duracao_s'] ?? 0), 3),

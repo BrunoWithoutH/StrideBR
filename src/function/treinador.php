@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/includes/app.php';
+require_once __DIR__ . '/atividade_modelo.php';
+require_once __DIR__ . '/atividade_presenter.php';
 
 function treinadorUsuario(PDO $pdo, string $idUsuario): array
 {
@@ -30,6 +32,33 @@ function treinadorBuscarUsername(PDO $pdo, string $username, string $idAtual, bo
     $stmt = $pdo->prepare($sql);
     $stmt->execute([':username' => $username, ':atual' => $idAtual]);
     return $stmt->fetch() ?: [];
+}
+
+function treinadorBuscarPessoas(PDO $pdo, string $termo, string $idAtual, bool $exigirTreinador = false, int $limite = 8): array
+{
+    $termo = trim($termo);
+    if ($termo === '') return [];
+    $username = ltrim(stridebr_lower($termo), '@');
+    $likeName = '%' . $termo . '%';
+    $likeUsername = '%' . $username . '%';
+    $sql = "SELECT idusuario, username, COALESCE(NULLIF(nome_exibicao, ''), nomeusuario) AS nome_exibicao, fotousuario, modo_treinador
+              FROM usuarios
+             WHERE idusuario <> :atual
+               AND statususuario = 'Ativo'
+               AND descobrivel = TRUE
+               AND (:treinador = FALSE OR modo_treinador = TRUE)
+               AND (username ILIKE :username OR COALESCE(NULLIF(nome_exibicao, ''), nomeusuario) ILIKE :nome)
+             ORDER BY CASE WHEN lower(username) = lower(:exato) THEN 0 ELSE 1 END, nome_exibicao, username
+             LIMIT :limite";
+    $stmt = $pdo->prepare($sql);
+    $stmt->bindValue(':atual', $idAtual);
+    $stmt->bindValue(':treinador', $exigirTreinador, PDO::PARAM_BOOL);
+    $stmt->bindValue(':username', $likeUsername);
+    $stmt->bindValue(':nome', $likeName);
+    $stmt->bindValue(':exato', $username);
+    $stmt->bindValue(':limite', max(1, min(20, $limite)), PDO::PARAM_INT);
+    $stmt->execute();
+    return $stmt->fetchAll();
 }
 
 function treinadorVinculo(PDO $pdo, string $idVinculo): array
@@ -344,6 +373,143 @@ function treinadorCancelarPrescricao(PDO $pdo, string $idAtual, string $idAgenda
     if ($stmt->rowCount() !== 1) {
         throw new RuntimeException(stridebr_t('planning.message.cancel_forbidden'));
     }
+}
+
+function treinadorPrescricao(PDO $pdo, string $idTreinador, string $idAgendamento): array
+{
+    $stmt = $pdo->prepare("SELECT ta.* FROM treinos_agendados ta WHERE ta.idagendamento=:id AND ta.idcriador=:treinador AND ta.origem='treinador' LIMIT 1");
+    $stmt->execute([':id' => $idAgendamento, ':treinador' => $idTreinador]);
+    $row = $stmt->fetch() ?: [];
+    if ($row === []) return [];
+    $exerciseStmt = $pdo->prepare('SELECT nome_snapshot, series, repeticoes, carga, descanso, observacoes FROM treinos_agendados_exercicios WHERE idagendamento=:id ORDER BY ordem');
+    $exerciseStmt->execute([':id' => $idAgendamento]);
+    $row['exercicios'] = $exerciseStmt->fetchAll();
+    return $row;
+}
+
+function treinadorEditarPrescricao(PDO $pdo, string $idTreinador, string $idAgendamento, array $dados, array $exercicios): void
+{
+    $current = treinadorPrescricao($pdo, $idTreinador, $idAgendamento);
+    if ($current === []) throw new RuntimeException(stridebr_t('trainer.prescription_edit_forbidden'));
+    if (!in_array((string) ($current['status'] ?? ''), ['rascunho', 'publicado'], true) || (string) ($current['data_treino'] ?? '') < date('Y-m-d')) {
+        throw new RuntimeException(stridebr_t('trainer.prescription_edit_forbidden'));
+    }
+    $user = treinadorUsuario($pdo, $idTreinador);
+    $link = treinadorVinculoAceito($pdo, $idTreinador, (string) $current['idatleta']);
+    if (!stridebr_db_bool($user['modo_treinador'] ?? false) || $link === [] || !stridebr_db_bool($link['pode_prescrever'] ?? false) || (string) ($current['idvinculo'] ?? '') !== (string) ($link['idvinculo'] ?? '')) {
+        throw new RuntimeException(stridebr_t('trainer.prescription_edit_forbidden'));
+    }
+
+    $titulo = trim((string) ($dados['titulo'] ?? ''));
+    $descricao = trim((string) ($dados['descricao'] ?? ''));
+    $data = trim((string) ($dados['data_treino'] ?? ''));
+    $hora = trim((string) ($dados['hora_inicio'] ?? ''));
+    $duracaoRaw = trim((string) ($dados['duracao_prevista_min'] ?? ''));
+    $requestedStatus = (string) ($dados['status'] ?? 'rascunho');
+    if ($titulo === '' || stridebr_length($titulo) > 120) throw new InvalidArgumentException(stridebr_t('planning.message.invalid_title'));
+    if (stridebr_length($descricao) > 5000) throw new InvalidArgumentException(stridebr_t('planning.message.description_long'));
+    if (!treinadorDataValida($data)) throw new InvalidArgumentException(stridebr_t('planning.message.invalid_date'));
+    if (!treinadorHoraValida($hora)) throw new InvalidArgumentException(stridebr_t('planning.message.invalid_time'));
+    $duracao = null;
+    if ($duracaoRaw !== '') {
+        if (filter_var($duracaoRaw, FILTER_VALIDATE_INT) === false || (int) $duracaoRaw < 1 || (int) $duracaoRaw > 1440) throw new InvalidArgumentException(stridebr_t('planning.message.invalid_duration'));
+        $duracao = (int) $duracaoRaw;
+    }
+    if (!in_array($requestedStatus, ['rascunho', 'publicado'], true)) throw new InvalidArgumentException(stridebr_t('planning.message.invalid_status'));
+    $status = (string) $current['status'] === 'publicado' ? 'publicado' : $requestedStatus;
+
+    $rows = [];
+    foreach (array_slice($exercicios, 0, 100) as $row) {
+        if (!is_array($row)) continue;
+        $nome = trim((string) ($row['nome'] ?? ''));
+        if ($nome === '') continue;
+        if (stridebr_length($nome) > 120) throw new InvalidArgumentException(stridebr_t('planning.message.exercise_long'));
+        $seriesRaw = trim((string) ($row['series'] ?? ''));
+        $series = null;
+        if ($seriesRaw !== '') {
+            if (filter_var($seriesRaw, FILTER_VALIDATE_INT) === false || (int) $seriesRaw < 1 || (int) $seriesRaw > 99) throw new InvalidArgumentException(stridebr_t('planning.message.invalid_sets'));
+            $series = (int) $seriesRaw;
+        }
+        $values = [];
+        foreach (['repeticoes', 'carga', 'descanso'] as $field) {
+            $value = trim((string) ($row[$field] ?? ''));
+            if (stridebr_length($value) > 40) throw new InvalidArgumentException(stridebr_t('planning.message.field_long'));
+            $values[$field] = $value !== '' ? $value : null;
+        }
+        $observacoes = trim((string) ($row['observacoes'] ?? ''));
+        if (stridebr_length($observacoes) > 1000) throw new InvalidArgumentException(stridebr_t('planning.message.notes_long'));
+        $rows[] = ['nome'=>$nome,'series'=>$series,'repeticoes'=>$values['repeticoes'],'carga'=>$values['carga'],'descanso'=>$values['descanso'],'observacoes'=>$observacoes !== '' ? $observacoes : null];
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare("UPDATE treinos_agendados SET data_treino=:data, hora_inicio=:hora, duracao_prevista_min=:duracao, titulo=:titulo, descricao=:descricao, status=:status, publicado_em=CASE WHEN :status_publicado='publicado' THEN COALESCE(publicado_em,NOW()) ELSE publicado_em END, data_atualizacao=NOW() WHERE idagendamento=:id AND idcriador=:treinador AND origem='treinador'");
+        $stmt->execute([':data'=>$data,':hora'=>$hora !== '' ? $hora : null,':duracao'=>$duracao,':titulo'=>$titulo,':descricao'=>$descricao !== '' ? $descricao : null,':status'=>$status,':status_publicado'=>$status,':id'=>$idAgendamento,':treinador'=>$idTreinador]);
+        if ($stmt->rowCount() !== 1) throw new RuntimeException(stridebr_t('trainer.prescription_edit_forbidden'));
+        $pdo->prepare('DELETE FROM treinos_agendados_exercicios WHERE idagendamento=:id')->execute([':id'=>$idAgendamento]);
+        $insert = $pdo->prepare('INSERT INTO treinos_agendados_exercicios (idagendamento_exercicio, idagendamento, nome_snapshot, series, repeticoes, carga, descanso, observacoes, ordem) VALUES (:id,:agendamento,:nome,:series,:repeticoes,:carga,:descanso,:observacoes,:ordem)');
+        foreach ($rows as $index => $row) {
+            $insert->execute([':id'=>stridebr_generate_id(),':agendamento'=>$idAgendamento,':nome'=>$row['nome'],':series'=>$row['series'],':repeticoes'=>$row['repeticoes'],':carga'=>$row['carga'],':descanso'=>$row['descanso'],':observacoes'=>$row['observacoes'],':ordem'=>$index+1]);
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+}
+
+function treinadorAtividadeReadOnly(PDO $pdo, string $idTreinador, string $idAtleta, string $idRegistro): array
+{
+    $link = treinadorVinculoAceito($pdo, $idTreinador, $idAtleta);
+    if ($link === [] || !stridebr_db_bool($link['pode_ver_atividades'] ?? false)) throw new RuntimeException(stridebr_t('trainer.activity_readonly_forbidden'));
+
+    $registro = atividadeCarregarRegistro($pdo, $idRegistro, $idAtleta);
+    if ($registro === [] || (string) ($registro['status'] ?? '') !== 'concluido') throw new RuntimeException(stridebr_t('trainer.activity_readonly_forbidden'));
+
+    $distanciaMetros = null;
+    if (!empty($registro['usa_trechos'])) {
+        $totais = atividadeTotaisCanonicosUnidades($registro);
+        if (is_numeric($totais['distancia_m'] ?? null) && (float) $totais['distancia_m'] > 0) $distanciaMetros = (float) $totais['distancia_m'];
+    } elseif (is_array($registro['rota'] ?? null) && is_numeric($registro['rota']['distancia_metros'] ?? null) && (float) $registro['rota']['distancia_metros'] > 0) {
+        $distanciaMetros = (float) $registro['rota']['distancia_metros'];
+    } else {
+        $totais = atividadeTotaisCanonicosUnidades($registro);
+        if (is_numeric($totais['distancia_m'] ?? null) && (float) $totais['distancia_m'] > 0) $distanciaMetros = (float) $totais['distancia_m'];
+        if ($distanciaMetros === null) {
+            foreach ($registro['campos'] ?? [] as $campo) {
+                if (stridebr_lower((string) ($campo['slug'] ?? '')) !== 'distancia') continue;
+                $valor = $registro['record_values'][(string) ($campo['idcampo'] ?? '')] ?? null;
+                if (!is_numeric($valor) || (float) $valor <= 0) continue;
+                $distanciaMetros = stridebr_lower(trim((string) ($campo['unidade_simbolo'] ?? 'km'))) === 'm' ? (float) $valor : (float) $valor * 1000;
+                break;
+            }
+        }
+    }
+
+    return [
+        'idregistro' => (string) $registro['idregistro'],
+        'titulo' => trim((string) ($registro['titulo'] ?? '')) !== '' ? (string) $registro['titulo'] : (string) ($registro['modalidade_nome'] ?? ''),
+        'data_inicio' => (string) $registro['data_inicio'],
+        'data_fim' => $registro['data_fim'] !== null ? (string) $registro['data_fim'] : null,
+        'distancia_metros' => $distanciaMetros,
+        'observacoes' => $registro['observacoes'] !== null ? (string) $registro['observacoes'] : null,
+        'modalidade_nome' => (string) ($registro['modalidade_nome'] ?? ''),
+        'modalidade_slug' => (string) ($registro['modalidade_slug'] ?? ''),
+    ];
+}
+
+function treinadorCronogramaReadOnly(PDO $pdo, string $idTreinador, string $idAtleta, string $idCronograma): array
+{
+    $link = treinadorVinculoAceito($pdo, $idTreinador, $idAtleta);
+    if ($link === [] || !stridebr_db_bool($link['pode_ver_cronograma'] ?? false)) throw new RuntimeException(stridebr_t('trainer.schedule_readonly_forbidden'));
+    $stmt = $pdo->prepare("SELECT idcronograma,nome,descricao,visibilidade,data_atualizacao FROM cronogramas WHERE idcronograma=:id AND idusuario=:atleta AND ativo=TRUE LIMIT 1");
+    $stmt->execute([':id'=>$idCronograma, ':atleta'=>$idAtleta]);
+    $row = $stmt->fetch() ?: [];
+    if ($row === []) throw new RuntimeException(stridebr_t('trainer.schedule_readonly_forbidden'));
+    $workouts = $pdo->prepare("SELECT idtreino,titulo AS nome,dia_semana,hora_inicio FROM treinos_cronograma WHERE idcronograma=:id ORDER BY dia_semana,hora_inicio,titulo LIMIT 40");
+    $workouts->execute([':id'=>$idCronograma]);
+    $row['treinos'] = $workouts->fetchAll();
+    return $row;
 }
 
 function treinadorSalvarFeedback(PDO $pdo, string $idAtleta, string $idAgendamento, int $nota, string $feedback): void

@@ -80,7 +80,7 @@ $semanticPatterns = [
     [$activities, '/\.activity-detail-route-map\s*\{[^{}]*border-radius:\s*var\(--radius-card\)/s', 'Mapa de detalhe não usa radius-card.'],
     [$activities, '/\.activity-unit-route-editor\s*\{[^{}]*border-radius:\s*var\(--radius-card\)/s', 'Editor de rota não usa radius-card.'],
     [$activities, '/\.activity-unit-route-(?:map|preview)\s*\{[^{}]*border-radius:\s*var\(--radius-detail\)/s', 'Preview interno de rota não usa radius-detail.'],
-    [$activities, '/\.activity-gps-web-notice\s*\{[^{}]*border-radius:\s*var\(--radius-card\)/s', 'Aviso principal de GPS não usa radius-card.'],
+    [$activities, '/\.activity-gps-notice\s*\{[^{}]*border-radius:\s*var\(--radius-card\)/s', 'Aviso principal de GPS não usa radius-card.'],
     [$activities, '/\.sport-option-row\s*\{[^{}]*border-radius:\s*0/s', 'Linha interna do seletor de esporte não permanece reta.'],
     [$dashboard, '/\.goals-form-block\s*\{[^{}]*border-radius:\s*var\(--radius-card\)/s', 'Bloco do formulário de metas não usa radius-card.'],
     [$dashboard, '/\.dashboard-today\s*\{[^{}]*border-radius:\s*var\(--radius-card\)/s', 'Superfície de hoje não usa radius-card.'],

@@ -34,6 +34,7 @@ HTML = '''<!doctype html><html lang="pt-BR" data-theme="dark"><head><meta charse
 <article class="activity-list-row" data-history-row data-activity-id="a3"><label class="activity-row-select"><input type="checkbox" data-bulk-row-select value="a3"><span></span></label><button class="activity-row-main">Corrida C</button></article>
 </div><div data-history-skeleton hidden></div><div data-history-empty hidden><span data-history-empty-text></span></div><div data-history-error hidden></div><div data-history-more hidden><span data-history-count></span></div></section>
 </div></main>
+<div class="activity-detail-drawer" data-layer-test-drawer style="pointer-events:none;inset:auto 0 0 auto;width:1px;height:1px"></div>
 <nav class="mobile-bottom-nav"><a class="mobile-nav-item" href="#home"><span>Início</span></a><a class="mobile-nav-item" href="#training"><span>Treinos</span></a><a class="mobile-nav-item" href="#activities"><span>Atividades</span></a><a class="mobile-nav-item" href="#progress"><span>Progresso</span></a><a class="mobile-nav-item mobile-profile-tab is-active" href="#profile"><img class="mobile-nav-avatar" alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22'%3E%3Crect width='22' height='22' rx='11' fill='%2340507c'/%3E%3C/svg%3E"><span>Perfil</span></a></nav>
 </body></html>'''
 
@@ -87,6 +88,8 @@ with sync_playwright() as p:
     summary.press('Escape'); ok(not mobile.evaluate('e=>e.open'), 'Escape closes menu')
     notif = page.locator('.header-notification-menu')
     notif.locator('summary').click(); ok(notif.evaluate('e=>e.open'), 'notification opens')
+    layer = page.evaluate("""() => ({header:Number(getComputedStyle(document.querySelector('.site-header')).zIndex),drawer:Number(getComputedStyle(document.querySelector('[data-layer-test-drawer]')).zIndex),modal:Number(getComputedStyle(document.documentElement).getPropertyValue('--z-modal'))})""")
+    ok(layer['drawer'] < layer['header'] < layer['modal'], f"global notification layer stays above drawer and below modal: {layer}")
     summary.click(); ok(mobile.evaluate('e=>e.open') and not notif.evaluate('e=>e.open'), 'global menu coexists and closes notification')
     ok(page.locator('.desktop-account-menu').is_hidden(), 'desktop account hidden on mobile')
     ok(page.locator('.mobile-profile-tab').is_visible(), 'Profile bottom tab visible')
@@ -125,6 +128,8 @@ with sync_playwright() as p:
     ok(desktop.is_visible(), 'desktop avatar menu visible')
     ok(mobile.is_hidden(), 'hamburger hidden on desktop')
     desktop.locator('summary').click(); ok(desktop.evaluate('e=>e.open'), 'desktop avatar opens account dropdown')
+    desktop_layer = page.evaluate("""() => ({header:Number(getComputedStyle(document.querySelector('.site-header')).zIndex),drawer:Number(getComputedStyle(document.querySelector('[data-layer-test-drawer]')).zIndex),modal:Number(getComputedStyle(document.documentElement).getPropertyValue('--z-modal'))})""")
+    ok(desktop_layer['drawer'] < desktop_layer['header'] < desktop_layer['modal'], f"global user menu layer stays above drawer and below modal: {desktop_layer}")
     ok('Conexões e integrações' in desktop.inner_text(), 'connections discoverable in account menu')
     ok(page.locator('.settings-tabs [aria-current="page"]').inner_text() == 'Conexões', 'Connections first-class settings tab')
     strava = page.locator('[data-integration-provider="strava"]')

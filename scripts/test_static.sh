@@ -96,6 +96,7 @@ php scripts/tests/test_integrations_external_rc4.php
 php scripts/tests/test_strava_webhooks.php
 php scripts/tests/test_core_nav_strava_backfill_static.php
 php scripts/tests/test_api_v1_static.php
+php scripts/tests/test_notification_contract_static.php
 php scripts/tests/test_ads_placements_static.php
 php scripts/tests/test_sport_hub_monetization_static.php
 php scripts/tests/test_progress_phase_a_static.php
@@ -115,6 +116,7 @@ php scripts/tests/test_visual_consistency_static.php
 php scripts/tests/test_schedule_hierarchy_static.php
 php scripts/tests/test_admin_feedback_static.php
 php scripts/tests/test_ui_consolidation_static.php
+php scripts/tests/test_product_ux_consolidation_static.php
 php scripts/tests/test_templates.php
 
 php scripts/tests/test_planning_week.php

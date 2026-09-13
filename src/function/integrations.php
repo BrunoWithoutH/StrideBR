@@ -25,6 +25,7 @@ function stridebr_integrations_registry(): array
         'garmin' => [
             'label' => 'Garmin Connect',
             'short' => 'Garmin',
+            'mark' => 'G',
             'description' => (function_exists('stridebr_t') ? stridebr_t('integrations.provider.garmin.description') : 'Integração preparada para as APIs oficiais da Garmin quando o acesso ao programa for liberado.'),
             'kind' => 'cloud',
             'oauth' => true,
@@ -42,6 +43,7 @@ function stridebr_integrations_registry(): array
         'strava' => [
             'label' => 'Strava',
             'short' => 'Strava',
+            'mark' => 'S',
             'description' => (function_exists('stridebr_t') ? stridebr_t('integrations.provider.strava.description') : 'Importe suas atividades do Strava e mantenha a origem registrada no histórico.'),
             'kind' => 'cloud',
             'oauth' => true,
@@ -58,6 +60,7 @@ function stridebr_integrations_registry(): array
         'polar' => [
             'label' => 'Polar Flow',
             'short' => 'Polar',
+            'mark' => 'PF',
             'description' => (function_exists('stridebr_t') ? stridebr_t('integrations.provider.polar.description') : 'Receba sessões do Polar Flow pela AccessLink API v4, com rota e métricas quando disponíveis.'),
             'kind' => 'cloud',
             'oauth' => true,
@@ -74,6 +77,7 @@ function stridebr_integrations_registry(): array
         'google_health' => [
             'label' => 'Google Health',
             'short' => 'Google Health',
+            'mark' => 'GH',
             'description' => (function_exists('stridebr_t') ? stridebr_t('integrations.provider.google_health.description') : 'Importe atividades do Fitbit e de dispositivos compatíveis pela Google Health API.'),
             'kind' => 'cloud',
             'oauth' => true,
@@ -90,6 +94,7 @@ function stridebr_integrations_registry(): array
         'coros' => [
             'label' => 'COROS',
             'short' => 'COROS',
+            'mark' => 'C',
             'description' => (function_exists('stridebr_t') ? stridebr_t('integrations.provider.coros.description') : 'Importe atividades da sua conta COROS pelo MCP oficial, com FIT quando disponível.'),
             'kind' => 'cloud',
             'oauth' => true,
@@ -101,6 +106,7 @@ function stridebr_integrations_registry(): array
         'suunto' => [
             'label' => 'Suunto',
             'short' => 'Suunto',
+            'mark' => 'SU',
             'description' => (function_exists('stridebr_t') ? stridebr_t('integrations.provider.suunto.description') : 'Importe treinos da Suunto App pela Suunto Cloud API quando a integração estiver aprovada e configurada.'),
             'kind' => 'cloud',
             'oauth' => true,
@@ -118,6 +124,7 @@ function stridebr_integrations_registry(): array
         'halo' => [
             'label' => 'HALO',
             'short' => 'HALO',
+            'mark' => 'H',
             'description' => (function_exists('stridebr_t') ? stridebr_t('integrations.provider.halo.description') : 'Integração direta aguardando disponibilidade ou parceria; no mobile poderá usar Health Connect ou Apple Health.'),
             'kind' => 'future',
             'oauth' => false,
@@ -128,6 +135,7 @@ function stridebr_integrations_registry(): array
         'health_connect' => [
             'label' => 'Health Connect',
             'short' => 'Health Connect',
+            'mark' => 'HC',
             'description' => (function_exists('stridebr_t') ? stridebr_t('integrations.provider.health_connect.description') : 'Ponte do Android para exercícios gravados por Samsung Health e outros aplicativos compatíveis. Requer o app Android do StrideBR.'),
             'kind' => 'mobile',
             'oauth' => false,
@@ -137,6 +145,7 @@ function stridebr_integrations_registry(): array
         'samsung_health' => [
             'label' => 'Samsung Health',
             'short' => 'Samsung Health',
+            'mark' => 'SH',
             'description' => (function_exists('stridebr_t') ? stridebr_t('integrations.provider.samsung_health.description') : 'No Android, os exercícios do Galaxy Watch podem chegar ao StrideBR pelo Health Connect.'),
             'kind' => 'bridge',
             'oauth' => false,
@@ -146,6 +155,7 @@ function stridebr_integrations_registry(): array
         'apple_health' => [
             'label' => 'Apple Health',
             'short' => 'Apple Health',
+            'mark' => 'AH',
             'description' => (function_exists('stridebr_t') ? stridebr_t('integrations.provider.apple_health.description') : 'Sincronização com Apple Watch e Saúde via HealthKit. Requer o app iOS do StrideBR.'),
             'kind' => 'mobile',
             'oauth' => false,

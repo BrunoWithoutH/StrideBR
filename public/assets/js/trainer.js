@@ -66,6 +66,9 @@
                 row.querySelector('input')?.focus();
             });
         }
+        if (prescriptionModal?.dataset.autoOpen === '1' && prescriptionModal.hidden) {
+            requestAnimationFrame(() => setPrescriptionOpen(true));
+        }
     };
 
     const replaceAthleteWorkspace = async (url, historyMode = 'push') => {

@@ -1,20 +1,37 @@
 <?php /* Shared connection cards; no credentials are rendered. */ ?>
 <?php
 $integrationProviderIds = array_keys($integrationRegistry);
-usort($integrationProviderIds, static function (string $a, string $b) use ($integrationRegistry, $integrationConnections): int {
-    $rank = static function (string $id) use ($integrationRegistry, $integrationConnections): int {
-        $provider = $integrationRegistry[$id] ?? [];
-        $connection = $integrationConnections[$id] ?? null;
-        if (is_array($connection) && in_array((string) ($connection['status'] ?? ''), ['conectado', 'erro'], true)) return 0;
-        if (($provider['kind'] ?? '') === 'cloud' && stridebr_integrations_configured($provider)) return 1;
-        if (in_array((string) ($provider['kind'] ?? ''), ['mobile', 'bridge'], true)) return 2;
-        return 3;
-    };
-    return ($rank($a) <=> $rank($b)) ?: strcmp($a, $b);
-});
+$integrationGroups = [
+    'ready' => [],
+    'app' => [],
+    'external' => [],
+];
+foreach ($integrationProviderIds as $providerId) {
+    $provider = $integrationRegistry[$providerId] ?? [];
+    $connection = $integrationConnections[$providerId] ?? null;
+    $connected = is_array($connection) && in_array((string) ($connection['status'] ?? ''), ['conectado', 'erro'], true);
+    $kind = (string) ($provider['kind'] ?? 'cloud');
+    $configured = stridebr_integrations_configured($provider);
+    if ($connected || ($kind === 'cloud' && $configured)) $integrationGroups['ready'][] = $providerId;
+    elseif (in_array($kind, ['mobile', 'bridge'], true)) $integrationGroups['app'][] = $providerId;
+    else $integrationGroups['external'][] = $providerId;
+}
+foreach ($integrationGroups as &$groupIds) {
+    usort($groupIds, static fn(string $a, string $b): int => strcmp((string) ($integrationRegistry[$a]['label'] ?? $a), (string) ($integrationRegistry[$b]['label'] ?? $b)));
+}
+unset($groupIds);
+$integrationGroupKeys = [
+    'ready' => ['integrations.group.ready', 'integrations.group.ready_help'],
+    'app' => ['integrations.group.app', 'integrations.group.app_help'],
+    'external' => ['integrations.group.external', 'integrations.group.external_help'],
+];
 ?>
-<div class="settings-connections-grid">
-<?php foreach ($integrationProviderIds as $providerId):
+<div class="settings-connections-groups">
+<?php foreach ($integrationGroups as $groupId => $groupProviders): if ($groupProviders === []) continue; [$groupTitleKey, $groupHelpKey] = $integrationGroupKeys[$groupId]; ?>
+<section class="integration-group" data-integration-group="<?php echo stridebr_e($groupId); ?>">
+    <div class="integration-group-heading"><div><h3><?php echo stridebr_e(stridebr_t($groupTitleKey)); ?></h3><p><?php echo stridebr_e(stridebr_t($groupHelpKey)); ?></p></div><span><?php echo count($groupProviders); ?></span></div>
+    <div class="settings-connections-grid">
+<?php foreach ($groupProviders as $providerId):
     $provider = $integrationRegistry[$providerId];
     $connection = $integrationConnections[$providerId] ?? null;
     $connected = is_array($connection) && in_array((string) ($connection['status'] ?? ''), ['conectado', 'erro'], true);
@@ -31,7 +48,15 @@ usort($integrationProviderIds, static function (string $a, string $b) use ($inte
     $lastSync = $connected && !empty($connection['ultima_sincronizacao_em']) ? new DateTimeImmutable((string) $connection['ultima_sincronizacao_em']) : null;
     $lastSync = $lastSync?->setTimezone(new DateTimeZone('America/Sao_Paulo'));
     $lastLabel = $lastSync && $lastSync->format('Y-m-d') === (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d') ? stridebr_t('integrations.today', ['time' => $lastSync->format('H:i')]) : ($lastSync ? stridebr_format_datetime_short($lastSync) : '');
-    $statusKey = $connected ? ($reauthorize ? 'integrations.reauthorize' : ($syncing ? 'integrations.syncing' : ($hasError ? 'integrations.last_error' : 'common.connected'))) : ($configured ? 'integrations.not_connected' : 'settings.unavailable');
+    $statusKey = $connected
+        ? ($reauthorize ? 'integrations.reauthorize' : ($syncing ? 'integrations.syncing' : ($hasError ? 'integrations.last_error' : 'common.connected')))
+        : ($configured
+            ? 'integrations.available_to_connect'
+            : ($kind === 'mobile'
+                ? ($providerId === 'apple_health' ? 'integrations.available_ios' : 'integrations.available_android')
+                : ($kind === 'bridge'
+                    ? 'integrations.available_android'
+                    : (in_array((string) ($provider['availability'] ?? ''), ['external_blocked', 'waiting'], true) ? 'integrations.awaiting_external' : 'integrations.coming_soon'))));
     $stravaView = null;
     $stravaState = '';
     $stravaTitle = '';
@@ -82,7 +107,7 @@ usort($integrationProviderIds, static function (string $a, string $b) use ($inte
 ?>
 <article class="integration-card<?php echo $connected ? ' is-connected' : ''; ?>" data-integration-provider="<?php echo stridebr_e($providerId); ?>"<?php echo $stravaState !== '' ? ' data-strava-state="' . stridebr_e($stravaState) . '"' : ''; ?> data-syncing-label="<?php echo stridebr_e(stridebr_t('integrations.syncing')); ?>">
     <div class="integration-card-main">
-        <span class="integration-provider-mark<?php echo $providerId === 'strava' ? ' is-wordmark' : ''; ?>" aria-hidden="true"><?php echo $providerId === 'strava' ? 'Strava' : stridebr_e((string) $provider['short']); ?></span>
+        <span class="integration-provider-mark" aria-hidden="true"><?php echo stridebr_e((string) ($provider['mark'] ?? strtoupper(substr((string) $provider['short'], 0, 2)))); ?></span>
         <div class="integration-card-copy">
             <div class="integration-card-title">
                 <h3><?php echo stridebr_e($provider['label']); ?></h3>
@@ -139,6 +164,9 @@ usort($integrationProviderIds, static function (string $a, string $b) use ($inte
         <?php endif; ?>
     </div>
 </article>
+<?php endforeach; ?>
+    </div>
+</section>
 <?php endforeach; ?>
 </div>
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/integrations.js')); ?>" defer></script>
