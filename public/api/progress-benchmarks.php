@@ -68,6 +68,21 @@ try {
             }
             if (trim((string) ($existingEvidence['competition_id'] ?? '')) === '') throw new InvalidArgumentException(stridebr_t('competitions.error.official_competition_required'));
         }
+    } elseif ($type === 'athletics') {
+        $eventCode = trim((string) ($_POST['athletics_event_code'] ?? ''));
+        $event = athleticsEventConfig($eventCode);
+        if ($event === null) throw new InvalidArgumentException(stridebr_t('benchmarks.error.invalid_athletics_event'));
+        $eventModalities = athleticsModalityRows($pdo, $idUsuario);
+        if (!isset($eventModalities[$eventCode])) throw new InvalidArgumentException(stridebr_t('benchmarks.error.invalid_modality'));
+        $payload['idmodalidade'] = (string) $eventModalities[$eventCode]['idmodalidade'];
+        $payload['athletics_event_code'] = $eventCode;
+        $payload['athletics_environment'] = trim((string) ($_POST['athletics_environment'] ?? 'unknown'));
+        $payload['wind_mps'] = trim((string) ($_POST['wind_mps'] ?? ''));
+        $payload['timing_method'] = trim((string) ($_POST['timing_method'] ?? 'unknown'));
+        $payload['valor_canonico'] = ($event['measurement'] ?? '') === 'time'
+            ? benchmarkParseClockSeconds($_POST['athletics_value'] ?? null)
+            : benchmarkParseDecimal($_POST['athletics_value'] ?? null);
+        $payload['metodo'] = 'medido';
     } else {
         throw new InvalidArgumentException(stridebr_t('benchmarks.error.invalid_type'));
     }

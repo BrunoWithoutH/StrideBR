@@ -403,7 +403,39 @@ function stridebr_api_list_activities(PDO $pdo, string $userId, array $filters =
     $count = $pdo->prepare("SELECT COUNT(*) FROM registros_atividade ra JOIN modalidades m ON m.idmodalidade = ra.idmodalidade WHERE $condition");
     $count->execute($params);
     $total = (int) $count->fetchColumn();
-    $stmt = $pdo->prepare("SELECT ra.idregistro, ra.idmodalidade, ra.titulo, ra.data_inicio, ra.data_fim, ra.status, ra.visibilidade, ra.origem, ra.esforco_percebido, m.nome AS modalidade_nome, m.slug AS modalidade_slug FROM registros_atividade ra JOIN modalidades m ON m.idmodalidade=ra.idmodalidade WHERE $condition ORDER BY ra.data_inicio DESC, ra.idregistro DESC LIMIT :limit OFFSET :offset");
+    $sql = "WITH page_rows AS (
+                SELECT ra.idregistro,ra.idmodalidade,ra.titulo,ra.data_inicio,ra.data_fim,ra.status,ra.visibilidade,ra.origem,ra.origem_provedor,ra.esforco_percebido,ra.usa_trechos,
+                       m.nome AS modalidade_nome,m.slug AS modalidade_slug
+                FROM registros_atividade ra
+                JOIN modalidades m ON m.idmodalidade=ra.idmodalidade
+                WHERE $condition
+                ORDER BY ra.data_inicio DESC,ra.idregistro DESC
+                LIMIT :limit OFFSET :offset
+            )
+            SELECT ra.idregistro,ra.idmodalidade,ra.titulo,ra.data_inicio,ra.data_fim,ra.status,ra.visibilidade,ra.origem,ra.origem_provedor,ra.esforco_percebido,ra.usa_trechos,
+                   ra.modalidade_nome,ra.modalidade_slug,
+                   COALESCE(NULLIF(g.distancia_final_m,0),CASE WHEN ra.usa_trechos THEN NULLIF(seg.distancia_m,0) END,NULLIF(r.distancia_metros,0),NULLIF(metric.distancia_m,0)) AS api_distance_m,
+                   COALESCE(NULLIF(g.duracao_s,0),CASE WHEN ra.usa_trechos THEN NULLIF(seg.duracao_s,0) END,NULLIF(GREATEST(EXTRACT(EPOCH FROM (COALESCE(ra.data_fim,ra.data_inicio)-ra.data_inicio)),0),0),NULLIF(metric.duracao_s,0)) AS api_duration_s,
+                   COALESCE(CASE WHEN ra.usa_trechos THEN NULLIF(seg.elevacao_gain_m,0) END,r.ganho_elevacao_m,metric.elevacao_m) AS api_elevation_gain_m
+            FROM page_rows ra
+            LEFT JOIN rotas_atividade r ON r.idregistro=ra.idregistro
+            LEFT JOIN gravacoes_gps_web g ON g.idregistro=ra.idregistro
+            LEFT JOIN LATERAL (
+                SELECT SUM(va.valor_normalizado) FILTER (WHERE lower(c.slug)='distancia') AS distancia_m,
+                       SUM(va.valor_normalizado) FILTER (WHERE lower(c.slug)='duracao') AS duracao_s,
+                       SUM(va.valor_normalizado) FILTER (WHERE lower(c.slug) IN ('elevacao','desnivel')) AS elevacao_m
+                FROM valores_atividade va JOIN campos_modelo c ON c.idcampo=va.idcampo
+                WHERE va.idregistro=ra.idregistro
+            ) metric ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT SUM(COALESCE(ua.distancia_metros,ru.distancia_metros)) AS distancia_m,
+                       SUM(ua.duracao_segundos) AS duracao_s,
+                       SUM(COALESCE(ua.elevacao_m,ru.ganho_elevacao_m)) AS elevacao_gain_m
+                FROM unidades_atividade ua LEFT JOIN rotas_unidades_atividade ru ON ru.idunidade_atividade=ua.idunidade_atividade
+                WHERE ua.idregistro=ra.idregistro
+            ) seg ON TRUE
+            ORDER BY ra.data_inicio DESC,ra.idregistro DESC";
+    $stmt = $pdo->prepare($sql);
     foreach ($params as $key => $value) $stmt->bindValue($key, $value);
     $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
     $stmt->bindValue(':offset', ($page - 1) * $limit, PDO::PARAM_INT);
@@ -416,23 +448,123 @@ function stridebr_api_list_activities(PDO $pdo, string $userId, array $filters =
 
 function stridebr_api_activity_summary(array $row): array
 {
-    return ['id'=>(string)$row['idregistro'], 'title'=>(string)($row['titulo'] ?: $row['modalidade_nome']), 'sport'=>['id'=>(string)$row['idmodalidade'], 'slug'=>(string)$row['modalidade_slug'], 'name'=>(string)$row['modalidade_nome']], 'started_at'=>stridebr_api_iso((string)$row['data_inicio']), 'ended_at'=>stridebr_api_iso($row['data_fim'] !== null ? (string)$row['data_fim'] : null), 'status'=>(string)$row['status'], 'visibility'=>(string)$row['visibilidade'], 'origin'=>(string)$row['origem'], 'perceived_effort'=>$row['esforco_percebido'] !== null ? (int)$row['esforco_percebido'] : null];
+    $distance = is_numeric($row['api_distance_m'] ?? null) ? max(0.0, (float)$row['api_distance_m']) : null;
+    $duration = is_numeric($row['api_duration_s'] ?? null) ? max(0.0, (float)$row['api_duration_s']) : null;
+    $elevation = is_numeric($row['api_elevation_gain_m'] ?? null) ? max(0.0, (float)$row['api_elevation_gain_m']) : null;
+    $averageSpeed = $distance !== null && $duration !== null && $distance > 0 && $duration > 0 ? $distance / $duration : null;
+    return [
+        'id'=>(string)$row['idregistro'],
+        'title'=>(string)($row['titulo'] ?: $row['modalidade_nome']),
+        'sport'=>['id'=>(string)$row['idmodalidade'], 'slug'=>(string)$row['modalidade_slug'], 'name'=>(string)$row['modalidade_nome']],
+        'started_at'=>stridebr_api_iso((string)$row['data_inicio']),
+        'ended_at'=>stridebr_api_iso($row['data_fim'] !== null ? (string)$row['data_fim'] : null),
+        'status'=>(string)$row['status'],
+        'visibility'=>(string)$row['visibilidade'],
+        'origin'=>(string)$row['origem'],
+        'origin_provider'=>isset($row['origem_provedor']) && trim((string)$row['origem_provedor']) !== '' ? (string)$row['origem_provedor'] : null,
+        'perceived_effort'=>$row['esforco_percebido'] !== null ? (int)$row['esforco_percebido'] : null,
+        'distance_m'=>$distance,
+        'duration_s'=>$duration,
+        'elevation_gain_m'=>$elevation,
+        'average_speed_mps'=>$averageSpeed !== null ? round($averageSpeed, 6) : null,
+    ];
 }
 
 function stridebr_api_activity_detail(PDO $pdo, string $activityId, string $userId): array
 {
-    $stmt = $pdo->prepare('SELECT ra.idregistro, ra.idmodalidade, ra.titulo, ra.observacoes, ra.data_inicio, ra.data_fim, ra.status, ra.visibilidade, ra.origem, ra.esforco_percebido, ra.usa_trechos, m.nome AS modalidade_nome, m.slug AS modalidade_slug FROM registros_atividade ra JOIN modalidades m ON m.idmodalidade = ra.idmodalidade WHERE ra.idregistro = :id AND ra.idusuario = :user AND ra.excluido_em IS NULL LIMIT 1');
+    $stmt = $pdo->prepare("SELECT ra.idregistro,ra.idmodalidade,ra.titulo,ra.observacoes,ra.data_inicio,ra.data_fim,ra.status,ra.visibilidade,ra.origem,ra.origem_provedor,ra.esforco_percebido,ra.usa_trechos,
+            ra.ocultar_inicio_m,ra.ocultar_fim_m,ra.calorias_ativas_estimadas,ra.calorias_totais_estimadas,
+            m.nome AS modalidade_nome,m.slug AS modalidade_slug,
+            COALESCE(NULLIF(g.distancia_final_m,0),CASE WHEN ra.usa_trechos THEN NULLIF(seg.distancia_m,0) END,NULLIF(r.distancia_metros,0),NULLIF(metric.distancia_m,0)) AS api_distance_m,
+            COALESCE(NULLIF(g.duracao_s,0),CASE WHEN ra.usa_trechos THEN NULLIF(seg.duracao_s,0) END,NULLIF(GREATEST(EXTRACT(EPOCH FROM (COALESCE(ra.data_fim,ra.data_inicio)-ra.data_inicio)),0),0),NULLIF(metric.duracao_s,0)) AS api_duration_s,
+            COALESCE(CASE WHEN ra.usa_trechos THEN NULLIF(seg.elevacao_gain_m,0) END,r.ganho_elevacao_m,metric.elevacao_m) AS api_elevation_gain_m,
+            COALESCE(r.elevacao_min_m,seg.elevacao_min_m) AS api_elevation_min_m,
+            COALESCE(r.elevacao_max_m,seg.elevacao_max_m) AS api_elevation_max_m
+        FROM registros_atividade ra
+        JOIN modalidades m ON m.idmodalidade=ra.idmodalidade
+        LEFT JOIN rotas_atividade r ON r.idregistro=ra.idregistro
+        LEFT JOIN gravacoes_gps_web g ON g.idregistro=ra.idregistro
+        LEFT JOIN LATERAL (
+            SELECT SUM(va.valor_normalizado) FILTER (WHERE lower(c.slug)='distancia') AS distancia_m,
+                   SUM(va.valor_normalizado) FILTER (WHERE lower(c.slug)='duracao') AS duracao_s,
+                   SUM(va.valor_normalizado) FILTER (WHERE lower(c.slug) IN ('elevacao','desnivel')) AS elevacao_m
+            FROM valores_atividade va JOIN campos_modelo c ON c.idcampo=va.idcampo WHERE va.idregistro=ra.idregistro
+        ) metric ON TRUE
+        LEFT JOIN LATERAL (
+            SELECT SUM(COALESCE(ua.distancia_metros,ru.distancia_metros)) AS distancia_m,SUM(ua.duracao_segundos) AS duracao_s,
+                   SUM(COALESCE(ua.elevacao_m,ru.ganho_elevacao_m)) AS elevacao_gain_m,MIN(ru.elevacao_min_m) AS elevacao_min_m,MAX(ru.elevacao_max_m) AS elevacao_max_m
+            FROM unidades_atividade ua LEFT JOIN rotas_unidades_atividade ru ON ru.idunidade_atividade=ua.idunidade_atividade WHERE ua.idregistro=ra.idregistro
+        ) seg ON TRUE
+        WHERE ra.idregistro=:id AND ra.idusuario=:user AND ra.excluido_em IS NULL LIMIT 1");
     $stmt->execute([':id'=>$activityId, ':user'=>$userId]);
     $row = $stmt->fetch();
     if (!$row) return [];
+
     $detail = stridebr_api_activity_summary($row);
     $detail['notes'] = $row['observacoes'] !== null ? (string)$row['observacoes'] : null;
     $detail['uses_segments'] = stridebr_api_bool($row['usa_trechos'] ?? false);
+    $detail['elevation_min_m'] = is_numeric($row['api_elevation_min_m'] ?? null) ? (float)$row['api_elevation_min_m'] : null;
+    $detail['elevation_max_m'] = is_numeric($row['api_elevation_max_m'] ?? null) ? (float)$row['api_elevation_max_m'] : null;
+    $detail['active_calories_kcal'] = is_numeric($row['calorias_ativas_estimadas'] ?? null) ? (float)$row['calorias_ativas_estimadas'] : null;
+    $detail['total_calories_kcal'] = is_numeric($row['calorias_totais_estimadas'] ?? null) ? (float)$row['calorias_totais_estimadas'] : null;
+    $detail['route_privacy'] = ['hide_start_m'=>(int)($row['ocultar_inicio_m'] ?? 0), 'hide_end_m'=>(int)($row['ocultar_fim_m'] ?? 0)];
+
     $units = $pdo->prepare('SELECT ua.idunidade_atividade, ua.ordem, ua.tipo_unidade, ua.rotulo, ua.observacoes, ua.distancia_metros, ua.duracao_segundos, ua.elevacao_m, COALESCE(um.idmodalidade, :sport) AS idmodalidade, COALESCE(um.nome, :sport_name) AS modalidade_nome, COALESCE(um.slug, :sport_slug) AS modalidade_slug FROM unidades_atividade ua LEFT JOIN modalidades um ON um.idmodalidade = ua.idmodalidade WHERE ua.idregistro = :id ORDER BY ua.ordem');
     $units->execute([':id'=>$activityId, ':sport'=>$row['idmodalidade'], ':sport_name'=>$row['modalidade_nome'], ':sport_slug'=>$row['modalidade_slug']]);
     $detail['segments'] = array_map(static fn(array $unit): array => ['id'=>(string)$unit['idunidade_atividade'], 'order'=>(int)$unit['ordem'], 'type'=>(string)$unit['tipo_unidade'], 'label'=>$unit['rotulo'] !== null ? (string)$unit['rotulo'] : null, 'notes'=>$unit['observacoes'] !== null ? (string)$unit['observacoes'] : null, 'distance_m'=>$unit['distancia_metros'] !== null ? (float)$unit['distancia_metros'] : null, 'duration_s'=>$unit['duracao_segundos'] !== null ? (float)$unit['duracao_segundos'] : null, 'elevation_m'=>$unit['elevacao_m'] !== null ? (float)$unit['elevacao_m'] : null, 'sport'=>['id'=>(string)$unit['idmodalidade'], 'slug'=>(string)$unit['modalidade_slug'], 'name'=>(string)$unit['modalidade_nome']]], $units->fetchAll());
+
     $equipment = $pdo->prepare('SELECT e.idequipamento, e.nome, e.categoria FROM registros_atividade_equipamentos link JOIN equipamentos_usuario e ON e.idequipamento = link.idequipamento WHERE link.idregistro = :id AND e.idusuario = :user ORDER BY e.nome');
     $equipment->execute([':id'=>$activityId, ':user'=>$userId]);
     $detail['equipment'] = array_map(static fn(array $item): array => ['id'=>(string)$item['idequipamento'], 'name'=>(string)$item['nome'], 'category'=>(string)$item['categoria']], $equipment->fetchAll());
+
+    $routeStmt = $pdo->prepare('SELECT modo,coordenadas,pontos_metadata,distancia_metros,ganho_elevacao_m,perda_elevacao_m,elevacao_min_m,elevacao_max_m,fonte_elevacao FROM rotas_atividade WHERE idregistro=:id LIMIT 1');
+    $routeStmt->execute([':id'=>$activityId]);
+    $routeRow = $routeStmt->fetch();
+    $detail['route'] = null;
+    if (is_array($routeRow)) {
+        $geometry = json_decode((string)($routeRow['coordenadas'] ?? ''), true);
+        $metadata = json_decode((string)($routeRow['pontos_metadata'] ?? ''), true);
+        if (!is_array($metadata)) $metadata = [];
+        $coordinates = is_array($geometry) && ($geometry['type'] ?? '') === 'LineString' && is_array($geometry['coordinates'] ?? null) ? $geometry['coordinates'] : [];
+        $points = [];
+        foreach ($coordinates as $index => $coordinate) {
+            if (!is_array($coordinate) || !is_numeric($coordinate[0] ?? null) || !is_numeric($coordinate[1] ?? null)) continue;
+            $meta = is_array($metadata[$index] ?? null) ? $metadata[$index] : [];
+            $points[] = [
+                'lat'=>(float)$coordinate[1],
+                'lon'=>(float)$coordinate[0],
+                'altitude_m'=>is_numeric($meta['altitude_m'] ?? null) ? (float)$meta['altitude_m'] : (is_numeric($coordinate[2] ?? null) ? (float)$coordinate[2] : null),
+                'accuracy_m'=>is_numeric($meta['accuracy_m'] ?? null) ? (float)$meta['accuracy_m'] : null,
+                'timestamp_ms'=>is_numeric($meta['timestamp_ms'] ?? null) ? (int)$meta['timestamp_ms'] : null,
+            ];
+        }
+        if ($points !== []) {
+            $detail['route'] = [
+                'mode'=>(string)($routeRow['modo'] ?? ''),
+                'points'=>$points,
+                'distance_m'=>is_numeric($routeRow['distancia_metros'] ?? null) ? (float)$routeRow['distancia_metros'] : null,
+                'elevation_gain_m'=>is_numeric($routeRow['ganho_elevacao_m'] ?? null) ? (float)$routeRow['ganho_elevacao_m'] : null,
+                'elevation_loss_m'=>is_numeric($routeRow['perda_elevacao_m'] ?? null) ? (float)$routeRow['perda_elevacao_m'] : null,
+                'elevation_min_m'=>is_numeric($routeRow['elevacao_min_m'] ?? null) ? (float)$routeRow['elevacao_min_m'] : null,
+                'elevation_max_m'=>is_numeric($routeRow['elevacao_max_m'] ?? null) ? (float)$routeRow['elevacao_max_m'] : null,
+                'elevation_source'=>trim((string)($routeRow['fonte_elevacao'] ?? '')) ?: null,
+            ];
+        }
+    }
+
+    $gpsStmt = $pdo->prepare('SELECT distancia_medida_m,pontos_recebidos,pontos_aceitos,pontos_rejeitados,precisao_media_m,precisao_melhor_m,precisao_pior_m,lacunas_visibilidade,usuario_ajustou FROM gravacoes_gps_web WHERE idregistro=:id LIMIT 1');
+    $gpsStmt->execute([':id'=>$activityId]);
+    $gps = $gpsStmt->fetch();
+    $detail['gps'] = is_array($gps) ? [
+        'measured_distance_m'=>is_numeric($gps['distancia_medida_m'] ?? null) ? (float)$gps['distancia_medida_m'] : null,
+        'points_received'=>(int)($gps['pontos_recebidos'] ?? 0),
+        'points_accepted'=>(int)($gps['pontos_aceitos'] ?? 0),
+        'points_rejected'=>(int)($gps['pontos_rejeitados'] ?? 0),
+        'accuracy_avg_m'=>is_numeric($gps['precisao_media_m'] ?? null) ? (float)$gps['precisao_media_m'] : null,
+        'accuracy_best_m'=>is_numeric($gps['precisao_melhor_m'] ?? null) ? (float)$gps['precisao_melhor_m'] : null,
+        'accuracy_worst_m'=>is_numeric($gps['precisao_pior_m'] ?? null) ? (float)$gps['precisao_pior_m'] : null,
+        'visibility_gaps'=>(int)($gps['lacunas_visibilidade'] ?? 0),
+        'user_adjusted'=>stridebr_api_bool($gps['usuario_ajustou'] ?? false),
+    ] : null;
     return $detail;
 }

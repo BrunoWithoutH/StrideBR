@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/competitions.php';
+require_once __DIR__ . '/athletics.php';
+require_once __DIR__ . '/seasons.php';
 
 function benchmarkRegistry(): array
 {
@@ -52,6 +54,19 @@ function benchmarkRegistry(): array
             'requires_distance' => true,
             'families' => ['cardio'],
             'slugs' => ['corrida', 'corrida-em-trilha', 'corrida-em-esteira'],
+            'methods' => ['medido', 'informado'],
+            'default_method' => 'medido',
+        ],
+        'athletics' => [
+            'label_key' => 'benchmarks.athletics',
+            'unit' => 'dynamic',
+            'direction' => 'dynamic',
+            'primary' => 'best',
+            'requires_exercise' => false,
+            'requires_distance' => false,
+            'requires_event' => true,
+            'families' => ['athletics'],
+            'slugs' => [],
             'methods' => ['medido', 'informado'],
             'default_method' => 'medido',
         ],
@@ -146,6 +161,7 @@ function benchmarkFormatValue(string $type, float $value, ?float $distanceM = nu
         'ftp' => stridebr_format_number($value, 0) . ' W',
         'css' => benchmarkFormatClock($value) . '/100 m',
         'distance_time' => benchmarkFormatClock($value),
+        'athletics' => stridebr_format_number($value, 2),
         default => stridebr_format_number($value, 2),
     };
 }
@@ -333,6 +349,27 @@ function benchmarkNormalizeInput(PDO $pdo, string $userId, array $input, ?array 
     $metadataSource = array_key_exists('metadados', $input) ? $input['metadados'] : ($existing['metadados'] ?? null);
     $metadata = benchmarkNormalizeMetadata($metadataSource);
 
+    $athleticsEventCode = null;
+    $athleticsEnvironment = null;
+    $windMps = null;
+    $timingMethod = null;
+    if ($type === 'athletics') {
+        $eventFromModality = athleticsEventFromSlug((string) ($modality['slug'] ?? ''));
+        $requestedEventCode = stridebr_lower(trim((string) ($input['athletics_event_code'] ?? $existing['athletics_event_code'] ?? '')));
+        if ($eventFromModality === null || ($requestedEventCode !== '' && $requestedEventCode !== (string) $eventFromModality['code'])) throw new InvalidArgumentException(stridebr_t('benchmarks.error.invalid_athletics_event'));
+        $athleticsEventCode = (string) $eventFromModality['code'];
+        $athleticsEnvironment = athleticsNormalizeEnvironment($input['athletics_environment'] ?? $existing['athletics_environment'] ?? 'unknown');
+        $windMpsRaw = $input['wind_mps'] ?? $existing['wind_mps'] ?? null;
+        if ($windMpsRaw !== null && trim((string) $windMpsRaw) !== '') {
+            $windMps = filter_var(str_replace(',', '.', trim((string) $windMpsRaw)), FILTER_VALIDATE_FLOAT);
+            if ($windMps === false || !is_finite((float) $windMps) || abs((float) $windMps) > 20) throw new InvalidArgumentException(stridebr_t('benchmarks.error.invalid_wind'));
+            $windMps = (float) $windMps;
+        }
+        $timingMethod = athleticsNormalizeTimingMethod($input['timing_method'] ?? $existing['timing_method'] ?? 'unknown');
+        if (($eventFromModality['measurement'] ?? '') !== 'time') $timingMethod = null;
+        if (empty($eventFromModality['wind'])) $windMps = null;
+    }
+
     $evidence = benchmarkActivityEvidence($pdo, $userId, $input['idregistro'] ?? $existing['idregistro'] ?? null, $input['idunidade_atividade'] ?? $existing['idunidade_atividade'] ?? null);
     if (isset($evidence['modality_id']) && $evidence['modality_id'] !== $modalityId) throw new InvalidArgumentException(stridebr_t('benchmarks.error.activity_modality_mismatch'));
 
@@ -364,6 +401,10 @@ function benchmarkNormalizeInput(PDO $pdo, string $userId, array $input, ?array 
         'oficialidade' => $officiality,
         'protocolo' => $protocol,
         'distancia_m' => $distance,
+        'athletics_event_code' => $athleticsEventCode,
+        'athletics_environment' => $athleticsEnvironment,
+        'wind_mps' => $windMps,
+        'timing_method' => $timingMethod,
         'provider' => $provider,
         'external_source_id' => $externalId,
         'metadados' => $metadata,
@@ -377,9 +418,9 @@ function benchmarkCreate(PDO $pdo, string $userId, array $input): array
     if (!benchmarkTableExists($pdo)) throw new RuntimeException(stridebr_t('benchmarks.error.unavailable'));
     $data = benchmarkNormalizeInput($pdo, $userId, $input);
     $id = stridebr_generate_id();
-    $stmt = $pdo->prepare("INSERT INTO benchmarks_usuario (idbenchmark,idusuario,idmodalidade,tipo,valor_canonico,data_resultado,idexercicio,idregistro,idunidade_atividade,idcompeticao,referencia_nome_snapshot,origem,metodo,contexto,oficialidade,protocolo,distancia_m,provider,external_source_id,metadados,observacoes,excluido_progresso) VALUES (:id,:usuario,:modalidade,:tipo,:valor,:data,:exercicio,:registro,:unidade,:competicao,:snapshot,:origem,:metodo,:contexto,:oficialidade,:protocolo,:distancia,:provider,:external_id,CAST(:metadados AS jsonb),:observacoes,CAST(:excluido AS boolean))");
+    $stmt = $pdo->prepare("INSERT INTO benchmarks_usuario (idbenchmark,idusuario,idmodalidade,tipo,valor_canonico,data_resultado,idexercicio,idregistro,idunidade_atividade,idcompeticao,referencia_nome_snapshot,origem,metodo,contexto,oficialidade,protocolo,distancia_m,athletics_event_code,athletics_environment,wind_mps,timing_method,provider,external_source_id,metadados,observacoes,excluido_progresso) VALUES (:id,:usuario,:modalidade,:tipo,:valor,:data,:exercicio,:registro,:unidade,:competicao,:snapshot,:origem,:metodo,:contexto,:oficialidade,:protocolo,:distancia,:athletics_event_code,:athletics_environment,:wind_mps,:timing_method,:provider,:external_id,CAST(:metadados AS jsonb),:observacoes,CAST(:excluido AS boolean))");
     $stmt->execute([
-        ':id' => $id, ':usuario' => $userId, ':modalidade' => $data['idmodalidade'], ':tipo' => $data['tipo'], ':valor' => $data['valor_canonico'], ':data' => $data['data_resultado'], ':exercicio' => $data['idexercicio'], ':registro' => $data['idregistro'], ':unidade' => $data['idunidade_atividade'], ':competicao' => $data['idcompeticao'], ':snapshot' => $data['referencia_nome_snapshot'], ':origem' => $data['origem'], ':metodo' => $data['metodo'], ':contexto' => $data['contexto'], ':oficialidade' => $data['oficialidade'], ':protocolo' => $data['protocolo'], ':distancia' => $data['distancia_m'], ':provider' => $data['provider'], ':external_id' => $data['external_source_id'], ':metadados' => benchmarkMetadataJson($data['metadados']), ':observacoes' => $data['observacoes'], ':excluido' => $data['excluido_progresso'] ? 'true' : 'false',
+        ':id' => $id, ':usuario' => $userId, ':modalidade' => $data['idmodalidade'], ':tipo' => $data['tipo'], ':valor' => $data['valor_canonico'], ':data' => $data['data_resultado'], ':exercicio' => $data['idexercicio'], ':registro' => $data['idregistro'], ':unidade' => $data['idunidade_atividade'], ':competicao' => $data['idcompeticao'], ':snapshot' => $data['referencia_nome_snapshot'], ':origem' => $data['origem'], ':metodo' => $data['metodo'], ':contexto' => $data['contexto'], ':oficialidade' => $data['oficialidade'], ':protocolo' => $data['protocolo'], ':distancia' => $data['distancia_m'], ':athletics_event_code' => $data['athletics_event_code'], ':athletics_environment' => $data['athletics_environment'], ':wind_mps' => $data['wind_mps'], ':timing_method' => $data['timing_method'], ':provider' => $data['provider'], ':external_id' => $data['external_source_id'], ':metadados' => benchmarkMetadataJson($data['metadados']), ':observacoes' => $data['observacoes'], ':excluido' => $data['excluido_progresso'] ? 'true' : 'false',
     ]);
     return benchmarkGet($pdo, $userId, $id) ?? throw new RuntimeException(stridebr_t('benchmarks.error.save_failed'));
 }
@@ -387,7 +428,7 @@ function benchmarkCreate(PDO $pdo, string $userId, array $input): array
 function benchmarkGet(PDO $pdo, string $userId, string $benchmarkId): ?array
 {
     if (!benchmarkTableExists($pdo)) return null;
-    $stmt = $pdo->prepare("SELECT b.*,m.nome AS modalidade_nome,m.slug AS modalidade_slug,m.familia_hub,e.nome AS exercicio_nome,ra.titulo AS atividade_titulo,COALESCE(ac.nome,dc.nome) AS competicao_nome,COALESCE(ac.idcompeticao,dc.idcompeticao) AS competicao_efetiva FROM benchmarks_usuario b JOIN modalidades m ON m.idmodalidade=b.idmodalidade LEFT JOIN exercicios e ON e.idexercicio=b.idexercicio LEFT JOIN registros_atividade ra ON ra.idregistro=b.idregistro LEFT JOIN competicoes_usuario dc ON dc.idcompeticao=b.idcompeticao LEFT JOIN competicoes_usuario ac ON ac.idcompeticao=ra.idcompeticao WHERE b.idbenchmark=:benchmark AND b.idusuario=:usuario LIMIT 1");
+    $stmt = $pdo->prepare("SELECT b.*,m.nome AS modalidade_nome,m.slug AS modalidade_slug,m.familia_hub,e.nome AS exercicio_nome,ra.titulo AS atividade_titulo,COALESCE(ac.nome,dc.nome) AS competicao_nome,COALESCE(ac.idcompeticao,dc.idcompeticao) AS competicao_efetiva,COALESCE(ac.oficialidade,dc.oficialidade,b.oficialidade) AS effective_officiality FROM benchmarks_usuario b JOIN modalidades m ON m.idmodalidade=b.idmodalidade LEFT JOIN exercicios e ON e.idexercicio=b.idexercicio LEFT JOIN registros_atividade ra ON ra.idregistro=b.idregistro LEFT JOIN competicoes_usuario dc ON dc.idcompeticao=b.idcompeticao LEFT JOIN competicoes_usuario ac ON ac.idcompeticao=ra.idcompeticao WHERE b.idbenchmark=:benchmark AND b.idusuario=:usuario LIMIT 1");
     $stmt->execute([':benchmark' => $benchmarkId, ':usuario' => $userId]);
     $row = $stmt->fetch();
     return is_array($row) ? $row : null;
@@ -398,9 +439,9 @@ function benchmarkUpdate(PDO $pdo, string $userId, string $benchmarkId, array $i
     $existing = benchmarkGet($pdo, $userId, $benchmarkId);
     if ($existing === null) throw new RuntimeException(stridebr_t('benchmarks.error.not_found'));
     $data = benchmarkNormalizeInput($pdo, $userId, $input, $existing);
-    $stmt = $pdo->prepare("UPDATE benchmarks_usuario SET idmodalidade=:modalidade,tipo=:tipo,valor_canonico=:valor,data_resultado=:data,idexercicio=:exercicio,idregistro=:registro,idunidade_atividade=:unidade,idcompeticao=:competicao,referencia_nome_snapshot=:snapshot,origem=:origem,metodo=:metodo,contexto=:contexto,oficialidade=:oficialidade,protocolo=:protocolo,distancia_m=:distancia,provider=:provider,external_source_id=:external_id,metadados=CAST(:metadados AS jsonb),observacoes=:observacoes,excluido_progresso=CAST(:excluido AS boolean),data_atualizacao=NOW() WHERE idbenchmark=:benchmark AND idusuario=:usuario");
+    $stmt = $pdo->prepare("UPDATE benchmarks_usuario SET idmodalidade=:modalidade,tipo=:tipo,valor_canonico=:valor,data_resultado=:data,idexercicio=:exercicio,idregistro=:registro,idunidade_atividade=:unidade,idcompeticao=:competicao,referencia_nome_snapshot=:snapshot,origem=:origem,metodo=:metodo,contexto=:contexto,oficialidade=:oficialidade,protocolo=:protocolo,distancia_m=:distancia,athletics_event_code=:athletics_event_code,athletics_environment=:athletics_environment,wind_mps=:wind_mps,timing_method=:timing_method,provider=:provider,external_source_id=:external_id,metadados=CAST(:metadados AS jsonb),observacoes=:observacoes,excluido_progresso=CAST(:excluido AS boolean),data_atualizacao=NOW() WHERE idbenchmark=:benchmark AND idusuario=:usuario");
     $stmt->execute([
-        ':modalidade' => $data['idmodalidade'], ':tipo' => $data['tipo'], ':valor' => $data['valor_canonico'], ':data' => $data['data_resultado'], ':exercicio' => $data['idexercicio'], ':registro' => $data['idregistro'], ':unidade' => $data['idunidade_atividade'], ':competicao' => $data['idcompeticao'], ':snapshot' => $data['referencia_nome_snapshot'], ':origem' => $data['origem'], ':metodo' => $data['metodo'], ':contexto' => $data['contexto'], ':oficialidade' => $data['oficialidade'], ':protocolo' => $data['protocolo'], ':distancia' => $data['distancia_m'], ':provider' => $data['provider'], ':external_id' => $data['external_source_id'], ':metadados' => benchmarkMetadataJson($data['metadados']), ':observacoes' => $data['observacoes'], ':excluido' => $data['excluido_progresso'] ? 'true' : 'false', ':benchmark' => $benchmarkId, ':usuario' => $userId,
+        ':modalidade' => $data['idmodalidade'], ':tipo' => $data['tipo'], ':valor' => $data['valor_canonico'], ':data' => $data['data_resultado'], ':exercicio' => $data['idexercicio'], ':registro' => $data['idregistro'], ':unidade' => $data['idunidade_atividade'], ':competicao' => $data['idcompeticao'], ':snapshot' => $data['referencia_nome_snapshot'], ':origem' => $data['origem'], ':metodo' => $data['metodo'], ':contexto' => $data['contexto'], ':oficialidade' => $data['oficialidade'], ':protocolo' => $data['protocolo'], ':distancia' => $data['distancia_m'], ':athletics_event_code' => $data['athletics_event_code'], ':athletics_environment' => $data['athletics_environment'], ':wind_mps' => $data['wind_mps'], ':timing_method' => $data['timing_method'], ':provider' => $data['provider'], ':external_id' => $data['external_source_id'], ':metadados' => benchmarkMetadataJson($data['metadados']), ':observacoes' => $data['observacoes'], ':excluido' => $data['excluido_progresso'] ? 'true' : 'false', ':benchmark' => $benchmarkId, ':usuario' => $userId,
     ]);
     return benchmarkGet($pdo, $userId, $benchmarkId) ?? throw new RuntimeException(stridebr_t('benchmarks.error.save_failed'));
 }
@@ -423,9 +464,11 @@ function benchmarkList(PDO $pdo, string $userId, array $filters = []): array
         if ($value !== '') { $where[] = "{$column}=:{$key}"; $params[":{$key}"] = $value; }
     }
     if (isset($filters['distancia_m']) && is_numeric($filters['distancia_m'])) { $where[] = 'ABS(b.distancia_m-:distancia)<0.001'; $params[':distancia'] = (float) $filters['distancia_m']; }
+    if (trim((string) ($filters['athletics_event_code'] ?? '')) !== '') { $where[] = 'b.athletics_event_code=:athletics_event_code'; $params[':athletics_event_code'] = trim((string) $filters['athletics_event_code']); }
+    if (trim((string) ($filters['athletics_environment'] ?? '')) !== '') { $where[] = 'b.athletics_environment=:athletics_environment'; $params[':athletics_environment'] = athleticsNormalizeEnvironment($filters['athletics_environment']); }
     if (empty($filters['include_excluded'])) $where[] = 'b.excluido_progresso=FALSE';
     $limit = max(1, min(1000, (int) ($filters['limit'] ?? 500)));
-    $sql = "SELECT b.*,m.nome AS modalidade_nome,m.slug AS modalidade_slug,m.familia_hub,e.nome AS exercicio_nome,ra.titulo AS atividade_titulo,COALESCE(ac.nome,dc.nome) AS competicao_nome,COALESCE(ac.idcompeticao,dc.idcompeticao) AS competicao_efetiva FROM benchmarks_usuario b JOIN modalidades m ON m.idmodalidade=b.idmodalidade LEFT JOIN exercicios e ON e.idexercicio=b.idexercicio LEFT JOIN registros_atividade ra ON ra.idregistro=b.idregistro LEFT JOIN competicoes_usuario dc ON dc.idcompeticao=b.idcompeticao AND dc.idusuario=b.idusuario LEFT JOIN competicoes_usuario ac ON ac.idcompeticao=ra.idcompeticao AND ac.idusuario=b.idusuario WHERE " . implode(' AND ', $where) . " ORDER BY b.data_resultado DESC,b.data_criacao DESC LIMIT {$limit}";
+    $sql = "SELECT b.*,m.nome AS modalidade_nome,m.slug AS modalidade_slug,m.familia_hub,e.nome AS exercicio_nome,ra.titulo AS atividade_titulo,COALESCE(ac.nome,dc.nome) AS competicao_nome,COALESCE(ac.idcompeticao,dc.idcompeticao) AS competicao_efetiva,COALESCE(ac.oficialidade,dc.oficialidade,b.oficialidade) AS effective_officiality FROM benchmarks_usuario b JOIN modalidades m ON m.idmodalidade=b.idmodalidade LEFT JOIN exercicios e ON e.idexercicio=b.idexercicio LEFT JOIN registros_atividade ra ON ra.idregistro=b.idregistro LEFT JOIN competicoes_usuario dc ON dc.idcompeticao=b.idcompeticao AND dc.idusuario=b.idusuario LEFT JOIN competicoes_usuario ac ON ac.idcompeticao=ra.idcompeticao AND ac.idusuario=b.idusuario WHERE " . implode(' AND ', $where) . " ORDER BY b.data_resultado DESC,b.data_criacao DESC LIMIT {$limit}";
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
     return $stmt->fetchAll();
@@ -634,6 +677,12 @@ function benchmarkMethodLabel(string $method): string
     return stridebr_t('benchmarks.method.' . str_replace('-', '_', $method));
 }
 
+function benchmarkOriginLabel(string $origin): string
+{
+    $origin = stridebr_lower(trim($origin));
+    return stridebr_t('benchmarks.origin.' . ($origin !== '' ? $origin : 'unknown'));
+}
+
 function benchmarkContextLabel(?string $context): string
 {
     $context = trim((string) $context);
@@ -656,4 +705,134 @@ function benchmarkProtocolLabel(?string $protocol): string
     if ($protocol === '') return '';
     if (in_array($protocol, ['ramp', '20min', 'informado', 'outro'], true)) return stridebr_t('benchmarks.protocol.' . $protocol);
     return $protocol;
+}
+
+function benchmarkEvidenceDirection(array $row): string
+{
+    if ((string) ($row['tipo'] ?? '') === 'athletics') {
+        $event = athleticsEventConfig((string) ($row['athletics_event_code'] ?? ''));
+        return (string) ($event['direction'] ?? 'higher');
+    }
+    $config = benchmarkTypeConfig((string) ($row['tipo'] ?? ''));
+    return (string) ($config['direction'] ?? 'higher');
+}
+
+function benchmarkEvidenceBetter(array $candidate, array $reference): bool
+{
+    if (!is_numeric($candidate['valor_canonico'] ?? null) || !is_numeric($reference['valor_canonico'] ?? null)) return false;
+    $candidateValue = (float) $candidate['valor_canonico'];
+    $referenceValue = (float) $reference['valor_canonico'];
+    return benchmarkEvidenceDirection($candidate) === 'lower' ? $candidateValue < $referenceValue : $candidateValue > $referenceValue;
+}
+
+function benchmarkComparisonKey(array $row): string
+{
+    $type = (string) ($row['tipo'] ?? '');
+    if ($type === 'athletics') {
+        $event = trim((string) ($row['athletics_event_code'] ?? ''));
+        $environment = athleticsNormalizeEnvironment($row['athletics_environment'] ?? 'unknown');
+        return 'athletics:' . $event . ':' . $environment;
+    }
+    $modality = trim((string) ($row['idmodalidade'] ?? ''));
+    if ($type === 'one_rm') return 'one_rm:' . $modality . ':' . benchmarkReferenceGroupKey($row);
+    if ($type === 'distance_time') return 'distance_time:' . $modality . ':' . number_format((float) ($row['distancia_m'] ?? 0), 3, '.', '');
+    return $type . ':' . $modality;
+}
+
+function benchmarkEvidenceInSeason(array $row, ?array $season): bool
+{
+    if ($season === null) return true;
+    $date = trim((string) ($row['data_resultado'] ?? ''));
+    $start = trim((string) ($season['data_inicio'] ?? ''));
+    $end = trim((string) ($season['data_fim'] ?? ''));
+    if ($date === '' || $start === '' || $date < $start) return false;
+    return $end === '' || $date <= $end;
+}
+
+function benchmarkPickBest(array $rows, bool $eligibleOnly = false): ?array
+{
+    $rows = array_values(array_filter($rows, static function (array $row) use ($eligibleOnly): bool {
+        if (!is_numeric($row['valor_canonico'] ?? null) || stridebr_db_bool($row['excluido_progresso'] ?? false)) return false;
+        if (!$eligibleOnly) return true;
+        $eligibility = $row['record_eligibility'] ?? null;
+        return is_array($eligibility) && ($eligibility['status'] ?? '') === 'eligible';
+    }));
+    usort($rows, static fn(array $a, array $b): int => [strval($a['data_resultado'] ?? ''), strval($a['data_criacao'] ?? '')] <=> [strval($b['data_resultado'] ?? ''), strval($b['data_criacao'] ?? '')]);
+    $best = null;
+    foreach ($rows as $row) {
+        if ($best === null || benchmarkEvidenceBetter($row, $best)) $best = $row;
+    }
+    return $best;
+}
+
+function benchmarkLatestEvidence(array $rows): ?array
+{
+    $rows = array_values(array_filter($rows, static fn(array $row): bool => is_numeric($row['valor_canonico'] ?? null) && !stridebr_db_bool($row['excluido_progresso'] ?? false)));
+    usort($rows, static fn(array $a, array $b): int => [strval($b['data_resultado'] ?? ''), strval($b['data_criacao'] ?? '')] <=> [strval($a['data_resultado'] ?? ''), strval($a['data_criacao'] ?? '')]);
+    return $rows[0] ?? null;
+}
+
+function benchmarkClassifyComparable(array $rows, ?array $season = null): array
+{
+    if ($rows === []) return ['best_performance'=>null,'best_eligible'=>null,'season_best_performance'=>null,'season_best_eligible'=>null,'latest'=>null,'history'=>[]];
+    $key = benchmarkComparisonKey($rows[0]);
+    $rows = array_values(array_filter($rows, static fn(array $row): bool => benchmarkComparisonKey($row) === $key));
+    $seasonRows = array_values(array_filter($rows, static fn(array $row): bool => benchmarkEvidenceInSeason($row, $season)));
+    return [
+        'best_performance'=>benchmarkPickBest($rows, false),
+        'best_eligible'=>benchmarkPickBest($rows, true),
+        'season_best_performance'=>$season !== null ? benchmarkPickBest($seasonRows, false) : null,
+        'season_best_eligible'=>$season !== null ? benchmarkPickBest($seasonRows, true) : null,
+        'latest'=>benchmarkLatestEvidence($rows),
+        'history'=>$rows,
+    ];
+}
+
+function benchmarkAthleticsEvidence(PDO $pdo, string $userId, ?string $eventCode = null): array
+{
+    $filters = ['tipo'=>'athletics','limit'=>1000];
+    if ($eventCode !== null && trim($eventCode) !== '') $filters['athletics_event_code'] = trim($eventCode);
+    $persisted = benchmarkList($pdo, $userId, $filters);
+    $linked = [];
+    foreach ($persisted as &$row) {
+        $row['evidence_kind'] = 'benchmark';
+        $row['record_eligibility'] = athleticsRecordEligibility($row);
+        $activityId = trim((string) ($row['idregistro'] ?? ''));
+        if ($activityId !== '') $linked[$activityId . ':' . trim((string) ($row['idunidade_atividade'] ?? ''))] = true;
+    }
+    unset($row);
+    $derived = athleticsActivityEvidence($pdo, $userId, $eventCode);
+    foreach ($derived as $row) {
+        $key = trim((string) ($row['idregistro'] ?? '')) . ':' . trim((string) ($row['idunidade_atividade'] ?? ''));
+        if (isset($linked[$key])) continue;
+        $row['record_eligibility'] = athleticsRecordEligibility($row);
+        $persisted[] = $row;
+    }
+    usort($persisted, static fn(array $a, array $b): int => [strval($b['data_resultado'] ?? ''), strval($b['data_criacao'] ?? '')] <=> [strval($a['data_resultado'] ?? ''), strval($a['data_criacao'] ?? '')]);
+    return $persisted;
+}
+
+function benchmarkAthleticsClassifications(PDO $pdo, string $userId, ?array $season = null, ?string $eventCode = null): array
+{
+    $rows = benchmarkAthleticsEvidence($pdo, $userId, $eventCode);
+    $groups = [];
+    foreach ($rows as $row) {
+        $event = trim((string) ($row['athletics_event_code'] ?? ''));
+        if ($event === '') continue;
+        $groups[benchmarkComparisonKey($row)][] = $row;
+    }
+    $result = [];
+    foreach ($groups as $key => $items) {
+        $first = $items[0];
+        $classification = benchmarkClassifyComparable($items, $season);
+        $event = (string) ($first['athletics_event_code'] ?? '');
+        $result[$key] = $classification + [
+            'comparison_key'=>$key,
+            'event_code'=>$event,
+            'environment'=>athleticsNormalizeEnvironment($first['athletics_environment'] ?? 'unknown'),
+            'event'=>athleticsEventConfig($event),
+        ];
+    }
+    uasort($result, static fn(array $a, array $b): int => strnatcasecmp(athleticsEventLabel((string)$a['event_code']), athleticsEventLabel((string)$b['event_code'])));
+    return $result;
 }

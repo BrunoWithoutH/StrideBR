@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/athletics.php';
+
 require_once __DIR__ . '/sport_catalog.php';
 
 function sportHubFamilies(): array
@@ -1173,7 +1175,7 @@ function sportHubAthleticsDashboard(PDO $pdo, string $userId, array $activities,
                 $event['best_wind'] = $wind;
             }
             $windSensitive = in_array($slug, ['salto-em-distancia', 'salto-triplo'], true);
-            $legalWind = !$windSensitive || ($wind !== null && $wind <= 2.0);
+            $legalWind = !$windSensitive || ($wind !== null && $wind <= athleticsWindLimitMps());
             if ($legalWind && ($event['best_legal_mark'] === null || $mark > $event['best_legal_mark'])) {
                 $event['best_legal_mark'] = $mark;
                 $event['best_legal_wind'] = $wind;
@@ -1197,7 +1199,7 @@ function sportHubAthleticsDashboard(PDO $pdo, string $userId, array $activities,
             'best_wind' => $event['best_wind'],
             'best_legal_mark' => $event['best_legal_mark'],
             'best_legal_wind' => $event['best_legal_wind'],
-            'wind_aided_best' => in_array($slug, ['salto-em-distancia', 'salto-triplo'], true) && $event['best_wind'] !== null && (float) $event['best_wind'] > 2.0,
+            'wind_aided_best' => in_array($slug, ['salto-em-distancia', 'salto-triplo'], true) && $event['best_wind'] !== null && (float) $event['best_wind'] > athleticsWindLimitMps(),
             'latest_mark' => $event['latest_mark'],
             'history' => array_slice($history, -12),
         ];
@@ -1246,7 +1248,7 @@ function sportHubAthleticsDashboard(PDO $pdo, string $userId, array $activities,
             $track[$slug]['best_wind_m_s'] = $wind;
         }
         $windSensitive = in_array($slug, ['atletismo-100m', 'atletismo-200m', '100m-com-barreiras', '110m-com-barreiras'], true);
-        $legalWind = !$windSensitive || ($wind !== null && $wind <= 2.0);
+        $legalWind = !$windSensitive || ($wind !== null && $wind <= athleticsWindLimitMps());
         if ($legalWind && ($track[$slug]['best_legal_time_s'] === null || $duration < $track[$slug]['best_legal_time_s'])) $track[$slug]['best_legal_time_s'] = $duration;
         if ($reaction !== null && ($track[$slug]['best_reaction_s'] === null || $reaction < $track[$slug]['best_reaction_s'])) $track[$slug]['best_reaction_s'] = $reaction;
         $track[$slug]['history'][] = ['date' => substr((string) ($row['data_inicio'] ?? ''), 0, 10), 'time_s' => $duration, 'wind_m_s' => $wind, 'reaction_s' => $reaction];

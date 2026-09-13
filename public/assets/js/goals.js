@@ -18,18 +18,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const rest = seconds % 60
         return hours > 0 ? `${hours}:${String(minutes).padStart(2,'0')}:${String(rest).padStart(2,'0')}` : `${minutes}:${String(rest).padStart(2,'0')}`
     }
-    const formatBenchmark = (type, value) => {
+    const preciseClock = value => {
+        let seconds = Math.max(0, Number(value) || 0)
+        if (seconds < 60) return number(seconds, 2)
+        const minutes = Math.floor(seconds / 60)
+        seconds -= minutes * 60
+        return `${minutes}:${seconds.toFixed(2).padStart(5,'0')}`
+    }
+    const formatBenchmark = (type, value, event = null) => {
         if (!Number.isFinite(Number(value))) return ''
         if (type === 'one_rm') return `${number(Number(value), 1)} kg`
         if (type === 'ftp') return `${number(Number(value), 0)} W`
         if (type === 'css') return `${clock(value)}/100 m`
         if (type === 'distance_time') return clock(value)
+        if (type === 'athletics') return event?.measurement === 'time' ? `${preciseClock(value)} s` : `${number(Number(value), 2)} m`
         return number(Number(value), 2)
     }
-    const parseTarget = (type, raw) => {
+    const parseTarget = (type, raw, event = null) => {
         const value = String(raw || '').trim().replace(',', '.')
         if (!value) return null
-        if (!['css','distance_time'].includes(type)) {
+        const clockValue = ['css','distance_time'].includes(type) || (type === 'athletics' && event?.measurement === 'time')
+        if (!clockValue) {
             const parsed = Number(value)
             return Number.isFinite(parsed) && parsed > 0 ? parsed : null
         }
@@ -57,6 +66,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const targetLabel = form.querySelector('[data-goal-target-label]')
         const target = form.querySelector('input[name="valor_alvo"]')
         const sport = form.querySelector('select[name="idmodalidade"]')
+        const sportField = form.querySelector('[data-goal-sport-field]')
+        const athleticsFields = form.querySelector('[data-goal-athletics-fields]')
+        const athleticsEvent = form.querySelector('[data-goal-athletics-event]')
+        const athleticsEnvironment = form.querySelector('[data-goal-athletics-environment]')
+        const athleticsEligible = form.querySelector('[data-goal-athletics-eligible]')
         const exerciseField = form.querySelector('[data-goal-exercise-field]')
         const exercise = form.querySelector('[data-goal-exercise]')
         const loadHelp = form.querySelector('[data-goal-load-help]')
@@ -80,8 +94,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (distance.value === 'custom') return Number(customDistance?.value || 0) || null
             return Number(distance.value || 0) || null
         }
+        const selectedAthleticsEvent = () => benchmarkData.registry?.athletics?.events?.[athleticsEvent?.value || ''] || null
         const typeSupported = (option, sportOption) => {
-            if (!option?.value || !sportOption?.value) return false
+            if (!option?.value) return false
+            if (option.value === 'athletics') return Object.keys(benchmarkData.registry?.athletics?.events || {}).length > 0
+            if (!sportOption?.value) return false
             const slugs = String(option.dataset.slugs || '').split(',').filter(Boolean)
             const families = String(option.dataset.families || '').split(',').filter(Boolean)
             const slug = sportOption.dataset.slug || ''
@@ -90,7 +107,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const matchingRows = () => {
             const type = benchmarkType?.value || ''
-            let rows = (benchmarkData.rows || []).filter(row => row.type === type && row.sport === selectedSportId() && Number.isFinite(Number(row.value)))
+            let rows = (benchmarkData.rows || []).filter(row => row.type === type && Number.isFinite(Number(row.value)))
+            if (type === 'athletics') {
+                rows = rows.filter(row => row.event === (athleticsEvent?.value || '') && row.environment === (athleticsEnvironment?.value || 'unknown'))
+                if (athleticsEligible?.checked) rows = rows.filter(row => row.eligibility === 'eligible')
+            } else rows = rows.filter(row => row.sport === selectedSportId())
             if (type === 'one_rm') rows = rows.filter(row => row.exercise === (exercise?.value || ''))
             if (type === 'distance_time') {
                 const meters = selectedDistance()
@@ -101,12 +122,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const referenceRow = (best = false) => {
             const type = benchmarkType?.value || ''
             const cfg = benchmarkData.registry?.[type]
+            const event = type === 'athletics' ? selectedAthleticsEvent() : null
+            const direction = event?.direction || cfg?.direction
             const rows = matchingRows()
-            if (!cfg || !rows.length) return null
+            if (!cfg || !direction || !rows.length) return null
             if (!best && cfg.primary === 'latest') return [...rows].sort((a,b) => String(b.date).localeCompare(String(a.date)))[0]
             return rows.reduce((chosen,row) => {
                 if (!chosen) return row
-                return cfg.direction === 'lower' ? (Number(row.value) < Number(chosen.value) ? row : chosen) : (Number(row.value) > Number(chosen.value) ? row : chosen)
+                return direction === 'lower' ? (Number(row.value) < Number(chosen.value) ? row : chosen) : (Number(row.value) > Number(chosen.value) ? row : chosen)
             }, null)
         }
         const syncReference = () => {
@@ -115,12 +138,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const row = referenceRow(false)
             if (!type || !row) { reference.hidden = true; reference.textContent = ''; return }
             const label = t('goals.benchmark.current_reference', {}, 'Recorded reference')
-            let text = `${label}: ${formatBenchmark(type, row.value)}`
-            const targetValue = parseTarget(type, target?.value)
+            const event = type === 'athletics' ? selectedAthleticsEvent() : null
+            let text = `${label}: ${formatBenchmark(type, row.value, event)}`
+            const targetValue = parseTarget(type, target?.value, event)
             const best = referenceRow(true)
             const cfg = benchmarkData.registry?.[type]
-            if (targetValue !== null && best && cfg) {
-                const reached = cfg.direction === 'lower' ? Number(best.value) <= targetValue : Number(best.value) >= targetValue
+            const direction = event?.direction || cfg?.direction
+            if (targetValue !== null && best && direction) {
+                const reached = direction === 'lower' ? Number(best.value) <= targetValue : Number(best.value) >= targetValue
                 if (reached) text += ` · ${t('goals.error.benchmark_already_achieved', {}, 'This goal has already been reached.')}`
             }
             reference.textContent = text
@@ -138,20 +163,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (supported) available++
             })
             if (benchmarkType.value && benchmarkType.selectedOptions[0]?.disabled) benchmarkType.value = ''
-            if (unavailable) unavailable.hidden = goalType() !== 'benchmark' || !sportOption?.value || available > 0
+            if (unavailable) unavailable.hidden = goalType() !== 'benchmark' || available > 0
         }
         const syncMetric = () => {
-            if (sport?.dataset.goalLocked === '1') {
-                sport.disabled = true
-                const trigger = sport.closest('[data-generic-sport-picker]')?.querySelector('[data-generic-sport-trigger]')
-                if (trigger) trigger.disabled = true
-            }
             const type = goalType()
+            const benchmark = benchmarkType?.value || ''
+            const isAthletics = type === 'benchmark' && benchmark === 'athletics'
+            if (sportField) sportField.hidden = isAthletics
+            if (sport) {
+                sport.disabled = sport.dataset.goalLocked === '1' || isAthletics
+                const trigger = sport.closest('[data-generic-sport-picker]')?.querySelector('[data-generic-sport-trigger]')
+                if (trigger) trigger.disabled = sport.disabled
+            }
             practiceFields && (practiceFields.hidden = type !== 'metrica')
             benchmarkFields && (benchmarkFields.hidden = type !== 'benchmark')
             if (metric) metric.disabled = type !== 'metrica'
             if (benchmarkType) benchmarkType.disabled = type !== 'benchmark' || benchmarkType.dataset.goalLocked === '1'
-            const benchmark = benchmarkType?.value || ''
+            if (athleticsFields) athleticsFields.hidden = !isAthletics
+            if (athleticsEvent) athleticsEvent.disabled = !isAthletics || athleticsEvent.dataset.goalLocked === '1'
+            if (athleticsEnvironment) athleticsEnvironment.disabled = !isAthletics || athleticsEnvironment.dataset.goalLocked === '1'
+            if (athleticsEligible) athleticsEligible.disabled = !isAthletics || athleticsEligible.dataset.goalLocked === '1'
             const isLoad = type === 'metrica' && metric?.value === 'carga_maxima'
             const isOneRm = type === 'benchmark' && benchmark === 'one_rm'
             if (exerciseField) exerciseField.hidden = !(isLoad || isOneRm)
@@ -167,13 +198,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 practicePeriods.forEach(option => { option.disabled = true; option.hidden = true })
                 if (period && !['continuo','personalizado'].includes(period.value)) period.value = 'continuo'
                 if (startField) startField.hidden = true
-                const labels = {one_rm:t('goals.benchmark.target_one_rm',{},'1RM target'),ftp:t('goals.benchmark.target_ftp',{},'FTP target'),css:t('goals.benchmark.target_css',{},'CSS target'),distance_time:t('goals.benchmark.target_time',{},'Target time')}
-                const benchmarkUnits = {one_rm:'kg',ftp:'W',css:'/100 m',distance_time:''}
+                const event = isAthletics ? selectedAthleticsEvent() : null
+                const labels = {one_rm:t('goals.benchmark.target_one_rm',{},'1RM target'),ftp:t('goals.benchmark.target_ftp',{},'FTP target'),css:t('goals.benchmark.target_css',{},'CSS target'),distance_time:t('goals.benchmark.target_time',{},'Target time'),athletics:event?.measurement === 'time' ? t('goals.benchmark.target_athletics_time',{},'Target time') : t('goals.benchmark.target_athletics_mark',{},'Target mark')}
+                const benchmarkUnits = {one_rm:'kg',ftp:'W',css:'/100 m',distance_time:'',athletics:event?.measurement === 'time' ? 's' : event ? 'm' : ''}
                 if (targetLabel) targetLabel.textContent = labels[benchmark] || t('goals.target',{},'Target')
                 if (unit) unit.textContent = benchmarkUnits[benchmark] || ''
                 if (target) {
-                    target.placeholder = benchmark === 'one_rm' ? '100' : benchmark === 'ftp' ? '250' : benchmark === 'css' ? '1:40' : benchmark === 'distance_time' ? '28:00' : ''
-                    target.inputMode = ['css','distance_time'].includes(benchmark) ? 'numeric' : 'decimal'
+                    target.placeholder = benchmark === 'one_rm' ? '100' : benchmark === 'ftp' ? '250' : benchmark === 'css' ? '1:40' : benchmark === 'distance_time' ? '28:00' : isAthletics && event?.measurement === 'time' ? '12.00' : isAthletics ? '6.00' : ''
+                    target.inputMode = ['css','distance_time'].includes(benchmark) || (isAthletics && event?.measurement === 'time') ? 'numeric' : 'decimal'
                 }
             } else {
                 practicePeriods.forEach(option => { option.disabled = false; option.hidden = false })
@@ -205,7 +237,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (period?.value === 'personalizado') deadline = endDate?.value ? t('goals.until_date',{date:localDate(`${endDate.value}T12:00:00`)},`until ${localDate(`${endDate.value}T12:00:00`)}`) : t('goals.until_chosen_date',{},'until the selected date')
             if (goalType() === 'benchmark') {
                 const label = benchmarkType?.selectedOptions?.[0]?.textContent?.trim() || t('goals.type.benchmark',{},'Mark or test')
-                summary.textContent = `${label}: ${value}${unit?.textContent ? ` ${unit.textContent}` : ''} · ${sportLabel} · ${deadline}`
+                const subject = benchmarkType?.value === 'athletics' ? (athleticsEvent?.selectedOptions?.[0]?.textContent?.trim() || t('athletics.event',{},'Event')) : sportLabel
+                summary.textContent = `${label}: ${value}${unit?.textContent ? ` ${unit.textContent}` : ''} · ${subject} · ${deadline}`
                 return
             }
             if (period?.value === 'semanal') deadline=t('goals.every_week',{},'every week')
@@ -220,6 +253,9 @@ document.addEventListener('DOMContentLoaded', () => {
         typeRadios.forEach(radio => radio.addEventListener('change', () => { syncBenchmarkOptions(); syncMetric() }))
         metric?.addEventListener('change', syncMetric)
         benchmarkType?.addEventListener('change', syncMetric)
+        athleticsEvent?.addEventListener('change', syncMetric)
+        athleticsEnvironment?.addEventListener('change', () => { syncReference(); syncSummary() })
+        athleticsEligible?.addEventListener('change', () => { syncReference(); syncSummary() })
         sport?.addEventListener('change', () => { syncBenchmarkOptions(); syncMetric() })
         exercise?.addEventListener('change', () => { syncReference(); syncSummary() })
         distance?.addEventListener('change', syncMetric)

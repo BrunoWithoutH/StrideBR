@@ -51,7 +51,7 @@ $assert(str_contains($hub, 'COUNT(ra.idregistro) AS history_count') && str_conta
 $assert(!str_contains($hub, "NOW() - INTERVAL '48 months'"), 'Força e Atletismo não podem manter limite arbitrário de 48 meses.');
 $assert(str_contains($hub, "'best_e1rm_source'") && str_contains($hub, '$reps <= 12') && str_contains($hub, "'load_kg' => \$load"), 'e1RM precisa preservar série-fonte e excluir reps acima de 12.');
 $assert(str_contains($hub, "'direct_muscles'") && str_contains($hub, "'secondary_muscles'") && !str_contains($hub, '+ .5'), 'Músculos primários e secundários precisam ficar separados.');
-$assert(substr_count($hub, '$wind !== null && $wind <= 2.0') >= 2, 'Vento ausente não pode provar legalidade em provas sensíveis.');
+$assert(substr_count($hub, '$wind !== null && $wind <= athleticsWindLimitMps()') >= 2 && !str_contains($hub, '$wind <= 2.0'), 'Vento ausente não pode provar legalidade em provas sensíveis e o limite precisa vir da regra central.');
 $assert(str_contains($hub, "'direction' => 'lower'") && str_contains($hub, "'direction' => 'higher'"), 'Direção de performance do Atletismo precisa ser explícita por tipo de prova.');
 
 $assert(str_contains($progress, "require_once dirname(__DIR__, 2) . '/src/function/dashboard.php'") && str_contains($progress, 'dashboardListarMetas($pdo, $idUsuario, true)') && !str_contains($progress, 'FROM metas_usuario'), 'Progresso precisa reutilizar helpers reais de metas.');

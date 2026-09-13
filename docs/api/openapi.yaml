@@ -8,26 +8,50 @@ servers:
 paths:
   /health:
     get:
-      responses: { '200': { description: API disponível } }
+      responses:
+        '200': { description: API disponível }
   /meta:
     get:
-      responses: { '200': { description: Metadados públicos da API } }
+      responses:
+        '200': { description: Metadados públicos da API }
   /auth/login:
     post:
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/LoginRequest' } } } }
-      responses: { '200': { description: Sessão criada }, '401': { $ref: '#/components/responses/Error' }, '422': { $ref: '#/components/responses/Error' }, '429': { $ref: '#/components/responses/Error' } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200': { description: Sessão criada }
+        '401': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
   /auth/refresh:
     post:
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [refresh_token], properties: { refresh_token: { type: string } } } } } }
-      responses: { '200': { description: Tokens rotacionados }, '401': { $ref: '#/components/responses/Error' } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        '200': { description: Tokens rotacionados }
+        '401': { $ref: '#/components/responses/Error' }
   /auth/logout:
     post:
       security: [{ bearerAuth: [] }]
-      responses: { '204': { description: Sessão revogada }, '401': { $ref: '#/components/responses/Error' } }
+      responses:
+        '204': { description: Sessão revogada }
+        '401': { $ref: '#/components/responses/Error' }
   /me:
     get:
       security: [{ bearerAuth: [] }]
-      responses: { '200': { description: Usuário autenticado }, '401': { $ref: '#/components/responses/Error' } }
+      responses:
+        '200': { description: Usuário autenticado }
+        '401': { $ref: '#/components/responses/Error' }
   /activities:
     get:
       security: [{ bearerAuth: [] }]
@@ -38,7 +62,14 @@ paths:
         - { name: from, in: query, schema: { type: string, format: date-time } }
         - { name: to, in: query, schema: { type: string, format: date-time } }
         - { name: q, in: query, schema: { type: string } }
-      responses: { '200': { description: Atividades paginadas }, '401': { $ref: '#/components/responses/Error' } }
+      responses:
+        '200':
+          description: Atividades paginadas. Não inclui track GPS.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ActivityListResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
     post:
       security: [{ bearerAuth: [] }]
       parameters:
@@ -59,10 +90,23 @@ paths:
   /activities/{id}:
     get:
       security: [{ bearerAuth: [] }]
-      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
-      responses: { '200': { description: Detalhe da atividade }, '401': { $ref: '#/components/responses/Error' }, '404': { $ref: '#/components/responses/Error' } }
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Detalhe ownership-scoped. Track GPS somente quando persistido para a atividade.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/ActivityDetail' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
 components:
-  securitySchemes: { bearerAuth: { type: http, scheme: bearer } }
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer }
   schemas:
     LoginRequest:
       type: object
@@ -73,6 +117,140 @@ components:
         device_id: { type: string, maxLength: 128 }
         device_name: { type: string, maxLength: 120 }
         platform: { type: string, enum: [android, ios, web, other] }
+    SportRef:
+      type: object
+      required: [id, slug, name]
+      properties:
+        id: { type: string }
+        slug: { type: string }
+        name: { type: string }
+    ActivitySummary:
+      type: object
+      required: [id, title, sport, started_at, status, visibility, origin]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        sport: { $ref: '#/components/schemas/SportRef' }
+        started_at: { type: string, format: date-time }
+        ended_at: { type: string, format: date-time, nullable: true }
+        status: { type: string }
+        visibility: { type: string, enum: [privado, amigos, publico] }
+        origin: { type: string, enum: [manual, gps, importacao, api] }
+        origin_provider: { type: string, nullable: true }
+        perceived_effort: { type: integer, minimum: 1, maximum: 10, nullable: true }
+        distance_m: { type: number, format: double, minimum: 0, nullable: true }
+        duration_s: { type: number, format: double, minimum: 0, nullable: true }
+        elevation_gain_m: { type: number, format: double, minimum: 0, nullable: true }
+        average_speed_mps: { type: number, format: double, minimum: 0, nullable: true, description: Derivada somente quando distância e duração confiáveis existem. }
+    ActivityListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/ActivitySummary' }
+        pagination:
+          type: object
+          required: [page, limit, total, total_pages]
+          properties:
+            page: { type: integer }
+            limit: { type: integer }
+            total: { type: integer }
+            total_pages: { type: integer }
+    ActivityRoutePoint:
+      type: object
+      required: [lat, lon]
+      properties:
+        lat: { type: number, format: double, minimum: -90, maximum: 90 }
+        lon: { type: number, format: double, minimum: -180, maximum: 180 }
+        altitude_m: { type: number, format: double, nullable: true }
+        accuracy_m: { type: number, format: double, minimum: 0, nullable: true }
+        timestamp_ms: { type: integer, format: int64, nullable: true }
+    ActivityRoute:
+      type: object
+      required: [mode, points]
+      properties:
+        mode: { type: string }
+        points:
+          type: array
+          items: { $ref: '#/components/schemas/ActivityRoutePoint' }
+        distance_m: { type: number, format: double, nullable: true }
+        elevation_gain_m: { type: number, format: double, nullable: true }
+        elevation_loss_m: { type: number, format: double, nullable: true }
+        elevation_min_m: { type: number, format: double, nullable: true }
+        elevation_max_m: { type: number, format: double, nullable: true }
+        elevation_source: { type: string, nullable: true }
+    ActivityGpsMetadata:
+      type: object
+      properties:
+        measured_distance_m: { type: number, format: double, nullable: true }
+        points_received: { type: integer, minimum: 0 }
+        points_accepted: { type: integer, minimum: 0 }
+        points_rejected: { type: integer, minimum: 0 }
+        accuracy_avg_m: { type: number, format: double, minimum: 0, nullable: true }
+        accuracy_best_m: { type: number, format: double, minimum: 0, nullable: true }
+        accuracy_worst_m: { type: number, format: double, minimum: 0, nullable: true }
+        visibility_gaps: { type: integer, minimum: 0 }
+        user_adjusted: { type: boolean }
+    ActivitySegment:
+      type: object
+      required: [id, order, type, sport]
+      properties:
+        id: { type: string }
+        order: { type: integer }
+        type: { type: string }
+        label: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        distance_m: { type: number, format: double, nullable: true }
+        duration_s: { type: number, format: double, nullable: true }
+        elevation_m: { type: number, format: double, nullable: true }
+        sport: { $ref: '#/components/schemas/SportRef' }
+    ActivityEquipment:
+      type: object
+      required: [id, name, category]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        category: { type: string }
+    ActivityDetail:
+      allOf:
+        - { $ref: '#/components/schemas/ActivitySummary' }
+        - type: object
+          required: [uses_segments, route_privacy, segments, equipment]
+          properties:
+            notes: { type: string, nullable: true }
+            uses_segments: { type: boolean }
+            elevation_min_m: { type: number, format: double, nullable: true }
+            elevation_max_m: { type: number, format: double, nullable: true }
+            active_calories_kcal: { type: number, format: double, nullable: true }
+            total_calories_kcal: { type: number, format: double, nullable: true }
+            route_privacy:
+              type: object
+              required: [hide_start_m, hide_end_m]
+              properties:
+                hide_start_m: { type: integer, minimum: 0 }
+                hide_end_m: { type: integer, minimum: 0 }
+            route:
+              allOf: [{ $ref: '#/components/schemas/ActivityRoute' }]
+              nullable: true
+            gps:
+              allOf: [{ $ref: '#/components/schemas/ActivityGpsMetadata' }]
+              nullable: true
+            segments:
+              type: array
+              items: { $ref: '#/components/schemas/ActivitySegment' }
+            equipment:
+              type: array
+              items: { $ref: '#/components/schemas/ActivityEquipment' }
+    GpsPointInput:
+      type: object
+      required: [lat, lon]
+      properties:
+        lat: { type: number, minimum: -90, maximum: 90 }
+        lon: { type: number, minimum: -180, maximum: 180 }
+        altitude_m: { type: number, nullable: true }
+        accuracy_m: { type: number, minimum: 0, nullable: true }
+        timestamp_ms: { type: integer, format: int64, nullable: true }
     GpsActivityCreateRequest:
       type: object
       required: [sport, started_at, ended_at, gps]
@@ -84,7 +262,14 @@ components:
         perceived_effort: { type: integer, minimum: 1, maximum: 10 }
         started_at: { type: string, format: date-time }
         ended_at: { type: string, format: date-time }
-        metrics: { type: object }
+        metrics:
+          type: object
+          properties:
+            distance_m: { type: number, minimum: 0 }
+            duration_s: { type: number, exclusiveMinimum: 0 }
+            elevation_gain_m: { type: number, minimum: 0 }
+            elevation_min_m: { type: number }
+            elevation_max_m: { type: number }
         gps:
           type: object
           required: [points]
@@ -93,15 +278,31 @@ components:
               type: array
               minItems: 2
               maxItems: 2000
-              items:
-                type: object
-                required: [lat, lon]
-                properties:
-                  lat: { type: number, minimum: -90, maximum: 90 }
-                  lon: { type: number, minimum: -180, maximum: 180 }
-        privacy: { type: object }
+              items: { $ref: '#/components/schemas/GpsPointInput' }
+            measured_distance_m: { type: number, minimum: 0 }
+            points_received: { type: integer, minimum: 0 }
+            points_rejected: { type: integer, minimum: 0 }
+            accuracy_avg_m: { type: number, minimum: 0 }
+            accuracy_best_m: { type: number, minimum: 0 }
+            accuracy_worst_m: { type: number, minimum: 0 }
+            visibility_gaps: { type: integer, minimum: 0 }
+        privacy:
+          type: object
+          properties:
+            hide_route_start_m: { type: integer, minimum: 0, maximum: 10000 }
+            hide_route_end_m: { type: integer, minimum: 0, maximum: 10000 }
         segments: { type: array }
   responses:
     Error:
       description: Erro JSON padronizado
-      content: { application/json: { schema: { type: object, properties: { error: { type: object, properties: { code: { type: string }, message: { type: string }, fields: { type: object } } } } } } }
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  code: { type: string }
+                  message: { type: string }
+                  fields: { type: object }

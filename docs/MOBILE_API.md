@@ -47,10 +47,112 @@ conta paralela.
 - `to`: ISO 8601, limite superior exclusivo;
 - `q`: busca pelo título.
 
-A resposta inclui `pagination`. `GET /activities/{id}` exige ownership: trocar o ID
-por uma atividade de outro usuário retorna `404`.
+A listagem retorna somente o resumo. Ela não carrega nem serializa o track GPS. Campos
+sem dado real permanecem `null`; a API não fabrica distância, duração, elevação, ritmo
+ou velocidade para modalidades/origens que não possuam essas métricas.
 
-Datas são ISO 8601 com offset. Consumidores devem preservar o offset recebido.
+Exemplo de item de `GET /activities`:
+
+```json
+{
+  "id": "01J...",
+  "title": "Corrida noturna",
+  "sport": { "id": "m_corrida", "slug": "corrida", "name": "Corrida" },
+  "started_at": "2026-09-11T18:03:12-03:00",
+  "ended_at": "2026-09-11T18:34:08-03:00",
+  "status": "concluido",
+  "visibility": "privado",
+  "origin": "gps",
+  "origin_provider": "stridebr_android",
+  "perceived_effort": 7,
+  "distance_m": 5012.4,
+  "duration_s": 1856.0,
+  "elevation_gain_m": 42.0,
+  "average_speed_mps": 2.700647
+}
+```
+
+`average_speed_mps` é derivada somente quando distância e duração confiáveis estão
+disponíveis. Pace continua sendo responsabilidade do cliente. A resposta inclui
+`pagination`.
+
+`GET /activities/{id}` exige ownership neste contrato autenticado: trocar o ID por uma
+atividade privada/de outro usuário retorna `404`. O detalhe retorna o mesmo resumo e,
+quando disponíveis, `notes`, métricas adicionais, segmentos, equipamentos, privacidade
+de rota, rota e metadados da gravação GPS.
+
+Exemplo resumido de detalhe:
+
+```json
+{
+  "data": {
+    "id": "01J...",
+    "title": "Corrida noturna",
+    "sport": { "id": "m_corrida", "slug": "corrida", "name": "Corrida" },
+    "started_at": "2026-09-11T18:03:12-03:00",
+    "ended_at": "2026-09-11T18:34:08-03:00",
+    "status": "concluido",
+    "visibility": "privado",
+    "origin": "gps",
+    "origin_provider": "stridebr_android",
+    "perceived_effort": 7,
+    "distance_m": 5012.4,
+    "duration_s": 1856.0,
+    "elevation_gain_m": 42.0,
+    "elevation_min_m": 482.1,
+    "elevation_max_m": 513.7,
+    "average_speed_mps": 2.700647,
+    "route_privacy": { "hide_start_m": 0, "hide_end_m": 0 },
+    "route": {
+      "mode": "gps",
+      "points": [
+        {
+          "lat": -27.3581,
+          "lon": -53.3942,
+          "altitude_m": 491.2,
+          "accuracy_m": 4.8,
+          "timestamp_ms": 1789160592000
+        }
+      ],
+      "distance_m": 5012.4,
+      "elevation_gain_m": 42.0,
+      "elevation_loss_m": null,
+      "elevation_min_m": 482.1,
+      "elevation_max_m": 513.7,
+      "elevation_source": "gps_app_dispositivo"
+    },
+    "gps": {
+      "measured_distance_m": 5008.9,
+      "points_received": 680,
+      "points_accepted": 668,
+      "points_rejected": 12,
+      "accuracy_avg_m": 7.4,
+      "accuracy_best_m": 3.1,
+      "accuracy_worst_m": 28.0,
+      "visibility_gaps": 0,
+      "user_adjusted": false
+    },
+    "segments": [],
+    "equipment": []
+  }
+}
+```
+
+`route` pode ser `null` para atividades manuais, antigas, importadas ou qualquer
+atividade sem track persistido. Os campos opcionais de cada ponto também podem ser
+`null`. O Core não infere altitude, precisão ou timestamp por ponto quando esses dados
+não existirem.
+
+A rota completa pertence somente ao detalhe. O contrato não muda as regras de
+compartilhamento do Core: endpoints autenticados pessoais continuam ownership-scoped e
+os fluxos públicos/compartilhados mantêm sua própria sanitização de rota, inclusive
+ocultação de início/fim. `route_privacy` informa ao dono a configuração persistida sem
+enfraquecer essa política.
+
+Atividades podem vir de `gps`, `manual`, `importacao` ou `api`, com
+`origin_provider` identificando o provedor quando conhecido. O Mobile deve aceitar
+métricas e track ausentes em qualquer origem. Datas são ISO 8601 com offset e o cliente
+deve preservar o offset recebido.
 
 ## Publicar uma gravação GPS
 
@@ -90,8 +192,8 @@ Payload:
   },
   "gps": {
     "points": [
-      { "lat": -27.3581, "lon": -53.3942 },
-      { "lat": -27.3582, "lon": -53.3940 }
+      { "lat": -27.3581, "lon": -53.3942, "altitude_m": 491.2, "accuracy_m": 4.8, "timestamp_ms": 1789160592000 },
+      { "lat": -27.3582, "lon": -53.3940, "altitude_m": 491.5, "accuracy_m": 4.2, "timestamp_ms": 1789160594000 }
     ],
     "measured_distance_m": 5008.9,
     "points_received": 680,
@@ -125,6 +227,7 @@ Opcionais:
 - `metrics.distance_m` — se omitida, o Core calcula pela rota;
 - `metrics.duration_s` — se omitida, usa a diferença entre os timestamps;
 - métricas de elevação;
+- `gps.points[].altitude_m`, `accuracy_m` e `timestamp_ms` — metadata opcional por ponto, persistida alinhada ao track;
 - métricas de qualidade em `gps`;
 - `privacy.hide_route_start_m` / `hide_route_end_m` — 0 a 10000 m;
 - `segments` — trechos da gravação, quando o app tiver essa informação.

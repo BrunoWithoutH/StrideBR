@@ -28,7 +28,7 @@ $en = $read('src/i18n/en.php');
 $gitignore = $read('.gitignore');
 
 $registry = benchmarkRegistry();
-$assert(array_keys($registry) === ['one_rm', 'ftp', 'css', 'distance_time'], 'B1 precisa registrar somente os quatro tipos iniciais persistidos.');
+$assert(array_slice(array_keys($registry), 0, 4) === ['one_rm', 'ftp', 'css', 'distance_time'] && isset($registry['athletics']), 'B1 precisa preservar os quatro tipos iniciais e permitir a extensão tipada de Atletismo da B4.');
 $assert($registry['one_rm']['direction'] === 'higher' && $registry['one_rm']['primary'] === 'best' && $registry['one_rm']['requires_exercise'] === true, '1RM medido precisa ser maior-é-melhor, melhor histórico e exigir exercício.');
 $assert($registry['ftp']['direction'] === 'higher' && $registry['ftp']['primary'] === 'latest', 'FTP precisa usar valor atual mais recente sem perder melhor histórico.');
 $assert($registry['css']['direction'] === 'lower' && $registry['css']['primary'] === 'latest', 'CSS precisa ser menor-é-melhor e atual pelo registro mais recente.');

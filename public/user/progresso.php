@@ -28,7 +28,29 @@ foreach ($availableSports as $sportMeta) {
     break;
 }
 
-$athleticsEvents = $selectedSport === 'atletismo' ? sportHubAthleticsEvents($pdo, $idUsuario) : [];
+$athleticsModalityMap = $selectedSport === 'atletismo' ? athleticsModalityRows($pdo, $idUsuario) : [];
+$athleticsActivityStats = [];
+if ($selectedSport === 'atletismo') {
+    foreach (sportHubAthleticsEvents($pdo, $idUsuario) as $eventStats) $athleticsActivityStats[(string)($eventStats['slug'] ?? '')] = $eventStats;
+}
+$athleticsEvents = [];
+if ($selectedSport === 'atletismo') {
+    foreach (athleticsCatalog() as $eventCode => $eventConfig) {
+        $modality = $athleticsModalityMap[$eventCode] ?? null;
+        if (!is_array($modality)) continue;
+        $activityStats = $athleticsActivityStats[(string)$modality['slug']] ?? [];
+        $athleticsEvents[] = [
+            'idmodalidade'=>(string)$modality['idmodalidade'],
+            'slug'=>(string)$modality['slug'],
+            'name'=>athleticsEventLabel($eventCode),
+            'athletics_event_code'=>$eventCode,
+            'category'=>(string)$eventConfig['category'],
+            'history_count'=>(int)($activityStats['history_count'] ?? 0),
+            'first_activity'=>$activityStats['first_activity'] ?? null,
+            'last_activity'=>$activityStats['last_activity'] ?? null,
+        ];
+    }
+}
 $requestedEvent = stridebr_lower(trim((string) ($_GET['event'] ?? '')));
 $selectedEvent = '';
 $selectedEventMeta = null;
@@ -40,11 +62,24 @@ if ($selectedSport === 'atletismo' && $requestedEvent !== '') {
         break;
     }
 }
+$selectedAthleticsEventCode = $selectedEventMeta !== null ? (string) ($selectedEventMeta['athletics_event_code'] ?? '') : '';
 
 $activityHistoryStart = $selectedEvent !== ''
     ? sportHubHistoryStart($athleticsEvents, 'all', $selectedEvent)
     : sportHubHistoryStart($availableSports, $selectedSport);
 $selectedModalityId = $selectedSport !== 'all' && $selectedSport !== 'atletismo' ? trim((string) ($selectedSportMeta['idmodalidade'] ?? '')) : '';
+$seasonContextModalityId = $selectedModalityId;
+if ($selectedSport === 'atletismo' && $athleticsEvents !== []) $seasonContextModalityId = (string) ($athleticsEvents[0]['idmodalidade'] ?? '');
+$seasons = $seasonContextModalityId !== '' ? seasonList($pdo, $idUsuario, $seasonContextModalityId) : [];
+$selectedSeason = null;
+$requestedSeasonId = trim((string) ($_GET['season'] ?? ''));
+if ($requestedSeasonId !== '') {
+    foreach ($seasons as $seasonRow) {
+        if ((string) ($seasonRow['idtemporada'] ?? '') === $requestedSeasonId) { $selectedSeason = $seasonRow; break; }
+    }
+}
+if ($selectedSeason === null && $seasonContextModalityId !== '') $selectedSeason = seasonCurrent($pdo, $idUsuario, $seasonContextModalityId);
+$selectedSeasonId = is_array($selectedSeason) ? (string) ($selectedSeason['idtemporada'] ?? '') : '';
 $benchmarkHistoryStart = benchmarkHistoryStart($pdo, $idUsuario, $selectedModalityId !== '' ? $selectedModalityId : null);
 if ($selectedSport === 'atletismo') $benchmarkHistoryStart = null;
 $historyStart = $activityHistoryStart;
@@ -136,6 +171,32 @@ if ($renderer === 'athletics') $athleticsDashboard = sportHubAthleticsDashboard(
 if (in_array($renderer, ['team', 'racket', 'combat'], true)) $sessionDashboard = sportHubSessionDashboard($filteredActivities, $selectedFamily, $periodWindow);
 
 $allBenchmarks = benchmarkTableExists($pdo) ? benchmarkList($pdo, $idUsuario, ['limit' => 1000]) : [];
+$athleticsClassifications = $selectedSport === 'atletismo'
+    ? benchmarkAthleticsClassifications($pdo, $idUsuario, $selectedSeason, $selectedAthleticsEventCode !== '' ? $selectedAthleticsEventCode : null)
+    : [];
+if ($selectedSport === 'atletismo' && $athleticsClassifications !== []) {
+    $evidenceStats = [];
+    foreach ($athleticsClassifications as $classification) {
+        $code = (string)($classification['event_code'] ?? '');
+        if ($code === '') continue;
+        $history = (array)($classification['history'] ?? []);
+        $evidenceStats[$code]['count'] = (int)($evidenceStats[$code]['count'] ?? 0) + count($history);
+        foreach ($history as $evidence) {
+            $date = (string)($evidence['data_resultado'] ?? '');
+            if ($date !== '' && $date > (string)($evidenceStats[$code]['last'] ?? '')) $evidenceStats[$code]['last'] = $date;
+        }
+    }
+    foreach ($athleticsEvents as &$eventMeta) {
+        $code = (string)($eventMeta['athletics_event_code'] ?? '');
+        if (!isset($evidenceStats[$code])) continue;
+        $eventMeta['history_count'] = max((int)($eventMeta['history_count'] ?? 0), (int)$evidenceStats[$code]['count']);
+        if ((string)($evidenceStats[$code]['last'] ?? '') > (string)($eventMeta['last_activity'] ?? '')) $eventMeta['last_activity'] = $evidenceStats[$code]['last'];
+    }
+    unset($eventMeta);
+    if ($selectedEvent !== '') {
+        foreach ($athleticsEvents as $eventMeta) if ((string)($eventMeta['slug'] ?? '') === $selectedEvent) { $selectedEventMeta = $eventMeta; break; }
+    }
+}
 $selectedBenchmarks = $selectedModalityId !== '' ? array_values(array_filter($allBenchmarks, static fn(array $row): bool => (string) ($row['idmodalidade'] ?? '') === $selectedModalityId)) : [];
 $oneRmRows = array_values(array_filter($selectedBenchmarks, static fn(array $row): bool => (string) ($row['tipo'] ?? '') === 'one_rm'));
 $ftpSummary = benchmarkSummarize($selectedBenchmarks, 'ftp');
@@ -430,8 +491,9 @@ if ($lastActivityRaw !== '') {
     try { $lastActivityLabel = stridebr_t('progress.last_activity_date', ['date' => stridebr_format_date_short(new DateTimeImmutable($lastActivityRaw))]); } catch (Throwable) {}
 }
 
-$buildUrl = static function (array $changes) use ($period, $periodAnchor, $selectedSport, $selectedEvent, $metric): string {
+$buildUrl = static function (array $changes) use ($period, $periodAnchor, $selectedSport, $selectedEvent, $metric, $selectedSeasonId): string {
     $params = ['period' => $period, 'sport' => $selectedSport];
+    if ($selectedSeasonId !== '') $params['season'] = $selectedSeasonId;
     if ($selectedEvent !== '') $params['event'] = $selectedEvent;
     if ($metric !== '') $params['metric'] = $metric;
     if ($periodAnchor !== '') $params['month'] = $periodAnchor;
@@ -464,15 +526,27 @@ $renderRecentCompetitions = static function (array $rows): void {
     </section>
     <?php
 };
+$seasonReturnTo = $buildUrl([]);
+$editSeasonId = trim((string) ($_GET['edit_season'] ?? ''));
+$editSeason = $editSeasonId !== '' ? seasonGet($pdo, $idUsuario, $editSeasonId) : null;
+$seasonDialogOpen = isset($_GET['new_season']) || is_array($editSeason);
+$seasonForm = is_array($editSeason) ? $editSeason : [
+    'idmodalidade'=>$seasonContextModalityId,
+    'nome'=>$selectedSport === 'atletismo' ? stridebr_t('seasons.default_athletics_name', ['year'=>(new DateTimeImmutable('today'))->format('Y')]) : stridebr_t('seasons.default_name', ['sport'=>$selectedSportLabel, 'year'=>(new DateTimeImmutable('today'))->format('Y')]),
+    'data_inicio'=>(new DateTimeImmutable('today'))->format('Y-m-d'),
+    'data_fim'=>null,
+    'status'=>'ativa',
+    'observacoes'=>null,
+];
 $benchmarkReturnTo = $buildUrl([]);
-$benchmarkTypeByRenderer = ['strength'=>'one_rm','cycling'=>'ftp','swimming'=>'css','running'=>'distance_time'];
+$benchmarkTypeByRenderer = ['strength'=>'one_rm','cycling'=>'ftp','swimming'=>'css','running'=>'distance_time','athletics'=>'athletics'];
 $allowedBenchmarkType = $benchmarkTypeByRenderer[$renderer] ?? '';
 $editBenchmarkId = trim((string) ($_GET['edit_benchmark'] ?? ''));
 $editBenchmark = $editBenchmarkId !== '' ? benchmarkGet($pdo, $idUsuario, $editBenchmarkId) : null;
 $newBenchmarkType = stridebr_lower(trim((string) ($_GET['new_benchmark'] ?? '')));
 $benchmarkDialogType = '';
-if (is_array($editBenchmark) && (string) ($editBenchmark['tipo'] ?? '') === $allowedBenchmarkType && (string) ($editBenchmark['idmodalidade'] ?? '') === $selectedModalityId) $benchmarkDialogType = $allowedBenchmarkType;
-elseif ($newBenchmarkType !== '' && $newBenchmarkType === $allowedBenchmarkType && $selectedModalityId !== '') $benchmarkDialogType = $allowedBenchmarkType;
+if (is_array($editBenchmark) && (string) ($editBenchmark['tipo'] ?? '') === $allowedBenchmarkType && ($allowedBenchmarkType === 'athletics' || (string) ($editBenchmark['idmodalidade'] ?? '') === $selectedModalityId)) $benchmarkDialogType = $allowedBenchmarkType;
+elseif ($newBenchmarkType !== '' && $newBenchmarkType === $allowedBenchmarkType && ($selectedModalityId !== '' || ($allowedBenchmarkType === 'athletics' && $athleticsEvents !== []))) $benchmarkDialogType = $allowedBenchmarkType;
 $benchmarkFormRow = $benchmarkDialogType !== '' && is_array($editBenchmark) ? $editBenchmark : [];
 $benchmarkFormDate = (string) ($benchmarkFormRow['data_resultado'] ?? (new DateTimeImmutable('today'))->format('Y-m-d'));
 $benchmarkFormContext = (string) ($benchmarkFormRow['contexto'] ?? '');
@@ -494,11 +568,18 @@ if ($benchmarkDialogType === 'one_rm' && $benchmarkPrefillExercise !== '') {
     }
 }
 if ($benchmarkDialogType === 'distance_time' && $benchmarkPrefillDistanceM !== null && $benchmarkPrefillDistanceM > 0 && $benchmarkPrefillDistanceM <= 1000000) $benchmarkFormRow['distancia_m'] = $benchmarkPrefillDistanceM;
+$benchmarkFormEventCode = $benchmarkDialogType === 'athletics'
+    ? trim((string) ($benchmarkFormRow['athletics_event_code'] ?? $selectedAthleticsEventCode ?? ''))
+    : '';
+if ($benchmarkDialogType === 'athletics' && athleticsEventConfig($benchmarkFormEventCode) === null) $benchmarkFormEventCode = (string) array_key_first(athleticsCatalog());
+$benchmarkFormEnvironment = $benchmarkDialogType === 'athletics' ? athleticsNormalizeEnvironment($benchmarkFormRow['athletics_environment'] ?? 'unknown') : 'unknown';
+$benchmarkFormTiming = $benchmarkDialogType === 'athletics' ? athleticsNormalizeTimingMethod($benchmarkFormRow['timing_method'] ?? 'unknown') : 'unknown';
 $benchmarkDialogTitleKey = match ($benchmarkDialogType) {
     'one_rm' => 'benchmarks.register_one_rm',
     'ftp' => 'benchmarks.register_ftp',
     'css' => 'benchmarks.register_css',
     'distance_time' => 'benchmarks.register_test',
+    'athletics' => 'athletics.register_mark',
     default => 'benchmarks.title',
 };
 $benchmarkSubmitKey = $benchmarkFormIsEdit ? 'common.save' : match ($benchmarkDialogType) {
@@ -506,6 +587,7 @@ $benchmarkSubmitKey = $benchmarkFormIsEdit ? 'common.save' : match ($benchmarkDi
     'ftp' => 'benchmarks.save_ftp',
     'css' => 'benchmarks.save_css',
     'distance_time' => 'benchmarks.save_test',
+    'athletics' => 'athletics.save_mark',
     default => 'common.save',
 };
 $flashes = stridebr_take_flashes();
@@ -589,6 +671,37 @@ $flashes = stridebr_take_flashes();
                 <noscript><button type="submit"><?php echo stridebr_e(stridebr_t('common.apply')); ?></button></noscript>
             </form>
 
+            <?php if ($selectedSport !== 'all' && $seasonContextModalityId !== ''): ?>
+                <section class="progress-section progress-season-strip" aria-labelledby="progress-season-title">
+                    <header>
+                        <div><h2 id="progress-season-title"><?php echo stridebr_e(stridebr_t('seasons.title')); ?></h2><p><?php echo stridebr_e(stridebr_t('seasons.help')); ?></p></div>
+                        <a class="progress-button" href="<?php echo stridebr_e($buildUrl(['new_season'=>'1','edit_season'=>null])); ?>"><?php echo stridebr_e(stridebr_t('seasons.new')); ?></a>
+                    </header>
+                    <?php if ($seasons === []): ?>
+                        <p class="progress-benchmark-empty"><?php echo stridebr_e(stridebr_t('seasons.empty')); ?></p>
+                    <?php else: ?>
+                        <div class="progress-filterbar">
+                            <form method="GET" action="/user/progresso.php">
+                                <input type="hidden" name="sport" value="<?php echo stridebr_e($selectedSport); ?>">
+                                <input type="hidden" name="period" value="<?php echo stridebr_e($period); ?>">
+                                <?php if ($selectedEvent !== ''): ?><input type="hidden" name="event" value="<?php echo stridebr_e($selectedEvent); ?>"><?php endif; ?>
+                                <label class="progress-filter-select"><span><?php echo stridebr_e(stridebr_t('seasons.view')); ?></span><select name="season">
+                                    <?php foreach ($seasons as $seasonRow): ?><option value="<?php echo stridebr_e((string)$seasonRow['idtemporada']); ?>"<?php echo $selectedSeasonId === (string)$seasonRow['idtemporada'] ? ' selected' : ''; ?>><?php echo stridebr_e((string)$seasonRow['nome']); ?> · <?php echo stridebr_e(stridebr_format_date_short(new DateTimeImmutable((string)$seasonRow['data_inicio']))); ?><?php if (!empty($seasonRow['data_fim'])): ?>–<?php echo stridebr_e(stridebr_format_date_short(new DateTimeImmutable((string)$seasonRow['data_fim']))); ?><?php endif; ?></option><?php endforeach; ?>
+                                </select></label>
+                                <button type="submit" class="progress-button"><?php echo stridebr_e(stridebr_t('common.apply')); ?></button>
+                            </form>
+                            <?php if (is_array($selectedSeason)): ?>
+                                <a class="progress-button" href="<?php echo stridebr_e($buildUrl(['edit_season'=>$selectedSeasonId,'new_season'=>null])); ?>"><?php echo stridebr_e(stridebr_t('common.edit')); ?></a>
+                                <form method="POST" action="/api/progress-seasons.php">
+                                    <?php echo stridebr_csrf_field(); ?><input type="hidden" name="idtemporada" value="<?php echo stridebr_e($selectedSeasonId); ?>"><input type="hidden" name="return_to" value="<?php echo stridebr_e($seasonReturnTo); ?>">
+                                    <?php if ((string)($selectedSeason['status'] ?? '') === 'ativa'): ?><input type="hidden" name="action" value="close"><button type="submit" class="progress-button"><?php echo stridebr_e(stridebr_t('seasons.close')); ?></button><?php else: ?><input type="hidden" name="action" value="reopen"><button type="submit" class="progress-button"><?php echo stridebr_e(stridebr_t('seasons.reopen')); ?></button><?php endif; ?>
+                                </form>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
+                </section>
+            <?php endif; ?>
+
             <div class="progress-context-line"><strong><?php echo stridebr_e($selectedSportLabel); ?></strong><span><?php echo stridebr_e($periodContext); ?></span></div>
 
             <?php if ($currentActivities === []): ?>
@@ -664,7 +777,52 @@ $flashes = stridebr_take_flashes();
                     <?php if ((array) ($strengthDashboard['direct_muscles'] ?? []) !== []): ?><section class="progress-section" aria-labelledby="progress-muscles-title"><header><div><h2 id="progress-muscles-title"><?php echo stridebr_e(stridebr_t('progress.direct_sets')); ?></h2></div></header><div class="muscle-bars"><?php $maxDirect = max(1, ...(array_values((array) $strengthDashboard['direct_muscles']) ?: [1])); foreach ((array) $strengthDashboard['direct_muscles'] as $muscle => $sets): ?><div><span><?php echo stridebr_e(stridebr_t('progress.muscle.' . str_replace('-', '_', (string) $muscle))); ?></span><div><i style="width:<?php echo number_format(((int) $sets / $maxDirect) * 100, 2, '.', ''); ?>%"></i></div><strong><?php echo stridebr_e((string) $sets); ?></strong></div><?php endforeach; ?></div></section><?php endif; ?>
                     <?php if ((array) ($strengthDashboard['secondary_muscles'] ?? []) !== []): ?><section class="progress-section" aria-labelledby="progress-secondary-title"><header><div><h2 id="progress-secondary-title"><?php echo stridebr_e(stridebr_t('progress.secondary_involvement')); ?></h2><p><?php echo stridebr_e(stridebr_t('progress.secondary_involvement_help')); ?></p></div></header><div class="progress-secondary-list"><?php foreach ((array) $strengthDashboard['secondary_muscles'] as $muscle => $sets): ?><span><?php echo stridebr_e(stridebr_t('progress.muscle.' . str_replace('-', '_', (string) $muscle))); ?><b><?php echo stridebr_e((string) $sets); ?></b></span><?php endforeach; ?></div></section><?php endif; ?>
                 <?php elseif ($renderer === 'athletics' && is_array($athleticsDashboard)): ?>
-                    <?php $athleticsRecords = array_merge((array) ($athleticsDashboard['track_records'] ?? []), (array) ($athleticsDashboard['field_events'] ?? [])); if ($athleticsRecords !== []): ?><section class="progress-section" aria-labelledby="progress-records-title"><header><div><h2 id="progress-records-title"><?php echo stridebr_e(stridebr_t('progress.by_event')); ?></h2></div></header><div class="athletics-record-grid"><?php foreach ($athleticsRecords as $record): ?><article><div><strong><?php echo stridebr_e((string) ($record['nome'] ?? '')); ?></strong><small><?php echo stridebr_e(stridebr_tn('progress.session.one', 'progress.session.other', (int) ($record['sessions'] ?? 0))); ?></small></div><div class="athletics-record-value"><?php if (($record['direction'] ?? '') === 'lower' && is_numeric($record['best_time_s'] ?? null)): ?><span><?php echo stridebr_e(stridebr_t('progress.best_time_registered')); ?></span><b><?php echo stridebr_e($fmtSeconds((float) $record['best_time_s'])); ?></b><?php elseif (is_numeric($record['best_mark'] ?? null)): ?><span><?php echo stridebr_e(stridebr_t('progress.best_mark_registered')); ?></span><b><?php echo stridebr_e(stridebr_format_number((float) $record['best_mark'], 2)); ?> m</b><?php endif; ?></div><?php if (!empty($record['wind_aided_best'])): ?><small><?php echo stridebr_e(stridebr_t('progress.wind_above_limit')); ?></small><?php endif; ?></article><?php endforeach; ?></div></section><?php endif; ?>
+                    <section class="progress-section progress-benchmarks-section" aria-labelledby="progress-athletics-marks-title">
+                        <header>
+                            <div><h2 id="progress-athletics-marks-title"><?php echo stridebr_e(stridebr_t('athletics.events')); ?></h2><p><?php echo stridebr_e(stridebr_t('athletics.records_help')); ?></p></div>
+                            <?php if ($athleticsEvents !== []): ?><a class="progress-button" href="<?php echo stridebr_e($buildUrl(['new_benchmark'=>'athletics'])); ?>"><?php echo stridebr_e(stridebr_t('athletics.register_mark')); ?></a><?php endif; ?>
+                        </header>
+                        <?php if ($athleticsClassifications === []): ?>
+                            <p class="progress-benchmark-empty"><?php echo stridebr_e($selectedEvent !== '' ? stridebr_t('athletics.empty_event') : stridebr_t('athletics.empty')); ?></p>
+                        <?php else: ?>
+                            <div class="athletics-record-grid">
+                                <?php foreach ($athleticsClassifications as $classification):
+                                    $eventCode=(string)($classification['event_code']??'');
+                                    $environment=(string)($classification['environment']??'unknown');
+                                    $best=is_array($classification['best_performance']??null)?$classification['best_performance']:null;
+                                    $eligible=is_array($classification['best_eligible']??null)?$classification['best_eligible']:null;
+                                    $sb=is_array($classification['season_best_performance']??null)?$classification['season_best_performance']:null;
+                                    $latest=is_array($classification['latest']??null)?$classification['latest']:null;
+                                ?>
+                                    <article>
+                                        <div><strong><?php echo stridebr_e(athleticsEventLabel($eventCode)); ?></strong><small><?php echo stridebr_e(stridebr_t('athletics.environment.'.$environment)); ?></small></div>
+                                        <div class="athletics-record-value">
+                                            <span><?php echo stridebr_e(stridebr_t('athletics.best_performance')); ?></span>
+                                            <b><?php echo stridebr_e($best !== null ? athleticsFormatValue($eventCode,(float)$best['valor_canonico']) : '—'); ?></b>
+                                        </div>
+                                        <?php if ($selectedSeason !== null): ?><small><?php echo stridebr_e(stridebr_t('athletics.sb')); ?>: <?php echo stridebr_e($sb !== null ? athleticsFormatValue($eventCode,(float)$sb['valor_canonico']) : stridebr_t('athletics.no_season_mark')); ?></small><?php endif; ?>
+                                        <?php if ($eligible !== null && ($best === null || ($eligible['idbenchmark'] ?? null) !== ($best['idbenchmark'] ?? null) || ($eligible['idregistro'] ?? null) !== ($best['idregistro'] ?? null) || (float)$eligible['valor_canonico'] !== (float)$best['valor_canonico'])): ?><small><?php echo stridebr_e(stridebr_t('athletics.best_eligible')); ?>: <?php echo stridebr_e(athleticsFormatValue($eventCode,(float)$eligible['valor_canonico'])); ?></small><?php endif; ?>
+                                        <?php if ($latest !== null): ?><small><?php echo stridebr_e(stridebr_t('athletics.latest')); ?>: <?php echo stridebr_e(athleticsFormatValue($eventCode,(float)$latest['valor_canonico'])); ?></small><?php endif; ?>
+                                    </article>
+                                <?php endforeach; ?>
+                            </div>
+                            <?php if ($selectedEvent !== ''): ?>
+                                <?php foreach ($athleticsClassifications as $classification): ?>
+                                    <details class="progress-benchmark-history" open>
+                                        <summary><?php echo stridebr_e(stridebr_t('benchmarks.history')); ?> · <?php echo count((array)($classification['history']??[])); ?></summary>
+                                        <div>
+                                            <?php foreach ((array)($classification['history']??[]) as $record): $eligibility=is_array($record['record_eligibility']??null)?$record['record_eligibility']:athleticsRecordEligibility($record); ?>
+                                                <article class="progress-benchmark-history-row">
+                                                    <div><strong><?php echo stridebr_e(athleticsFormatValue((string)$classification['event_code'],(float)$record['valor_canonico'])); ?></strong><small><?php echo stridebr_e(stridebr_format_date_short(new DateTimeImmutable((string)$record['data_resultado']))); ?> · <?php echo stridebr_e(benchmarkOriginLabel((string)($record['origem']??''))); ?><?php $context=benchmarkContextLabel($record['contexto']??null); if($context!==''): ?> · <?php echo stridebr_e($context); ?><?php endif; ?><?php if(!empty($record['competicao_nome'])): ?> · <?php echo stridebr_e((string)$record['competicao_nome']); ?><?php endif; ?> · <?php echo stridebr_e(stridebr_t('athletics.eligibility.'.($eligibility['status']??'unknown'))); ?><?php if(is_numeric($record['wind_mps']??null)): ?> · <?php echo stridebr_e(stridebr_format_number((float)$record['wind_mps'],2).' m/s'); ?><?php endif; ?><?php if(!empty($record['timing_method'])): ?> · <?php echo stridebr_e(stridebr_t('athletics.timing.'.(string)$record['timing_method'])); ?><?php endif; ?></small></div>
+                                                    <?php if (!empty($record['idbenchmark'])): ?><div class="progress-benchmark-actions"><a href="<?php echo stridebr_e($buildUrl(['edit_benchmark'=>(string)$record['idbenchmark']])); ?>"><?php echo stridebr_e(stridebr_t('common.edit')); ?></a></div><?php endif; ?>
+                                                </article>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    </details>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        <?php endif; ?>
+                    </section>
                 <?php elseif (is_array($sessionDashboard)): ?>
                     <?php $sessionSummary = (array) ($sessionDashboard['summary']['current'] ?? []); ?>
                     <?php if ((int) ($sessionSummary['wins'] ?? 0) + (int) ($sessionSummary['draws'] ?? 0) + (int) ($sessionSummary['losses'] ?? 0) > 0): ?><section class="progress-section" aria-labelledby="progress-results-title"><header><div><h2 id="progress-results-title"><?php echo stridebr_e(stridebr_t('progress.results_recorded')); ?></h2></div></header><div class="progress-kpi-strip"><div><span><?php echo stridebr_e(stridebr_t('progress.results')); ?></span><strong><?php echo stridebr_e(stridebr_t('progress.record_summary', ['wins' => (string) $sessionSummary['wins'], 'draws' => (string) $sessionSummary['draws'], 'losses' => (string) $sessionSummary['losses']])); ?></strong></div></div></section><?php endif; ?>
@@ -716,6 +874,22 @@ $flashes = stridebr_take_flashes();
                 <section class="progress-section" aria-labelledby="progress-consistency-title"><header><div><h2 id="progress-consistency-title"><?php echo stridebr_e(stridebr_t('progress.consistency')); ?></h2><p><?php echo stridebr_e(stridebr_t('progress.active_weeks_summary', ['active' => (string) $consistency['active'], 'total' => (string) $consistency['total']])); ?></p></div></header><div class="progress-consistency-band" role="list" aria-label="<?php echo stridebr_e(stridebr_t('progress.consistency_weeks_aria')); ?>"><?php foreach ($consistency['units'] as $unit): ?><span role="listitem" class="<?php echo !empty($unit['active']) ? 'is-active' : ''; ?>" title="<?php echo stridebr_e(stridebr_t('progress.week_activity_count', ['date' => stridebr_format_date_short($unit['start']), 'count' => (string) $unit['activities']])); ?>"></span><?php endforeach; ?></div></section>
             <?php endif; ?>
 
+            <?php if ($seasonDialogOpen && $seasonContextModalityId !== ''): ?>
+                <dialog class="progress-benchmark-dialog" aria-labelledby="progress-season-dialog-title" open>
+                    <div class="progress-benchmark-dialog-card">
+                        <header><div><span class="progress-eyebrow"><?php echo stridebr_e(stridebr_t('seasons.title')); ?></span><h2 id="progress-season-dialog-title"><?php echo stridebr_e(is_array($editSeason) ? stridebr_t('seasons.edit') : stridebr_t('seasons.new')); ?></h2></div><a class="progress-dialog-close" href="<?php echo stridebr_e($seasonReturnTo); ?>" aria-label="<?php echo stridebr_e(stridebr_t('common.close')); ?>">×</a></header>
+                        <form method="POST" action="/api/progress-seasons.php" class="progress-benchmark-form">
+                            <?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="<?php echo is_array($editSeason) ? 'update' : 'create'; ?>"><input type="hidden" name="idmodalidade" value="<?php echo stridebr_e($seasonContextModalityId); ?>"><input type="hidden" name="return_to" value="<?php echo stridebr_e($seasonReturnTo); ?>"><?php if(is_array($editSeason)): ?><input type="hidden" name="idtemporada" value="<?php echo stridebr_e((string)$editSeason['idtemporada']); ?>"><?php endif; ?>
+                            <label><?php echo stridebr_e(stridebr_t('seasons.name')); ?><input type="text" name="nome" maxlength="120" value="<?php echo stridebr_e((string)($seasonForm['nome']??'')); ?>" required></label>
+                            <label><?php echo stridebr_e(stridebr_t('seasons.start')); ?><input type="date" name="data_inicio" value="<?php echo stridebr_e((string)($seasonForm['data_inicio']??'')); ?>" required></label>
+                            <label><?php echo stridebr_e(stridebr_t('seasons.end')); ?><input type="date" name="data_fim" value="<?php echo stridebr_e((string)($seasonForm['data_fim']??'')); ?>"><small><?php echo stridebr_e(stridebr_t('seasons.end_help')); ?></small></label>
+                            <label><?php echo stridebr_e(stridebr_t('common.notes')); ?><textarea name="observacoes" maxlength="2000" rows="3"><?php echo stridebr_e((string)($seasonForm['observacoes']??'')); ?></textarea></label>
+                            <div class="progress-benchmark-form-actions"><a class="progress-button" href="<?php echo stridebr_e($seasonReturnTo); ?>"><?php echo stridebr_e(stridebr_t('common.cancel')); ?></a><button type="submit" class="progress-button is-primary"><?php echo stridebr_e(stridebr_t('common.save')); ?></button></div>
+                        </form>
+                    </div>
+                </dialog>
+            <?php endif; ?>
+
             <?php if ($benchmarkDialogType !== ''): ?>
                 <dialog class="progress-benchmark-dialog" data-progress-benchmark-dialog data-return-url="<?php echo stridebr_e($benchmarkReturnTo); ?>" aria-labelledby="progress-benchmark-dialog-title" open>
                     <div class="progress-benchmark-dialog-card">
@@ -739,6 +913,12 @@ $flashes = stridebr_take_flashes();
                             <?php elseif ($benchmarkDialogType === 'distance_time'): ?>
                                 <label><?php echo stridebr_e(stridebr_t('benchmarks.distance')); ?><div class="progress-input-unit"><input type="number" name="distance_km" list="progress-common-distances" min="0.05" max="1000" step="any" inputmode="decimal" value="<?php echo stridebr_e(isset($benchmarkFormRow['distancia_m']) ? rtrim(rtrim(number_format((float) $benchmarkFormRow['distancia_m'] / 1000, 4, '.', ''), '0'), '.') : ''); ?>" required><span>km</span></div><datalist id="progress-common-distances"><option value="1"><option value="3"><option value="5"><option value="10"><option value="21.0975"><option value="42.195"></datalist></label>
                                 <label><?php echo stridebr_e(stridebr_t('benchmarks.time')); ?><input type="text" name="time_value" inputmode="numeric" placeholder="29:58" value="<?php echo stridebr_e(isset($benchmarkFormRow['valor_canonico']) ? benchmarkFormatClock((float) $benchmarkFormRow['valor_canonico']) : ''); ?>" required></label>
+                            <?php elseif ($benchmarkDialogType === 'athletics'): ?>
+                                <label><?php echo stridebr_e(stridebr_t('athletics.event')); ?><select name="athletics_event_code" required><?php foreach (athleticsCatalog() as $eventCode => $eventConfig): if (!isset($athleticsModalityMap[$eventCode])) continue; ?><option value="<?php echo stridebr_e($eventCode); ?>"<?php echo $benchmarkFormEventCode === $eventCode ? ' selected' : ''; ?>><?php echo stridebr_e(athleticsEventLabel($eventCode)); ?></option><?php endforeach; ?></select></label>
+                                <label><?php echo stridebr_e(stridebr_t('athletics.value')); ?><input type="text" name="athletics_value" inputmode="decimal" value="<?php echo stridebr_e(isset($benchmarkFormRow['valor_canonico']) ? (($event=athleticsEventConfig($benchmarkFormEventCode)) && ($event['measurement']??'')==='time' ? athleticsFormatTime((float)$benchmarkFormRow['valor_canonico']) : rtrim(rtrim(number_format((float)$benchmarkFormRow['valor_canonico'],3,'.',''),'0'),'.')) : ''); ?>" required></label>
+                                <label><?php echo stridebr_e(stridebr_t('athletics.environment.label')); ?><select name="athletics_environment"><?php foreach (['unknown','outdoor','indoor'] as $environment): ?><option value="<?php echo stridebr_e($environment); ?>"<?php echo $benchmarkFormEnvironment === $environment ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('athletics.environment.'.$environment)); ?></option><?php endforeach; ?></select></label>
+                                <label><?php echo stridebr_e(stridebr_t('athletics.wind')); ?><div class="progress-input-unit"><input type="number" name="wind_mps" min="-20" max="20" step="0.01" inputmode="decimal" value="<?php echo stridebr_e(is_numeric($benchmarkFormRow['wind_mps']??null) ? (string)$benchmarkFormRow['wind_mps'] : ''); ?>"><span>m/s</span></div></label>
+                                <label><?php echo stridebr_e(stridebr_t('athletics.timing.label')); ?><select name="timing_method"><?php foreach (['unknown','fat','hand'] as $timing): ?><option value="<?php echo stridebr_e($timing); ?>"<?php echo $benchmarkFormTiming === $timing ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('athletics.timing.'.$timing)); ?></option><?php endforeach; ?></select></label>
                             <?php endif; ?>
 
                             <label><?php echo stridebr_e(stridebr_t('common.date')); ?><input type="date" name="data_resultado" max="<?php echo stridebr_e((new DateTimeImmutable('today'))->format('Y-m-d')); ?>" value="<?php echo stridebr_e($benchmarkFormDate); ?>" required></label>

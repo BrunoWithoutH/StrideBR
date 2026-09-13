@@ -49,6 +49,7 @@ return function (PDO $pdo): void {
     AlphaTest::same('metrica', $legacy['tipo_meta'], 'meta antiga/criada como prática permanece tipo metrica');
     AlphaTest::same('carga_maxima', $legacy['metrica'], 'carga_maxima preserva semântica legada e não vira one_rm');
     AlphaTest::same(null, $legacy['benchmark_tipo'], 'meta de carga máxima não recebe tipo benchmark');
+    AlphaTest::assert(!stridebr_db_bool($legacy['benchmark_require_eligible'] ?? true), 'Meta métrica legacy deve persistir benchmark_require_eligible=false');
 
     benchmarkCreate($pdo, $user, ['tipo'=>'one_rm','idmodalidade'=>$strength['idmodalidade'],'idexercicio'=>$exercise,'valor_canonico'=>80,'data_resultado'=>$twoDaysAgo,'origem'=>'manual','metodo'=>'medido']);
     $baselineOne = benchmarkCreate($pdo, $user, ['tipo'=>'one_rm','idmodalidade'=>$strength['idmodalidade'],'idexercicio'=>$exercise,'valor_canonico'=>85,'data_resultado'=>$yesterday,'origem'=>'manual','metodo'=>'medido']);
@@ -63,6 +64,10 @@ return function (PDO $pdo): void {
     AlphaTest::same(85.0, (float)$oneGoal['valor_inicial'], 'baseline de 1RM usa melhor 1RM medido do exercício');
     AlphaTest::same((string)$baselineOne['idbenchmark'], (string)$oneGoal['idbenchmark_inicial'], 'baseline de 1RM preserva benchmark de origem');
     AlphaTest::same($exercise, $oneGoal['idexercicio'], '1RM goal preserva exercício específico');
+    AlphaTest::assert(!stridebr_db_bool($oneGoal['benchmark_require_eligible'] ?? true), 'Meta benchmark não-Atletismo deve persistir benchmark_require_eligible=false');
+    dashboardEditarMeta($pdo, $user, (string)$oneGoal['idmeta'], ['tipo_meta'=>'benchmark','benchmark_tipo'=>'one_rm','idmodalidade'=>$strength['idmodalidade'],'idexercicio'=>$exercise,'valor_alvo'=>'101','periodo'=>'continuo','nome'=>'1RM B2']);
+    $oneGoal = $goalByName($pdo, $user, '1RM B2');
+    AlphaTest::assert(!stridebr_db_bool($oneGoal['benchmark_require_eligible'] ?? true), 'Edição deve preservar benchmark_require_eligible=false');
 
     AlphaTest::throws(fn()=>dashboardCriarMeta($pdo, $user, ['tipo_meta'=>'benchmark','benchmark_tipo'=>'one_rm','idmodalidade'=>$strength['idmodalidade'],'valor_alvo'=>'110','periodo'=>'continuo','nome'=>'1RM sem exercício']), 'one_rm goal exige exercício');
     AlphaTest::throws(fn()=>dashboardCriarMeta($pdo, $user, ['tipo_meta'=>'benchmark','benchmark_tipo'=>'ftp','idmodalidade'=>$cycling['idmodalidade'],'valor_alvo'=>'260','periodo'=>'mensal','nome'=>'FTP recorrente']), 'benchmark goal rejeita período recorrente');
@@ -157,6 +162,25 @@ return function (PDO $pdo): void {
     $windowEvaluation2 = benchmarkGoalEvaluate($pdo, $windowUser, $windowGoal, true);
     AlphaTest::assert($windowEvaluation2['atingida'], 'resultado cadastrado depois, mas com data esportiva dentro da janela, pode concluir');
     AlphaTest::same((string)$eligibleBackdated['idbenchmark'], (string)$windowEvaluation2['benchmark_evidence']['idbenchmark'], 'evidência da janela usa data_resultado, não timestamp técnico de criação');
+
+    dashboardEditarMeta($pdo, $user, (string)$oneGoal['idmeta'], ['tipo_meta'=>'benchmark','benchmark_tipo'=>'one_rm','idmodalidade'=>$strength['idmodalidade'],'valor_alvo'=>'102','periodo'=>'continuo']);
+    $oneGoal = $goalByName($pdo, $user, '1RM B2');
+    AlphaTest::same($exercise, (string)$oneGoal['idexercicio'], 'editar target de 1RM sem exercício preserva identidade');
+    dashboardEditarMeta($pdo, $user, (string)$oneGoal['idmeta'], ['tipo_meta'=>'benchmark','benchmark_tipo'=>'one_rm','idmodalidade'=>$strength['idmodalidade'],'idexercicio'=>$exercise,'valor_alvo'=>'103','periodo'=>'continuo']);
+    $oneGoal = $goalByName($pdo, $user, '1RM B2');
+    AlphaTest::same(103.0, (float)$oneGoal['valor_alvo'], 'editar target de 1RM com o mesmo exercício é permitido');
+    AlphaTest::throws(fn()=>dashboardEditarMeta($pdo, $user, (string)$oneGoal['idmeta'], ['tipo_meta'=>'benchmark','benchmark_tipo'=>'one_rm','idmodalidade'=>$strength['idmodalidade'],'idexercicio'=>$exerciseOther,'valor_alvo'=>'104','periodo'=>'continuo']), 'edição não pode trocar exercício de 1RM');
+
+    dashboardEditarMeta($pdo, $user, (string)$fiveGoal['idmeta'], ['tipo_meta'=>'benchmark','benchmark_tipo'=>'distance_time','idmodalidade'=>$running['idmodalidade'],'valor_alvo'=>'27:50','periodo'=>'continuo']);
+    $fiveGoal = $goalByName($pdo, $user, '5K B2');
+    AlphaTest::same(5000.0, (float)$fiveGoal['benchmark_distancia_m'], 'editar target sem distância preserva distância existente');
+    dashboardEditarMeta($pdo, $user, (string)$fiveGoal['idmeta'], ['tipo_meta'=>'benchmark','benchmark_tipo'=>'distance_time','idmodalidade'=>$running['idmodalidade'],'benchmark_distancia_m'=>'5000.0','valor_alvo'=>'27:45','periodo'=>'continuo']);
+    $fiveGoal = $goalByName($pdo, $user, '5K B2');
+    AlphaTest::same(1665.0, (float)$fiveGoal['valor_alvo'], 'mesma distância com representação numérica equivalente é permitida');
+    dashboardEditarMeta($pdo, $user, (string)$fiveGoal['idmeta'], ['tipo_meta'=>'benchmark','benchmark_tipo'=>'distance_time','idmodalidade'=>$running['idmodalidade'],'benchmark_distancia_m'=>'custom','benchmark_distancia_custom_m'=>'5000.0005','valor_alvo'=>'27:40','periodo'=>'continuo']);
+    $fiveGoal = $goalByName($pdo, $user, '5K B2');
+    AlphaTest::same(5000.0, (float)$fiveGoal['benchmark_distancia_m'], 'distância custom equivalente dentro da tolerância preserva identidade');
+    AlphaTest::throws(fn()=>dashboardEditarMeta($pdo, $user, (string)$fiveGoal['idmeta'], ['tipo_meta'=>'benchmark','benchmark_tipo'=>'distance_time','idmodalidade'=>$running['idmodalidade'],'benchmark_distancia_m'=>'custom','benchmark_distancia_custom_m'=>'10000','valor_alvo'=>'27:10','periodo'=>'continuo']), 'edição com distância custom diferente deve bloquear identidade');
 
     AlphaTest::throws(fn()=>dashboardEditarMeta($pdo, $user, (string)$oneGoal['idmeta'], ['tipo_meta'=>'benchmark','benchmark_tipo'=>'ftp','idmodalidade'=>$strength['idmodalidade'],'idexercicio'=>$exercise,'valor_alvo'=>'105','periodo'=>'continuo']), 'edição não pode trocar tipo benchmark');
     AlphaTest::throws(fn()=>dashboardEditarMeta($pdo, $user, (string)$fiveGoal['idmeta'], ['tipo_meta'=>'benchmark','benchmark_tipo'=>'distance_time','idmodalidade'=>$running['idmodalidade'],'benchmark_distancia_m'=>10000,'valor_alvo'=>'27:00','periodo'=>'continuo']), 'edição não pode trocar distância/protocolo');

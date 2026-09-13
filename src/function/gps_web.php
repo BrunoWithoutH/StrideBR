@@ -112,6 +112,22 @@ function gpsWebValidatePoints(array $points): array
     return $coordinates;
 }
 
+function gpsWebPointMetadata(array $points): array
+{
+    $metadata = [];
+    foreach ($points as $point) {
+        $item = [];
+        $altitude = $point['altitude_m'] ?? $point['altitude'] ?? null;
+        $accuracy = $point['accuracy_m'] ?? $point['accuracy'] ?? null;
+        $timestamp = $point['timestamp_ms'] ?? $point['t'] ?? null;
+        if (is_numeric($altitude) && is_finite((float) $altitude)) $item['altitude_m'] = round((float) $altitude, 3);
+        if (is_numeric($accuracy) && is_finite((float) $accuracy) && (float) $accuracy >= 0) $item['accuracy_m'] = round((float) $accuracy, 3);
+        if (is_numeric($timestamp) && (float) $timestamp > 0) $item['timestamp_ms'] = (int) round((float) $timestamp);
+        $metadata[] = $item;
+    }
+    return $metadata;
+}
+
 function gpsWebSecondsToInterval(float|int $seconds): string
 {
     return atividadeSegundosParaIntervalo(max(0.0, min(604800.0, (float) $seconds)));
@@ -212,6 +228,7 @@ function gpsWebBuildActivityPayload(PDO $pdo, string $idUsuario, array $recordin
 
     $points = is_array($recording['points'] ?? null) ? $recording['points'] : [];
     $coordinates = gpsWebValidatePoints($points);
+    $pointMetadata = gpsWebPointMetadata($points);
     $geojson = ['type' => 'LineString', 'coordinates' => $coordinates];
     $measuredDistanceM = max(0.0, (float) ($recording['measured_distance_m'] ?? atividadeDistanciaRota($coordinates)));
     $displayDistanceM = is_numeric($recording['distance_m'] ?? null) ? max(0.0, (float) $recording['distance_m']) : $measuredDistanceM;
@@ -281,8 +298,8 @@ function gpsWebBuildActivityPayload(PDO $pdo, string $idUsuario, array $recordin
         'idmodelo' => (string) $model['idmodelo'],
         'titulo' => trim((string) ($recording['title'] ?? '')),
         'observacoes' => trim((string) ($recording['notes'] ?? '')),
-        'data_inicio' => $started->format('Y-m-d H:i'),
-        'data_fim' => $ended->format('Y-m-d H:i'),
+        'data_inicio' => $started->format('Y-m-d H:i:s'),
+        'data_fim' => $ended->format('Y-m-d H:i:s'),
         'status' => 'concluido',
         'visibilidade' => trim((string) ($recording['visibility'] ?? '')),
         'ocultar_inicio_m' => max(0, min(10000, (int) ($recording['hide_route_start_m'] ?? 0))),
@@ -299,6 +316,7 @@ function gpsWebBuildActivityPayload(PDO $pdo, string $idUsuario, array $recordin
             'elevacao_min_m' => $elevationMinM,
             'elevacao_max_m' => $elevationMaxM,
             'fonte_elevacao' => $elevationSource,
+            'pontos_metadata' => $pointMetadata,
         ],
         '_gps_meta' => [
             'recording_key' => gpsWebRecordingKey($recording),

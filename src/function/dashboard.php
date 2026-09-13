@@ -177,7 +177,7 @@ function dashboardValidarMeta(PDO $pdo, string $idUsuario, array $payload, ?stri
 
     return [
         'tipo_meta'=>'metrica','metrica'=>$metrica,'periodo'=>$periodo,'idmodalidade'=>$idModalidade,'idexercicio'=>$idExercicio,'nome'=>$nome,'valor_alvo'=>$valor,'data_inicio'=>$dataInicio,'data_fim'=>$dataFim,
-        'benchmark_tipo'=>null,'benchmark_distancia_m'=>null,'benchmark_referencia_nome_snapshot'=>null,'valor_inicial'=>null,'data_valor_inicial'=>null,'idbenchmark_inicial'=>null,
+        'benchmark_tipo'=>null,'benchmark_distancia_m'=>null,'benchmark_referencia_nome_snapshot'=>null,'benchmark_event_code'=>null,'benchmark_environment'=>null,'benchmark_require_eligible'=>false,'valor_inicial'=>null,'data_valor_inicial'=>null,'idbenchmark_inicial'=>null,
     ];
 }
 
@@ -188,9 +188,9 @@ function dashboardCriarMeta(PDO $pdo, string $idUsuario, array $payload): void
     $count = $pdo->prepare('SELECT COUNT(*) FROM metas_usuario WHERE idusuario = :usuario AND ativa = TRUE');
     $count->execute([':usuario' => $idUsuario]);
     if ((int) $count->fetchColumn() >= 12) throw new InvalidArgumentException(stridebr_t('goals.error.max_active'));
-    $stmt = $pdo->prepare('INSERT INTO metas_usuario (idmeta,idusuario,idmodalidade,idexercicio,nome,tipo_meta,metrica,periodo,valor_alvo,data_inicio,data_fim,benchmark_tipo,benchmark_distancia_m,benchmark_referencia_nome_snapshot,valor_inicial,data_valor_inicial,idbenchmark_inicial) VALUES (:id,:usuario,:modalidade,:exercicio,:nome,:tipo_meta,:metrica,:periodo,:valor,:inicio,:fim,:benchmark_tipo,:benchmark_distancia,:snapshot,:valor_inicial,:data_valor_inicial,:benchmark_inicial)');
+    $stmt = $pdo->prepare('INSERT INTO metas_usuario (idmeta,idusuario,idmodalidade,idexercicio,nome,tipo_meta,metrica,periodo,valor_alvo,data_inicio,data_fim,benchmark_tipo,benchmark_distancia_m,benchmark_referencia_nome_snapshot,benchmark_event_code,benchmark_environment,benchmark_require_eligible,valor_inicial,data_valor_inicial,idbenchmark_inicial) VALUES (:id,:usuario,:modalidade,:exercicio,:nome,:tipo_meta,:metrica,:periodo,:valor,:inicio,:fim,:benchmark_tipo,:benchmark_distancia,:snapshot,:benchmark_event,:benchmark_environment,:benchmark_require_eligible,:valor_inicial,:data_valor_inicial,:benchmark_inicial)');
     $stmt->execute([
-        ':id'=>dashboardGerarId(),':usuario'=>$idUsuario,':modalidade'=>$dados['idmodalidade'],':exercicio'=>$dados['idexercicio'],':nome'=>$dados['nome'],':tipo_meta'=>$dados['tipo_meta'],':metrica'=>$dados['metrica'],':periodo'=>$dados['periodo'],':valor'=>$dados['valor_alvo'],':inicio'=>$dados['data_inicio'],':fim'=>$dados['data_fim'],':benchmark_tipo'=>$dados['benchmark_tipo'],':benchmark_distancia'=>$dados['benchmark_distancia_m'],':snapshot'=>$dados['benchmark_referencia_nome_snapshot'],':valor_inicial'=>$dados['valor_inicial'],':data_valor_inicial'=>$dados['data_valor_inicial'],':benchmark_inicial'=>$dados['idbenchmark_inicial'],
+        ':id'=>dashboardGerarId(),':usuario'=>$idUsuario,':modalidade'=>$dados['idmodalidade'],':exercicio'=>$dados['idexercicio'],':nome'=>$dados['nome'],':tipo_meta'=>$dados['tipo_meta'],':metrica'=>$dados['metrica'],':periodo'=>$dados['periodo'],':valor'=>$dados['valor_alvo'],':inicio'=>$dados['data_inicio'],':fim'=>$dados['data_fim'],':benchmark_tipo'=>$dados['benchmark_tipo'],':benchmark_distancia'=>$dados['benchmark_distancia_m'],':snapshot'=>$dados['benchmark_referencia_nome_snapshot'],':benchmark_event'=>$dados['benchmark_event_code'],':benchmark_environment'=>$dados['benchmark_environment'],':benchmark_require_eligible'=>stridebr_db_bool($dados['benchmark_require_eligible'] ?? false) ? 'true' : 'false',':valor_inicial'=>$dados['valor_inicial'],':data_valor_inicial'=>$dados['data_valor_inicial'],':benchmark_inicial'=>$dados['idbenchmark_inicial'],
     ]);
 }
 
@@ -198,9 +198,9 @@ function dashboardEditarMeta(PDO $pdo, string $idUsuario, string $idMeta, array 
 {
     if (!dashboardMetasDisponiveis($pdo)) throw new RuntimeException(stridebr_t('goals.error.migration_missing'));
     $dados = dashboardValidarMeta($pdo, $idUsuario, $payload, $idMeta);
-    $stmt = $pdo->prepare('UPDATE metas_usuario SET idmodalidade=:modalidade,idexercicio=:exercicio,nome=:nome,tipo_meta=:tipo_meta,metrica=:metrica,periodo=:periodo,valor_alvo=:valor,data_inicio=:inicio,data_fim=:fim,benchmark_tipo=:benchmark_tipo,benchmark_distancia_m=:benchmark_distancia,benchmark_referencia_nome_snapshot=:snapshot,valor_inicial=:valor_inicial,data_valor_inicial=:data_valor_inicial,idbenchmark_inicial=:benchmark_inicial,data_atualizacao=NOW() WHERE idmeta=:meta AND idusuario=:usuario');
+    $stmt = $pdo->prepare('UPDATE metas_usuario SET idmodalidade=:modalidade,idexercicio=:exercicio,nome=:nome,tipo_meta=:tipo_meta,metrica=:metrica,periodo=:periodo,valor_alvo=:valor,data_inicio=:inicio,data_fim=:fim,benchmark_tipo=:benchmark_tipo,benchmark_distancia_m=:benchmark_distancia,benchmark_referencia_nome_snapshot=:snapshot,benchmark_event_code=:benchmark_event,benchmark_environment=:benchmark_environment,benchmark_require_eligible=:benchmark_require_eligible,valor_inicial=:valor_inicial,data_valor_inicial=:data_valor_inicial,idbenchmark_inicial=:benchmark_inicial,data_atualizacao=NOW() WHERE idmeta=:meta AND idusuario=:usuario');
     $stmt->execute([
-        ':modalidade'=>$dados['idmodalidade'],':exercicio'=>$dados['idexercicio'],':nome'=>$dados['nome'],':tipo_meta'=>$dados['tipo_meta'],':metrica'=>$dados['metrica'],':periodo'=>$dados['periodo'],':valor'=>$dados['valor_alvo'],':inicio'=>$dados['data_inicio'],':fim'=>$dados['data_fim'],':benchmark_tipo'=>$dados['benchmark_tipo'],':benchmark_distancia'=>$dados['benchmark_distancia_m'],':snapshot'=>$dados['benchmark_referencia_nome_snapshot'],':valor_inicial'=>$dados['valor_inicial'],':data_valor_inicial'=>$dados['data_valor_inicial'],':benchmark_inicial'=>$dados['idbenchmark_inicial'],':meta'=>$idMeta,':usuario'=>$idUsuario,
+        ':modalidade'=>$dados['idmodalidade'],':exercicio'=>$dados['idexercicio'],':nome'=>$dados['nome'],':tipo_meta'=>$dados['tipo_meta'],':metrica'=>$dados['metrica'],':periodo'=>$dados['periodo'],':valor'=>$dados['valor_alvo'],':inicio'=>$dados['data_inicio'],':fim'=>$dados['data_fim'],':benchmark_tipo'=>$dados['benchmark_tipo'],':benchmark_distancia'=>$dados['benchmark_distancia_m'],':snapshot'=>$dados['benchmark_referencia_nome_snapshot'],':benchmark_event'=>$dados['benchmark_event_code'],':benchmark_environment'=>$dados['benchmark_environment'],':benchmark_require_eligible'=>stridebr_db_bool($dados['benchmark_require_eligible'] ?? false) ? 'true' : 'false',':valor_inicial'=>$dados['valor_inicial'],':data_valor_inicial'=>$dados['data_valor_inicial'],':benchmark_inicial'=>$dados['idbenchmark_inicial'],':meta'=>$idMeta,':usuario'=>$idUsuario,
     ]);
     if ($dados['tipo_meta'] === 'benchmark') {
         $goal = array_merge(['idmeta'=>$idMeta,'idusuario'=>$idUsuario], $dados);
@@ -436,7 +436,7 @@ function dashboardListarMetas(PDO $pdo, string $idUsuario, bool $somenteAtivas =
         return [];
     }
 
-    $sql = "SELECT g.idmeta,g.idmodalidade,g.idexercicio,g.nome,g.tipo_meta,g.metrica,g.periodo,g.valor_alvo,g.benchmark_tipo,g.benchmark_distancia_m,g.benchmark_referencia_nome_snapshot,g.valor_inicial,g.data_valor_inicial,g.idbenchmark_inicial,
+    $sql = "SELECT g.idmeta,g.idmodalidade,g.idexercicio,g.nome,g.tipo_meta,g.metrica,g.periodo,g.valor_alvo,g.benchmark_tipo,g.benchmark_distancia_m,g.benchmark_referencia_nome_snapshot,g.benchmark_event_code,g.benchmark_environment,g.benchmark_require_eligible,g.valor_inicial,g.data_valor_inicial,g.idbenchmark_inicial,
                    g.ativa,g.data_inicio,g.data_fim,g.data_criacao,g.data_atualizacao,g.concluida_em,g.arquivada_em,
                    m.nome AS modalidade_nome, m.slug AS modalidade_slug, e.nome AS exercicio_nome
             FROM metas_usuario g
@@ -463,7 +463,7 @@ function dashboardListarConclusoesMetas(PDO $pdo, string $idUsuario, int $limite
     try {
         $stmt = $pdo->prepare(
             "SELECT c.idconclusao,c.idmeta,c.periodo_inicio,c.periodo_fim,c.valor_atingido,c.atingida_em,c.idbenchmark,c.data_resultado,
-                    g.nome,g.tipo_meta,g.metrica,g.periodo,g.valor_alvo,g.idexercicio,g.benchmark_tipo,g.benchmark_distancia_m,g.benchmark_referencia_nome_snapshot,m.nome AS modalidade_nome,m.slug AS modalidade_slug,e.nome AS exercicio_nome
+                    g.nome,g.tipo_meta,g.metrica,g.periodo,g.valor_alvo,g.idexercicio,g.benchmark_tipo,g.benchmark_distancia_m,g.benchmark_referencia_nome_snapshot,g.benchmark_event_code,g.benchmark_environment,g.benchmark_require_eligible,m.nome AS modalidade_nome,m.slug AS modalidade_slug,e.nome AS exercicio_nome
              FROM metas_conclusoes c
              JOIN metas_usuario g ON g.idmeta = c.idmeta
              LEFT JOIN modalidades m ON m.idmodalidade = g.idmodalidade
@@ -573,16 +573,22 @@ function dashboardMetaCompactValue(array $meta): string
 {
     if ((string) ($meta['tipo_meta'] ?? 'metrica') === 'benchmark') {
         $type = (string) ($meta['benchmark_tipo'] ?? '');
-        $target = benchmarkFormatValue($type, (float) ($meta['valor_alvo'] ?? 0), is_numeric($meta['benchmark_distancia_m'] ?? null) ? (float) $meta['benchmark_distancia_m'] : null);
+        $eventCode = $type === 'athletics' ? (string) ($meta['benchmark_event_code'] ?? '') : null;
+        $target = $type === 'athletics'
+            ? athleticsFormatValue((string) $eventCode, (float) ($meta['valor_alvo'] ?? 0))
+            : benchmarkFormatValue($type, (float) ($meta['valor_alvo'] ?? 0), is_numeric($meta['benchmark_distancia_m'] ?? null) ? (float) $meta['benchmark_distancia_m'] : null);
         $best = is_array($meta['benchmark_best'] ?? null) ? $meta['benchmark_best'] : null;
         if ($best === null) return match ($type) {
             'one_rm' => stridebr_t('goals.benchmark.no_one_rm'),
             'ftp' => stridebr_t('goals.benchmark.no_ftp'),
             'css' => stridebr_t('goals.benchmark.no_css'),
             'distance_time' => stridebr_t('goals.benchmark.no_test'),
+            'athletics' => stridebr_t('goals.benchmark.no_athletics'),
             default => stridebr_t('goals.benchmark.no_result'),
         };
-        $value = benchmarkFormatValue($type, (float) $best['valor_canonico'], is_numeric($meta['benchmark_distancia_m'] ?? null) ? (float) $meta['benchmark_distancia_m'] : null);
+        $value = $type === 'athletics'
+            ? athleticsFormatValue((string) $eventCode, (float) $best['valor_canonico'])
+            : benchmarkFormatValue($type, (float) $best['valor_canonico'], is_numeric($meta['benchmark_distancia_m'] ?? null) ? (float) $meta['benchmark_distancia_m'] : null);
         return match ($type) {
             'css' => stridebr_t('goals.benchmark.compact_css', ['value' => $value, 'target' => $target]),
             'distance_time' => stridebr_t('goals.benchmark.compact_best_target', ['best' => $value, 'target' => $target]),

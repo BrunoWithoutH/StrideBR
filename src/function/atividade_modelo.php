@@ -1303,6 +1303,7 @@ function atividadeSalvarRegistro(PDO $pdo, string $idUsuario, array $payload, ?s
     $route = null;
     $routeDistance = null;
     $routeElevation = null;
+    $routePointMetadata = null;
     $routeMode = (string) ($payload['rota_modo'] ?? 'desenho_livre');
     if (!in_array($routeMode, ['desenho_livre', 'seguir_ruas', 'gps', 'importada'], true)) $routeMode = 'desenho_livre';
     if (!$segmentsEnabled && $routeProvided) {
@@ -1316,6 +1317,8 @@ function atividadeSalvarRegistro(PDO $pdo, string $idUsuario, array $payload, ?s
             : atividadeDistanciaRota($route['coordinates']);
         if ($routeDistance <= 0) throw new InvalidArgumentException('A rota precisa ter distância maior que zero.');
         if ($providedRouteMetrics !== []) {
+            $routePointMetadata = is_array($providedRouteMetrics['pontos_metadata'] ?? null) ? array_values($providedRouteMetrics['pontos_metadata']) : null;
+            if ($routePointMetadata !== null && count($routePointMetadata) !== count($route['coordinates'])) $routePointMetadata = null;
             $routeElevation = [
                 'ganho_elevacao_m' => is_numeric($providedRouteMetrics['ganho_elevacao_m'] ?? null) ? max(0.0, (float) $providedRouteMetrics['ganho_elevacao_m']) : null,
                 'perda_elevacao_m' => is_numeric($providedRouteMetrics['perda_elevacao_m'] ?? null) ? max(0.0, (float) $providedRouteMetrics['perda_elevacao_m']) : null,
@@ -1333,10 +1336,12 @@ function atividadeSalvarRegistro(PDO $pdo, string $idUsuario, array $payload, ?s
     }
 
     $inicioRaw = trim((string) ($payload['data_inicio'] ?? ''));
-    $inicio = DateTimeImmutable::createFromFormat('!Y-m-d H:i', $inicioRaw);
-    if (!$inicio || $inicio->format('Y-m-d H:i') !== $inicioRaw) {
-        throw new InvalidArgumentException('Data ou hora da atividade inválida.');
+    $inicio = null;
+    foreach (['!Y-m-d H:i:s', '!Y-m-d H:i'] as $format) {
+        $candidate = DateTimeImmutable::createFromFormat($format, $inicioRaw);
+        if ($candidate && $candidate->format(substr($format, 1)) === $inicioRaw) { $inicio = $candidate; break; }
     }
+    if (!$inicio) throw new InvalidArgumentException('Data ou hora da atividade inválida.');
 
     $status = (string) ($payload['status'] ?? 'concluido');
     if (!in_array($status, ['rascunho', 'ativo', 'concluido', 'cancelado'], true)) {
@@ -1346,10 +1351,12 @@ function atividadeSalvarRegistro(PDO $pdo, string $idUsuario, array $payload, ?s
     $fimSql = null;
     $fimRaw = trim((string) ($payload['data_fim'] ?? ''));
     if ($fimRaw !== '') {
-        $fim = DateTimeImmutable::createFromFormat('!Y-m-d H:i', $fimRaw);
-        if (!$fim || $fim->format('Y-m-d H:i') !== $fimRaw || $fim < $inicio) {
-            throw new InvalidArgumentException('Horário final da atividade inválido.');
+        $fim = null;
+        foreach (['!Y-m-d H:i:s', '!Y-m-d H:i'] as $format) {
+            $candidate = DateTimeImmutable::createFromFormat($format, $fimRaw);
+            if ($candidate && $candidate->format(substr($format, 1)) === $fimRaw) { $fim = $candidate; break; }
         }
+        if (!$fim || $fim < $inicio) throw new InvalidArgumentException('Horário final da atividade inválido.');
         $fimSql = $fim->format('Y-m-d H:i:s');
     }
 
@@ -1667,9 +1674,9 @@ function atividadeSalvarRegistro(PDO $pdo, string $idUsuario, array $payload, ?s
             } else {
                 $routeStmt = $pdo->prepare(
                     'INSERT INTO rotas_atividade
-                     (idrota, idregistro, modo, coordenadas, distancia_metros, ganho_elevacao_m, perda_elevacao_m, elevacao_min_m, elevacao_max_m, perfil_elevacao, fonte_elevacao, data_atualizacao)
-                     VALUES (:id, :registro, :modo, CAST(:coordenadas AS jsonb), :distancia, :ganho, :perda, :minima, :maxima, CAST(:perfil AS jsonb), :fonte, NOW())
-                     ON CONFLICT (idregistro) DO UPDATE SET modo = EXCLUDED.modo, coordenadas = EXCLUDED.coordenadas,
+                     (idrota, idregistro, modo, coordenadas, pontos_metadata, distancia_metros, ganho_elevacao_m, perda_elevacao_m, elevacao_min_m, elevacao_max_m, perfil_elevacao, fonte_elevacao, data_atualizacao)
+                     VALUES (:id, :registro, :modo, CAST(:coordenadas AS jsonb), CAST(:pontos_metadata AS jsonb), :distancia, :ganho, :perda, :minima, :maxima, CAST(:perfil AS jsonb), :fonte, NOW())
+                     ON CONFLICT (idregistro) DO UPDATE SET modo = EXCLUDED.modo, coordenadas = EXCLUDED.coordenadas, pontos_metadata = EXCLUDED.pontos_metadata,
                        distancia_metros = EXCLUDED.distancia_metros, ganho_elevacao_m = EXCLUDED.ganho_elevacao_m,
                        perda_elevacao_m = EXCLUDED.perda_elevacao_m, elevacao_min_m = EXCLUDED.elevacao_min_m,
                        elevacao_max_m = EXCLUDED.elevacao_max_m, perfil_elevacao = EXCLUDED.perfil_elevacao,
@@ -1677,7 +1684,9 @@ function atividadeSalvarRegistro(PDO $pdo, string $idUsuario, array $payload, ?s
                 );
                 $routeStmt->execute([
                     ':id' => atividadeGerarId(), ':registro' => $idRegistro, ':modo' => $routeMode,
-                    ':coordenadas' => json_encode($route, JSON_UNESCAPED_SLASHES), ':distancia' => round((float) $routeDistance, 3),
+                    ':coordenadas' => json_encode($route, JSON_UNESCAPED_SLASHES),
+                    ':pontos_metadata' => $routePointMetadata !== null ? json_encode($routePointMetadata, JSON_UNESCAPED_SLASHES) : null,
+                    ':distancia' => round((float) $routeDistance, 3),
                     ':ganho' => $routeElevation['ganho_elevacao_m'] ?? null, ':perda' => $routeElevation['perda_elevacao_m'] ?? null,
                     ':minima' => $routeElevation['elevacao_min_m'] ?? null, ':maxima' => $routeElevation['elevacao_max_m'] ?? null,
                     ':perfil' => isset($routeElevation['perfil_elevacao']) ? json_encode($routeElevation['perfil_elevacao'], JSON_UNESCAPED_SLASHES) : null,

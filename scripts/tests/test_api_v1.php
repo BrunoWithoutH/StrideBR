@@ -53,9 +53,20 @@ return function (PDO $pdo): void {
         'perceived_effort'=>6,
         'started_at'=>'2026-09-11T10:00:00-03:00',
         'ended_at'=>'2026-09-11T10:10:00-03:00',
-        'metrics'=>['distance_m'=>1000.0, 'duration_s'=>600.0, 'elevation_gain_m'=>10.0],
-        'gps'=>['points'=>[['lat'=>-27.3581,'lon'=>-53.3942],['lat'=>-27.3582,'lon'=>-53.3939]], 'measured_distance_m'=>995.0],
-        'privacy'=>['hide_route_start_m'=>0, 'hide_route_end_m'=>0],
+        'metrics'=>['distance_m'=>1000.0, 'duration_s'=>600.0, 'elevation_gain_m'=>10.0, 'elevation_min_m'=>420.5, 'elevation_max_m'=>438.25],
+        'gps'=>[
+            'points'=>[
+                ['lat'=>-27.3581,'lon'=>-53.3942,'altitude_m'=>421.2,'accuracy_m'=>4.5,'timestamp_ms'=>1789120800000],
+                ['lat'=>-27.3582,'lon'=>-53.3939,'altitude_m'=>423.8,'accuracy_m'=>3.2,'timestamp_ms'=>1789120805000],
+            ],
+            'measured_distance_m'=>995.0,
+            'points_received'=>2,
+            'points_rejected'=>0,
+            'accuracy_avg_m'=>3.85,
+            'accuracy_best_m'=>3.2,
+            'accuracy_worst_m'=>4.5,
+        ],
+        'privacy'=>['hide_route_start_m'=>35, 'hide_route_end_m'=>45],
     ];
     $created = stridebr_api_create_activity($pdo, $owner, $mobilePayload, 'alpha-mobile-idem-0001');
     AlphaTest::assert(empty($created['reused']), 'Primeira publicação mobile não pode ser marcada como reutilizada');
@@ -69,9 +80,35 @@ return function (PDO $pdo): void {
     $duplicates->execute([':user'=>$owner]);
     AlphaTest::same(1, (int)$duplicates->fetchColumn(), 'Reenvio mobile não pode duplicar atividade');
     AlphaTest::same([], stridebr_api_activity_detail($pdo, (string)$created['id'], $other), 'Outro usuário não pode abrir atividade criada pelo mobile');
+    $mobileDetail = stridebr_api_activity_detail($pdo, (string)$created['id'], $owner);
+    AlphaTest::same(1000.0, (float)$mobileDetail['distance_m'], 'Detalhe v2 precisa reconstruir distância canônica');
+    AlphaTest::same(600.0, (float)$mobileDetail['duration_s'], 'Detalhe v2 precisa reconstruir duração canônica');
+    AlphaTest::same(10.0, (float)$mobileDetail['elevation_gain_m'], 'Detalhe v2 precisa reconstruir ganho de elevação');
+    AlphaTest::same(420.5, (float)$mobileDetail['elevation_min_m'], 'Detalhe v2 precisa preservar elevação mínima');
+    AlphaTest::same(438.25, (float)$mobileDetail['elevation_max_m'], 'Detalhe v2 precisa preservar elevação máxima');
+    AlphaTest::assert(abs((float)$mobileDetail['average_speed_mps'] - (1000.0 / 600.0)) < 0.00001, 'Velocidade média deve ser derivável de distância/duração');
+    AlphaTest::same(35, (int)$mobileDetail['route_privacy']['hide_start_m'], 'Privacidade de início da rota precisa ser preservada');
+    AlphaTest::same(45, (int)$mobileDetail['route_privacy']['hide_end_m'], 'Privacidade de fim da rota precisa ser preservada');
+    AlphaTest::same(2, count($mobileDetail['route']['points'] ?? []), 'Detalhe v2 precisa devolver os pontos GPS disponíveis');
+    AlphaTest::same(421.2, (float)$mobileDetail['route']['points'][0]['altitude_m'], 'Altitude por ponto precisa sobreviver ao roundtrip');
+    AlphaTest::same(4.5, (float)$mobileDetail['route']['points'][0]['accuracy_m'], 'Precisão por ponto precisa sobreviver ao roundtrip');
+    AlphaTest::same(1789120800000, (int)$mobileDetail['route']['points'][0]['timestamp_ms'], 'Timestamp por ponto precisa sobreviver ao roundtrip');
+    AlphaTest::same(995.0, (float)$mobileDetail['gps']['measured_distance_m'], 'Detalhe v2 precisa expor distância medida bruta');
+    AlphaTest::same(2, (int)$mobileDetail['gps']['points_received'], 'Detalhe v2 precisa expor pontos recebidos');
+    AlphaTest::same(3.85, (float)$mobileDetail['gps']['accuracy_avg_m'], 'Detalhe v2 precisa expor precisão média');
+    AlphaTest::same(3.2, (float)$mobileDetail['gps']['accuracy_best_m'], 'Detalhe v2 precisa expor melhor precisão');
+    AlphaTest::same(4.5, (float)$mobileDetail['gps']['accuracy_worst_m'], 'Detalhe v2 precisa expor pior precisão');
+    $legacyDetail = stridebr_api_activity_detail($pdo, $activity, $owner);
+    AlphaTest::same(null, $legacyDetail['route'], 'Atividade antiga sem GPS continua válida com route nula');
+    AlphaTest::same(null, $legacyDetail['gps'], 'Atividade antiga sem metadata GPS continua válida com gps nulo');
 
     $listed = stridebr_api_list_activities($pdo, $owner, ['page'=>1, 'limit'=>100]);
     AlphaTest::assert((bool)array_filter($listed['data'], static fn(array $item): bool => (string)$item['id'] === (string)$created['id']), 'GET activities precisa listar atividade publicada pelo mobile');
+    $mobileSummary = array_values(array_filter($listed['data'], static fn(array $item): bool => (string)$item['id'] === (string)$created['id']))[0] ?? [];
+    AlphaTest::same(1000.0, (float)($mobileSummary['distance_m'] ?? 0), 'Summary v2 precisa expor distância sem abrir detalhe');
+    AlphaTest::same(600.0, (float)($mobileSummary['duration_s'] ?? 0), 'Summary v2 precisa expor duração sem abrir detalhe');
+    AlphaTest::same(10.0, (float)($mobileSummary['elevation_gain_m'] ?? 0), 'Summary v2 precisa expor ganho de elevação sem abrir detalhe');
+    AlphaTest::assert(!array_key_exists('route', $mobileSummary) && !array_key_exists('gps', $mobileSummary), 'Listagem não pode carregar track GPS completo');
     $filteredSport = stridebr_api_list_activities($pdo, $owner, ['sport'=>(string)$routeSportRow['slug'], 'q'=>'Alpha Android']);
     AlphaTest::same(1, count(array_filter($filteredSport['data'], static fn(array $item): bool => (string)$item['id'] === (string)$created['id'])), 'Filtros sport/q precisam encontrar atividade mobile');
     $otherList = stridebr_api_list_activities($pdo, $other, ['q'=>'Alpha Android GPS']);

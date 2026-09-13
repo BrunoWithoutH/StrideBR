@@ -28,7 +28,7 @@ $pt = $read('src/i18n/pt-BR.php');
 $en = $read('src/i18n/en.php');
 $gitignore = $read('.gitignore');
 
-$assert(benchmarkGoalTypes() === ['one_rm', 'ftp', 'css', 'distance_time'], 'B2 deve suportar somente os quatro tipos persistidos da B1.');
+$assert(array_slice(benchmarkGoalTypes(), 0, 4) === ['one_rm', 'ftp', 'css', 'distance_time'], 'B2 deve preservar os quatro tipos persistidos da B1 na mesma ordem.');
 $assert(benchmarkGoalTypeConfig('one_rm')['direction'] === 'higher', 'Meta de 1RM deve herdar direção higher do registry B1.');
 $assert(benchmarkGoalTypeConfig('ftp')['direction'] === 'higher', 'Meta de FTP deve herdar direção higher do registry B1.');
 $assert(benchmarkGoalTypeConfig('css')['direction'] === 'lower', 'Meta de CSS deve herdar direção lower do registry B1.');
@@ -75,7 +75,7 @@ $assert(str_contains($goals, "ABS(b.distancia_m - :goal_distance) < 0.001"), 'Me
 $assert(str_contains($goals, "b.idexercicio = :goal_exercise"), 'Meta de 1RM deve usar somente o mesmo exercício.');
 $assert(str_contains($goals, 'benchmarkGoalFirstSatisfying') && str_contains($goals, 'benchmarkGoalSyncConclusion'), 'Conclusão precisa ser baseada em evidência elegível e sincronizada.');
 $assert(str_contains($goals, 'DELETE FROM metas_conclusoes') && str_contains($goals, 'SET concluida_em=NULL'), 'Meta benchmark deve reabrir se nenhuma evidência válida continuar existindo.');
-$assert(str_contains($goals, 'idbenchmark,data_resultado') && str_contains($goals, "':benchmark' => (string) \$evidence['idbenchmark']"), 'Conclusão deve persistir benchmark de evidência e data do resultado.');
+$assert(str_contains($goals, 'idbenchmark,idregistro,idunidade_atividade,data_resultado') && str_contains($goals, "':benchmark' =>") && str_contains($goals, "':registro' =>") && str_contains($goals, "':unidade' =>"), 'Conclusão deve preservar benchmark quando existir e também aceitar atividade/tentativa como evidência sem duplicação.');
 $assert(str_contains($benchmarkApi, 'benchmarkGoalSyncForUser($pdo, $idUsuario)'), 'Editar/excluir benchmark B1 deve sincronizar metas B2 imediatamente.');
 
 $assert(str_contains($goalsPage, "stridebr_t('goals.type.practice')") && str_contains($goalsPage, "stridebr_t('goals.type.benchmark')"), 'Criação deve começar por Prática / Marca ou teste.');

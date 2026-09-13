@@ -15,6 +15,7 @@ $suites = [
     'Progress B1 marks and tests' => 'test_progress_b1_integration.php',
     'Progress B2 typed sport goals' => 'test_progress_b2_integration.php',
     'Progress B3 competitions' => 'test_progress_b3_integration.php',
+    'Progress B4 seasons, PB/SB and athletics' => 'test_progress_b4_integration.php',
     'API v1 mobile foundation' => 'test_api_v1.php',
     'SEO public sitemap' => 'test_seo_database.php',
     'product polish' => 'test_product_polish.php',
