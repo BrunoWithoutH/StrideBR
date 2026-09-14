@@ -6,17 +6,16 @@
 - Sessões mobile opacas por dispositivo, rotação de refresh e revogação.
 - Identidade única com o Core/Web e futura compatibilidade com Teams.
 - `me`, histórico/detalhe de atividades e publicação GPS idempotente com ownership e paginação.
+- Treinos nativos v1: calendário por intervalo, detalhe, planejamento pessoal, biblioteca e vínculo com Activity.
 
 ## Próximas entregas do Core
 
 - Edição/remoção de atividades e contratos de upload GPX/TCX/FIT. A publicação de
   gravação GPS do app já faz parte da API v1.
-- Treinos, biblioteca, exercícios, agenda e cronogramas.
 - Perfil/preferências/privacidade, equipamentos, metas/progresso/recordes e status
   seguro de integrações.
 - Reset/cadastro mobile compatíveis com verificação de e-mail e proteção antiabuso.
 - OAuth mobile com browser externo/deep links, rate limits por rota e observabilidade.
 
 Eventos esportivos não possuem ainda um domínio API público completo e não são
-prometidos pela v1 inicial. Graduação, benchmarks e repertório também continuam
-no roadmap de produto, não como contratos fictícios da API.
+prometidos pela v1 inicial. Graduação, benchmarks e repertório continuam fora do contrato mobile atual; o Core não publica contratos fictícios para recursos ainda não expostos pela API.

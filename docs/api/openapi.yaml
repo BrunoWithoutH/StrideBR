@@ -52,6 +52,120 @@ paths:
       responses:
         '200': { description: Usuário autenticado }
         '401': { $ref: '#/components/responses/Error' }
+  /workouts/schedule:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string, format: date } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: Ocorrências pessoais no intervalo inclusivo, sem árvore completa de exercícios.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkoutScheduleResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /workouts:
+    post:
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WorkoutCreateRequest' }
+      responses:
+        '201':
+          description: Treino pessoal planejado.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/WorkoutDetail' }
+        '401': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /workouts/templates:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
+        - { name: q, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Biblioteca pessoal de treinos reutilizáveis.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkoutTemplateListResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+  /workouts/templates/{id}:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Template completo ownership-scoped.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/WorkoutTemplateDetail' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /workouts/{id}:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, description: ID opaco retornado pelo calendário., schema: { type: string } }
+      responses:
+        '200':
+          description: Detalhe do treino/ocorrência ownership-scoped.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/WorkoutDetail' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WorkoutUpdateRequest' }
+      responses:
+        '200': { description: Treino pessoal alterado }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /workouts/{id}/complete:
+    post:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Treino agendado marcado como concluído sem fabricar Activity }
+        '401': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /workouts/{id}/cancel:
+    post:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Ocorrência cancelada logicamente }
+        '401': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
   /activities:
     get:
       security: [{ bearerAuth: [] }]
@@ -124,6 +238,8 @@ components:
         id: { type: string }
         slug: { type: string }
         name: { type: string }
+        family: { type: string, nullable: true }
+        route_capable: { type: boolean }
     ActivitySummary:
       type: object
       required: [id, title, sport, started_at, status, visibility, origin]
@@ -242,6 +358,207 @@ components:
             equipment:
               type: array
               items: { $ref: '#/components/schemas/ActivityEquipment' }
+            workout:
+              allOf: [{ $ref: '#/components/schemas/WorkoutLinkRef' }]
+              nullable: true
+    WorkoutLinkRef:
+      type: object
+      required: [id, kind]
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [scheduled, recurring] }
+    WorkoutCalendarItem:
+      type: object
+      required: [id, kind, title, date, status, source, has_structure, exercise_count]
+      properties:
+        id: { type: string, description: ID opaco; não deve ser desmontado pelo cliente. }
+        kind: { type: string, enum: [scheduled, recurring] }
+        title: { type: string }
+        sport:
+          allOf: [{ $ref: '#/components/schemas/SportRef' }]
+          nullable: true
+        date: { type: string, format: date }
+        time: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$', nullable: true }
+        planned_duration_s: { type: integer, minimum: 60, nullable: true }
+        planned_distance_m: { type: number, format: double, minimum: 0, nullable: true }
+        status: { type: string, enum: [rascunho, publicado, concluido, cancelado] }
+        source: { type: string, enum: [usuario, treinador, cronograma] }
+        template_id: { type: string, nullable: true }
+        updated_at: { type: string, format: date-time, nullable: true }
+        has_structure: { type: boolean }
+        exercise_count: { type: integer, minimum: 0 }
+        activity:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string }
+    WorkoutScheduleResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/WorkoutCalendarItem' }
+        meta:
+          type: object
+          required: [from, to, timezone, count]
+          properties:
+            from: { type: string, format: date }
+            to: { type: string, format: date }
+            timezone: { type: string, example: America/Sao_Paulo }
+            count: { type: integer, minimum: 0 }
+    WorkoutExercise:
+      type: object
+      required: [name]
+      properties:
+        id: { type: string, nullable: true }
+        name: { type: string }
+        sets: { type: integer, nullable: true }
+        repetitions: { type: string, nullable: true }
+        load: { type: string, nullable: true }
+        rest: { type: string, nullable: true }
+        block: { type: string, nullable: true }
+        cluster: { type: string, nullable: true }
+        duration: { type: string, nullable: true }
+        distance: { type: string, nullable: true }
+        intensity: { type: string, nullable: true }
+        rpe: { type: number, nullable: true }
+        rir: { type: number, nullable: true }
+        tempo: { type: string, nullable: true }
+        cadence: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        order: { type: integer, nullable: true }
+    WorkoutPermissions:
+      type: object
+      required: [can_edit, can_reschedule, can_cancel, can_complete]
+      properties:
+        can_edit: { type: boolean }
+        can_reschedule: { type: boolean }
+        can_cancel: { type: boolean }
+        can_complete: { type: boolean }
+    WorkoutDetail:
+      type: object
+      required: [id, kind, title, date, timezone, status, source, structure, permissions]
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [scheduled, recurring] }
+        title: { type: string }
+        sport:
+          allOf: [{ $ref: '#/components/schemas/SportRef' }]
+          nullable: true
+        date: { type: string, format: date }
+        original_date: { type: string, format: date, nullable: true }
+        time: { type: string, nullable: true }
+        timezone: { type: string, example: America/Sao_Paulo }
+        notes: { type: string, nullable: true }
+        objective: { type: string, nullable: true }
+        planned_duration_s: { type: integer, nullable: true }
+        planned_distance_m: { type: number, format: double, nullable: true }
+        intensity: { type: string, nullable: true }
+        status: { type: string, enum: [rascunho, publicado, concluido, cancelado] }
+        source: { type: string, enum: [usuario, treinador, cronograma] }
+        author:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string }
+            name: { type: string }
+            username: { type: string, nullable: true }
+        template_id: { type: string, nullable: true }
+        schedule_id: { type: string, nullable: true }
+        schedule_workout_id: { type: string, nullable: true }
+        structure:
+          type: object
+          required: [exercise_count, exercises]
+          properties:
+            exercise_count: { type: integer, minimum: 0 }
+            exercises:
+              type: array
+              items: { $ref: '#/components/schemas/WorkoutExercise' }
+        session:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string }
+        activity:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string }
+        created_at: { type: string, format: date-time, nullable: true }
+        updated_at: { type: string, format: date-time, nullable: true }
+        permissions: { $ref: '#/components/schemas/WorkoutPermissions' }
+    WorkoutCreateRequest:
+      type: object
+      required: [date]
+      properties:
+        title: { type: string, maxLength: 120 }
+        sport: { type: string, description: ID ou slug de modalidade ativa. }
+        date: { type: string, format: date }
+        time: { type: string, nullable: true, description: HH:MM; null representa treino sem horário. }
+        planned_duration_s: { type: integer, minimum: 60, maximum: 86400, nullable: true, description: V1 aceita precisão de minutos. }
+        planned_distance_m: { type: number, minimum: 0, nullable: true }
+        notes: { type: string, nullable: true }
+        objective: { type: string, maxLength: 160, nullable: true }
+        intensity: { type: string, maxLength: 80, nullable: true }
+        template_id: { type: string, description: Template pessoal opcional; fornece título/modalidade/estrutura quando omitidos. }
+      anyOf:
+        - required: [title, sport]
+        - required: [template_id]
+    WorkoutUpdateRequest:
+      type: object
+      properties:
+        title: { type: string, maxLength: 120 }
+        sport: { type: string }
+        date: { type: string, format: date }
+        time: { type: string, nullable: true }
+        planned_duration_s: { type: integer, minimum: 60, maximum: 86400, nullable: true }
+        planned_distance_m: { type: number, minimum: 0, nullable: true }
+        notes: { type: string, nullable: true }
+        objective: { type: string, maxLength: 160, nullable: true }
+        intensity: { type: string, maxLength: 80, nullable: true }
+    WorkoutTemplateSummary:
+      type: object
+      required: [id, title, exercise_count]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        code: { type: string, nullable: true }
+        objective: { type: string, nullable: true }
+        sport:
+          allOf: [{ $ref: '#/components/schemas/SportRef' }]
+          nullable: true
+        exercise_count: { type: integer, minimum: 0 }
+        updated_at: { type: string, format: date-time, nullable: true }
+    WorkoutTemplateDetail:
+      allOf:
+        - { $ref: '#/components/schemas/WorkoutTemplateSummary' }
+        - type: object
+          properties:
+            notes: { type: string, nullable: true }
+            created_at: { type: string, format: date-time, nullable: true }
+            structure:
+              type: object
+              required: [exercise_count, exercises]
+              properties:
+                exercise_count: { type: integer, minimum: 0 }
+                exercises:
+                  type: array
+                  items: { $ref: '#/components/schemas/WorkoutExercise' }
+    WorkoutTemplateListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/WorkoutTemplateSummary' }
+        meta:
+          type: object
+          properties:
+            page: { type: integer }
+            limit: { type: integer }
+            total: { type: integer }
+            pages: { type: integer }
     GpsPointInput:
       type: object
       required: [lat, lon]
@@ -256,6 +573,7 @@ components:
       required: [sport, started_at, ended_at, gps]
       properties:
         sport: { type: string }
+        workout_id: { type: string, nullable: true, description: ID opaco de workout retornado por /workouts/schedule. }
         title: { type: string, maxLength: 255 }
         notes: { type: string }
         visibility: { type: string, enum: [privado, amigos, publico] }

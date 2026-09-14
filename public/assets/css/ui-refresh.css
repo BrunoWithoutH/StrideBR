@@ -5301,7 +5301,7 @@ a:is(.content-card, .dashboard-card, .activity-card, .library-exercise-card):hov
     box-shadow: none;
 }
 
-.site-header:has(.user-menu[open], .header-notification-menu[open], .mobile-global-menu[open]) { z-index: var(--z-header-menu); }
+.site-header:has([data-header-menu][open]) { z-index: var(--z-header-menu); }
 
 .user-menu-content { z-index: var(--z-dropdown); }
 .sport-combobox-popover { z-index: var(--z-popover); }

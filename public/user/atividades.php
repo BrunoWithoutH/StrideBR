@@ -274,7 +274,7 @@ $recentes = array_slice($recentes, 0, 5);
             <div class="activities-toolbar-actions">
                 <a href="/user/gravar-atividade.php?quick=corrida&autostart=1" class="activity-toolbar-link activity-toolbar-gps activity-toolbar-quick-run"><?php echo stridebr_sport_icon_html('corrida', 'activity-toolbar-sport-icon'); ?><span><?php echo stridebr_e(stridebr_t('activity.quick_run')); ?></span></a>
                 <a href="/user/gravar-atividade.php" class="activity-toolbar-link activity-toolbar-essential"><?php echo stridebr_e(stridebr_t('activity.record_gps')); ?></a>
-                <details class="activity-toolbar-tools">
+                <details class="activity-toolbar-tools" data-ui-menu="toggle">
                     <summary class="activity-toolbar-link" aria-label="<?php echo stridebr_e(stridebr_t('common.tools')); ?>"><?php echo stridebr_e(stridebr_t('common.tools')); ?> <span aria-hidden="true">⌄</span></summary>
                     <div class="activity-toolbar-tools-menu">
                         <a href="/user/importar-exportar.php" data-activity-tool="exchange"><?php echo stridebr_e(stridebr_t('activity.import_export')); ?></a>
@@ -558,7 +558,7 @@ $recentes = array_slice($recentes, 0, 5);
         </aside>
         <div class="activity-detail-drawer" data-activity-detail-drawer hidden>
             <button type="button" class="activity-detail-backdrop" data-close-activity-detail aria-label="<?php echo stridebr_e(stridebr_t('activity.close_details')); ?>"></button>
-            <section class="activity-detail-panel" role="dialog" aria-modal="true" aria-labelledby="activity-detail-title" data-activity-detail-panel>
+            <section class="activity-detail-panel" role="dialog" aria-modal="false" aria-labelledby="activity-detail-title" data-activity-detail-panel>
                 <header>
                     <div><div class="activity-detail-kicker"><span class="activity-detail-kicker-main"><span data-detail-sport><?php echo stridebr_e(stridebr_t('common.activity')); ?></span><span class="activity-detail-visibility" data-detail-visibility></span></span></div><h2 id="activity-detail-title" data-detail-title><?php echo stridebr_e(stridebr_t('common.loading')); ?></h2><p data-detail-date></p></div>
                     <div class="activity-detail-header-actions"><a class="activity-secondary-button activity-detail-compare" data-detail-compare data-activity-tool="compare" href="/user/comparar-atividades.php"><span aria-hidden="true">↔</span><?php echo stridebr_e(stridebr_t('activity.compare')); ?></a><button type="button" class="activity-secondary-button activity-detail-expand" data-expand-activity-detail><?php echo stridebr_e(stridebr_t('activity.detail.expand')); ?></button><button type="button" data-close-activity-detail aria-label="<?php echo stridebr_e(stridebr_t('common.close')); ?>">×</button></div>

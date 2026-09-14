@@ -284,7 +284,7 @@ body {
     position: relative;
 }
 
-.site-header:has(.user-menu[open], .header-notification-menu[open], .mobile-global-menu[open]) {
+.site-header:has([data-header-menu][open]) {
     z-index: var(--z-header-menu);
 }
 

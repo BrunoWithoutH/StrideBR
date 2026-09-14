@@ -265,9 +265,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    const headerMenus = document.querySelectorAll('[data-header-menu]');
+    const uiMenus = document.querySelectorAll('[data-header-menu], [data-ui-menu]');
     const hoverMenus = document.querySelectorAll('[data-header-menu="hover-toggle"]');
-    const toggleMenus = document.querySelectorAll('[data-header-menu="toggle"]');
+    const toggleMenus = document.querySelectorAll('[data-header-menu="toggle"], [data-ui-menu="toggle"]');
     const hoverCloseTimers = new WeakMap();
     const clearHoverClose = details => {
         const timer = hoverCloseTimers.get(details);
@@ -287,7 +287,7 @@ document.addEventListener('DOMContentLoaded', () => {
         delete details.dataset.pinnedOpen;
     };
     const closeOtherMenus = current => {
-        headerMenus.forEach(details => {
+        uiMenus.forEach(details => {
             if (details !== current) closeDetailsMenu(details);
         });
     };
@@ -347,17 +347,22 @@ document.addEventListener('DOMContentLoaded', () => {
         button.addEventListener('click', () => closeDetailsMenu(button.closest('details')));
     });
 
-    const userMenu = document.querySelector('.user-menu');
-    const globalCreateMenu = document.querySelector('.global-create-menu');
-
     document.addEventListener('click', event => {
-        headerMenus.forEach(details => {
-            if (details.open && !details.contains(event.target)) closeDetailsMenu(details);
+        const target = event.target instanceof Element ? event.target : null;
+        const activatedItem = target?.closest('[data-header-menu] a, [data-header-menu] button, [data-ui-menu] a, [data-ui-menu] button');
+        if (activatedItem) closeDetailsMenu(activatedItem.closest('details[data-header-menu], details[data-ui-menu]'));
+        uiMenus.forEach(details => {
+            if (details.open && (!target || !details.contains(target))) closeDetailsMenu(details);
         });
     });
 
     document.addEventListener('keydown', event => {
-        if (event.key === 'Escape') globalCreateMenu?.removeAttribute('open');
+        if (event.key !== 'Escape') return;
+        const openMenus = Array.from(uiMenus).filter(details => details.open);
+        if (!openMenus.length) return;
+        const summary = openMenus.at(-1)?.querySelector(':scope > summary');
+        openMenus.forEach(closeDetailsMenu);
+        summary?.focus();
     });
 
     document.addEventListener('submit', async event => {

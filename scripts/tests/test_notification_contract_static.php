@@ -23,7 +23,7 @@ $assert(str_contains($page, '$_GET[\'open\']') && str_contains($page, 'notificac
 $assert(str_contains($header, 'notificacaoUrlAbertura($notification)') && str_contains($header, 'href="/user/notificacoes.php"'), 'Popover deve marcar no clique do item, enquanto Ver todas permanece navegação neutra.');
 $assert(!str_contains(substr($page, strpos($page, '$items = notificacaoListar')), 'notificacaoMarcarTodasLidas($pdo, $idUsuario);'), 'Renderizar a lista de notificações não pode marcar itens implicitamente.');
 $assert(str_contains($page, 'value="read"') && str_contains($page, 'notifications.mark_read'), 'A ação explícita Marcar como lida precisa permanecer disponível.');
-$selector = '.site-header:has(.user-menu[open], .header-notification-menu[open], .mobile-global-menu[open])';
+$selector = '.site-header:has([data-header-menu][open])';
 $assert(str_contains($style, $selector) && str_contains($ui, $selector), 'Header global precisa subir quando notificações ou menus globais estiverem abertos.');
 $assert(str_contains($style, '--z-drawer: 5200') && str_contains($style, '--z-header-menu: 5300') && str_contains($style, '--z-modal: 7000') && str_contains($style, '--z-toast: 8000') && str_contains($style, '--z-confirm: 9000'), 'Ordem de camadas deve ser drawer < header global < modal < toast < confirmação.');
 

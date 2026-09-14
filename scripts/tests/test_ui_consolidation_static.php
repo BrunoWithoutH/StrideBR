@@ -31,6 +31,7 @@ $progressPage = $read('public/user/progresso.php');
 $progressCss = $read('public/assets/css/sport-hub.css');
 $goalsPage = $read('public/user/metas.php');
 $dashboardCss = $read('public/assets/css/dashboard.css');
+$scripts = $read('public/assets/js/scripts.js');
 
 $assert(!str_contains($activities, '.activity-share-') && !str_contains($ui, '.activity-share-'), 'compartilhamento deve ter uma folha dedicada, sem versões concorrentes em atividades/ui-refresh.');
 $assert(str_contains($page, '/assets/css/activity-sharing.css'), 'Atividades precisa carregar a folha consolidada do compartilhamento.');
@@ -74,7 +75,8 @@ $assert(str_contains($ui, '.account-delete-form label') && str_contains($ui, 'co
 $assert(str_contains($ui, '.settings-social-input:focus-within { border-color: var(--ui-accent); box-shadow: var(--focus-ring); }'), 'inputs compostos de Configurações precisam usar foco do design system.');
 $assert(str_contains($ui, '.primary-button,') && str_contains($ui, 'box-sizing: border-box;') && str_contains($ui, 'display: inline-flex;') && str_contains($ui, 'vertical-align: middle;'), 'variantes de botão precisam compartilhar contrato geométrico independente da tag HTML.');
 $assert(!str_contains($activities, 'border-top:1px solid #e1e6ed') && !str_contains($activities, 'color:#536174') && !str_contains($activities, 'background:#171b1e'), 'seleção em lote de Atividades precisa ser temática na regra de origem.');
-$assert(str_contains($style, '.site-header:has(.user-menu[open], .header-notification-menu[open], .mobile-global-menu[open])') && str_contains($style, 'z-index: var(--z-header-menu)') && str_contains($ui, '.site-header:has(.user-menu[open], .header-notification-menu[open], .mobile-global-menu[open])'), 'menus globais de usuário/notificações precisam subir acima de drawers e permanecer abaixo de modal/toast/confirm.');
+$assert(str_contains($style, '.site-header:has([data-header-menu][open])') && str_contains($style, 'z-index: var(--z-header-menu)') && str_contains($ui, '.site-header:has([data-header-menu][open])'), 'qualquer menu global aberto precisa elevar o stacking context do header acima do drawer.');
+$assert(str_contains($scripts, "target?.closest('[data-header-menu] a, [data-header-menu] button, [data-ui-menu] a, [data-ui-menu] button')") && str_contains($scripts, "if (details.open && (!target || !details.contains(target))) closeDetailsMenu(details);") && str_contains($scripts, "const openMenus = Array.from(uiMenus).filter(details => details.open);"), 'menus compartilhados precisam fechar por item, click-outside e Escape sem listeners por render.');
 $assert(!preg_match('/\.sport-favorites-quick\s*\{[^}]*background:\s*#f/is', $activities) && !preg_match('/\.activity-repeat-banner\s*\{[^}]*background:\s*#f/is', $activities) && !preg_match('/\.activity-unit-route-editor\s*\{[^}]*background:\s*#f/is', $activities), 'dark leaks confirmados de Atividades precisam usar superfícies semânticas.');
 $assert(str_contains($ui, '.faq-list details') && str_contains($ui, 'border-radius: var(--radius-card)') && str_contains($ui, '.roadmap-columns section'), 'FAQ e cards de páginas estáticas precisam manter cantos do design system.');
 $assert(str_contains($gpsPage, 'data-gps-discard-current') && str_contains($gpsPage, 'data-gps-discard-review') && str_contains($gpsJs, 'resetLocalRecording'), 'GPS precisa permitir cancelar e descartar a gravação atual.');

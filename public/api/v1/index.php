@@ -41,6 +41,79 @@ try {
         stridebr_api_require_method('GET');
         stridebr_api_response(200, ['data'=>stridebr_api_user_payload(stridebr_api_user($pdo))]);
     }
+    if ($route === 'workouts/schedule') {
+        stridebr_api_require_method('GET');
+        $user = stridebr_api_user($pdo);
+        try {
+            $result = stridebr_api_workout_schedule($pdo, (string) $user['idusuario'], $_GET);
+        } catch (InvalidArgumentException $e) {
+            stridebr_api_error(422, 'validation_error', $e->getMessage());
+        }
+        stridebr_api_response(200, $result);
+    }
+    if ($route === 'workouts/templates') {
+        stridebr_api_require_method('GET');
+        $user = stridebr_api_user($pdo);
+        stridebr_api_response(200, stridebr_api_workout_templates($pdo, (string) $user['idusuario'], $_GET));
+    }
+    if (count($parts) === 3 && $parts[0] === 'workouts' && $parts[1] === 'templates') {
+        stridebr_api_require_method('GET');
+        $user = stridebr_api_user($pdo);
+        $template = stridebr_api_workout_template($pdo, (string) $user['idusuario'], $parts[2]);
+        if ($template === []) stridebr_api_error(404, 'not_found', 'Treino modelo não encontrado.');
+        stridebr_api_response(200, ['data' => $template]);
+    }
+    if ($route === 'workouts') {
+        stridebr_api_require_method('POST');
+        $user = stridebr_api_user($pdo);
+        try {
+            $workout = stridebr_api_workout_create($pdo, (string) $user['idusuario'], stridebr_api_json_input());
+        } catch (InvalidArgumentException $e) {
+            stridebr_api_error(422, 'validation_error', $e->getMessage());
+        }
+        header('Location: /api/v1/workouts/' . rawurlencode((string) $workout['id']));
+        stridebr_api_response(201, ['data' => $workout]);
+    }
+    if (count($parts) === 3 && $parts[0] === 'workouts' && in_array($parts[2], ['complete', 'cancel'], true)) {
+        stridebr_api_require_method('POST');
+        $user = stridebr_api_user($pdo);
+        $workoutId = rawurldecode($parts[1]);
+        try {
+            $workout = $parts[2] === 'complete'
+                ? stridebr_api_workout_complete($pdo, (string) $user['idusuario'], $workoutId)
+                : stridebr_api_workout_cancel($pdo, (string) $user['idusuario'], $workoutId);
+        } catch (InvalidArgumentException $e) {
+            stridebr_api_error(422, 'validation_error', $e->getMessage());
+        } catch (RuntimeException $e) {
+            stridebr_api_error(409, 'invalid_state', $e->getMessage());
+        }
+        stridebr_api_response(200, ['data' => $workout]);
+    }
+    if (count($parts) === 2 && $parts[0] === 'workouts') {
+        $user = stridebr_api_user($pdo);
+        $workoutId = rawurldecode($parts[1]);
+        $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+        if ($method === 'GET') {
+            try {
+                $workout = stridebr_api_workout_detail($pdo, (string) $user['idusuario'], $workoutId);
+            } catch (InvalidArgumentException $e) {
+                stridebr_api_error(404, 'not_found', 'Treino não encontrado.');
+            }
+            if ($workout === []) stridebr_api_error(404, 'not_found', 'Treino não encontrado.');
+            stridebr_api_response(200, ['data' => $workout]);
+        }
+        if ($method === 'PATCH') {
+            try {
+                $workout = stridebr_api_workout_update($pdo, (string) $user['idusuario'], $workoutId, stridebr_api_json_input());
+            } catch (InvalidArgumentException $e) {
+                stridebr_api_error(422, 'validation_error', $e->getMessage());
+            } catch (RuntimeException $e) {
+                stridebr_api_error(403, 'forbidden', $e->getMessage());
+            }
+            stridebr_api_response(200, ['data' => $workout]);
+        }
+        stridebr_api_require_method('GET', 'PATCH');
+    }
     if ($route === 'activities') {
         $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
         if ($method === 'POST') {

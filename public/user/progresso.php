@@ -9,6 +9,7 @@ require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
 require_once dirname(__DIR__, 2) . '/src/function/sport_hub.php';
 require_once dirname(__DIR__, 2) . '/src/function/dashboard.php';
 require_once dirname(__DIR__, 2) . '/src/function/benchmarks.php';
+require_once dirname(__DIR__, 2) . '/src/function/combat_progress.php';
 require_once dirname(__DIR__, 2) . '/src/includes/sport_icons.php';
 
 $validPeriods = ['all', '4w', '12w', '6m', '1y'];
@@ -165,10 +166,12 @@ $strengthDashboard = null;
 $cardioDashboard = null;
 $athleticsDashboard = null;
 $sessionDashboard = null;
+$combatDashboard = null;
 if ($renderer === 'strength') $strengthDashboard = sportHubStrengthDashboard($pdo, $idUsuario, $filteredActivities, $periodWindow, $selectedSport === 'atletismo' ? '' : $selectedSport);
 if (in_array($renderer, ['running', 'cycling', 'swimming'], true)) $cardioDashboard = sportHubCardioDashboard($filteredActivities, $periodWindow);
 if ($renderer === 'athletics') $athleticsDashboard = sportHubAthleticsDashboard($pdo, $idUsuario, $filteredActivities, $periodWindow, $selectedEvent);
 if (in_array($renderer, ['team', 'racket', 'combat'], true)) $sessionDashboard = sportHubSessionDashboard($filteredActivities, $selectedFamily, $periodWindow);
+if ($renderer === 'combat' && $selectedModalityId !== '') $combatDashboard = combatProgressDashboard($pdo, $idUsuario, $selectedModalityId);
 
 $allBenchmarks = benchmarkTableExists($pdo) ? benchmarkList($pdo, $idUsuario, ['limit' => 1000]) : [];
 $athleticsClassifications = $selectedSport === 'atletismo'
@@ -538,6 +541,17 @@ $seasonForm = is_array($editSeason) ? $editSeason : [
     'status'=>'ativa',
     'observacoes'=>null,
 ];
+$combatReturnTo = $buildUrl([]);
+$combatTechniqueDetail = null;
+$combatTechniquePractices = [];
+$requestedTechniqueId = $renderer === 'combat' ? trim((string) ($_GET['technique'] ?? '')) : '';
+if ($requestedTechniqueId !== '' && is_array($combatDashboard)) {
+    $candidateTechnique = combatTechniqueGet($pdo, $idUsuario, $requestedTechniqueId);
+    if (is_array($candidateTechnique) && (string) ($candidateTechnique['idmodalidade'] ?? '') === $selectedModalityId) {
+        $combatTechniqueDetail = $candidateTechnique;
+        $combatTechniquePractices = combatPracticeList($pdo, $idUsuario, $requestedTechniqueId, 100);
+    }
+}
 $benchmarkReturnTo = $buildUrl([]);
 $benchmarkTypeByRenderer = ['strength'=>'one_rm','cycling'=>'ftp','swimming'=>'css','running'=>'distance_time','athletics'=>'athletics'];
 $allowedBenchmarkType = $benchmarkTypeByRenderer[$renderer] ?? '';
@@ -827,6 +841,151 @@ $flashes = stridebr_take_flashes();
                     <?php $sessionSummary = (array) ($sessionDashboard['summary']['current'] ?? []); ?>
                     <?php if ((int) ($sessionSummary['wins'] ?? 0) + (int) ($sessionSummary['draws'] ?? 0) + (int) ($sessionSummary['losses'] ?? 0) > 0): ?><section class="progress-section" aria-labelledby="progress-results-title"><header><div><h2 id="progress-results-title"><?php echo stridebr_e(stridebr_t('progress.results_recorded')); ?></h2></div></header><div class="progress-kpi-strip"><div><span><?php echo stridebr_e(stridebr_t('progress.results')); ?></span><strong><?php echo stridebr_e(stridebr_t('progress.record_summary', ['wins' => (string) $sessionSummary['wins'], 'draws' => (string) $sessionSummary['draws'], 'losses' => (string) $sessionSummary['losses']])); ?></strong></div></div></section><?php endif; ?>
                     <?php if ((array) ($sessionDashboard['recent'] ?? []) !== []): ?><section class="progress-section" aria-labelledby="progress-recent-title"><header><div><h2 id="progress-recent-title"><?php echo stridebr_e($renderer === 'combat' ? stridebr_t('progress.training') : stridebr_t('progress.recent_sessions')); ?></h2></div></header><div class="progress-detail-list"><?php foreach ((array) $sessionDashboard['recent'] as $session): ?><article><strong><?php echo stridebr_e((string) ($session['title'] ?? '')); ?></strong><span><?php echo stridebr_e($fmtDuration((float) ($session['duration_s'] ?? 0))); ?></span><small><?php $details = []; if (!empty($session['type'])) $details[] = sportHubSessionTypeLabel((string) $session['type']); if (!empty($session['opponent'])) $details[] = stridebr_t('progress.opponent', ['value' => (string) $session['opponent']]); if (!empty($session['score'])) $details[] = stridebr_t('progress.score', ['value' => (string) $session['score']]); if (!empty($session['rounds'])) $details[] = stridebr_t('progress.round_count', ['count' => (string) $session['rounds']]); echo stridebr_e(implode(' · ', $details)); ?></small></article><?php endforeach; ?></div></section><?php endif; ?>
+                <?php endif; ?>
+
+                <?php if ($renderer === 'combat' && is_array($combatDashboard)): ?>
+                    <?php
+                    $combatRanks = (array) (($combatDashboard['ranks'] ?? [])['history'] ?? []);
+                    $combatCurrentRank = is_array(($combatDashboard['ranks'] ?? [])['current'] ?? null) ? ($combatDashboard['ranks']['current']) : null;
+                    $combatTechniques = (array) ($combatDashboard['techniques'] ?? []);
+                    $combatStateCounts = (array) ($combatDashboard['state_counts'] ?? []);
+                    $combatActivityOptions = (array) ($combatDashboard['activity_options'] ?? []);
+                    ?>
+                    <section class="progress-section combat-rank-section" aria-labelledby="combat-rank-title" data-combat-rank-section>
+                        <header>
+                            <div><h2 id="combat-rank-title"><?php echo stridebr_e(stridebr_t('combat.rank.title')); ?></h2><p><?php echo stridebr_e(stridebr_t('combat.rank.help')); ?></p></div>
+                            <details class="progress-inline-form" data-combat-rank-create>
+                                <summary class="progress-button"><?php echo stridebr_e(stridebr_t('combat.rank.register')); ?></summary>
+                                <form method="POST" action="/api/progress-combat.php" class="combat-form-grid">
+                                    <?php echo stridebr_csrf_field(); ?>
+                                    <input type="hidden" name="action" value="rank_create">
+                                    <input type="hidden" name="idmodalidade" value="<?php echo stridebr_e($selectedModalityId); ?>">
+                                    <input type="hidden" name="return_to" value="<?php echo stridebr_e($combatReturnTo); ?>">
+                                    <label><span><?php echo stridebr_e(stridebr_t('combat.rank.name')); ?></span><input name="graduacao" required maxlength="120"></label>
+                                    <label><span><?php echo stridebr_e(stridebr_t('combat.rank.detail')); ?></span><input name="detalhe" maxlength="120"></label>
+                                    <label><span><?php echo stridebr_e(stridebr_t('combat.rank.system')); ?></span><input name="sistema" maxlength="120"></label>
+                                    <label><span><?php echo stridebr_e(stridebr_t('combat.rank.date')); ?></span><input type="date" name="data_graduacao" max="<?php echo stridebr_e((new DateTimeImmutable('today'))->format('Y-m-d')); ?>" required></label>
+                                    <label><span><?php echo stridebr_e(stridebr_t('combat.rank.issuer')); ?></span><input name="emissor" maxlength="160"></label>
+                                    <label class="combat-form-wide"><span><?php echo stridebr_e(stridebr_t('common.notes')); ?></span><textarea name="observacoes" rows="2" maxlength="4000"></textarea></label>
+                                    <div class="combat-form-actions combat-form-wide"><button type="submit" class="progress-button is-primary"><?php echo stridebr_e(stridebr_t('common.save')); ?></button></div>
+                                </form>
+                            </details>
+                        </header>
+                        <?php if (is_array($combatCurrentRank)): ?>
+                            <article class="combat-current-rank">
+                                <div><span><?php echo stridebr_e(stridebr_t('combat.rank.current')); ?></span><strong><?php echo stridebr_e((string) $combatCurrentRank['graduacao']); ?><?php if (!empty($combatCurrentRank['detalhe'])): ?> · <?php echo stridebr_e((string) $combatCurrentRank['detalhe']); ?><?php endif; ?></strong><small><?php if (!empty($combatCurrentRank['sistema'])): ?><?php echo stridebr_e((string) $combatCurrentRank['sistema']); ?> · <?php endif; ?><?php echo stridebr_e(stridebr_t('combat.rank.since', ['date'=>stridebr_format_date_short(new DateTimeImmutable((string) $combatCurrentRank['data_graduacao']))])); ?></small></div>
+                            </article>
+                        <?php else: ?>
+                            <p class="progress-benchmark-empty"><?php echo stridebr_e(stridebr_t('combat.rank.empty')); ?></p>
+                        <?php endif; ?>
+                        <?php if ($combatRanks !== []): ?>
+                            <details class="progress-benchmark-history combat-rank-history">
+                                <summary><?php echo stridebr_e(stridebr_t('combat.rank.history')); ?> · <?php echo count($combatRanks); ?></summary>
+                                <div>
+                                    <?php foreach ($combatRanks as $rank): ?>
+                                        <article class="combat-history-row">
+                                            <div><strong><?php echo stridebr_e((string) $rank['graduacao']); ?><?php if (!empty($rank['detalhe'])): ?> · <?php echo stridebr_e((string) $rank['detalhe']); ?><?php endif; ?></strong><small><?php echo stridebr_e(stridebr_format_date_short(new DateTimeImmutable((string) $rank['data_graduacao']))); ?><?php if (!empty($rank['sistema'])): ?> · <?php echo stridebr_e((string) $rank['sistema']); ?><?php endif; ?><?php if (!empty($rank['emissor'])): ?> · <?php echo stridebr_e((string) $rank['emissor']); ?><?php endif; ?></small></div>
+                                            <details class="progress-inline-form combat-inline-edit">
+                                                <summary><?php echo stridebr_e(stridebr_t('common.edit')); ?></summary>
+                                                <form method="POST" action="/api/progress-combat.php" class="combat-form-grid">
+                                                    <?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="rank_update"><input type="hidden" name="idgraduacao" value="<?php echo stridebr_e((string) $rank['idgraduacao']); ?>"><input type="hidden" name="idmodalidade" value="<?php echo stridebr_e($selectedModalityId); ?>"><input type="hidden" name="return_to" value="<?php echo stridebr_e($combatReturnTo); ?>">
+                                                    <label><span><?php echo stridebr_e(stridebr_t('combat.rank.name')); ?></span><input name="graduacao" value="<?php echo stridebr_e((string) $rank['graduacao']); ?>" required maxlength="120"></label>
+                                                    <label><span><?php echo stridebr_e(stridebr_t('combat.rank.detail')); ?></span><input name="detalhe" value="<?php echo stridebr_e((string) ($rank['detalhe'] ?? '')); ?>" maxlength="120"></label>
+                                                    <label><span><?php echo stridebr_e(stridebr_t('combat.rank.system')); ?></span><input name="sistema" value="<?php echo stridebr_e((string) ($rank['sistema'] ?? '')); ?>" maxlength="120"></label>
+                                                    <label><span><?php echo stridebr_e(stridebr_t('combat.rank.date')); ?></span><input type="date" name="data_graduacao" value="<?php echo stridebr_e((string) $rank['data_graduacao']); ?>" max="<?php echo stridebr_e((new DateTimeImmutable('today'))->format('Y-m-d')); ?>" required></label>
+                                                    <label><span><?php echo stridebr_e(stridebr_t('combat.rank.issuer')); ?></span><input name="emissor" value="<?php echo stridebr_e((string) ($rank['emissor'] ?? '')); ?>" maxlength="160"></label>
+                                                    <label class="combat-form-wide"><span><?php echo stridebr_e(stridebr_t('common.notes')); ?></span><textarea name="observacoes" rows="2" maxlength="4000"><?php echo stridebr_e((string) ($rank['observacoes'] ?? '')); ?></textarea></label>
+                                                    <div class="combat-form-actions combat-form-wide"><button type="submit" class="progress-button is-primary"><?php echo stridebr_e(stridebr_t('common.save')); ?></button></div>
+                                                </form>
+                                                <form method="POST" action="/api/progress-combat.php" data-confirm="<?php echo stridebr_e(stridebr_t('combat.rank.delete_confirm')); ?>" class="combat-delete-form"><?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="rank_delete"><input type="hidden" name="idgraduacao" value="<?php echo stridebr_e((string) $rank['idgraduacao']); ?>"><input type="hidden" name="return_to" value="<?php echo stridebr_e($combatReturnTo); ?>"><button type="submit" class="progress-button combat-delete-button"><?php echo stridebr_e(stridebr_t('common.delete')); ?></button></form>
+                                            </details>
+                                        </article>
+                                    <?php endforeach; ?>
+                                </div>
+                            </details>
+                        <?php endif; ?>
+                    </section>
+
+                    <section class="progress-section combat-technique-section" aria-labelledby="combat-technique-title" data-combat-technique-section>
+                        <header>
+                            <div><h2 id="combat-technique-title"><?php echo stridebr_e(stridebr_t('combat.technique.title')); ?></h2><p><?php echo stridebr_e(stridebr_t('combat.technique.help')); ?></p></div>
+                            <details class="progress-inline-form" data-combat-technique-create>
+                                <summary class="progress-button"><?php echo stridebr_e(stridebr_t('combat.technique.add')); ?></summary>
+                                <form method="POST" action="/api/progress-combat.php" class="combat-form-grid">
+                                    <?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="technique_create"><input type="hidden" name="idmodalidade" value="<?php echo stridebr_e($selectedModalityId); ?>"><input type="hidden" name="return_to" value="<?php echo stridebr_e($combatReturnTo); ?>">
+                                    <label><span><?php echo stridebr_e(stridebr_t('combat.technique.name')); ?></span><input name="nome" required maxlength="160"></label>
+                                    <label><span><?php echo stridebr_e(stridebr_t('combat.technique.category')); ?></span><select name="categoria_code"><option value=""><?php echo stridebr_e(stridebr_t('common.not_informed')); ?></option><?php foreach (combatTechniqueCategories() as $category): ?><option value="<?php echo stridebr_e($category); ?>"><?php echo stridebr_e(stridebr_t('combat.category.' . $category)); ?></option><?php endforeach; ?></select></label>
+                                    <label><span><?php echo stridebr_e(stridebr_t('combat.technique.custom_category')); ?></span><input name="categoria_custom" maxlength="100"></label>
+                                    <label><span><?php echo stridebr_e(stridebr_t('combat.technique.self_assessment')); ?></span><select name="estado"><?php foreach (['learning','practicing','consolidated'] as $state): ?><option value="<?php echo stridebr_e($state); ?>"><?php echo stridebr_e(stridebr_t('combat.state.' . $state)); ?></option><?php endforeach; ?></select></label>
+                                    <label class="combat-form-wide"><span><?php echo stridebr_e(stridebr_t('common.notes')); ?></span><textarea name="observacoes" rows="2" maxlength="4000"></textarea></label>
+                                    <div class="combat-form-actions combat-form-wide"><button type="submit" class="progress-button is-primary"><?php echo stridebr_e(stridebr_t('common.save')); ?></button></div>
+                                </form>
+                            </details>
+                        </header>
+                        <?php if ($combatTechniques === []): ?>
+                            <div class="progress-benchmark-empty"><strong><?php echo stridebr_e(stridebr_t('combat.technique.empty')); ?></strong><p><?php echo stridebr_e(stridebr_t('combat.technique.empty_help')); ?></p></div>
+                        <?php else: ?>
+                            <div class="combat-technique-summary" aria-label="<?php echo stridebr_e(stridebr_t('combat.technique.summary_aria')); ?>">
+                                <span><strong><?php echo (int) ($combatDashboard['active_count'] ?? 0); ?></strong><?php echo stridebr_e(stridebr_t('combat.technique.tracked')); ?></span>
+                                <span><strong><?php echo (int) ($combatStateCounts['learning'] ?? 0); ?></strong><?php echo stridebr_e(stridebr_t('combat.state.learning')); ?></span>
+                                <span><strong><?php echo (int) ($combatStateCounts['practicing'] ?? 0); ?></strong><?php echo stridebr_e(stridebr_t('combat.state.practicing')); ?></span>
+                                <span><strong><?php echo (int) ($combatStateCounts['consolidated'] ?? 0); ?></strong><?php echo stridebr_e(stridebr_t('combat.state.consolidated')); ?></span>
+                            </div>
+                            <div class="combat-technique-list">
+                                <?php foreach ($combatTechniques as $technique): $state=(string) ($technique['estado'] ?? 'learning'); ?>
+                                    <a href="<?php echo stridebr_e($buildUrl(['technique'=>(string) $technique['idtecnica']])); ?>" class="combat-technique-row<?php echo $state === 'archived' ? ' is-archived' : ''; ?>">
+                                        <span><strong><?php echo stridebr_e((string) $technique['nome']); ?></strong><small><?php echo stridebr_e($technique['categoria_code'] ? stridebr_t('combat.category.' . (string) $technique['categoria_code']) : stridebr_t('combat.category.unclassified')); ?> · <?php echo stridebr_e(stridebr_t('combat.state.' . $state)); ?></small></span>
+                                        <span><strong><?php echo (int) ($technique['practice_count'] ?? 0); ?></strong><small><?php echo stridebr_e(stridebr_t('combat.practice.count_label')); ?><?php if (!empty($technique['last_practice'])): ?> · <?php echo stridebr_e(stridebr_t('combat.practice.last_short', ['date'=>stridebr_format_date_short(new DateTimeImmutable((string) $technique['last_practice']))])); ?><?php endif; ?></small></span><span class="progress-row-chevron" aria-hidden="true">›</span>
+                                    </a>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+                    </section>
+
+                    <?php if (is_array($combatTechniqueDetail)): $techState=(string) ($combatTechniqueDetail['estado'] ?? 'learning'); ?>
+                        <section class="progress-section combat-technique-detail" aria-labelledby="combat-technique-detail-title" data-combat-technique-detail>
+                            <header><div><h2 id="combat-technique-detail-title"><?php echo stridebr_e((string) $combatTechniqueDetail['nome']); ?></h2><p><?php echo stridebr_e(stridebr_t('combat.technique.detail_help')); ?></p></div><a class="progress-button" href="<?php echo stridebr_e($buildUrl(['technique'=>null])); ?>"><?php echo stridebr_e(stridebr_t('common.close')); ?></a></header>
+                            <div class="combat-technique-detail-meta">
+                                <span><small><?php echo stridebr_e(stridebr_t('combat.technique.category')); ?></small><strong><?php echo stridebr_e($combatTechniqueDetail['categoria_code'] ? stridebr_t('combat.category.' . (string) $combatTechniqueDetail['categoria_code']) : stridebr_t('combat.category.unclassified')); ?></strong></span>
+                                <span><small><?php echo stridebr_e(stridebr_t('combat.technique.self_assessment')); ?></small><strong><?php echo stridebr_e(stridebr_t('combat.state.' . $techState)); ?></strong></span>
+                                <span><small><?php echo stridebr_e(stridebr_t('combat.practice.first')); ?></small><strong><?php echo !empty($combatTechniqueDetail['first_practice']) ? stridebr_e(stridebr_format_date_short(new DateTimeImmutable((string) $combatTechniqueDetail['first_practice']))) : '—'; ?></strong></span>
+                                <span><small><?php echo stridebr_e(stridebr_t('combat.practice.last')); ?></small><strong><?php echo !empty($combatTechniqueDetail['last_practice']) ? stridebr_e(stridebr_format_date_short(new DateTimeImmutable((string) $combatTechniqueDetail['last_practice']))) : '—'; ?></strong></span>
+                                <span><small><?php echo stridebr_e(stridebr_t('combat.practice.total')); ?></small><strong><?php echo (int) ($combatTechniqueDetail['practice_count'] ?? 0); ?></strong></span>
+                            </div>
+                            <?php if (!empty($combatTechniqueDetail['observacoes'])): ?><p class="combat-technique-notes"><?php echo nl2br(stridebr_e((string) $combatTechniqueDetail['observacoes'])); ?></p><?php endif; ?>
+                            <div class="combat-technique-actions">
+                                <details class="progress-inline-form"><summary class="progress-button"><?php echo stridebr_e(stridebr_t('common.edit')); ?></summary>
+                                    <form method="POST" action="/api/progress-combat.php" class="combat-form-grid">
+                                        <?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="technique_update"><input type="hidden" name="idtecnica" value="<?php echo stridebr_e((string) $combatTechniqueDetail['idtecnica']); ?>"><input type="hidden" name="idmodalidade" value="<?php echo stridebr_e($selectedModalityId); ?>"><input type="hidden" name="return_to" value="<?php echo stridebr_e($buildUrl(['technique'=>(string) $combatTechniqueDetail['idtecnica']])); ?>">
+                                        <label><span><?php echo stridebr_e(stridebr_t('combat.technique.name')); ?></span><input name="nome" value="<?php echo stridebr_e((string) $combatTechniqueDetail['nome']); ?>" required maxlength="160"></label>
+                                        <label><span><?php echo stridebr_e(stridebr_t('combat.technique.category')); ?></span><select name="categoria_code"><option value=""><?php echo stridebr_e(stridebr_t('common.not_informed')); ?></option><?php foreach (combatTechniqueCategories() as $category): ?><option value="<?php echo stridebr_e($category); ?>"<?php echo (string) ($combatTechniqueDetail['categoria_code'] ?? '') === $category ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('combat.category.' . $category)); ?></option><?php endforeach; ?></select></label>
+                                        <label><span><?php echo stridebr_e(stridebr_t('combat.technique.custom_category')); ?></span><input name="categoria_custom" value="<?php echo stridebr_e((string) ($combatTechniqueDetail['categoria_custom'] ?? '')); ?>" maxlength="100"></label>
+                                        <label><span><?php echo stridebr_e(stridebr_t('combat.technique.self_assessment')); ?></span><select name="estado"><?php foreach (['learning','practicing','consolidated'] as $state): ?><option value="<?php echo stridebr_e($state); ?>"<?php echo $techState === $state ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('combat.state.' . $state)); ?></option><?php endforeach; ?></select></label>
+                                        <label class="combat-form-wide"><span><?php echo stridebr_e(stridebr_t('common.notes')); ?></span><textarea name="observacoes" rows="2" maxlength="4000"><?php echo stridebr_e((string) ($combatTechniqueDetail['observacoes'] ?? '')); ?></textarea></label>
+                                        <div class="combat-form-actions combat-form-wide"><button type="submit" class="progress-button is-primary"><?php echo stridebr_e(stridebr_t('common.save')); ?></button></div>
+                                    </form>
+                                </details>
+                                <form method="POST" action="/api/progress-combat.php"><?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="<?php echo $techState === 'archived' ? 'technique_reactivate' : 'technique_archive'; ?>"><input type="hidden" name="idtecnica" value="<?php echo stridebr_e((string) $combatTechniqueDetail['idtecnica']); ?>"><input type="hidden" name="return_to" value="<?php echo stridebr_e($buildUrl(['technique'=>(string) $combatTechniqueDetail['idtecnica']])); ?>"><button type="submit" class="progress-button"><?php echo stridebr_e(stridebr_t($techState === 'archived' ? 'combat.technique.reactivate' : 'combat.technique.archive')); ?></button></form>
+                            </div>
+                            <?php if ($techState !== 'archived'): ?>
+                                <details class="progress-inline-form combat-practice-form" data-combat-practice-create><summary class="progress-button is-primary"><?php echo stridebr_e(stridebr_t('combat.practice.register')); ?></summary>
+                                    <form method="POST" action="/api/progress-combat.php" class="combat-form-grid">
+                                        <?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="practice_create"><input type="hidden" name="idtecnica" value="<?php echo stridebr_e((string) $combatTechniqueDetail['idtecnica']); ?>"><input type="hidden" name="return_to" value="<?php echo stridebr_e($buildUrl(['technique'=>(string) $combatTechniqueDetail['idtecnica']])); ?>">
+                                        <label><span><?php echo stridebr_e(stridebr_t('combat.practice.date')); ?></span><input type="date" name="data_pratica" value="<?php echo stridebr_e((new DateTimeImmutable('today'))->format('Y-m-d')); ?>" max="<?php echo stridebr_e((new DateTimeImmutable('today'))->format('Y-m-d')); ?>" required></label>
+                                        <label><span><?php echo stridebr_e(stridebr_t('combat.practice.activity')); ?></span><select name="idregistro"><option value=""><?php echo stridebr_e(stridebr_t('combat.practice.manual')); ?></option><?php foreach ($combatActivityOptions as $activityOption): ?><option value="<?php echo stridebr_e((string) $activityOption['idregistro']); ?>"><?php echo stridebr_e(stridebr_format_date_short(new DateTimeImmutable((string) $activityOption['data_inicio'])) . ' · ' . (string) ($activityOption['titulo'] ?: $selectedSportLabel)); ?></option><?php endforeach; ?></select></label>
+                                        <label class="combat-form-wide"><span><?php echo stridebr_e(stridebr_t('common.notes')); ?></span><textarea name="observacoes" rows="2" maxlength="2000"></textarea></label>
+                                        <div class="combat-form-actions combat-form-wide"><button type="submit" class="progress-button is-primary"><?php echo stridebr_e(stridebr_t('common.save')); ?></button></div>
+                                    </form>
+                                </details>
+                            <?php endif; ?>
+                            <div class="combat-practice-history">
+                                <h3><?php echo stridebr_e(stridebr_t('combat.practice.history')); ?></h3>
+                                <?php if ($combatTechniquePractices === []): ?><p class="progress-benchmark-empty"><?php echo stridebr_e(stridebr_t('combat.practice.empty')); ?></p><?php else: ?>
+                                    <div class="progress-detail-list"><?php foreach ($combatTechniquePractices as $practice): ?><article><strong><?php echo stridebr_e(stridebr_format_date_short(new DateTimeImmutable((string) $practice['data_pratica']))); ?></strong><span><?php echo stridebr_e(stridebr_t('combat.practice.origin.' . (string) $practice['origem'])); ?></span><small><?php if (!empty($practice['atividade_titulo'])): ?><a href="/user/atividades.php?activity=<?php echo stridebr_e((string) $practice['idregistro']); ?>"><?php echo stridebr_e((string) $practice['atividade_titulo']); ?></a><?php endif; ?><?php if (!empty($practice['observacoes'])): ?><?php if (!empty($practice['atividade_titulo'])): ?> · <?php endif; ?><?php echo stridebr_e((string) $practice['observacoes']); ?><?php endif; ?></small><form method="POST" action="/api/progress-combat.php" data-confirm="<?php echo stridebr_e(stridebr_t('combat.practice.delete_confirm')); ?>"><?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="practice_delete"><input type="hidden" name="idpratica" value="<?php echo stridebr_e((string) $practice['idpratica']); ?>"><input type="hidden" name="return_to" value="<?php echo stridebr_e($buildUrl(['technique'=>(string) $combatTechniqueDetail['idtecnica']])); ?>"><button type="submit" class="progress-link-button"><?php echo stridebr_e(stridebr_t('common.delete')); ?></button></form></article><?php endforeach; ?></div>
+                                <?php endif; ?>
+                            </div>
+                        </section>
+                    <?php endif; ?>
                 <?php endif; ?>
 
                 <?php if ($renderer === 'cycling'): $ftpLatest=is_array($ftpSummary['latest']??null)?$ftpSummary['latest']:null; $ftpPrevious=is_array($ftpSummary['previous']??null)?$ftpSummary['previous']:null; ?>

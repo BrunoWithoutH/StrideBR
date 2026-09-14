@@ -10,8 +10,8 @@ except Exception as exc:
     sys.exit(2)
 
 ROOT = Path(__file__).resolve().parents[2]
-CSS_FILES = [ROOT / 'public/assets/css/style.css', ROOT / 'public/assets/css/ui-refresh.css']
-HTML = '''<!doctype html><html data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><header class="site-header"><div class="header-inner"><span>StrideBR</span><span></span><div class="usersection"><details data-header-menu="toggle" class="global-create-menu"><summary aria-label="Create" title="Create">+</summary><div class="global-create-content"><span class="global-create-label">Create</span><a href="#"><strong>Activity</strong><span>Log manually</span></a></div></details></div></div></header></body></html>'''
+CSS_FILES = [ROOT / 'public/assets/css/style.css', ROOT / 'public/assets/css/atividades.css', ROOT / 'public/assets/css/ui-refresh.css']
+HTML = '''<!doctype html><html data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><header class="site-header"><div class="header-inner"><span>StrideBR</span><nav class="main-nav"></nav><div class="usersection"><details data-header-menu="toggle" class="header-notification-menu"><summary class="header-notification-button">N</summary><div class="header-notification-popover">Notifications</div></details><details data-header-menu="toggle" class="global-create-menu"><summary aria-label="Create" title="Create">+</summary><div class="global-create-content"><span class="global-create-label">Create</span><a href="#create"><strong>Activity</strong><span>Log manually</span></a></div></details></div></div></header><main><button id="outside" type="button">Content</button><details class="activity-toolbar-tools" data-ui-menu="toggle"><summary class="activity-toolbar-link">Ferramentas</summary><div class="activity-toolbar-tools-menu"><a href="#tool">Importar / exportar</a></div></details><div class="activity-detail-drawer" style="position:fixed;inset:80px 10px auto auto;width:420px;height:500px;z-index:var(--z-drawer);background:white"></div></main></body></html>'''
 
 assertions = 0
 failures = []
@@ -48,6 +48,8 @@ with sync_playwright() as p:
         page.set_content(HTML, wait_until='domcontentloaded')
         for css in CSS_FILES:
             page.add_style_tag(path=str(css))
+        page.add_script_tag(path=str(ROOT / 'public/assets/js/scripts.js'))
+        page.evaluate("document.dispatchEvent(new Event('DOMContentLoaded'))")
         page.evaluate("theme => document.documentElement.dataset.theme = theme", theme)
         page.wait_for_timeout(180)
         summary = page.locator('.global-create-menu > summary')
@@ -83,6 +85,41 @@ with sync_playwright() as p:
             wrapper, panel = rgba(surfaces['wrapper']), rgba(surfaces['content'])
             check(wrapper is not None and wrapper[3] == 0, f"{theme}: wrapper recebeu superfície indevida: {surfaces['wrapper']}")
             check(panel is not None and panel[3] > 0, f"{theme}: conteúdo não recebeu superfície própria: {surfaces['content']}")
+            layer = page.evaluate("() => ({header:Number(getComputedStyle(document.querySelector('.site-header')).zIndex), drawer:Number(getComputedStyle(document.querySelector('.activity-detail-drawer')).zIndex)})")
+            check(layer['header'] > layer['drawer'], f"{theme}: Criar precisa ficar acima do preview: {layer}")
+
+            tools_summary = page.locator('.activity-toolbar-tools > summary')
+            tools_summary.click()
+            tools = page.locator('.activity-toolbar-tools')
+            check(tools.get_attribute('open') is not None, f'{theme}: Ferramentas não abriu')
+            check(tools_summary.get_attribute('aria-expanded') == 'true', f'{theme}: Ferramentas não atualizou aria-expanded ao abrir')
+            check(menu.get_attribute('open') is None, f'{theme}: abrir Ferramentas não fechou Criar')
+            tools_layer = page.evaluate("() => ({tools:Number(getComputedStyle(document.querySelector('.activity-toolbar-tools')).zIndex), panel:Number(getComputedStyle(document.querySelector('.activity-toolbar-tools-menu')).zIndex), drawer:Number(getComputedStyle(document.querySelector('.activity-detail-drawer')).zIndex)})")
+            check(tools_layer['tools'] > tools_layer['drawer'] and tools_layer['panel'] > tools_layer['drawer'], f'{theme}: Ferramentas precisa ficar acima do preview: {tools_layer}')
+            tools_summary.click()
+            check(tools.get_attribute('open') is None, f'{theme}: segundo clique não fechou Ferramentas')
+            tools_summary.click()
+            page.click('#outside')
+            check(tools.get_attribute('open') is None, f'{theme}: click-outside não fechou Ferramentas')
+            tools_summary.click()
+            page.keyboard.press('Escape')
+            check(tools.get_attribute('open') is None, f'{theme}: Escape não fechou Ferramentas')
+            check(tools_summary.get_attribute('aria-expanded') == 'false', f'{theme}: Ferramentas não atualizou aria-expanded no Escape')
+            check(page.evaluate("document.activeElement === document.querySelector('.activity-toolbar-tools > summary')"), f'{theme}: Escape não devolveu foco ao summary de Ferramentas')
+            tools_summary.click()
+            page.click('.activity-toolbar-tools-menu a')
+            check(tools.get_attribute('open') is None, f'{theme}: clicar item não fechou Ferramentas')
+
+            summary.click()
+            page.keyboard.press('Escape')
+            check(menu.get_attribute('open') is None, f'{theme}: Escape não fechou Criar')
+            check(summary.get_attribute('aria-expanded') == 'false', f'{theme}: aria-expanded não acompanhou Escape')
+
+            page.click('.header-notification-menu > summary')
+            summary.click()
+            check(page.locator('.header-notification-menu').get_attribute('open') is None and menu.get_attribute('open') is not None, f'{theme}: abrir Criar não fechou notificações')
+            page.click('.global-create-content a')
+            check(menu.get_attribute('open') is None, f'{theme}: clicar item não fechou Criar')
         except Exception as exc:
             failures.append(str(exc))
         finally:

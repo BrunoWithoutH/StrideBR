@@ -23,12 +23,13 @@ HTML = r'''<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"></head>
       </div>
       <div data-history-more hidden><button data-history-load-more></button><span data-history-count></span></div>
       <span data-activity-history-status></span>
+      <div data-history-scroll-fixture style="height:1400px"></div>
     </section>
     </div>
     <aside class="activity-detail-placeholder" data-detail-desktop-placeholder><div><strong>Detalhes</strong><span>Selecione</span></div></aside>
     <div class="activity-detail-drawer" data-activity-detail-drawer hidden>
       <button type="button" class="activity-detail-backdrop" data-close-activity-detail aria-label="Fechar"></button>
-      <section class="activity-detail-panel" role="dialog" data-activity-detail-panel>
+      <section class="activity-detail-panel" role="dialog" aria-modal="false" data-activity-detail-panel>
         <header>
           <div><div class="activity-detail-kicker"><span class="activity-detail-kicker-main"><span data-detail-sport>Atividade</span><span data-detail-visibility></span></span><a data-detail-compare href="#">Comparar</a></div><h2 data-detail-title>Carregando</h2><p data-detail-date></p></div>
           <div class="activity-detail-header-actions"><button type="button" class="activity-secondary-button activity-detail-expand" data-expand-activity-detail>Abrir detalhes</button><button type="button" data-close-activity-detail>×</button></div>
@@ -92,10 +93,21 @@ MOCK = r'''() => {
   };
 }'''
 
+PAGE_CSS = (
+    'style.css',
+    'atividades.css',
+    'product-insights.css',
+    'activity-exchange.css',
+    'ui-refresh.css',
+    'activity-sharing.css',
+)
+
 def boot(page):
     page.set_content(HTML, wait_until='domcontentloaded')
-    page.add_style_tag(path=str(ROOT / 'public/assets/css/atividades.css'))
+    for css_file in PAGE_CSS:
+        page.add_style_tag(path=str(ROOT / 'public/assets/css' / css_file))
     page.evaluate(MOCK)
+    page.add_script_tag(path=str(ROOT / 'public/assets/js/scripts.js'))
     page.add_script_tag(path=str(ROOT / 'public/assets/js/atividades.js'))
     page.evaluate("document.dispatchEvent(new Event('DOMContentLoaded'))")
     page.wait_for_timeout(40)
@@ -130,15 +142,85 @@ with sync_playwright() as p:
     ratio = left_box['width'] / (left_box['width'] + drawer_box['width'])
     a(abs(summary_box['width'] - history_box['width']) <= 1, 'resumo e Histórico usam exatamente a mesma largura')
     a(.57 <= ratio <= .64, f'grade desktop reserva aproximadamente 60% à esquerda ({ratio:.3f})')
-    a(drawer_box['height'] >= 800, 'Preview usa a altura disponível até perto do fim da viewport')
+    a(drawer_box['height'] >= 800, 'Preview desktop usa a altura útil da viewport')
+    panel = desktop.locator('[data-activity-detail-panel]')
+    a(not desktop.evaluate("document.documentElement.classList.contains('activity-detail-open')"), 'preview desktop não ativa body lock')
+    a(desktop.locator('[data-activity-detail-panel]').get_attribute('aria-modal') == 'false', 'preview desktop normal não se anuncia como modal')
+    a(not desktop.evaluate("document.documentElement.classList.contains('ui-modal-scroll-locked')"), 'preview desktop não aciona o lock global de dialogs')
+    a(desktop.evaluate("getComputedStyle(document.body).position") != 'fixed', 'preview desktop não fixa body pelo controlador modal global')
+    a(desktop.evaluate("getComputedStyle(document.documentElement).overflowY") != 'hidden', 'documento desktop permanece verticalmente rolável')
+    a(desktop.evaluate("getComputedStyle(document.body).overflowY") != 'hidden', 'body desktop permanece verticalmente rolável')
+    a(desktop.locator('[data-activity-detail-drawer]').evaluate("el => getComputedStyle(el).position") == 'sticky', 'drawer desktop usa posicionamento sticky sem tirar o documento do scroll')
+    a(panel.evaluate("el => getComputedStyle(el).overflowY") == 'auto', 'preview desktop possui scroll vertical próprio')
+    a(panel.evaluate("el => getComputedStyle(el).overscrollBehaviorY") == 'auto', 'preview desktop permite scroll chaining nativo')
+    a(panel.evaluate('el => el.scrollHeight > el.clientHeight'), 'atividade longa cria scrollbar vertical interna no preview desktop')
+    a(desktop.evaluate('document.scrollingElement.scrollHeight > document.scrollingElement.clientHeight'), 'documento continua verticalmente rolável com preview aberto')
+
+    desktop.evaluate('window.scrollTo(0, 0)')
+    panel.evaluate('el => el.scrollTop = 0')
+    left_box = desktop.locator('.activity-history-left').bounding_box()
+    desktop.mouse.move(left_box['x'] + left_box['width'] / 2, left_box['y'] + min(left_box['height'] / 2, 300))
+    desktop.mouse.wheel(0, 600)
+    desktop.wait_for_timeout(80)
+    a(desktop.evaluate('window.scrollY') > 0, 'wheel fora do preview move o documento')
+    a(panel.evaluate('el => el.scrollTop') == 0, 'wheel fora do preview não move o scroll interno')
+
+    desktop.evaluate('window.scrollTo(0, 0)')
+    panel.evaluate('el => el.scrollTop = 0')
+    panel_box = panel.bounding_box()
+    desktop.mouse.move(panel_box['x'] + panel_box['width'] / 2, panel_box['y'] + min(panel_box['height'] / 2, 300))
+    desktop.mouse.wheel(0, 300)
+    desktop.wait_for_timeout(80)
+    a(panel.evaluate('el => el.scrollTop') > 0, 'wheel dentro do preview move o scroll interno enquanto há conteúdo')
+    a(desktop.evaluate('window.scrollY') == 0, 'wheel interno não move o documento antes de atingir o limite do preview')
+
+    desktop.evaluate('window.scrollTo(0, 0)')
+    panel.evaluate('el => el.scrollTop = el.scrollHeight - el.clientHeight')
+    preview_limit = panel.evaluate('el => el.scrollTop')
+    panel_box = panel.bounding_box()
+    desktop.mouse.move(panel_box['x'] + panel_box['width'] / 2, panel_box['y'] + min(panel_box['height'] / 2, 300))
+    desktop.mouse.wheel(0, 600)
+    desktop.wait_for_timeout(100)
+    a(panel.evaluate('el => el.scrollTop') == preview_limit, 'preview permanece no limite final durante scroll chaining')
+    a(desktop.evaluate('window.scrollY') > 0, 'wheel no fim do preview encadeia naturalmente para o documento')
+
+    desktop.evaluate('window.scrollTo(0, 300)')
+    panel.evaluate('el => el.scrollTop = 0')
+    desktop.wait_for_timeout(30)
+    panel_box = panel.bounding_box()
+    desktop.mouse.move(panel_box['x'] + panel_box['width'] / 2, max(20, panel_box['y'] + 180))
+    page_before_up = desktop.evaluate('window.scrollY')
+    desktop.mouse.wheel(0, -250)
+    desktop.wait_for_timeout(100)
+    a(panel.evaluate('el => el.scrollTop') == 0, 'preview permanece no limite inicial durante scroll chaining para cima')
+    a(desktop.evaluate('window.scrollY') < page_before_up, 'wheel no início do preview encadeia naturalmente para cima no documento')
+
+    desktop.evaluate('window.scrollTo(0, 0)')
+    desktop.click('[data-open-activity-detail="2"]')
+    desktop.wait_for_function("document.querySelector('[data-detail-title]')?.textContent === 'Corrida B'")
+    a(panel.evaluate("el => getComputedStyle(el).overflowY") == 'auto', 'trocar atividade preserva scroll interno do preview')
+    a(panel.evaluate("el => getComputedStyle(el).overscrollBehaviorY") == 'auto', 'trocar atividade preserva chaining nativo')
+    panel.evaluate('el => el.scrollTop = 0')
+    desktop.click('[data-activity-detail-panel] [data-close-activity-detail]')
+    a(desktop.locator('[data-activity-detail-drawer]').is_hidden(), 'fechar detalhe remove o preview sem bloquear o documento')
+    desktop.click('[data-open-activity-detail="1"]')
+    desktop.wait_for_function("document.querySelector('[data-detail-title]')?.textContent === 'Corrida A'")
+    a(panel.evaluate("el => getComputedStyle(el).overflowY") == 'auto', 'reabrir mantém dual scroll no desktop')
+    a(not desktop.evaluate("document.documentElement.classList.contains('activity-detail-open')"), 'reabrir no desktop continua sem body lock')
 
     desktop.click('[data-expand-activity-detail]')
     a(desktop.locator('[data-activity-detail-drawer]').evaluate("el=>el.classList.contains('is-expanded-detail')"), 'Abrir detalhes expande o mesmo painel sem duplicar conteúdo')
     a(desktop.locator('[data-expand-activity-detail]').is_hidden(), 'detalhe expandido remove a ação redundante Voltar à prévia')
     expanded = desktop.locator('[data-activity-detail-panel]').bounding_box()
     a(expanded['width'] >= 1200 and expanded['height'] >= 850, 'detalhe expandido usa praticamente toda a viewport desktop')
+    a(desktop.locator('[data-activity-detail-panel]').evaluate("el => getComputedStyle(el).overflowY") == 'auto', 'detalhe expandido preserva scroll interno próprio')
+    a(desktop.evaluate("document.documentElement.classList.contains('activity-detail-expanded')"), 'detalhe expandido mantém body lock dedicado')
+    a(desktop.locator('[data-activity-detail-panel]').get_attribute('aria-modal') == 'true', 'detalhe expandido mantém semântica modal')
+    a(desktop.evaluate("document.documentElement.classList.contains('ui-modal-scroll-locked')"), 'detalhe expandido aciona o lock global de dialogs')
     desktop.click('[data-activity-detail-panel] [data-close-activity-detail]')
     a(not desktop.locator('[data-activity-detail-drawer]').evaluate("el=>el.classList.contains('is-expanded-detail')"), 'X no detalhe expandido volta à Preview')
+    a(desktop.locator('[data-activity-detail-panel]').get_attribute('aria-modal') == 'false', 'voltar à preview remove semântica modal no desktop')
+    a(not desktop.evaluate("document.documentElement.classList.contains('ui-modal-scroll-locked')"), 'voltar à preview libera o lock global do documento')
     a(not desktop.locator('[data-activity-detail-drawer]').is_hidden(), 'X expandido mantém a atividade selecionada')
     a(desktop.locator('[data-history-row][data-activity-id="1"]').evaluate("el=>el.classList.contains('is-active-detail')"), 'atividade segue selecionada ao voltar à Preview')
 
@@ -176,6 +258,18 @@ with sync_playwright() as p:
     mobile.wait_for_selector('[data-detail-content]:not([hidden])')
     a(mobile.locator('[data-activity-detail-drawer]').evaluate("el=>getComputedStyle(el).position") == 'fixed', 'mobile abre detalhe em tela/overlay, não em coluna lateral')
     a(mobile.evaluate("document.documentElement.classList.contains('activity-detail-open')"), 'mobile trava o histórico enquanto detalhe está aberto')
+    a(mobile.locator('[data-activity-detail-panel]').get_attribute('aria-modal') == 'true', 'drawer mobile mantém semântica modal')
+    a(mobile.evaluate("document.documentElement.classList.contains('ui-modal-scroll-locked')"), 'drawer mobile continua integrado ao lock modal global')
+    a(mobile.evaluate("getComputedStyle(document.documentElement).overflow === 'hidden'"), 'mobile mantém body lock efetivo enquanto drawer está aberto')
+    a(mobile.locator('[data-detail-content]').evaluate("el => getComputedStyle(el).overflowY") == 'auto', 'mobile mantém scroll interno no conteúdo do drawer')
+    mobile.set_viewport_size({'width': 1024, 'height': 844})
+    mobile.wait_for_timeout(80)
+    a(not mobile.evaluate("document.documentElement.classList.contains('activity-detail-open')"), 'resize para desktop remove body lock stale')
+    a(mobile.locator('[data-activity-detail-panel]').get_attribute('aria-modal') == 'false', 'resize para desktop converte drawer em preview não modal')
+    a(not mobile.evaluate("document.documentElement.classList.contains('ui-modal-scroll-locked')"), 'resize para desktop remove lock modal global stale')
+    mobile.set_viewport_size({'width': 390, 'height': 844})
+    mobile.wait_for_timeout(80)
+    a(mobile.evaluate("document.documentElement.classList.contains('activity-detail-open')"), 'resize de volta ao mobile restaura ownership do drawer')
     mobile.click('[data-activity-detail-panel] [data-close-activity-detail]')
     mobile.wait_for_timeout(60)
     scroll_after = mobile.evaluate('window.scrollY')

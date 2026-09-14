@@ -97,7 +97,9 @@ php scripts/tests/test_strava_webhooks.php
 php scripts/tests/test_core_nav_strava_backfill_static.php
 php scripts/tests/test_api_v1_static.php
 php scripts/tests/test_mobile_activities_v2_static.php
+php scripts/tests/test_mobile_workouts_v1_static.php
 php scripts/tests/test_notification_contract_static.php
+php scripts/tests/test_activity_tools_menu_static.php
 php scripts/tests/test_ads_placements_static.php
 php scripts/tests/test_sport_hub_monetization_static.php
 php scripts/tests/test_progress_phase_a_static.php
@@ -105,6 +107,7 @@ php scripts/tests/test_progress_phase_b1_static.php
 php scripts/tests/test_progress_phase_b2_static.php
 php scripts/tests/test_progress_phase_b3_static.php
 php scripts/tests/test_progress_phase_b4_static.php
+php scripts/tests/test_progress_phase_b5_static.php
 php scripts/tests/test_progress_visual_polish_static.php
 php scripts/tests/test_sport_taxonomy_energy_static.php
 php scripts/tests/test_sport_picker_static.php

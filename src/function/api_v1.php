@@ -339,14 +339,18 @@ function stridebr_api_create_activity(PDO $pdo, string $userId, array $payload, 
 {
     require_once __DIR__ . '/gps_web.php';
     $recording = stridebr_api_activity_mobile_recording($pdo, $userId, $payload, $idempotencyKey);
+    $workoutId = trim((string) ($payload['workout_id'] ?? ''));
+    $workoutLink = $workoutId !== '' ? stridebr_api_workout_prepare_activity_link($pdo, $userId, $workoutId, (string) $recording['idmodalidade']) : null;
     $recordingKey = gpsWebRecordingKey($recording);
     $existing = gpsWebFindExistingRecording($pdo, $userId, $recordingKey);
     if ($existing !== null) {
         stridebr_api_mark_mobile_activity_source($pdo, $existing, $userId);
+        if ($workoutLink !== null) stridebr_api_workout_link_activity($pdo, $userId, $existing, $workoutLink);
         return ['id' => $existing, 'activity' => stridebr_api_activity_detail($pdo, $existing, $userId), 'reused' => true];
     }
 
     $activityPayload = gpsWebBuildActivityPayload($pdo, $userId, $recording);
+    if ($workoutLink !== null) $activityPayload = stridebr_api_workout_apply_activity_payload($activityPayload, $workoutLink);
     $meta = $activityPayload['_gps_meta'];
     unset($activityPayload['_gps_meta']);
     $pdo->beginTransaction();
@@ -354,6 +358,7 @@ function stridebr_api_create_activity(PDO $pdo, string $userId, array $payload, 
         $id = atividadeSalvarRegistro($pdo, $userId, $activityPayload);
         stridebr_api_mark_mobile_activity_source($pdo, $id, $userId);
         gpsWebSaveMetadata($pdo, $id, $meta);
+        if ($workoutLink !== null) stridebr_api_workout_link_activity($pdo, $userId, $id, $workoutLink);
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
@@ -361,6 +366,7 @@ function stridebr_api_create_activity(PDO $pdo, string $userId, array $payload, 
             $existing = gpsWebFindExistingRecording($pdo, $userId, $recordingKey);
             if ($existing !== null) {
                 stridebr_api_mark_mobile_activity_source($pdo, $existing, $userId);
+                if ($workoutLink !== null) stridebr_api_workout_link_activity($pdo, $userId, $existing, $workoutLink);
                 return ['id' => $existing, 'activity' => stridebr_api_activity_detail($pdo, $existing, $userId), 'reused' => true];
             }
         }
@@ -566,5 +572,35 @@ function stridebr_api_activity_detail(PDO $pdo, string $activityId, string $user
         'visibility_gaps'=>(int)($gps['lacunas_visibilidade'] ?? 0),
         'user_adjusted'=>stridebr_api_bool($gps['usuario_ajustou'] ?? false),
     ] : null;
+
+    $workoutStmt = $pdo->prepare("SELECT st.idagendamento_origem, ra.idtreino_cronograma, ra.data_ocorrencia_origem, ra.data_ocorrencia_planejada, ra.data_inicio
+        FROM registros_atividade ra
+        LEFT JOIN LATERAL (
+            SELECT s.idagendamento_origem
+              FROM sessoes_treino s
+             WHERE s.idregistro_atividade = ra.idregistro
+               AND s.idusuario = ra.idusuario
+               AND s.idagendamento_origem IS NOT NULL
+               AND s.status = 'concluido'
+             ORDER BY s.data_criacao DESC
+             LIMIT 1
+        ) st ON TRUE
+        WHERE ra.idregistro = :id AND ra.idusuario = :user AND ra.excluido_em IS NULL LIMIT 1");
+    $workoutStmt->execute([':id' => $activityId, ':user' => $userId]);
+    $workout = $workoutStmt->fetch();
+    $detail['workout'] = null;
+    if (is_array($workout)) {
+        if (!empty($workout['idagendamento_origem'])) {
+            $detail['workout'] = ['id' => stridebr_api_workout_id_scheduled((string) $workout['idagendamento_origem']), 'kind' => 'scheduled'];
+        } elseif (!empty($workout['idtreino_cronograma'])) {
+            $date = trim((string) ($workout['data_ocorrencia_origem'] ?? $workout['data_ocorrencia_planejada'] ?? ''));
+            if ($date === '' && !empty($workout['data_inicio'])) {
+                $date = (new DateTimeImmutable((string) $workout['data_inicio']))->setTimezone(new DateTimeZone(stridebr_api_workout_timezone()))->format('Y-m-d');
+            }
+            if ($date !== '') $detail['workout'] = ['id' => stridebr_api_workout_id_recurring((string) $workout['idtreino_cronograma'], substr($date, 0, 10)), 'kind' => 'recurring'];
+        }
+    }
     return $detail;
 }
+
+require_once __DIR__ . '/api_workouts.php';

@@ -37,8 +37,11 @@ $appliedSimulation = array_values(array_unique(array_merge($current, $consolidat
 $unknownSimulation = array_values(array_diff($appliedSimulation, $current));
 $consolidatedSimulation = array_values(array_intersect($unknownSimulation, $consolidated));
 $orphanSimulation = array_values(array_diff($unknownSimulation, $consolidated));
-$assert(count($current) === 16, 'deploy atual deve possuir dezesseis migrations, incluindo B4 e Activities v2.');
-$assert(count($appliedSimulation) === 52, 'histórico após as migrations aditivas deve totalizar 52 registros.');
+$assert(count($current) === 19, 'deploy atual deve possuir dezenove migrations, incluindo o ajuste de snapshot do Mobile Workouts v1.');
+$assert(in_array('20260914_progress_b5_combat.sql', $current, true), 'migration B5 deve integrar o registry atual.');
+$assert(in_array('20260914_mobile_workouts_v1.sql', $current, true), 'migration Mobile Workouts v1 deve integrar o registry atual.');
+$assert(in_array('20260914_mobile_workouts_v1_exercise_snapshot.sql', $current, true), 'migration de snapshot de exercícios do Mobile Workouts v1 deve integrar o registry atual.');
+$assert(count($appliedSimulation) === 55, 'histórico após as migrations aditivas deve totalizar 55 registros.');
 $assert(count($consolidatedSimulation) === 36, 'os 36 registros sem arquivo devem ser reconhecidos como consolidados.');
 $assert($orphanSimulation === [], 'o histórico consolidado mais a migration aditiva não deve produzir registros órfãos.');
 

@@ -8312,24 +8312,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'}[char]))
     const usesDesktopActivityPanel = () => window.matchMedia('(min-width: 901px)').matches
-    let detailViewportFrame = 0
-    const syncDesktopDetailViewport = () => {
-        detailViewportFrame = 0
-        if (!detailDrawer || detailDrawer.hidden || !usesDesktopActivityPanel()) {
-            detailDrawer?.style.removeProperty('--activity-detail-available-height')
-            return
-        }
-        const stickyTop = 54
-        const top = Math.max(stickyTop, detailDrawer.getBoundingClientRect().top)
-        const available = Math.max(320, window.innerHeight - top - 12)
-        detailDrawer.style.setProperty('--activity-detail-available-height', `${Math.round(available)}px`)
+    const syncDetailScrollOwnership = () => {
+        const detailVisible = Boolean(detailDrawer && !detailDrawer.hidden)
+        const desktopPreview = usesDesktopActivityPanel() && !detailExpanded
+        const shouldBeModal = detailVisible && !desktopPreview
+        const shouldLockPage = detailVisible && !usesDesktopActivityPanel() && !detailExpanded
+        detailPanel?.setAttribute('aria-modal', shouldBeModal ? 'true' : 'false')
+        document.documentElement.classList.toggle('activity-detail-open', shouldLockPage)
     }
-    const scheduleDesktopDetailViewportSync = () => {
-        if (detailViewportFrame) return
-        detailViewportFrame = window.requestAnimationFrame(syncDesktopDetailViewport)
-    }
-    window.addEventListener('scroll', scheduleDesktopDetailViewportSync, {passive: true})
-    window.addEventListener('resize', scheduleDesktopDetailViewportSync)
+    window.addEventListener('resize', syncDetailScrollOwnership)
     const updateHistorySummary = (summary) => {
         if (!historySummary || !summary) return
         if (summaryActivities) summaryActivities.textContent = String(summary.atividades ?? 0)
@@ -8883,13 +8874,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (detailLoading) detailLoading.hidden = true
         const elevationSvg = detailDrawer.querySelector('[data-elevation-profile]')
         if (elevationSvg) drawElevationProfile(elevationSvg, activity.rota?.perfil)
-        scheduleDesktopDetailViewportSync()
     }
 
     const setDetailExpanded = expanded => {
         detailExpanded = Boolean(expanded)
         detailDrawer?.classList.toggle('is-expanded-detail', detailExpanded)
         document.documentElement.classList.toggle('activity-detail-expanded', detailExpanded)
+        syncDetailScrollOwnership()
         if (detailExpandButton) {
             detailExpandButton.hidden = detailExpanded
             detailExpandButton.textContent = tr('activity.detail.expand')
@@ -8899,7 +8890,6 @@ document.addEventListener('DOMContentLoaded', () => {
             detailCloseButton.setAttribute('aria-label', label)
             detailCloseButton.title = label
         }
-        scheduleDesktopDetailViewportSync()
     }
     const closeActivityDetails = () => {
         const restoreScroll = !usesDesktopActivityPanel() ? historyReturnScrollY : null
@@ -8913,7 +8903,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (detailDrawer) detailDrawer.hidden = true
         if (detailLoading) detailLoading.hidden = true
         if (detailPlaceholder) detailPlaceholder.hidden = false
-        document.documentElement.classList.remove('activity-detail-open')
+        syncDetailScrollOwnership()
         if (restoreScroll !== null) window.requestAnimationFrame(() => window.scrollTo({top: restoreScroll, behavior: 'auto'}))
     }
     detailExpandButton?.addEventListener('click', () => setDetailExpanded(!detailExpanded))
@@ -9187,8 +9177,7 @@ document.addEventListener('DOMContentLoaded', () => {
         syncActiveDetailRow()
         detailDrawer.hidden = false
         if (detailPlaceholder) detailPlaceholder.hidden = true
-        scheduleDesktopDetailViewportSync()
-        document.documentElement.classList.toggle('activity-detail-open', !usesDesktopActivityPanel())
+        syncDetailScrollOwnership()
 
         const cached = detailCache.get(key) || null
         if (cached) {
