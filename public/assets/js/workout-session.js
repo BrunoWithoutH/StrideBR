@@ -321,6 +321,19 @@
             throw error;
         }
     };
+    const startInstitutional = async trainingRef => {
+        try {
+            const data = await post({action: 'start_institutional', training_ref: trainingRef});
+            session = data.session || session;
+            historyLoaded = Boolean(session);
+            rememberPresence(Boolean(session));
+            render();
+            open();
+        } catch (error) {
+            notify(error.message);
+            throw error;
+        }
+    };
     const quickRegister = async payload => {
         try {
             return await post({action: 'quick_register', ...payload});
@@ -491,7 +504,7 @@
     window.visualViewport?.addEventListener('resize', syncKeyboardViewport);
     window.visualViewport?.addEventListener('scroll', syncKeyboardViewport);
     exercisesContainer?.addEventListener('focusin', syncKeyboardViewport);
-    window.StrideBRWorkout = {start, startScheduled, quickRegister, open, refresh: () => fetchCurrent({force: true, includeHistory: Boolean(modal && !modal.hidden)})};
+    window.StrideBRWorkout = {start, startScheduled, startInstitutional, quickRegister, open, refresh: () => fetchCurrent({force: true, includeHistory: Boolean(modal && !modal.hidden)})};
     const hydrateCurrent = () => fetchCurrent();
     if ('requestIdleCallback' in window) window.requestIdleCallback(hydrateCurrent, {timeout: 1400});
     else window.setTimeout(hydrateCurrent, 450);

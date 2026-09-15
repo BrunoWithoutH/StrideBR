@@ -18,6 +18,7 @@ $catalog = $read('src/function/sport_catalog.php');
 $progress = $read('public/user/progresso.php');
 $hubCss = $read('public/assets/css/sport-hub.css');
 $workoutApi = $read('src/function/treino_sessao_api.php');
+$workoutService = $read('src/function/workout_session_service.php');
 $workoutJs = $read('public/assets/js/workout-session.js');
 $muscleMigration = $read('src/database/migrations/20260903_v1_rc.sql');
 $money = $read('src/function/monetization.php');
@@ -34,7 +35,7 @@ $assert(str_contains($hub, 'function sportHubStrengthDashboard') && str_contains
 $assert(str_contains($hub, "'volume_kg'") && str_contains($hub, "'calendar'") && str_contains($hub, "'direct_muscles'") && str_contains($hub, "'secondary_muscles'"), 'Força precisa produzir volume, calendário e separar séries diretas de envolvimento secundário.');
 $assert(str_contains($hubCss, '.sport-hub-tabs') && str_contains($hubCss, '.strength-calendar') && str_contains($hubCss, '.muscle-bars'), 'o hub precisa ter estilos próprios.');
 $assert(str_contains($muscleMigration, 'grupos_musculares_primarios') && str_contains($muscleMigration, 'e_supino') && str_contains($muscleMigration, 'e_agachamento'), 'metadados musculares iniciais precisam existir.');
-$assert(str_contains($workoutApi, "\$action === 'update_set'") && str_contains($workoutApi, 'sessaoPersistirSeriesAtividade'), 'sessão precisa registrar carga/repetições e persistir séries na atividade.');
+$assert(str_contains($workoutApi, "\$action === 'update_set'") && str_contains($workoutService, 'sessaoPersistirSeriesAtividade'), 'sessão precisa registrar carga/repetições e persistir séries na atividade pelo serviço compartilhado.');
 $assert(str_contains($workoutJs, 'data-session-set-load') && str_contains($workoutJs, 'data-session-set-reps') && str_contains($workoutJs, "action: 'update_set'"), 'interface da sessão precisa editar carga e repetições por série.');
 $assert(str_contains($money, "STRIDEBR_ADS_ENABLED") && str_contains($money, "STRIDEBR_ADS_AUTHENTICATED_ENABLED") && str_contains($money, "STRIDEBR_DONATION_ENABLED") && str_contains($money, "'home-after-week'"), 'monetização precisa ser opt-in e usar placements semânticos com gate autenticado.');
 $assert(str_contains($ads, 'stridebr_render_ad_slot') && str_contains($docs, 'Dados esportivos') && str_contains($docs, 'targeting'), 'anúncios não podem receber dados esportivos ou de integrações como targeting.');

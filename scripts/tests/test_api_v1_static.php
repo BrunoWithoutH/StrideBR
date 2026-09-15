@@ -11,6 +11,8 @@ $helpers = $read('src/function/api_v1.php');
 $migration = $read('src/database/migrations/20260910_api_sessions.sql');
 $assert(!str_contains($router, "includes/app.php"), 'API v1 não pode carregar app.php nem iniciar sessão PHP.');
 $assert(strpos($router, "if (\$route === 'health')") < strpos($router, "pg_config.php") && strpos($router, "if (\$route === 'meta')") < strpos($router, "pg_config.php"), 'health/meta precisam responder sem depender do PostgreSQL.');
+$assert(str_contains($router, 'stridebr_api_build_identifier()') && str_contains($helpers, "getenv('STRIDEBR_BUILD')"), 'GET /meta precisa expor build opcional vindo do ambiente de deploy.');
+$assert(!str_contains($helpers, 'git rev-parse') && !str_contains($helpers, 'shell_exec') && !str_contains($helpers, 'exec(\'git'), 'API não pode executar Git em runtime para descobrir build.');
 $assert(str_contains($read('src/config/pg_config.php'), 'STRIDEBR_API_JSON') && str_contains($read('src/config/pg_config.php'), 'throw $e'), 'Falha de banco da API precisa voltar ao envelope JSON do router.');
 $assert(str_contains($router, "'auth/login'") && str_contains($router, "'auth/refresh'") && str_contains($router, "'activities'"), 'Rotas iniciais obrigatórias ausentes.');
 $assert(str_contains($helpers, 'HTTP_AUTHORIZATION') && str_contains($helpers, 'function stridebr_api_user'), 'Bearer auth precisa ser centralizada.');

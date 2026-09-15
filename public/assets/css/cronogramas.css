@@ -2779,3 +2779,5 @@ html.calendar-quick-open .floating-utility-dock{display:none!important}
     .monthly-calendar .monthly-day { min-width:0; padding:6px; }
     .monthly-event { padding:6px; }
 }
+.endurance-preset-actions{display:flex;gap:.5rem;flex-wrap:wrap}.endurance-target-cell{display:grid;grid-template-columns:minmax(7rem,1fr) 5rem 5rem 5rem;gap:.35rem;min-width:24rem}.endurance-recovery-cell{display:grid;grid-template-columns:5rem 5rem;gap:.35rem}.exercise-table td select[name*="tipo_passo"]{min-width:8rem}.workout-preview-exercises .preview-exercise.is-endurance{border-left:3px solid var(--color-accent);padding-left:.75rem}
+@media(max-width:760px){.endurance-target-cell{min-width:21rem}.endurance-structure-card{align-items:flex-start}.endurance-preset-actions{width:100%}}

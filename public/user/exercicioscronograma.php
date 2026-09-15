@@ -146,6 +146,11 @@ function renderExtraInput(array $campo, mixed $valor, string $name): string
                 <?php endif; ?>
             </section>
 
+            <section class="exercise-tools-card endurance-structure-card">
+                <div><h2>Estrutura do treino</h2><p>Use os mesmos passos para musculação ou endurance. Em corrida e ciclismo, defina aquecimento, blocos, alvos e recuperação.</p></div>
+                <div class="endurance-preset-actions"><button type="button" class="secondary-button" data-add-endurance-preset="warmup">Aquecimento</button><button type="button" class="secondary-button" data-add-endurance-preset="work">Trabalho</button><button type="button" class="secondary-button" data-add-endurance-preset="interval_group">Intervalo</button><button type="button" class="secondary-button" data-add-endurance-preset="recovery">Recuperação</button><button type="button" class="secondary-button" data-add-endurance-preset="cooldown">Desaquecimento</button></div>
+            </section>
+
             <form method="POST" class="exercise-editor-card" data-exercise-editor>
                 <?php echo stridebr_csrf_field(); ?>
                 <input type="hidden" name="action" value="save_exercises">
@@ -155,6 +160,7 @@ function renderExtraInput(array $campo, mixed $valor, string $name): string
                         <thead>
                         <tr>
                             <th>#</th>
+                            <th>Tipo</th>
                             <th><?php echo stridebr_e(stridebr_t('library.page_title')); ?></th>
                             <th><?php echo stridebr_e(stridebr_t('home.exercise')); ?></th>
                             <th><?php echo stridebr_e(stridebr_t('common.series')); ?></th>
@@ -163,6 +169,11 @@ function renderExtraInput(array $campo, mixed $valor, string $name): string
                             <th><?php echo stridebr_e(stridebr_t('common.block')); ?></th>
                             <th><?php echo stridebr_e(stridebr_t('common.cluster')); ?></th>
                             <th><?php echo stridebr_e(stridebr_t('home.rest')); ?></th>
+                            <th>Duração</th>
+                            <th>Distância</th>
+                            <th>Alvo</th>
+                            <th>Repetir</th>
+                            <th>Recuperação</th>
                             <?php foreach ($camposExtras as $campo): ?><th><?php echo stridebr_e($campo['nome']); ?></th><?php endforeach; ?>
                             <th><?php echo stridebr_e(stridebr_t('activity.notes')); ?></th>
                             <th></th>
@@ -172,6 +183,7 @@ function renderExtraInput(array $campo, mixed $valor, string $name): string
                         <?php foreach ($exercicios as $index => $row): ?>
                             <tr data-exercise-row>
                                 <td data-row-number><?php echo $index + 1; ?></td>
+                                <td><select name="rows[<?php echo $index; ?>][tipo_passo]"><option value="exercise"<?php echo ($row['tipo_passo'] ?? 'exercise') === 'exercise' ? ' selected' : ''; ?>>Exercício</option><option value="warmup"<?php echo ($row['tipo_passo'] ?? '') === 'warmup' ? ' selected' : ''; ?>>Aquecimento</option><option value="work"<?php echo ($row['tipo_passo'] ?? '') === 'work' ? ' selected' : ''; ?>>Trabalho</option><option value="recovery"<?php echo ($row['tipo_passo'] ?? '') === 'recovery' ? ' selected' : ''; ?>>Recuperação</option><option value="cooldown"<?php echo ($row['tipo_passo'] ?? '') === 'cooldown' ? ' selected' : ''; ?>>Desaquecimento</option><option value="interval_group"<?php echo ($row['tipo_passo'] ?? '') === 'interval_group' ? ' selected' : ''; ?>>Intervalo</option></select></td>
                                 <td>
                                     <input type="hidden" name="rows[<?php echo $index; ?>][idtreino_exercicio]" value="<?php echo stridebr_e($row['idtreino_exercicio']); ?>">
                                     <select name="rows[<?php echo $index; ?>][idexercicio]" data-library-select>
@@ -188,6 +200,11 @@ function renderExtraInput(array $campo, mixed $valor, string $name): string
                                 <td><input type="text" name="rows[<?php echo $index; ?>][bloco]" maxlength="40" value="<?php echo stridebr_e($row['bloco'] ?? ''); ?>" placeholder="A"></td>
                                 <td><input type="text" name="rows[<?php echo $index; ?>][cluster]" maxlength="80" value="<?php echo stridebr_e($row['cluster'] ?? ''); ?>" placeholder="4+4+4"></td>
                                 <td><input type="text" name="rows[<?php echo $index; ?>][descanso]" maxlength="40" value="<?php echo stridebr_e($row['descanso'] ?? ''); ?>" placeholder="90 s"></td>
+                                <td><input type="text" name="rows[<?php echo $index; ?>][duracao]" maxlength="40" value="<?php echo stridebr_e($row['duracao'] ?? ''); ?>" placeholder="10 min"></td>
+                                <td><input type="text" name="rows[<?php echo $index; ?>][distancia]" maxlength="40" value="<?php echo stridebr_e($row['distancia'] ?? ''); ?>" placeholder="1000 m"></td>
+                                <td><div class="endurance-target-cell"><select name="rows[<?php echo $index; ?>][alvo_tipo]"><option value="">—</option><?php foreach (['pace'=>'Pace','speed'=>'Velocidade','heart_rate'=>'FC','rpe'=>'RPE','duration'=>'Duração','distance'=>'Distância'] as $key=>$label): ?><option value="<?php echo $key; ?>"<?php echo ($row['alvo_tipo'] ?? '') === $key ? ' selected' : ''; ?>><?php echo $label; ?></option><?php endforeach; ?></select><input type="number" step="any" name="rows[<?php echo $index; ?>][alvo_min]" value="<?php echo stridebr_e($row['alvo_min'] ?? ''); ?>" placeholder="mín"><input type="number" step="any" name="rows[<?php echo $index; ?>][alvo_max]" value="<?php echo stridebr_e($row['alvo_max'] ?? ''); ?>" placeholder="máx"><select name="rows[<?php echo $index; ?>][alvo_unidade]"><option value="">unidade</option><?php foreach (['s_per_km'=>'s/km','km_h'=>'km/h','bpm'=>'bpm','rpe_1_10'=>'RPE','s'=>'s','m'=>'m'] as $key=>$label): ?><option value="<?php echo $key; ?>"<?php echo ($row['alvo_unidade'] ?? '') === $key ? ' selected' : ''; ?>><?php echo $label; ?></option><?php endforeach; ?></select></div></td>
+                                <td><input type="number" min="1" max="99" name="rows[<?php echo $index; ?>][repeticoes_bloco]" value="<?php echo stridebr_e($row['repeticoes_bloco'] ?? ''); ?>" placeholder="5"></td>
+                                <td><div class="endurance-recovery-cell"><input type="number" min="0" name="rows[<?php echo $index; ?>][recuperacao_duracao_s]" value="<?php echo stridebr_e($row['recuperacao_duracao_s'] ?? ''); ?>" placeholder="s"><input type="number" min="0" step="any" name="rows[<?php echo $index; ?>][recuperacao_distancia_m]" value="<?php echo stridebr_e($row['recuperacao_distancia_m'] ?? ''); ?>" placeholder="m"></div></td>
                                 <?php foreach ($camposExtras as $campo): ?>
                                     <td><?php echo renderExtraInput($campo, $valoresExtras[$row['idtreino_exercicio']][$campo['idcampo']] ?? null, "rows[{$index}][extras][{$campo['idcampo']}]"); ?></td>
                                 <?php endforeach; ?>
@@ -201,6 +218,7 @@ function renderExtraInput(array $campo, mixed $valor, string $name): string
                 <template data-exercise-row-template>
                     <tr data-exercise-row>
                         <td data-row-number></td>
+                        <td><select name="rows[__INDEX__][tipo_passo]"><option value="exercise">Exercício</option><option value="warmup">Aquecimento</option><option value="work">Trabalho</option><option value="recovery">Recuperação</option><option value="cooldown">Desaquecimento</option><option value="interval_group">Intervalo</option></select></td>
                         <td>
                             <input type="hidden" name="rows[__INDEX__][idtreino_exercicio]" value="">
                             <select name="rows[__INDEX__][idexercicio]" data-library-select>
@@ -217,6 +235,11 @@ function renderExtraInput(array $campo, mixed $valor, string $name): string
                         <td><input type="text" name="rows[__INDEX__][bloco]" maxlength="40" placeholder="A"></td>
                         <td><input type="text" name="rows[__INDEX__][cluster]" maxlength="80" placeholder="4+4+4"></td>
                         <td><input type="text" name="rows[__INDEX__][descanso]" maxlength="40" placeholder="90 s"></td>
+                        <td><input type="text" name="rows[__INDEX__][duracao]" maxlength="40" placeholder="10 min"></td>
+                        <td><input type="text" name="rows[__INDEX__][distancia]" maxlength="40" placeholder="1000 m"></td>
+                        <td><div class="endurance-target-cell"><select name="rows[__INDEX__][alvo_tipo]"><option value="">—</option><option value="pace">Pace</option><option value="speed">Velocidade</option><option value="heart_rate">FC</option><option value="rpe">RPE</option><option value="duration">Duração</option><option value="distance">Distância</option></select><input type="number" step="any" name="rows[__INDEX__][alvo_min]" placeholder="mín"><input type="number" step="any" name="rows[__INDEX__][alvo_max]" placeholder="máx"><select name="rows[__INDEX__][alvo_unidade]"><option value="">unidade</option><option value="s_per_km">s/km</option><option value="km_h">km/h</option><option value="bpm">bpm</option><option value="rpe_1_10">RPE</option><option value="s">s</option><option value="m">m</option></select></div></td>
+                        <td><input type="number" min="1" max="99" name="rows[__INDEX__][repeticoes_bloco]" placeholder="5"></td>
+                        <td><div class="endurance-recovery-cell"><input type="number" min="0" name="rows[__INDEX__][recuperacao_duracao_s]" placeholder="s"><input type="number" min="0" step="any" name="rows[__INDEX__][recuperacao_distancia_m]" placeholder="m"></div></td>
                         <?php foreach ($camposExtras as $campo): ?><td><?php echo renderExtraInput($campo, null, "rows[__INDEX__][extras][{$campo['idcampo']}]"); ?></td><?php endforeach; ?>
                         <td><textarea name="rows[__INDEX__][observacoes]" rows="2"></textarea></td>
                         <td><button type="button" class="remove-row-button" data-remove-exercise aria-label="<?php echo stridebr_e(stridebr_t('exercise.remove_row')); ?>">×</button></td>

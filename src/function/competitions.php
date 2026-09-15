@@ -106,11 +106,25 @@ function competitionNormalizeInput(PDO $pdo, string $userId, array $input, ?arra
         'pais' => 80,
         'nivel' => 80,
         'observacoes' => 4000,
+        'url_oficial' => 500,
+        'resultado_categoria' => 120,
+        'resultado_medalha' => 120,
+        'resultado_observacoes' => 2000,
     ] as $field => $max) {
         $value = trim((string) ($input[$field] ?? $existing[$field] ?? ''));
         if ($value !== '' && stridebr_length($value) > $max) throw new InvalidArgumentException(stridebr_t('competitions.error.field_too_long'));
         $fields[$field] = $value !== '' ? $value : null;
     }
+
+    $participacao = stridebr_lower(trim((string) ($input['participacao_status'] ?? $existing['participacao_status'] ?? 'interessado')));
+    if (!in_array($participacao, ['interessado','inscrito','participou','cancelou'], true)) throw new InvalidArgumentException('Estado de participação inválido.');
+    $numeric = static function (mixed $value): ?float { $value=str_replace(',', '.', trim((string)$value)); return $value!=='' && is_numeric($value) ? (float)$value : null; };
+    $integer = static function (mixed $value): ?int { $value=trim((string)$value); return $value!=='' && ctype_digit($value) && (int)$value>0 ? (int)$value : null; };
+    $resultTime = $integer($input['resultado_tempo_s'] ?? $existing['resultado_tempo_s'] ?? null);
+    $resultDistance = $numeric($input['resultado_distancia_m'] ?? $existing['resultado_distancia_m'] ?? null);
+    $resultOverall = $integer($input['resultado_posicao_geral'] ?? $existing['resultado_posicao_geral'] ?? null);
+    $resultCategory = $integer($input['resultado_posicao_categoria'] ?? $existing['resultado_posicao_categoria'] ?? null);
+    if ($resultDistance !== null && $resultDistance <= 0) throw new InvalidArgumentException('Distância do resultado inválida.');
 
     return [
         'nome' => $name,
@@ -129,6 +143,15 @@ function competitionNormalizeInput(PDO $pdo, string $userId, array $input, ?arra
         'observacoes' => $fields['observacoes'],
         'status' => $status,
         'origem' => $origin,
+        'participacao_status' => $participacao,
+        'resultado_tempo_s' => $resultTime,
+        'resultado_distancia_m' => $resultDistance,
+        'resultado_posicao_geral' => $resultOverall,
+        'resultado_posicao_categoria' => $resultCategory,
+        'resultado_categoria' => $fields['resultado_categoria'],
+        'resultado_medalha' => $fields['resultado_medalha'],
+        'resultado_observacoes' => $fields['resultado_observacoes'],
+        'url_oficial' => $fields['url_oficial'],
     ];
 }
 
@@ -182,9 +205,9 @@ function competitionCreate(PDO $pdo, string $userId, array $input): array
     if (!competitionTableExists($pdo)) throw new RuntimeException(stridebr_t('competitions.error.unavailable'));
     $data = competitionNormalizeInput($pdo, $userId, $input);
     $id = stridebr_generate_id();
-    $stmt = $pdo->prepare('INSERT INTO competicoes_usuario (idcompeticao,idusuario,nome,data_inicio,data_fim,idmodalidade_principal,idevento,tipo,organizador,local_nome,cidade,estado,pais,nivel,oficialidade,observacoes,status,origem) VALUES (:id,:usuario,:nome,:inicio,:fim,:modalidade,:evento,:tipo,:organizador,:local,:cidade,:estado,:pais,:nivel,:oficialidade,:observacoes,:status,:origem)');
+    $stmt = $pdo->prepare('INSERT INTO competicoes_usuario (idcompeticao,idusuario,nome,data_inicio,data_fim,idmodalidade_principal,idevento,tipo,organizador,local_nome,cidade,estado,pais,nivel,oficialidade,observacoes,status,origem,participacao_status,resultado_tempo_s,resultado_distancia_m,resultado_posicao_geral,resultado_posicao_categoria,resultado_categoria,resultado_medalha,resultado_observacoes,url_oficial) VALUES (:id,:usuario,:nome,:inicio,:fim,:modalidade,:evento,:tipo,:organizador,:local,:cidade,:estado,:pais,:nivel,:oficialidade,:observacoes,:status,:origem,:participacao,:resultado_tempo,:resultado_distancia,:posicao_geral,:posicao_categoria,:categoria_resultado,:medalha,:resultado_observacoes,:url_oficial)');
     $stmt->execute([
-        ':id'=>$id, ':usuario'=>$userId, ':nome'=>$data['nome'], ':inicio'=>$data['data_inicio'], ':fim'=>$data['data_fim'], ':modalidade'=>$data['idmodalidade_principal'], ':evento'=>$data['idevento'], ':tipo'=>$data['tipo'], ':organizador'=>$data['organizador'], ':local'=>$data['local_nome'], ':cidade'=>$data['cidade'], ':estado'=>$data['estado'], ':pais'=>$data['pais'], ':nivel'=>$data['nivel'], ':oficialidade'=>$data['oficialidade'], ':observacoes'=>$data['observacoes'], ':status'=>$data['status'], ':origem'=>$data['origem'],
+        ':id'=>$id, ':usuario'=>$userId, ':nome'=>$data['nome'], ':inicio'=>$data['data_inicio'], ':fim'=>$data['data_fim'], ':modalidade'=>$data['idmodalidade_principal'], ':evento'=>$data['idevento'], ':tipo'=>$data['tipo'], ':organizador'=>$data['organizador'], ':local'=>$data['local_nome'], ':cidade'=>$data['cidade'], ':estado'=>$data['estado'], ':pais'=>$data['pais'], ':nivel'=>$data['nivel'], ':oficialidade'=>$data['oficialidade'], ':observacoes'=>$data['observacoes'], ':status'=>$data['status'], ':origem'=>$data['origem'], ':participacao'=>$data['participacao_status'], ':resultado_tempo'=>$data['resultado_tempo_s'], ':resultado_distancia'=>$data['resultado_distancia_m'], ':posicao_geral'=>$data['resultado_posicao_geral'], ':posicao_categoria'=>$data['resultado_posicao_categoria'], ':categoria_resultado'=>$data['resultado_categoria'], ':medalha'=>$data['resultado_medalha'], ':resultado_observacoes'=>$data['resultado_observacoes'], ':url_oficial'=>$data['url_oficial'],
     ]);
     return competitionGet($pdo, $userId, $id) ?? throw new RuntimeException(stridebr_t('competitions.error.save_failed'));
 }
@@ -214,9 +237,9 @@ function competitionUpdate(PDO $pdo, string $userId, string $competitionId, arra
     $existing = competitionGet($pdo, $userId, $competitionId);
     if ($existing === null) throw new InvalidArgumentException(stridebr_t('competitions.error.not_found'));
     $data = competitionNormalizeInput($pdo, $userId, $input, $existing);
-    $stmt = $pdo->prepare('UPDATE competicoes_usuario SET nome=:nome,data_inicio=:inicio,data_fim=:fim,idmodalidade_principal=:modalidade,idevento=:evento,tipo=:tipo,organizador=:organizador,local_nome=:local,cidade=:cidade,estado=:estado,pais=:pais,nivel=:nivel,oficialidade=:oficialidade,observacoes=:observacoes,status=:status,origem=:origem,data_atualizacao=NOW() WHERE idcompeticao=:id AND idusuario=:usuario');
+    $stmt = $pdo->prepare('UPDATE competicoes_usuario SET nome=:nome,data_inicio=:inicio,data_fim=:fim,idmodalidade_principal=:modalidade,idevento=:evento,tipo=:tipo,organizador=:organizador,local_nome=:local,cidade=:cidade,estado=:estado,pais=:pais,nivel=:nivel,oficialidade=:oficialidade,observacoes=:observacoes,status=:status,origem=:origem,participacao_status=:participacao,resultado_tempo_s=:resultado_tempo,resultado_distancia_m=:resultado_distancia,resultado_posicao_geral=:posicao_geral,resultado_posicao_categoria=:posicao_categoria,resultado_categoria=:categoria_resultado,resultado_medalha=:medalha,resultado_observacoes=:resultado_observacoes,url_oficial=:url_oficial,data_atualizacao=NOW() WHERE idcompeticao=:id AND idusuario=:usuario');
     $stmt->execute([
-        ':nome'=>$data['nome'], ':inicio'=>$data['data_inicio'], ':fim'=>$data['data_fim'], ':modalidade'=>$data['idmodalidade_principal'], ':evento'=>$data['idevento'], ':tipo'=>$data['tipo'], ':organizador'=>$data['organizador'], ':local'=>$data['local_nome'], ':cidade'=>$data['cidade'], ':estado'=>$data['estado'], ':pais'=>$data['pais'], ':nivel'=>$data['nivel'], ':oficialidade'=>$data['oficialidade'], ':observacoes'=>$data['observacoes'], ':status'=>$data['status'], ':origem'=>$data['origem'], ':id'=>$competitionId, ':usuario'=>$userId,
+        ':nome'=>$data['nome'], ':inicio'=>$data['data_inicio'], ':fim'=>$data['data_fim'], ':modalidade'=>$data['idmodalidade_principal'], ':evento'=>$data['idevento'], ':tipo'=>$data['tipo'], ':organizador'=>$data['organizador'], ':local'=>$data['local_nome'], ':cidade'=>$data['cidade'], ':estado'=>$data['estado'], ':pais'=>$data['pais'], ':nivel'=>$data['nivel'], ':oficialidade'=>$data['oficialidade'], ':observacoes'=>$data['observacoes'], ':status'=>$data['status'], ':origem'=>$data['origem'], ':participacao'=>$data['participacao_status'], ':resultado_tempo'=>$data['resultado_tempo_s'], ':resultado_distancia'=>$data['resultado_distancia_m'], ':posicao_geral'=>$data['resultado_posicao_geral'], ':posicao_categoria'=>$data['resultado_posicao_categoria'], ':categoria_resultado'=>$data['resultado_categoria'], ':medalha'=>$data['resultado_medalha'], ':resultado_observacoes'=>$data['resultado_observacoes'], ':url_oficial'=>$data['url_oficial'], ':id'=>$competitionId, ':usuario'=>$userId,
     ]);
     return competitionGet($pdo, $userId, $competitionId) ?? throw new RuntimeException(stridebr_t('competitions.error.save_failed'));
 }

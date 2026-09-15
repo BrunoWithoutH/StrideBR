@@ -116,7 +116,31 @@ function accountExportData(PDO $pdo, string $userId): array
         }
         if (accountTableExists($pdo, 'rotas_atividade')) $item['rota'] = accountFetch($pdo, 'SELECT * FROM rotas_atividade WHERE idregistro=:id', [':id' => $activityId]);
         if (accountTableExists($pdo, 'registros_atividade_equipamentos')) $item['equipamentos'] = accountFetch($pdo, 'SELECT * FROM registros_atividade_equipamentos WHERE idregistro=:id', [':id' => $activityId]);
+        if (accountTableExists($pdo, 'activity_stream_bundles')) {
+            $item['stream_bundle'] = accountFetch($pdo, 'SELECT * FROM activity_stream_bundles WHERE idregistro=:id', [':id' => $activityId]);
+            $item['stream_samples'] = accountFetch($pdo, 'SELECT s.* FROM activity_stream_samples s JOIN activity_stream_bundles b ON b.idbundle=s.idbundle WHERE b.idregistro=:id ORDER BY s.sample_index', [':id' => $activityId]);
+        }
+        if (accountTableExists($pdo, 'activity_laps')) $item['laps'] = accountFetch($pdo, 'SELECT * FROM activity_laps WHERE idregistro=:id ORDER BY lap_order', [':id' => $activityId]);
+        if (accountTableExists($pdo, 'activity_analysis_cache')) $item['analysis_cache'] = accountFetch($pdo, 'SELECT * FROM activity_analysis_cache WHERE idregistro=:id', [':id' => $activityId]);
         $export['atividades'][] = $item;
+    }
+
+    $export['zone_profiles'] = [];
+    if (accountTableExists($pdo, 'zone_profiles')) {
+        $profiles = accountFetch($pdo, 'SELECT * FROM zone_profiles WHERE idusuario=:usuario ORDER BY profile_type,name', [':usuario' => $userId]);
+        foreach ($profiles as $profile) {
+            $profile['zones'] = accountFetch($pdo, 'SELECT * FROM zone_profile_ranges WHERE idprofile=:id ORDER BY zone_order', [':id' => (string) $profile['idprofile']]);
+            $export['zone_profiles'][] = $profile;
+        }
+    }
+
+    $export['pacer_plans'] = [];
+    if (accountTableExists($pdo, 'pacer_plans')) {
+        $plans = accountFetch($pdo, 'SELECT * FROM pacer_plans WHERE idusuario=:usuario ORDER BY data_criacao', [':usuario' => $userId]);
+        foreach ($plans as $plan) {
+            $plan['segments'] = accountFetch($pdo, 'SELECT * FROM pacer_plan_segments WHERE idplan=:id ORDER BY segment_order', [':id' => (string) $plan['idplan']]);
+            $export['pacer_plans'][] = $plan;
+        }
     }
 
     if (accountTableExists($pdo, 'sessoes_treino')) {

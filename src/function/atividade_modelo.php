@@ -541,6 +541,42 @@ function atividadeListarEquipamentos(PDO $pdo, string $idUsuario, bool $somenteA
     return $stmt->fetchAll();
 }
 
+function atividadeDetalheEquipamento(PDO $pdo, string $idUsuario, string $idEquipamento, int $limite = 100, array $filters = []): array
+{
+    $stmt = $pdo->prepare("SELECT eu.*, COUNT(DISTINCT ra.idregistro) AS total_atividades,
+        COALESCE(SUM(CASE WHEN ra.idregistro IS NOT NULL THEN COALESCE(r.distancia_metros,0) ELSE 0 END),0) / 1000.0 + eu.distancia_inicial_km AS distancia_total_km,
+        COALESCE(SUM(CASE WHEN ra.data_fim IS NOT NULL THEN EXTRACT(EPOCH FROM (ra.data_fim-ra.data_inicio)) ELSE 0 END),0) AS duracao_total_s,
+        COALESCE(SUM(COALESCE(r.ganho_elevacao_m,0)),0) AS elevacao_total_m,
+        MIN(ra.data_inicio) AS primeiro_uso, MAX(ra.data_inicio) AS ultimo_uso
+        FROM equipamentos_usuario eu
+        LEFT JOIN registros_atividade_equipamentos rae ON rae.idequipamento=eu.idequipamento
+        LEFT JOIN registros_atividade ra ON ra.idregistro=rae.idregistro AND ra.excluido_em IS NULL AND ra.status='concluido'
+        LEFT JOIN rotas_atividade r ON r.idregistro=ra.idregistro
+        WHERE eu.idusuario=:usuario AND eu.idequipamento=:id
+        GROUP BY eu.idequipamento");
+    $stmt->execute([':usuario'=>$idUsuario, ':id'=>$idEquipamento]);
+    $equipment=$stmt->fetch();
+    if(!$equipment)return [];
+    $where=['rae.idequipamento=:id','ra.idusuario=:usuario','ra.excluido_em IS NULL'];
+    $params=[':id'=>$idEquipamento,':usuario'=>$idUsuario];
+    $q=trim((string)($filters['q']??''));
+    if($q!==''){$where[]='(ra.titulo ILIKE :equipment_q OR m.nome ILIKE :equipment_q)';$params[':equipment_q']='%'.str_replace(['%','_'],['\%','\_'],$q).'%';}
+    $from=trim((string)($filters['from']??''));
+    if($from!==''){if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$from))throw new InvalidArgumentException('Data inicial inválida.');$where[]="(ra.data_inicio AT TIME ZONE 'America/Sao_Paulo')::date >= CAST(:equipment_from AS date)";$params[':equipment_from']=$from;}
+    $to=trim((string)($filters['to']??''));
+    if($to!==''){if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$to))throw new InvalidArgumentException('Data final inválida.');$where[]="(ra.data_inicio AT TIME ZONE 'America/Sao_Paulo')::date <= CAST(:equipment_to AS date)";$params[':equipment_to']=$to;}
+    $sql="SELECT ra.idregistro,ra.titulo,ra.data_inicio,m.nome AS modalidade_nome,m.slug AS modalidade_slug,r.distancia_metros,r.ganho_elevacao_m,
+        CASE WHEN ra.data_fim IS NOT NULL THEN EXTRACT(EPOCH FROM (ra.data_fim-ra.data_inicio)) ELSE NULL END AS duracao_s
+        FROM registros_atividade_equipamentos rae JOIN registros_atividade ra ON ra.idregistro=rae.idregistro JOIN modalidades m ON m.idmodalidade=ra.idmodalidade LEFT JOIN rotas_atividade r ON r.idregistro=ra.idregistro
+        WHERE ".implode(' AND ',$where)." ORDER BY ra.data_inicio DESC LIMIT :limite";
+    $history=$pdo->prepare($sql);
+    foreach($params as $key=>$value)$history->bindValue($key,$value);
+    $history->bindValue(':limite',max(1,min(200,$limite)),PDO::PARAM_INT);$history->execute();
+    $equipment['atividades']=$history->fetchAll();
+    $equipment['historico_filtros']=['q'=>$q,'from'=>$from,'to'=>$to];
+    return $equipment;
+}
+
 function atividadeSalvarEquipamento(PDO $pdo, string $idUsuario, array $payload, ?string $idEquipamento = null): string
 {
     $nome = trim((string) ($payload['nome'] ?? ''));
@@ -550,6 +586,8 @@ function atividadeSalvarEquipamento(PDO $pdo, string $idUsuario, array $payload,
     $observacoes = trim((string) ($payload['observacoes'] ?? ''));
     $dataInicioRaw = trim((string) ($payload['data_inicio_uso'] ?? ''));
     $distanciaRaw = str_replace(',', '.', trim((string) ($payload['distancia_inicial_km'] ?? '0')));
+    $limiteRaw = str_replace(',', '.', trim((string) ($payload['limite_alerta_km'] ?? '')));
+    $dataFimRaw = trim((string) ($payload['data_fim_uso'] ?? ''));
 
     if ($nome === '' || stridebr_length($nome) > 120) {
         throw new InvalidArgumentException('Informe um nome de equipamento com até 120 caracteres.');
@@ -566,6 +604,7 @@ function atividadeSalvarEquipamento(PDO $pdo, string $idUsuario, array $payload,
     if (!is_numeric($distanciaRaw) || (float) $distanciaRaw < 0) {
         throw new InvalidArgumentException('A quilometragem inicial é inválida.');
     }
+    if ($limiteRaw !== '' && (!is_numeric($limiteRaw) || (float) $limiteRaw <= 0)) throw new InvalidArgumentException('O alerta de quilometragem é inválido.');
 
     $dataInicio = null;
     if ($dataInicioRaw !== '') {
@@ -575,12 +614,18 @@ function atividadeSalvarEquipamento(PDO $pdo, string $idUsuario, array $payload,
         }
         $dataInicio = $dataInicioRaw;
     }
+    $dataFim = null;
+    if ($dataFimRaw !== '') {
+        $data = DateTimeImmutable::createFromFormat('!Y-m-d', $dataFimRaw);
+        if (!$data || $data->format('Y-m-d') !== $dataFimRaw) throw new InvalidArgumentException('Data de fim de uso inválida.');
+        $dataFim = $dataFimRaw;
+    }
 
     if ($idEquipamento !== null) {
         $stmt = $pdo->prepare(
             'UPDATE equipamentos_usuario
              SET nome = :nome, categoria = :categoria, marca = :marca, modelo = :modelo,
-                 data_inicio_uso = :data_inicio, distancia_inicial_km = :distancia,
+                 data_inicio_uso = :data_inicio, data_fim_uso = :data_fim, distancia_inicial_km = :distancia, limite_alerta_km = :limite_alerta,
                  observacoes = :observacoes, data_atualizacao = NOW()
              WHERE idequipamento = :id AND idusuario = :usuario'
         );
@@ -589,8 +634,8 @@ function atividadeSalvarEquipamento(PDO $pdo, string $idUsuario, array $payload,
             ':categoria' => $categoria,
             ':marca' => $marca !== '' ? $marca : null,
             ':modelo' => $modelo !== '' ? $modelo : null,
-            ':data_inicio' => $dataInicio,
-            ':distancia' => $distanciaRaw,
+            ':data_inicio' => $dataInicio, ':data_fim' => $dataFim,
+            ':distancia' => $distanciaRaw, ':limite_alerta' => $limiteRaw !== '' ? $limiteRaw : null,
             ':observacoes' => $observacoes !== '' ? $observacoes : null,
             ':id' => $idEquipamento,
             ':usuario' => $idUsuario,
@@ -608,8 +653,8 @@ function atividadeSalvarEquipamento(PDO $pdo, string $idUsuario, array $payload,
     $idEquipamento = atividadeGerarId();
     $stmt = $pdo->prepare(
         'INSERT INTO equipamentos_usuario
-         (idequipamento, idusuario, nome, categoria, marca, modelo, data_inicio_uso, distancia_inicial_km, observacoes)
-         VALUES (:id, :usuario, :nome, :categoria, :marca, :modelo, :data_inicio, :distancia, :observacoes)'
+         (idequipamento, idusuario, nome, categoria, marca, modelo, data_inicio_uso, data_fim_uso, distancia_inicial_km, limite_alerta_km, observacoes)
+         VALUES (:id, :usuario, :nome, :categoria, :marca, :modelo, :data_inicio, :data_fim, :distancia, :limite_alerta, :observacoes)'
     );
     $stmt->execute([
         ':id' => $idEquipamento,
@@ -618,8 +663,8 @@ function atividadeSalvarEquipamento(PDO $pdo, string $idUsuario, array $payload,
         ':categoria' => $categoria,
         ':marca' => $marca !== '' ? $marca : null,
         ':modelo' => $modelo !== '' ? $modelo : null,
-        ':data_inicio' => $dataInicio,
-        ':distancia' => $distanciaRaw,
+        ':data_inicio' => $dataInicio, ':data_fim' => $dataFim,
+        ':distancia' => $distanciaRaw, ':limite_alerta' => $limiteRaw !== '' ? $limiteRaw : null,
         ':observacoes' => $observacoes !== '' ? $observacoes : null,
     ]);
     return $idEquipamento;
@@ -1695,6 +1740,11 @@ function atividadeSalvarRegistro(PDO $pdo, string $idUsuario, array $payload, ?s
             }
         }
 
+        if (!$isUpdate && $idTreinoCronograma !== null && stridebr_db_table_exists($pdo, 'rotas_salvas_atividades')) {
+            require_once __DIR__ . '/routes.php';
+            routeSavedLinkActivityFromWorkout($pdo, $idUsuario, (string) $idRegistro, $idTreinoCronograma);
+        }
+
         $externalCalories = is_numeric($payload['calorias_externas'] ?? null) ? max(0.0, (float) $payload['calorias_externas']) : null;
         $externalCaloriesSource = trim((string) ($payload['fonte_calorias_externa'] ?? '')) ?: null;
         if (stridebr_db_column_exists($pdo, 'registros_atividade', 'calorias_ativas_estimadas')) {
@@ -2217,4 +2267,14 @@ function atividadeListarEquipamentosLeve(PDO $pdo, string $idUsuario, bool $some
     $stmt = $pdo->prepare($sql);
     $stmt->execute([':usuario' => $idUsuario]);
     return $stmt->fetchAll();
+}
+
+function atividadeDefinirExclusaoEstatisticas(PDO $pdo, string $idUsuario, string $idRegistro, bool $excluir): bool
+{
+    $stmt = $pdo->prepare('UPDATE registros_atividade SET excluir_estatisticas=:excluir,data_atualizacao=NOW() WHERE idregistro=:registro AND idusuario=:usuario AND excluido_em IS NULL');
+    $stmt->bindValue(':excluir', $excluir, PDO::PARAM_BOOL);
+    $stmt->bindValue(':registro', $idRegistro);
+    $stmt->bindValue(':usuario', $idUsuario);
+    $stmt->execute();
+    return $stmt->rowCount() > 0;
 }

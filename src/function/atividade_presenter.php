@@ -387,6 +387,7 @@ function atividadeResumoHistorico(PDO $pdo, string $idUsuario, string $modalidad
                 WHERE ra.idusuario = :usuario
                   AND ra.excluido_em IS NULL
                   AND ra.status = 'concluido'
+                  AND COALESCE(ra.excluir_estatisticas,FALSE)=FALSE
                   AND ra.data_inicio >= :inicio
                   AND ra.data_inicio < :fim" . $sportFilter . "
             ),
@@ -449,7 +450,7 @@ function atividadeResumoHistorico(PDO $pdo, string $idUsuario, string $modalidad
     ];
 }
 
-function atividadeListarRegistrosPagina(PDO $pdo, string $idUsuario, int $limite = 20, ?string $cursor = null, string $busca = '', string $modalidadeSlug = ''): array
+function atividadeListarRegistrosPagina(PDO $pdo, string $idUsuario, int $limite = 20, ?string $cursor = null, string $busca = '', string $modalidadeSlug = '', array $filters = []): array
 {
     $limite = max(5, min(50, $limite));
     $params = [':usuario' => $idUsuario];
@@ -476,9 +477,57 @@ function atividadeListarRegistrosPagina(PDO $pdo, string $idUsuario, int $limite
         $where[] = 'm.slug = :modalidade_slug';
         $params[':modalidade_slug'] = $modalidadeSlug;
     }
+    $from = trim((string) ($filters['from'] ?? ''));
+    $to = trim((string) ($filters['to'] ?? ''));
+    if ($from !== '') {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) throw new InvalidArgumentException('Data inicial inválida.');
+        $where[] = "(ra.data_inicio AT TIME ZONE 'America/Sao_Paulo')::date >= CAST(:history_from AS date)";
+        $params[':history_from'] = $from;
+    }
+    if ($to !== '') {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) throw new InvalidArgumentException('Data final inválida.');
+        $where[] = "(ra.data_inicio AT TIME ZONE 'America/Sao_Paulo')::date <= CAST(:history_to AS date)";
+        $params[':history_to'] = $to;
+    }
+    $distanceExpr = "COALESCE((SELECT r.distancia_metros FROM rotas_atividade r WHERE r.idregistro=ra.idregistro), (SELECT SUM(va.valor_normalizado) FROM valores_atividade va JOIN campos_modelo cm2 ON cm2.idcampo=va.idcampo WHERE va.idregistro=ra.idregistro AND lower(cm2.slug)='distancia'), 0)";
+    $durationExpr = "COALESCE(NULLIF(GREATEST(EXTRACT(EPOCH FROM (COALESCE(ra.data_fim,ra.data_inicio)-ra.data_inicio)),0),0), (SELECT SUM(va.valor_normalizado) FROM valores_atividade va JOIN campos_modelo cm3 ON cm3.idcampo=va.idcampo WHERE va.idregistro=ra.idregistro AND lower(cm3.slug)='duracao'), 0)";
+    foreach ([['distance_min_m', '>=', $distanceExpr], ['distance_max_m', '<=', $distanceExpr], ['duration_min_s', '>=', $durationExpr], ['duration_max_s', '<=', $durationExpr]] as [$key, $op, $expr]) {
+        if (($filters[$key] ?? '') === '' || !is_numeric($filters[$key])) continue;
+        $value = max(0.0, (float) $filters[$key]);
+        $param = ':history_' . $key;
+        $where[] = $expr . ' ' . $op . ' ' . $param;
+        $params[$param] = $value;
+    }
+    $equipment = trim((string) ($filters['equipment'] ?? ''));
+    if ($equipment !== '') {
+        $where[] = 'EXISTS (SELECT 1 FROM registros_atividade_equipamentos rae WHERE rae.idregistro=ra.idregistro AND rae.idequipamento=:history_equipment)';
+        $params[':history_equipment'] = $equipment;
+    }
+    $source = trim((string) ($filters['source'] ?? ''));
+    if ($source !== '') {
+        if ($source === 'mobile') $where[] = "ra.origem_provedor='stridebr_android'";
+        elseif ($source === 'strava') $where[] = "ra.origem_provedor='strava'";
+        elseif ($source === 'workout_session') $where[] = 'EXISTS (SELECT 1 FROM sessoes_treino st WHERE st.idregistro_atividade=ra.idregistro)';
+        elseif ($source === 'quick_register') $where[] = "ra.origem='api' AND ra.idtreino_cronograma IS NOT NULL AND NOT EXISTS (SELECT 1 FROM sessoes_treino st WHERE st.idregistro_atividade=ra.idregistro)";
+        elseif (in_array($source, ['manual','gps','importacao','api'], true)) { $where[] = 'ra.origem=:history_source'; $params[':history_source'] = $source; }
+    }
+    foreach (['with_route' => 'EXISTS (SELECT 1 FROM rotas_atividade r WHERE r.idregistro=ra.idregistro)', 'with_hr' => 'EXISTS (SELECT 1 FROM activity_stream_bundles b JOIN activity_stream_samples s ON s.idbundle=b.idbundle WHERE b.idregistro=ra.idregistro AND s.heart_rate_bpm IS NOT NULL)', 'with_analysis' => 'EXISTS (SELECT 1 FROM activity_analysis_cache ac WHERE ac.idregistro=ra.idregistro)', 'workout_linked' => "(ra.idtreino_cronograma IS NOT NULL OR EXISTS (SELECT 1 FROM sessoes_treino st WHERE st.idregistro_atividade=ra.idregistro AND (st.idtreino_origem IS NOT NULL OR st.idagendamento_origem IS NOT NULL)))", 'competition_linked' => 'ra.idcompeticao IS NOT NULL'] as $key => $expr) {
+        $raw = (string) ($filters[$key] ?? '');
+        if ($raw === '1') $where[] = $expr;
+        elseif ($raw === '0') $where[] = 'NOT (' . $expr . ')';
+    }
+    $stats = trim((string) ($filters['stats'] ?? ''));
+    if ($stats === 'included') $where[] = 'COALESCE(ra.excluir_estatisticas,FALSE)=FALSE';
+    elseif ($stats === 'excluded') $where[] = 'COALESCE(ra.excluir_estatisticas,FALSE)=TRUE';
+
     $sql = "SELECT ra.idregistro, ra.idmodelo, ra.titulo, ra.data_inicio, ra.data_fim, ra.esforco_percebido,
+                   ra.origem,ra.origem_provedor,ra.idtreino_cronograma,ra.idcompeticao,COALESCE(ra.excluir_estatisticas,FALSE) AS excluir_estatisticas,
                    m.nome AS modalidade_nome, m.slug AS modalidade_slug, m.metrica_derivada,
-                   tc.codigo AS treino_codigo, tc.foco AS treino_foco
+                   tc.codigo AS treino_codigo, tc.foco AS treino_foco,
+                   EXISTS(SELECT 1 FROM rotas_atividade r WHERE r.idregistro=ra.idregistro) AS has_route,
+                   EXISTS(SELECT 1 FROM activity_stream_bundles b JOIN activity_stream_samples ss ON ss.idbundle=b.idbundle WHERE b.idregistro=ra.idregistro AND ss.heart_rate_bpm IS NOT NULL) AS has_hr,
+                   EXISTS(SELECT 1 FROM activity_analysis_cache ac WHERE ac.idregistro=ra.idregistro) AS has_analysis,
+                   (ra.idtreino_cronograma IS NOT NULL OR EXISTS (SELECT 1 FROM sessoes_treino st WHERE st.idregistro_atividade=ra.idregistro AND (st.idtreino_origem IS NOT NULL OR st.idagendamento_origem IS NOT NULL))) AS has_workout
             FROM registros_atividade ra
             JOIN modalidades m ON m.idmodalidade = ra.idmodalidade
             LEFT JOIN treinos_cronograma tc ON tc.idtreino = ra.idtreino_cronograma
@@ -510,21 +559,19 @@ function atividadeListarRegistrosPagina(PDO $pdo, string $idUsuario, int $limite
                 if ($code === '') $code = trim((string) ($parts[1] ?? ''));
                 if ($focus === '') $focus = trim((string) ($parts[2] ?? ''));
             }
-            $strengthData = [
-                'code' => $code,
-                'focus' => $focus,
-                'exercises' => max(0, (int) ($detail['strength_summary']['exercises'] ?? 0)),
-                'sets' => max(0, (int) ($detail['strength_summary']['sets'] ?? 0)),
-            ];
+            $strengthData = ['code' => $code, 'focus' => $focus, 'exercises' => max(0, (int) ($detail['strength_summary']['exercises'] ?? 0)), 'sets' => max(0, (int) ($detail['strength_summary']['sets'] ?? 0))];
         }
+        $originProvider = trim((string) ($row['origem_provedor'] ?? ''));
+        $origin = $originProvider !== '' ? $originProvider : (string) ($row['origem'] ?? 'manual');
         $items[] = [
             'id' => (string) $row['idregistro'], 'titulo' => (string) ($row['titulo'] ?: $row['modalidade_nome']),
             'modalidade' => (string) $row['modalidade_nome'], 'modalidade_slug' => (string) $row['modalidade_slug'],
             'icone_html' => function_exists('stridebr_sport_icon_html') ? stridebr_sport_icon_html((string) $row['modalidade_slug']) : '',
             'data_iso' => $date->format(DATE_ATOM), 'data' => stridebr_format_date($date), 'dia' => $date->format('d'), 'mes' => atividadeMesAbreviado($date), 'hora' => $date->format('H:i'),
-            'metricas' => atividadeCardMetricas($detail),
-            'strength' => $strengthData,
+            'metricas' => atividadeCardMetricas($detail), 'strength' => $strengthData,
             'esforco' => $row['esforco_percebido'] !== null ? (int) $row['esforco_percebido'] : null,
+            'origin' => $origin, 'has_route' => stridebr_db_bool($row['has_route'] ?? false), 'has_hr' => stridebr_db_bool($row['has_hr'] ?? false), 'has_analysis' => stridebr_db_bool($row['has_analysis'] ?? false),
+            'workout_linked' => stridebr_db_bool($row['has_workout'] ?? false), 'competition_linked' => trim((string) ($row['idcompeticao'] ?? '')) !== '', 'excluded_from_stats' => stridebr_db_bool($row['excluir_estatisticas'] ?? false),
         ];
     }
     $last = end($rows);
@@ -878,9 +925,18 @@ function atividadeDetalheApi(PDO $pdo, string $idRegistro, string $idUsuario): a
             'weight_kg' => is_numeric($registro['peso_calculo_kg'] ?? null) ? round((float) $registro['peso_calculo_kg'], 2) : null,
         ];
     }
+    $streamCapabilities = null;
+    if (function_exists('activityStreamCapabilities') && stridebr_db_table_exists($pdo, 'activity_stream_bundles')) {
+        try {
+            activityStreamEnsureMaterialized($pdo, $idUsuario, $idRegistro);
+            $streamCapabilities = activityStreamCapabilities($pdo, $idUsuario, $idRegistro);
+        } catch (Throwable $streamError) {
+            error_log('StrideBR activity detail capabilities: ' . $streamError->getMessage());
+        }
+    }
     return [
-        'id' => $idRegistro, 'titulo' => stridebr_present_activity_title((string) ($registro['titulo'] ?: $registro['modalidade_nome']), (string) $registro['modalidade_slug']), 'modalidade' => stridebr_sport_name((string) $registro['modalidade_slug'], (string) $registro['modalidade_nome']), 'modalidade_slug' => (string) $registro['modalidade_slug'], 'modalidade_familia_hub' => (string) ($registro['modalidade_familia_hub'] ?? ''), 'modalidade_icone' => function_exists('stridebr_sport_icon_id') ? stridebr_sport_icon_id((string) $registro['modalidade_slug']) : 'track_and_field', 'origem' => (string) ($registro['origem'] ?? ''),
-        'data' => stridebr_format_date($date), 'hora' => $date->format('H:i'), 'visibilidade' => (string) $registro['visibilidade'], 'esforco' => $registro['esforco_percebido'] !== null ? (int) $registro['esforco_percebido'] : null,
+        'id' => $idRegistro, 'titulo' => stridebr_present_activity_title((string) ($registro['titulo'] ?: $registro['modalidade_nome']), (string) $registro['modalidade_slug']), 'modalidade' => stridebr_sport_name((string) $registro['modalidade_slug'], (string) $registro['modalidade_nome']), 'modalidade_slug' => (string) $registro['modalidade_slug'], 'modalidade_familia_hub' => (string) ($registro['modalidade_familia_hub'] ?? ''), 'metrica_derivada' => (string) ($registro['metrica_derivada'] ?? 'nenhuma'), 'modalidade_icone' => function_exists('stridebr_sport_icon_id') ? stridebr_sport_icon_id((string) $registro['modalidade_slug']) : 'track_and_field', 'origem' => (string) ($registro['origem'] ?? ''),
+        'data' => stridebr_format_date($date), 'hora' => $date->format('H:i'), 'visibilidade' => (string) $registro['visibilidade'], 'esforco' => $registro['esforco_percebido'] !== null ? (int) $registro['esforco_percebido'] : null, 'excluded_from_stats' => stridebr_db_bool($registro['excluir_estatisticas'] ?? false),
         'observacoes' => (string) ($registro['observacoes'] ?? ''), 'competicao' => trim((string) ($registro['competicao_nome'] ?? '')), 'idcompeticao' => trim((string) ($registro['idcompeticao'] ?? '')), 'usa_trechos' => !empty($registro['usa_trechos']), 'metricas' => atividadeCardMetricas($registro), 'metricas_compartilhamento' => $shareMetrics, 'energia' => $energy,
         'dados' => $formatValues($registro['record_values'] ?? [], $mainSportContext), 'unidades' => $units, 'serie_equivalente' => $seriesEquivalent, 'equipamentos' => array_map(static fn(array $e): array => ['id' => (string) $e['idequipamento'], 'nome' => (string) $e['nome']], $registro['equipamentos'] ?? []),
         'treino' => (!empty($registro['treino_codigo']) || !empty($registro['treino_foco']) || !empty($registro['treino_titulo'])) ? [
@@ -891,5 +947,6 @@ function atividadeDetalheApi(PDO $pdo, string $idRegistro, string $idUsuario): a
         'rota' => $route,
         'gps_web' => $gpsWeb,
         'forca' => $strength,
+        'stream_capabilities' => $streamCapabilities,
     ];
 }

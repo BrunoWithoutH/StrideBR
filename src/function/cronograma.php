@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/exercise_resolver.php';
+require_once __DIR__ . '/activity_stream_service.php';
+require_once __DIR__ . '/pacer_service.php';
+require_once __DIR__ . '/routes.php';
 
 
 function cronogramaGerarId(int $length = 21): string
@@ -103,6 +106,8 @@ function cronogramaSalvarTreino(PDO $pdo, string $idUsuario, array $payload, ?st
     $codigo = trim((string) ($payload['codigo'] ?? ''));
     $foco = trim((string) ($payload['foco'] ?? ''));
     $idModalidade = cronogramaValidarModalidadeTreino($pdo, $idUsuario, $payload['idmodalidade'] ?? null);
+    $pacerPlanId = pacerPlanValidateForWorkout($pdo, $idUsuario, $payload['pacer_plan_id'] ?? null, (string) ($idModalidade ?? ''));
+    $savedRouteId = routeSavedValidateForWorkout($pdo, $idUsuario, $payload['route_id'] ?? null, (string) ($idModalidade ?? ''));
     $vigenciaInicioRaw = trim((string) ($payload['vigencia_inicio'] ?? ''));
     $vigenciaFimRaw = trim((string) ($payload['vigencia_fim'] ?? ''));
     $vigenciaInicio = $vigenciaInicioRaw !== '' ? DateTimeImmutable::createFromFormat('!Y-m-d', $vigenciaInicioRaw) : new DateTimeImmutable('today');
@@ -144,11 +149,13 @@ function cronogramaSalvarTreino(PDO $pdo, string $idUsuario, array $payload, ?st
         if ($existing === [] || $existing['idcronograma'] !== $idCronograma) {
             throw new RuntimeException(stridebr_t('schedule.workout_not_found'));
         }
-        $stmt = $pdo->prepare('UPDATE treinos_cronograma SET titulo = :titulo, codigo = :codigo, foco = :foco, idmodalidade = :modalidade, descricao = :descricao, dia_semana = :dia, hora_inicio = :inicio, hora_fim = :fim, termina_dia_seguinte = :seguinte, vigencia_inicio = :vigencia_inicio, vigencia_fim = :vigencia_fim, data_atualizacao = NOW() WHERE idtreino = :id');
+        $stmt = $pdo->prepare('UPDATE treinos_cronograma SET titulo = :titulo, codigo = :codigo, foco = :foco, idmodalidade = :modalidade, idpacerplan = :pacer, idrota_salva = :rota, descricao = :descricao, dia_semana = :dia, hora_inicio = :inicio, hora_fim = :fim, termina_dia_seguinte = :seguinte, vigencia_inicio = :vigencia_inicio, vigencia_fim = :vigencia_fim, data_atualizacao = NOW() WHERE idtreino = :id');
         $stmt->bindValue(':titulo', $titulo, PDO::PARAM_STR);
         $stmt->bindValue(':codigo', $codigo !== '' ? $codigo : null, $codigo !== '' ? PDO::PARAM_STR : PDO::PARAM_NULL);
         $stmt->bindValue(':foco', $foco !== '' ? $foco : null, $foco !== '' ? PDO::PARAM_STR : PDO::PARAM_NULL);
         $stmt->bindValue(':modalidade', $idModalidade, $idModalidade !== null ? PDO::PARAM_STR : PDO::PARAM_NULL);
+        $stmt->bindValue(':pacer', $pacerPlanId, $pacerPlanId !== null ? PDO::PARAM_STR : PDO::PARAM_NULL);
+        $stmt->bindValue(':rota', $savedRouteId, $savedRouteId !== null ? PDO::PARAM_STR : PDO::PARAM_NULL);
         $stmt->bindValue(':descricao', trim((string) ($payload['descricao'] ?? '')) ?: null, PDO::PARAM_STR);
         $stmt->bindValue(':dia', $dia, PDO::PARAM_INT);
         $stmt->bindValue(':inicio', $inicio, PDO::PARAM_STR);
@@ -161,7 +168,7 @@ function cronogramaSalvarTreino(PDO $pdo, string $idUsuario, array $payload, ?st
         $id = $idTreino;
     } else {
         $id = cronogramaGerarId();
-        $stmt = $pdo->prepare('INSERT INTO treinos_cronograma (idtreino, idcronograma, titulo, codigo, foco, idmodalidade, descricao, dia_semana, hora_inicio, hora_fim, termina_dia_seguinte, vigencia_inicio, vigencia_fim, ordem) VALUES (:id, :cronograma, :titulo, :codigo, :foco, :modalidade, :descricao, :dia, :inicio, :fim, :seguinte, :vigencia_inicio, :vigencia_fim, :ordem)');
+        $stmt = $pdo->prepare('INSERT INTO treinos_cronograma (idtreino, idcronograma, titulo, codigo, foco, idmodalidade, idpacerplan, idrota_salva, descricao, dia_semana, hora_inicio, hora_fim, termina_dia_seguinte, vigencia_inicio, vigencia_fim, ordem) VALUES (:id, :cronograma, :titulo, :codigo, :foco, :modalidade, :pacer, :rota, :descricao, :dia, :inicio, :fim, :seguinte, :vigencia_inicio, :vigencia_fim, :ordem)');
         $orderStmt = $pdo->prepare('SELECT COALESCE(MAX(ordem), 0) + 1 FROM treinos_cronograma WHERE idcronograma = :cronograma AND dia_semana = :dia');
         $orderStmt->execute([':cronograma' => $idCronograma, ':dia' => $dia]);
         $ordem = (int) $orderStmt->fetchColumn();
@@ -171,6 +178,8 @@ function cronogramaSalvarTreino(PDO $pdo, string $idUsuario, array $payload, ?st
         $stmt->bindValue(':codigo', $codigo !== '' ? $codigo : null, $codigo !== '' ? PDO::PARAM_STR : PDO::PARAM_NULL);
         $stmt->bindValue(':foco', $foco !== '' ? $foco : null, $foco !== '' ? PDO::PARAM_STR : PDO::PARAM_NULL);
         $stmt->bindValue(':modalidade', $idModalidade, $idModalidade !== null ? PDO::PARAM_STR : PDO::PARAM_NULL);
+        $stmt->bindValue(':pacer', $pacerPlanId, $pacerPlanId !== null ? PDO::PARAM_STR : PDO::PARAM_NULL);
+        $stmt->bindValue(':rota', $savedRouteId, $savedRouteId !== null ? PDO::PARAM_STR : PDO::PARAM_NULL);
         $stmt->bindValue(':descricao', trim((string) ($payload['descricao'] ?? '')) ?: null, PDO::PARAM_STR);
         $stmt->bindValue(':dia', $dia, PDO::PARAM_INT);
         $stmt->bindValue(':inicio', $inicio, PDO::PARAM_STR);
@@ -332,7 +341,7 @@ function cronogramaDuplicarTreino(PDO $pdo, string $idUsuario, string $idTreino)
         $exerciseMap = [];
         $exerciseStmt = $pdo->prepare('SELECT * FROM treinos_exercicios WHERE idtreino = :treino ORDER BY ordem');
         $exerciseStmt->execute([':treino' => $idTreino]);
-        $insertExercise = $pdo->prepare('INSERT INTO treinos_exercicios (idtreino_exercicio, idtreino, idexercicio, nome_snapshot, series, repeticoes, carga, bloco, cluster, descanso, observacoes, duracao, distancia, intensidade, rpe, rir, tempo_execucao, cadencia, ordem) VALUES (:id, :treino, :exercicio, :nome, :series, :repeticoes, :carga, :bloco, :cluster, :descanso, :observacoes, :duracao, :distancia, :intensidade, :rpe, :rir, :tempo_execucao, :cadencia, :ordem)');
+        $insertExercise = $pdo->prepare('INSERT INTO treinos_exercicios (idtreino_exercicio, idtreino, idexercicio, nome_snapshot, series, repeticoes, carga, bloco, cluster, descanso, observacoes, duracao, distancia, intensidade, rpe, rir, tempo_execucao, cadencia, tipo_passo, repeticoes_bloco, alvo_tipo, alvo_min, alvo_max, alvo_unidade, recuperacao_duracao_s, recuperacao_distancia_m, ordem) VALUES (:id, :treino, :exercicio, :nome, :series, :repeticoes, :carga, :bloco, :cluster, :descanso, :observacoes, :duracao, :distancia, :intensidade, :rpe, :rir, :tempo_execucao, :cadencia, :tipo_passo, :repeticoes_bloco, :alvo_tipo, :alvo_min, :alvo_max, :alvo_unidade, :recuperacao_duracao_s, :recuperacao_distancia_m, :ordem)');
         foreach ($exerciseStmt->fetchAll() as $exercise) {
             $newExerciseId = cronogramaGerarId();
             $exerciseMap[(string) $exercise['idtreino_exercicio']] = $newExerciseId;
@@ -355,6 +364,14 @@ function cronogramaDuplicarTreino(PDO $pdo, string $idUsuario, string $idTreino)
                 ':rir' => $exercise['rir'] !== null && $exercise['rir'] !== '' ? $exercise['rir'] : null,
                 ':tempo_execucao' => $exercise['tempo_execucao'] ?: null,
                 ':cadencia' => $exercise['cadencia'] ?: null,
+                ':tipo_passo' => $exercise['tipo_passo'] ?? 'exercise',
+                ':repeticoes_bloco' => $exercise['repeticoes_bloco'] ?? null,
+                ':alvo_tipo' => $exercise['alvo_tipo'] ?? null,
+                ':alvo_min' => $exercise['alvo_min'] ?? null,
+                ':alvo_max' => $exercise['alvo_max'] ?? null,
+                ':alvo_unidade' => $exercise['alvo_unidade'] ?? null,
+                ':recuperacao_duracao_s' => $exercise['recuperacao_duracao_s'] ?? null,
+                ':recuperacao_distancia_m' => $exercise['recuperacao_distancia_m'] ?? null,
                 ':ordem' => (int) $exercise['ordem'],
             ]);
         }
@@ -612,6 +629,41 @@ function cronogramaCarregarValoresExtras(PDO $pdo, array $exercicios): array
     return $result;
 }
 
+function cronogramaPassoNomePadrao(string $tipo): string
+{
+    return match ($tipo) {
+        'warmup' => 'Aquecimento',
+        'work' => 'Trecho principal',
+        'recovery' => 'Recuperação',
+        'cooldown' => 'Desaquecimento',
+        'interval_group' => 'Intervalos',
+        default => 'Exercício',
+    };
+}
+
+function cronogramaNormalizarPassoEstruturado(array $row): array
+{
+    $tipo = trim((string) ($row['tipo_passo'] ?? 'exercise'));
+    $permitidos = ['exercise','warmup','work','recovery','cooldown','interval_group'];
+    if (!in_array($tipo, $permitidos, true)) $tipo = 'exercise';
+    $repeticoes = filter_var($row['repeticoes_bloco'] ?? null, FILTER_VALIDATE_INT);
+    if ($repeticoes === false || $repeticoes < 1) $repeticoes = null;
+    if ($repeticoes !== null) $repeticoes = min(99, $repeticoes);
+    $alvoTipo = trim((string) ($row['alvo_tipo'] ?? ''));
+    if (!in_array($alvoTipo, ['pace','speed','heart_rate','rpe','duration','distance'], true)) $alvoTipo = null;
+    $numeric = static function (mixed $value): ?float { $value = str_replace(',', '.', trim((string) $value)); return $value !== '' && is_numeric($value) ? (float) $value : null; };
+    $alvoMin = $numeric($row['alvo_min'] ?? null);
+    $alvoMax = $numeric($row['alvo_max'] ?? null);
+    $alvoUnidade = trim((string) ($row['alvo_unidade'] ?? ''));
+    if (!in_array($alvoUnidade, ['s_per_km','km_h','bpm','rpe_1_10','s','m'], true)) $alvoUnidade = null;
+    $recDur = filter_var($row['recuperacao_duracao_s'] ?? null, FILTER_VALIDATE_INT);
+    if ($recDur === false || $recDur < 0) $recDur = null;
+    $recDist = $numeric($row['recuperacao_distancia_m'] ?? null);
+    if ($recDist !== null && $recDist < 0) $recDist = null;
+    if ($alvoMin !== null && $alvoMax !== null && $alvoMax < $alvoMin) [$alvoMin, $alvoMax] = [$alvoMax, $alvoMin];
+    return ['tipo_passo'=>$tipo,'repeticoes_bloco'=>$repeticoes,'alvo_tipo'=>$alvoTipo,'alvo_min'=>$alvoMin,'alvo_max'=>$alvoMax,'alvo_unidade'=>$alvoUnidade,'recuperacao_duracao_s'=>$recDur,'recuperacao_distancia_m'=>$recDist];
+}
+
 function cronogramaSalvarExercicios(PDO $pdo, string $idTreino, string $idUsuario, array $rows, array $camposExtras): void
 {
     if (cronogramaBuscarTreino($pdo, $idTreino, $idUsuario) === []) {
@@ -638,10 +690,15 @@ function cronogramaSalvarExercicios(PDO $pdo, string $idTreino, string $idUsuari
             $idOccurrence = trim((string) ($row['idtreino_exercicio'] ?? ''));
             $idExercise = trim((string) ($row['idexercicio'] ?? ''));
             $name = cronogramaNormalizarNome((string) ($row['nome'] ?? $row['nome_snapshot'] ?? ''));
-
-            $resolvedExercise = cronogramaResolverExercicioBiblioteca($biblioteca, $idExercise, $name);
-            $idExercise = (string) $resolvedExercise['idexercicio'];
-            $name = (string) $resolvedExercise['nome'];
+            $structured = cronogramaNormalizarPassoEstruturado($row);
+            if ($structured['tipo_passo'] === 'exercise') {
+                $resolvedExercise = cronogramaResolverExercicioBiblioteca($biblioteca, $idExercise, $name);
+                $idExercise = (string) $resolvedExercise['idexercicio'];
+                $name = (string) $resolvedExercise['nome'];
+            } else {
+                $idExercise = '';
+                if ($name === '') $name = cronogramaPassoNomePadrao($structured['tipo_passo']);
+            }
 
             if ($name === '') continue;
             if (stridebr_length($name) > 120) {
@@ -673,8 +730,9 @@ function cronogramaSalvarExercicios(PDO $pdo, string $idTreino, string $idUsuari
                 throw new InvalidArgumentException(stridebr_t('schedule.validation.sets_positive'));
             }
 
+
             if ($idOccurrence !== '' && isset($existing[$idOccurrence])) {
-                $stmt = $pdo->prepare('UPDATE treinos_exercicios SET idexercicio = :exercicio, nome_snapshot = :nome, series = :series, repeticoes = :repeticoes, carga = :carga, bloco = :bloco, cluster = :cluster, descanso = :descanso, observacoes = :observacoes, duracao = :duracao, distancia = :distancia, intensidade = :intensidade, rpe = :rpe, rir = :rir, tempo_execucao = :tempo_execucao, cadencia = :cadencia, ordem = :ordem WHERE idtreino_exercicio = :id AND idtreino = :treino');
+                $stmt = $pdo->prepare('UPDATE treinos_exercicios SET idexercicio = :exercicio, nome_snapshot = :nome, series = :series, repeticoes = :repeticoes, carga = :carga, bloco = :bloco, cluster = :cluster, descanso = :descanso, observacoes = :observacoes, duracao = :duracao, distancia = :distancia, intensidade = :intensidade, rpe = :rpe, rir = :rir, tempo_execucao = :tempo_execucao, cadencia = :cadencia, tipo_passo = :tipo_passo, repeticoes_bloco = :repeticoes_bloco, alvo_tipo = :alvo_tipo, alvo_min = :alvo_min, alvo_max = :alvo_max, alvo_unidade = :alvo_unidade, recuperacao_duracao_s = :recuperacao_duracao_s, recuperacao_distancia_m = :recuperacao_distancia_m, ordem = :ordem WHERE idtreino_exercicio = :id AND idtreino = :treino');
                 $stmt->execute([
                     ':exercicio' => $idExercise !== '' ? $idExercise : null,
                     ':nome' => $name,
@@ -692,13 +750,14 @@ function cronogramaSalvarExercicios(PDO $pdo, string $idTreino, string $idUsuari
                     ':rir' => $rir,
                     ':tempo_execucao' => $tempoExecucao !== '' ? $tempoExecucao : null,
                     ':cadencia' => $cadencia !== '' ? $cadencia : null,
+                    ':tipo_passo' => $structured['tipo_passo'], ':repeticoes_bloco' => $structured['repeticoes_bloco'], ':alvo_tipo' => $structured['alvo_tipo'], ':alvo_min' => $structured['alvo_min'], ':alvo_max' => $structured['alvo_max'], ':alvo_unidade' => $structured['alvo_unidade'], ':recuperacao_duracao_s' => $structured['recuperacao_duracao_s'], ':recuperacao_distancia_m' => $structured['recuperacao_distancia_m'],
                     ':ordem' => $order,
                     ':id' => $idOccurrence,
                     ':treino' => $idTreino,
                 ]);
             } else {
                 $idOccurrence = cronogramaGerarId();
-                $stmt = $pdo->prepare('INSERT INTO treinos_exercicios (idtreino_exercicio, idtreino, idexercicio, nome_snapshot, series, repeticoes, carga, bloco, cluster, descanso, observacoes, duracao, distancia, intensidade, rpe, rir, tempo_execucao, cadencia, ordem) VALUES (:id, :treino, :exercicio, :nome, :series, :repeticoes, :carga, :bloco, :cluster, :descanso, :observacoes, :duracao, :distancia, :intensidade, :rpe, :rir, :tempo_execucao, :cadencia, :ordem)');
+                $stmt = $pdo->prepare('INSERT INTO treinos_exercicios (idtreino_exercicio, idtreino, idexercicio, nome_snapshot, series, repeticoes, carga, bloco, cluster, descanso, observacoes, duracao, distancia, intensidade, rpe, rir, tempo_execucao, cadencia, tipo_passo, repeticoes_bloco, alvo_tipo, alvo_min, alvo_max, alvo_unidade, recuperacao_duracao_s, recuperacao_distancia_m, ordem) VALUES (:id, :treino, :exercicio, :nome, :series, :repeticoes, :carga, :bloco, :cluster, :descanso, :observacoes, :duracao, :distancia, :intensidade, :rpe, :rir, :tempo_execucao, :cadencia, :tipo_passo, :repeticoes_bloco, :alvo_tipo, :alvo_min, :alvo_max, :alvo_unidade, :recuperacao_duracao_s, :recuperacao_distancia_m, :ordem)');
                 $stmt->execute([
                     ':id' => $idOccurrence,
                     ':treino' => $idTreino,
@@ -718,6 +777,7 @@ function cronogramaSalvarExercicios(PDO $pdo, string $idTreino, string $idUsuari
                     ':rir' => $rir,
                     ':tempo_execucao' => $tempoExecucao !== '' ? $tempoExecucao : null,
                     ':cadencia' => $cadencia !== '' ? $cadencia : null,
+                    ':tipo_passo' => $structured['tipo_passo'], ':repeticoes_bloco' => $structured['repeticoes_bloco'], ':alvo_tipo' => $structured['alvo_tipo'], ':alvo_min' => $structured['alvo_min'], ':alvo_max' => $structured['alvo_max'], ':alvo_unidade' => $structured['alvo_unidade'], ':recuperacao_duracao_s' => $structured['recuperacao_duracao_s'], ':recuperacao_distancia_m' => $structured['recuperacao_distancia_m'],
                     ':ordem' => $order,
                 ]);
             }
@@ -843,7 +903,7 @@ function cronogramaCopiarExercicio(PDO $pdo, string $idUsuario, string $idTreino
 
     $pdo->beginTransaction();
     try {
-        $pdo->prepare('INSERT INTO treinos_exercicios (idtreino_exercicio, idtreino, idexercicio, nome_snapshot, series, repeticoes, carga, bloco, cluster, descanso, observacoes, ordem) VALUES (:id, :treino, :exercicio, :nome, :series, :repeticoes, :carga, :bloco, :cluster, :descanso, :observacoes, :ordem)')->execute([
+        $pdo->prepare('INSERT INTO treinos_exercicios (idtreino_exercicio, idtreino, idexercicio, nome_snapshot, series, repeticoes, carga, bloco, cluster, descanso, observacoes, duracao, distancia, intensidade, rpe, rir, tempo_execucao, cadencia, tipo_passo, repeticoes_bloco, alvo_tipo, alvo_min, alvo_max, alvo_unidade, recuperacao_duracao_s, recuperacao_distancia_m, ordem) VALUES (:id, :treino, :exercicio, :nome, :series, :repeticoes, :carga, :bloco, :cluster, :descanso, :observacoes, :duracao, :distancia, :intensidade, :rpe, :rir, :tempo_execucao, :cadencia, :tipo_passo, :repeticoes_bloco, :alvo_tipo, :alvo_min, :alvo_max, :alvo_unidade, :recuperacao_duracao_s, :recuperacao_distancia_m, :ordem)')->execute([
             ':id' => $newId,
             ':treino' => $idTreinoDestino,
             ':exercicio' => $source['idexercicio'],
@@ -854,7 +914,7 @@ function cronogramaCopiarExercicio(PDO $pdo, string $idUsuario, string $idTreino
             ':bloco' => $source['bloco'],
             ':cluster' => $source['cluster'],
             ':descanso' => $source['descanso'],
-            ':observacoes' => $source['observacoes'],
+            ':observacoes' => $source['observacoes'], ':duracao' => $source['duracao'] ?? null, ':distancia' => $source['distancia'] ?? null, ':intensidade' => $source['intensidade'] ?? null, ':rpe' => $source['rpe'] ?? null, ':rir' => $source['rir'] ?? null, ':tempo_execucao' => $source['tempo_execucao'] ?? null, ':cadencia' => $source['cadencia'] ?? null, ':tipo_passo' => $source['tipo_passo'] ?? 'exercise', ':repeticoes_bloco' => $source['repeticoes_bloco'] ?? null, ':alvo_tipo' => $source['alvo_tipo'] ?? null, ':alvo_min' => $source['alvo_min'] ?? null, ':alvo_max' => $source['alvo_max'] ?? null, ':alvo_unidade' => $source['alvo_unidade'] ?? null, ':recuperacao_duracao_s' => $source['recuperacao_duracao_s'] ?? null, ':recuperacao_distancia_m' => $source['recuperacao_distancia_m'] ?? null,
             ':ordem' => (int) $orderStmt->fetchColumn(),
         ]);
 
@@ -1258,17 +1318,23 @@ function cronogramaSalvarExerciciosTreinoModelo(PDO $pdo, string $idUsuario, str
         $pdo->prepare('DELETE FROM treinos_modelo_exercicios WHERE idtreino_modelo = :id')->execute([':id' => $idTreinoModelo]);
         $insert = $pdo->prepare(
             'INSERT INTO treinos_modelo_exercicios
-             (idtreino_modelo_exercicio, idtreino_modelo, idexercicio, nome_snapshot, series, repeticoes, carga, bloco, cluster, descanso, observacoes, duracao, distancia, intensidade, rpe, rir, tempo_execucao, cadencia, ordem)
-             VALUES (:id, :modelo, :exercicio, :nome, :series, :repeticoes, :carga, :bloco, :cluster, :descanso, :observacoes, :duracao, :distancia, :intensidade, :rpe, :rir, :tempo_execucao, :cadencia, :ordem)'
+             (idtreino_modelo_exercicio, idtreino_modelo, idexercicio, nome_snapshot, series, repeticoes, carga, bloco, cluster, descanso, observacoes, duracao, distancia, intensidade, rpe, rir, tempo_execucao, cadencia, tipo_passo, repeticoes_bloco, alvo_tipo, alvo_min, alvo_max, alvo_unidade, recuperacao_duracao_s, recuperacao_distancia_m, ordem)
+             VALUES (:id, :modelo, :exercicio, :nome, :series, :repeticoes, :carga, :bloco, :cluster, :descanso, :observacoes, :duracao, :distancia, :intensidade, :rpe, :rir, :tempo_execucao, :cadencia, :tipo_passo, :repeticoes_bloco, :alvo_tipo, :alvo_min, :alvo_max, :alvo_unidade, :recuperacao_duracao_s, :recuperacao_distancia_m, :ordem)'
         );
         $order = 1;
         foreach ($rows as $row) {
             if (!is_array($row)) continue;
             $idExercicio = trim((string) ($row['idexercicio'] ?? ''));
-            $nome = trim((string) ($row['nome'] ?? $row['nome_snapshot'] ?? ''));
-            $resolvedExercise = cronogramaResolverExercicioBiblioteca($biblioteca, $idExercicio, $nome);
-            $idExercicio = (string) $resolvedExercise['idexercicio'];
-            $nome = (string) $resolvedExercise['nome'];
+            $nome = cronogramaNormalizarNome((string) ($row['nome'] ?? $row['nome_snapshot'] ?? ''));
+            $structured = cronogramaNormalizarPassoEstruturado($row);
+            if ($structured['tipo_passo'] === 'exercise') {
+                $resolvedExercise = cronogramaResolverExercicioBiblioteca($biblioteca, $idExercicio, $nome);
+                $idExercicio = (string) $resolvedExercise['idexercicio'];
+                $nome = (string) $resolvedExercise['nome'];
+            } else {
+                $idExercicio = '';
+                if ($nome === '') $nome = cronogramaPassoNomePadrao($structured['tipo_passo']);
+            }
             if ($nome === '') continue;
             $seriesRaw = trim((string) ($row['series'] ?? ''));
             $series = $seriesRaw !== '' && ctype_digit($seriesRaw) ? max(1, min(99, (int) $seriesRaw)) : null;
@@ -1292,6 +1358,7 @@ function cronogramaSalvarExerciciosTreinoModelo(PDO $pdo, string $idUsuario, str
                 ':rpe' => $rpe, ':rir' => $rir,
                 ':tempo_execucao' => trim((string) ($row['tempo_execucao'] ?? '')) ?: null,
                 ':cadencia' => trim((string) ($row['cadencia'] ?? '')) ?: null,
+                ':tipo_passo' => $structured['tipo_passo'], ':repeticoes_bloco' => $structured['repeticoes_bloco'], ':alvo_tipo' => $structured['alvo_tipo'], ':alvo_min' => $structured['alvo_min'], ':alvo_max' => $structured['alvo_max'], ':alvo_unidade' => $structured['alvo_unidade'], ':recuperacao_duracao_s' => $structured['recuperacao_duracao_s'], ':recuperacao_distancia_m' => $structured['recuperacao_distancia_m'],
                 ':ordem' => $order++,
             ]);
         }
@@ -1346,8 +1413,8 @@ function cronogramaAdicionarTreinoModeloAoCronograma(PDO $pdo, string $idUsuario
         $pdo->prepare('UPDATE treinos_cronograma SET idtreino_modelo = :modelo WHERE idtreino = :treino')->execute([':modelo' => $idTreinoModelo, ':treino' => $idTreino]);
         $insert = $pdo->prepare(
             'INSERT INTO treinos_exercicios
-             (idtreino_exercicio, idtreino, idexercicio, nome_snapshot, series, repeticoes, carga, bloco, cluster, descanso, observacoes, duracao, distancia, intensidade, rpe, rir, tempo_execucao, cadencia, ordem)
-             VALUES (:id, :treino, :exercicio, :nome, :series, :repeticoes, :carga, :bloco, :cluster, :descanso, :observacoes, :duracao, :distancia, :intensidade, :rpe, :rir, :tempo_execucao, :cadencia, :ordem)'
+             (idtreino_exercicio, idtreino, idexercicio, nome_snapshot, series, repeticoes, carga, bloco, cluster, descanso, observacoes, duracao, distancia, intensidade, rpe, rir, tempo_execucao, cadencia, tipo_passo, repeticoes_bloco, alvo_tipo, alvo_min, alvo_max, alvo_unidade, recuperacao_duracao_s, recuperacao_distancia_m, ordem)
+             VALUES (:id, :treino, :exercicio, :nome, :series, :repeticoes, :carga, :bloco, :cluster, :descanso, :observacoes, :duracao, :distancia, :intensidade, :rpe, :rir, :tempo_execucao, :cadencia, :tipo_passo, :repeticoes_bloco, :alvo_tipo, :alvo_min, :alvo_max, :alvo_unidade, :recuperacao_duracao_s, :recuperacao_distancia_m, :ordem)'
         );
         foreach ($modelo['exercicios'] as $exercise) {
             $insert->execute([
@@ -1355,7 +1422,7 @@ function cronogramaAdicionarTreinoModeloAoCronograma(PDO $pdo, string $idUsuario
                 ':nome' => $exercise['nome_snapshot'], ':series' => $exercise['series'], ':repeticoes' => $exercise['repeticoes'], ':carga' => $exercise['carga'],
                 ':bloco' => $exercise['bloco'], ':cluster' => $exercise['cluster'], ':descanso' => $exercise['descanso'], ':observacoes' => $exercise['observacoes'],
                 ':duracao' => $exercise['duracao'], ':distancia' => $exercise['distancia'], ':intensidade' => $exercise['intensidade'], ':rpe' => $exercise['rpe'], ':rir' => $exercise['rir'],
-                ':tempo_execucao' => $exercise['tempo_execucao'], ':cadencia' => $exercise['cadencia'], ':ordem' => $exercise['ordem'],
+                ':tempo_execucao' => $exercise['tempo_execucao'], ':cadencia' => $exercise['cadencia'], ':tipo_passo' => $exercise['tipo_passo'] ?? 'exercise', ':repeticoes_bloco' => $exercise['repeticoes_bloco'] ?? null, ':alvo_tipo' => $exercise['alvo_tipo'] ?? null, ':alvo_min' => $exercise['alvo_min'] ?? null, ':alvo_max' => $exercise['alvo_max'] ?? null, ':alvo_unidade' => $exercise['alvo_unidade'] ?? null, ':recuperacao_duracao_s' => $exercise['recuperacao_duracao_s'] ?? null, ':recuperacao_distancia_m' => $exercise['recuperacao_distancia_m'] ?? null, ':ordem' => $exercise['ordem'],
             ]);
         }
         if ($ownsTransaction) $pdo->commit();
@@ -1585,6 +1652,8 @@ function cronogramaAlterarOcorrencia(PDO $pdo, string $idUsuario, string $idTrei
             'vigencia_inicio' => $novaData, 'vigencia_fim' => $oldEnd ?? '',
         ]);
         if (!empty($workout['idtreino_modelo'])) $pdo->prepare('UPDATE treinos_cronograma SET idtreino_modelo = :modelo WHERE idtreino = :treino')->execute([':modelo' => $workout['idtreino_modelo'], ':treino' => $newId]);
+        if (!empty($workout['idpacerplan'])) $pdo->prepare('UPDATE treinos_cronograma SET idpacerplan = :pacer WHERE idtreino = :treino')->execute([':pacer' => $workout['idpacerplan'], ':treino' => $newId]);
+        if (!empty($workout['idrota_salva'])) $pdo->prepare('UPDATE treinos_cronograma SET idrota_salva = :rota WHERE idtreino = :treino')->execute([':rota' => $workout['idrota_salva'], ':treino' => $newId]);
         $sourceExercises = cronogramaListarTreinoExercicios($pdo, $idTreino, $idUsuario);
         if ($sourceExercises !== []) cronogramaSalvarExercicios($pdo, $newId, $idUsuario, $sourceExercises, []);
         if ($ownsTransaction) $pdo->commit();
@@ -1625,6 +1694,8 @@ function cronogramaEditarTreinoEscopo(PDO $pdo, string $idUsuario, string $idTre
     $fim = trim((string) ($payload['hora_fim'] ?? ''));
     $nextDay = !empty($payload['termina_dia_seguinte']);
     $idModalidade = cronogramaValidarModalidadeTreino($pdo, $idUsuario, $payload['idmodalidade'] ?? null);
+    $requestedPacerPlanId = array_key_exists('pacer_plan_id', $payload) ? pacerPlanValidateForWorkout($pdo, $idUsuario, $payload['pacer_plan_id'], (string) ($idModalidade ?? '')) : (!empty($workout['idpacerplan']) ? (string) $workout['idpacerplan'] : null);
+    $requestedRouteId = array_key_exists('route_id', $payload) ? routeSavedValidateForWorkout($pdo, $idUsuario, $payload['route_id'], (string) ($idModalidade ?? '')) : (!empty($workout['idrota_salva']) ? (string) $workout['idrota_salva'] : null);
     if ($titulo === '' || stridebr_length($titulo) > 120) throw new InvalidArgumentException(stridebr_t('schedule.validation.workout_title'));
     if (stridebr_length($codigo) > 24) throw new InvalidArgumentException(stridebr_t('schedule.validation.code_long'));
     if (stridebr_length($foco) > 80) throw new InvalidArgumentException(stridebr_t('schedule.validation.focus_long'));
@@ -1632,6 +1703,10 @@ function cronogramaEditarTreinoEscopo(PDO $pdo, string $idUsuario, string $idTre
     if (!$nextDay && $fim <= $inicio) throw new InvalidArgumentException(stridebr_t('schedule.validation.end_time'));
     if ($nextDay && $fim > $inicio) throw new InvalidArgumentException(stridebr_t('schedule.validation.overnight_time'));
     if ($scope === 'this') {
+        $currentPacerPlanId = !empty($workout['idpacerplan']) ? (string) $workout['idpacerplan'] : null;
+        if ($requestedPacerPlanId !== $currentPacerPlanId) throw new InvalidArgumentException('A estratégia de pace de uma única ocorrência recorrente não pode ser alterada isoladamente. Use esta e próximas ou todas.');
+        $currentRouteId = !empty($workout['idrota_salva']) ? (string) $workout['idrota_salva'] : null;
+        if ($requestedRouteId !== $currentRouteId) throw new InvalidArgumentException('A rota de uma única ocorrência recorrente não pode ser alterada isoladamente. Use esta e próximas ou todas.');
         $baseModality = trim((string) ($workout['idmodalidade'] ?? ''));
         $normalizedModality = trim((string) ($idModalidade ?? ''));
         $matchesBase = $targetDate->format('Y-m-d') === $dataOriginal
@@ -1664,6 +1739,8 @@ function cronogramaEditarTreinoEscopo(PDO $pdo, string $idUsuario, string $idTre
         $moved = cronogramaAlterarOcorrencia($pdo, $idUsuario, $idTreino, $dataOriginal, $targetDate->format('Y-m-d'), 'future', $inicio);
         $targetWorkout = cronogramaBuscarTreino($pdo, (string)$moved['idtreino'], $idUsuario);
         if ($targetWorkout === []) throw new RuntimeException(stridebr_t('schedule.validation.phase_error'));
+        $payload['pacer_plan_id'] = $requestedPacerPlanId;
+        $payload['route_id'] = $requestedRouteId;
         $payload['vigencia_inicio'] = (string)$targetWorkout['vigencia_inicio'];
         $payload['vigencia_fim'] = (string)($targetWorkout['vigencia_fim'] ?? '');
         $saved = cronogramaSalvarTreino($pdo, $idUsuario, $payload, (string)$moved['idtreino']);

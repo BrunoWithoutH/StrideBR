@@ -196,6 +196,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $flashes = stridebr_take_flashes();
 
+$historyFilters = [
+    'from' => trim((string) ($_GET['from'] ?? '')),
+    'to' => trim((string) ($_GET['to'] ?? '')),
+    'distance_min_m' => trim((string) ($_GET['distance_min_m'] ?? '')),
+    'distance_max_m' => trim((string) ($_GET['distance_max_m'] ?? '')),
+    'duration_min_s' => trim((string) ($_GET['duration_min_s'] ?? '')),
+    'duration_max_s' => trim((string) ($_GET['duration_max_s'] ?? '')),
+    'equipment' => trim((string) ($_GET['equipment'] ?? '')),
+    'source' => trim((string) ($_GET['source'] ?? '')),
+    'with_route' => trim((string) ($_GET['with_route'] ?? '')),
+    'with_hr' => trim((string) ($_GET['with_hr'] ?? '')),
+    'with_analysis' => trim((string) ($_GET['with_analysis'] ?? '')),
+    'workout_linked' => trim((string) ($_GET['workout_linked'] ?? '')),
+    'competition_linked' => trim((string) ($_GET['competition_linked'] ?? '')),
+    'stats' => trim((string) ($_GET['stats'] ?? '')),
+];
+$historySearchValue = trim((string) ($_GET['q'] ?? ''));
+$historySportValue = trim((string) ($_GET['sport'] ?? ''));
+$historyEquipmentOptions = $equipamentos !== [] ? $equipamentos : atividadeListarEquipamentosLeve($pdo, $idUsuario, false);
+
 $initialHistory = ['items' => [], 'next_cursor' => null];
 $initialHistorySummary = null;
 $initialHistoryState = 'error';
@@ -204,8 +224,8 @@ $historyStatementTimeout = min((int) ($dbStatementTimeout ?? 15000), 5000);
 $historyLockTimeout = min((int) ($dbLockTimeout ?? 5000), 1500);
 try {
     $pdo->exec("SET statement_timeout TO '{$historyStatementTimeout}ms'; SET lock_timeout TO '{$historyLockTimeout}ms'");
-    $initialHistory = atividadeListarRegistrosPagina($pdo, $idUsuario, 20);
-    $initialHistorySummary = atividadeResumoHistorico($pdo, $idUsuario);
+    $initialHistory = atividadeListarRegistrosPagina($pdo, $idUsuario, 20, null, $historySearchValue, $historySportValue, $historyFilters);
+    $initialHistorySummary = atividadeResumoHistorico($pdo, $idUsuario, $historySportValue);
     $initialHistory['resumo'] = $initialHistorySummary;
     $initialHistoryState = !empty($initialHistory['items']) ? 'ready' : 'empty';
 } catch (Throwable $historyError) {
@@ -256,6 +276,7 @@ $recentes = array_slice($recentes, 0, 5);
     <link rel="icon" type="image/png" href="<?php echo stridebr_e(stridebr_asset('/assets/img/favicon/favicon.png')); ?>">
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/style.css')); ?>">
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/atividades.css')); ?>">
+    <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/activity-detail-v3.css')); ?>">
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/product-insights.css')); ?>">
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/activity-exchange.css')); ?>">
     <title><?php echo stridebr_e(stridebr_t('activity.page_title')); ?> | StrideBR</title>
@@ -491,8 +512,30 @@ $recentes = array_slice($recentes, 0, 5);
                         <span><?php echo stridebr_e(stridebr_t('activity.recent_first')); ?></span>
                     </div>
                     <div class="activity-history-filters">
-                        <input type="search" placeholder="<?php echo stridebr_e(stridebr_t('activity.search')); ?>" data-history-search autocomplete="off">
-                        <?php echo sportPickerRenderSelect($catalogo, ['name' => 'history_sport', 'value_key' => 'slug', 'empty_label' => stridebr_t('activity.all_sports'), 'native_attributes' => ['data-history-sport' => true]]); ?>
+                        <input type="search" name="q" value="<?php echo stridebr_e($historySearchValue); ?>" placeholder="<?php echo stridebr_e(stridebr_t('activity.search')); ?>" data-history-search autocomplete="off">
+                        <?php echo sportPickerRenderSelect($catalogo, ['name' => 'sport', 'selected' => $historySportValue, 'value_key' => 'slug', 'empty_label' => stridebr_t('activity.all_sports'), 'native_attributes' => ['data-history-sport' => true]]); ?>
+                        <details class="activity-history-more-filters" data-history-filter-menu>
+                            <summary class="activity-secondary-button">Filtros</summary>
+                            <div class="activity-history-filter-panel">
+                                <div class="activity-history-filter-grid">
+                                    <label>De<input type="date" name="from" value="<?php echo stridebr_e($historyFilters['from']); ?>" data-history-filter></label>
+                                    <label>Até<input type="date" name="to" value="<?php echo stridebr_e($historyFilters['to']); ?>" data-history-filter></label>
+                                    <label>Distância mínima (km)<input type="number" min="0" step="0.1" name="distance_min_km" value="<?php echo stridebr_e($historyFilters['distance_min_m'] !== '' ? (string) ((float) $historyFilters['distance_min_m'] / 1000) : ''); ?>" data-history-filter></label>
+                                    <label>Distância máxima (km)<input type="number" min="0" step="0.1" name="distance_max_km" value="<?php echo stridebr_e($historyFilters['distance_max_m'] !== '' ? (string) ((float) $historyFilters['distance_max_m'] / 1000) : ''); ?>" data-history-filter></label>
+                                    <label>Duração mínima (min)<input type="number" min="0" step="1" name="duration_min_min" value="<?php echo stridebr_e($historyFilters['duration_min_s'] !== '' ? (string) ((float) $historyFilters['duration_min_s'] / 60) : ''); ?>" data-history-filter></label>
+                                    <label>Duração máxima (min)<input type="number" min="0" step="1" name="duration_max_min" value="<?php echo stridebr_e($historyFilters['duration_max_s'] !== '' ? (string) ((float) $historyFilters['duration_max_s'] / 60) : ''); ?>" data-history-filter></label>
+                                    <label>Equipamento<select name="equipment" data-history-filter><option value="">Todos</option><?php foreach ($historyEquipmentOptions as $equipment): ?><option value="<?php echo stridebr_e((string) $equipment['idequipamento']); ?>"<?php echo $historyFilters['equipment'] === (string) $equipment['idequipamento'] ? ' selected' : ''; ?>><?php echo stridebr_e((string) $equipment['nome']); ?></option><?php endforeach; ?></select></label>
+                                    <label>Origem<select name="source" data-history-filter><option value="">Todas</option><?php foreach (['manual'=>'Web','mobile'=>'Mobile','gps'=>'GPS','strava'=>'Strava','importacao'=>'Importação','workout_session'=>'Workout Session','quick_register'=>'Registro rápido'] as $value=>$label): ?><option value="<?php echo stridebr_e($value); ?>"<?php echo $historyFilters['source'] === $value ? ' selected' : ''; ?>><?php echo stridebr_e($label); ?></option><?php endforeach; ?></select></label>
+                                    <label>Rota<select name="with_route" data-history-filter><option value="">Qualquer</option><option value="1"<?php echo $historyFilters['with_route']==='1'?' selected':''; ?>>Com rota</option><option value="0"<?php echo $historyFilters['with_route']==='0'?' selected':''; ?>>Sem rota</option></select></label>
+                                    <label>Frequência cardíaca<select name="with_hr" data-history-filter><option value="">Qualquer</option><option value="1"<?php echo $historyFilters['with_hr']==='1'?' selected':''; ?>>Com FC</option><option value="0"<?php echo $historyFilters['with_hr']==='0'?' selected':''; ?>>Sem FC</option></select></label>
+                                    <label>Análise<select name="with_analysis" data-history-filter><option value="">Qualquer</option><option value="1"<?php echo $historyFilters['with_analysis']==='1'?' selected':''; ?>>Com análise</option><option value="0"<?php echo $historyFilters['with_analysis']==='0'?' selected':''; ?>>Sem análise</option></select></label>
+                                    <label>Treino<select name="workout_linked" data-history-filter><option value="">Qualquer</option><option value="1"<?php echo $historyFilters['workout_linked']==='1'?' selected':''; ?>>Vinculado</option><option value="0"<?php echo $historyFilters['workout_linked']==='0'?' selected':''; ?>>Sem vínculo</option></select></label>
+                                    <label>Competição<select name="competition_linked" data-history-filter><option value="">Qualquer</option><option value="1"<?php echo $historyFilters['competition_linked']==='1'?' selected':''; ?>>Vinculada</option><option value="0"<?php echo $historyFilters['competition_linked']==='0'?' selected':''; ?>>Sem vínculo</option></select></label>
+                                    <label>Estatísticas<select name="stats" data-history-filter><option value="">Todas</option><option value="included"<?php echo $historyFilters['stats']==='included'?' selected':''; ?>>Incluídas</option><option value="excluded"<?php echo $historyFilters['stats']==='excluded'?' selected':''; ?>>Excluídas</option></select></label>
+                                </div>
+                                <div class="activity-history-filter-actions"><button type="button" class="activity-secondary-button" data-history-clear-filters>Limpar filtros</button></div>
+                            </div>
+                        </details>
                         <button type="button" class="activity-secondary-button activity-bulk-toggle" data-bulk-toggle aria-pressed="false"><?php echo stridebr_e(stridebr_t('activity.select')); ?></button>
                     </div>
                 </div>
@@ -560,7 +603,7 @@ $recentes = array_slice($recentes, 0, 5);
             <button type="button" class="activity-detail-backdrop" data-close-activity-detail aria-label="<?php echo stridebr_e(stridebr_t('activity.close_details')); ?>"></button>
             <section class="activity-detail-panel" role="dialog" aria-modal="false" aria-labelledby="activity-detail-title" data-activity-detail-panel>
                 <header>
-                    <div><div class="activity-detail-kicker"><span class="activity-detail-kicker-main"><span data-detail-sport><?php echo stridebr_e(stridebr_t('common.activity')); ?></span><span class="activity-detail-visibility" data-detail-visibility></span></span></div><h2 id="activity-detail-title" data-detail-title><?php echo stridebr_e(stridebr_t('common.loading')); ?></h2><p data-detail-date></p></div>
+                    <div><div class="activity-detail-kicker"><span class="activity-detail-kicker-main"><span data-detail-sport><?php echo stridebr_e(stridebr_t('common.activity')); ?></span><span class="activity-detail-visibility" data-detail-visibility></span></span></div><h2 id="activity-detail-title" data-detail-title><?php echo stridebr_e(stridebr_t('common.loading')); ?></h2><p data-detail-date></p><div class="activity-detail-header-metrics" data-detail-header-metrics></div></div>
                     <div class="activity-detail-header-actions"><a class="activity-secondary-button activity-detail-compare" data-detail-compare data-activity-tool="compare" href="/user/comparar-atividades.php"><span aria-hidden="true">↔</span><?php echo stridebr_e(stridebr_t('activity.compare')); ?></a><button type="button" class="activity-secondary-button activity-detail-expand" data-expand-activity-detail><?php echo stridebr_e(stridebr_t('activity.detail.expand')); ?></button><button type="button" data-close-activity-detail aria-label="<?php echo stridebr_e(stridebr_t('common.close')); ?>">×</button></div>
                 </header>
                 <div class="activity-detail-loading" data-detail-loading hidden aria-label="<?php echo stridebr_e(stridebr_t('activity.loading_details')); ?>">
@@ -887,6 +930,8 @@ $recentes = array_slice($recentes, 0, 5);
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/activity-exchange.js')); ?>"></script>
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/activity-route-utils.js')); ?>"></script>
 <?php echo stridebr_maps_runtime_script(); ?>
+<script src="<?php echo stridebr_e(stridebr_asset('/assets/js/web-map.js')); ?>"></script>
+<script src="<?php echo stridebr_e(stridebr_asset('/assets/js/activity-detail-v3.js')); ?>"></script>
 <?php echo atividadeContextoJsConfigScript(); ?>
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/activity-sport-context.js')); ?>"></script>
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/atividades.js')); ?>"></script>

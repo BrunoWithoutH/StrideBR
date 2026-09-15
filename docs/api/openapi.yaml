@@ -13,7 +13,21 @@ paths:
   /meta:
     get:
       responses:
-        '200': { description: Metadados públicos da API }
+        '200':
+          description: Metadados públicos da API e identificador opcional do build de deploy.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [api_version, server_time, build]
+                    properties:
+                      api_version: { type: string, example: v1 }
+                      server_time: { type: string, format: date-time }
+                      build: { type: string, maxLength: 80, nullable: true, description: Valor de STRIDEBR_BUILD quando configurado no deploy. }
   /auth/login:
     post:
       requestBody:
@@ -52,6 +66,190 @@ paths:
       responses:
         '200': { description: Usuário autenticado }
         '401': { $ref: '#/components/responses/Error' }
+  /workout-schedules:
+    get:
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Cronogramas pessoais disponíveis para recorrência.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkoutScheduleContainerListResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+    post:
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WorkoutScheduleContainerRequest' }
+      responses:
+        '201':
+          description: Cronograma pessoal criado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/WorkoutScheduleContainer' }
+        '401': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /workout-templates:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
+        - { name: q, in: query, schema: { type: string } }
+        - { name: sport, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Biblioteca pessoal paginada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkoutTemplateListResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+    post:
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WorkoutTemplateWriteRequest' }
+      responses:
+        '201':
+          description: Template criado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/WorkoutTemplateDetail' }
+        '401': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /workout-templates/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Template completo ownership-scoped.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/WorkoutTemplateDetail' }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WorkoutTemplateWriteRequest' }
+      responses:
+        '200':
+          description: Template atualizado atomicamente.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/WorkoutTemplateDetail' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    delete:
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { description: Template arquivado. }
+        '409': { $ref: '#/components/responses/Error' }
+  /exercises:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: q, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
+        - { name: sport, in: query, schema: { type: string } }
+        - { name: category, in: query, schema: { type: string } }
+        - { name: muscle, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Catálogo do sistema mais exercícios pessoais visíveis ao usuário.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExerciseListResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+    post:
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ExerciseWriteRequest' }
+      responses:
+        '201':
+          description: Exercício personalizado criado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ExerciseCatalogItem' }
+        '422': { $ref: '#/components/responses/Error' }
+  /exercises/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Exercício acessível pelo usuário.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ExerciseCatalogItem' }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ExerciseWriteRequest' }
+      responses:
+        '200':
+          description: Exercício pessoal atualizado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ExerciseCatalogItem' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+    delete:
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { description: Exercício pessoal arquivado. }
+        '403': { $ref: '#/components/responses/Error' }
+  /exercises/{id}/history:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 20, default: 5 } }
+      responses:
+        '200':
+          description: Execuções reais recentes e melhor carga do exercício.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExerciseHistoryResponse' }
+        '404': { $ref: '#/components/responses/Error' }
   /workouts/schedule:
     get:
       security: [{ bearerAuth: [] }]
@@ -69,12 +267,15 @@ paths:
   /workouts:
     post:
       security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: Idempotency-Key, in: header, required: false, schema: { type: string, minLength: 8, maxLength: 128 }, description: Opcional; retries com o mesmo payload retornam o mesmo workout. }
       requestBody:
         required: true
         content:
           application/json:
             schema: { $ref: '#/components/schemas/WorkoutCreateRequest' }
       responses:
+        '200': { description: Replay idempotente de workout previamente criado. }
         '201':
           description: Treino pessoal planejado.
           content:
@@ -146,8 +347,15 @@ paths:
       responses:
         '200': { description: Treino pessoal alterado }
         '401': { $ref: '#/components/responses/Error' }
-        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
+    delete:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Cancelamento lógico do workout/ocorrência. }
+        '409': { $ref: '#/components/responses/Error' }
   /workouts/{id}/complete:
     post:
       security: [{ bearerAuth: [] }]
@@ -164,6 +372,145 @@ paths:
         - { name: id, in: path, required: true, schema: { type: string } }
       responses:
         '200': { description: Ocorrência cancelada logicamente }
+        '401': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /workout-sessions/current:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: history, in: query, schema: { type: integer, enum: [0, 1], default: 1 } }
+      responses:
+        '200':
+          description: Sessão ativa do usuário; data é null quando não existe sessão em andamento.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    allOf: [{ $ref: '#/components/schemas/WorkoutSession' }]
+                    nullable: true
+        '401': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  /workouts/{workout_id}/start:
+    post:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: workout_id, in: path, required: true, description: ID opaco scheduled ou recurring., schema: { type: string } }
+      responses:
+        '201':
+          description: Sessão iniciada com snapshot da prescrição.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/WorkoutSession' }
+        '401': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /workouts/{workout_id}/quick-register:
+    post:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: workout_id, in: path, required: true, schema: { type: string } }
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 8, maxLength: 128 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WorkoutQuickRegisterRequest' }
+      responses:
+        '201': { description: Activity canônica criada e workout conciliado. }
+        '200': { description: Retry idempotente; retorna a Activity já criada. }
+        '401': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /workout-sessions/{session_id}/sets/{set_id}:
+    patch:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: session_id, in: path, required: true, schema: { type: string } }
+        - { name: set_id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WorkoutSessionSetUpdateRequest' }
+      responses:
+        '200': { description: Série atualizada e sessão retornada. }
+        '401': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /workout-sessions/{session_id}/sets/{set_id}/toggle:
+    post:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: session_id, in: path, required: true, schema: { type: string } }
+        - { name: set_id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WorkoutSessionToggleRequest' }
+      responses:
+        '200': { description: Estado da série alterado. }
+        '401': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /workout-sessions/{session_id}/exercises/{exercise_id}/toggle:
+    post:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: session_id, in: path, required: true, schema: { type: string } }
+        - { name: exercise_id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WorkoutSessionToggleRequest' }
+      responses:
+        '200': { description: Exercício e suas séries alterados. }
+        '401': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /workout-sessions/{session_id}/mark-all:
+    post:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: session_id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WorkoutSessionToggleRequest' }
+      responses:
+        '200': { description: Todas as séries/exercícios marcados ou desmarcados. }
+        '401': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /workout-sessions/{session_id}/finish:
+    post:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: session_id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WorkoutSessionFinishRequest' }
+      responses:
+        '200':
+          description: Sessão concluída. Retry após conclusão retorna a mesma Activity com reused=true.
+        '401': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /workout-sessions/{session_id}/cancel:
+    post:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: session_id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Sessão em andamento cancelada sem apagar histórico. }
         '401': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
   /activities:
@@ -218,10 +565,921 @@ paths:
                   data: { $ref: '#/components/schemas/ActivityDetail' }
         '401': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
+  /progress/overview:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/ProgressFrom' }
+        - { $ref: '#/components/parameters/ProgressTo' }
+        - { $ref: '#/components/parameters/ProgressSport' }
+      responses:
+        '200':
+          description: Panorama do período e comparação com o período anterior de mesmo tamanho.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProgressOverviewResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /progress/timeseries:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/ProgressFrom' }
+        - { $ref: '#/components/parameters/ProgressTo' }
+        - { $ref: '#/components/parameters/ProgressSport' }
+        - name: metric
+          in: query
+          required: true
+          schema: { type: string, enum: [activities, duration, distance, elevation_gain, training_load, perceived_effort, strength_volume] }
+        - name: bucket
+          in: query
+          required: true
+          schema: { type: string, enum: [day, week, month] }
+      responses:
+        '200':
+          description: Série temporal agregada. Semanas usam segunda a domingo e o primeiro/último bucket podem ser parciais.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProgressTimeseriesResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /progress/sports:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/ProgressFrom' }
+        - { $ref: '#/components/parameters/ProgressTo' }
+      responses:
+        '200':
+          description: Distribuição das Activities por modalidade canônica.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProgressSportsResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /progress/calendar:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/ProgressFrom' }
+        - { $ref: '#/components/parameters/ProgressTo' }
+        - { $ref: '#/components/parameters/ProgressSport' }
+      responses:
+        '200':
+          description: Heatmap diário leve, sem Activities completas ou pontos GPS.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProgressCalendarResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /progress/cardio:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/ProgressFrom' }
+        - { $ref: '#/components/parameters/ProgressTo' }
+        - name: sport
+          in: query
+          required: true
+          schema: { type: string }
+        - name: bucket
+          in: query
+          schema: { type: string, enum: [day, week, month] }
+      responses:
+        '200':
+          description: Progresso de modalidades com analytics de distância/tempo. O behavior vem de metrica_derivada canônica; pace_km usa pace e velocidade_kmh usa speed.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProgressCardioResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /progress/strength:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/ProgressFrom' }
+        - { $ref: '#/components/parameters/ProgressTo' }
+        - { $ref: '#/components/parameters/ProgressSport' }
+      responses:
+        '200':
+          description: Resumo de força baseado em Activities canônicas e series_exercicio_atividade.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProgressStrengthResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /progress/exercises:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/ProgressFrom' }
+        - { $ref: '#/components/parameters/ProgressTo' }
+        - { name: q, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 30 } }
+      responses:
+        '200':
+          description: Exercícios realizados no período com melhor carga all-time e execução recente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProgressExerciseListResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /progress/exercises/{id}:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { $ref: '#/components/parameters/ProgressFrom' }
+        - { $ref: '#/components/parameters/ProgressTo' }
+      responses:
+        '200':
+          description: Evolução temporal do exercício. best_load_kg usa a mesma definição da Training Platform.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProgressExerciseDetailResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /progress/adherence:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/ProgressFrom' }
+        - { $ref: '#/components/parameters/ProgressTo' }
+        - { $ref: '#/components/parameters/ProgressSport' }
+      responses:
+        '200':
+          description: Planejado versus realizado usando a semântica canônica de planejamento do Core.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProgressAdherenceResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /progress/dashboard:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/ProgressFrom' }
+        - { $ref: '#/components/parameters/ProgressTo' }
+        - { $ref: '#/components/parameters/ProgressSport' }
+      responses:
+        '200':
+          description: Payload composto para a primeira carga da aba Progresso, sem calendário diário.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProgressDashboardResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+
+  /activities/{id}/streams:
+    get:
+      security: [{ bearerAuth: [] }]
+      description: Timeline esportiva privada alinhada por tempo ou distância. O Core não duplica latitude/longitude da rota. Activity antiga sem stream retorna lista vazia quando não há fonte reconstruível.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: streams, in: query, schema: { type: string, example: 'pace,heart_rate,altitude,cadence' }, description: 'Lista CSV. Valores suportados: elapsed_time, moving_time, distance, speed, pace, heart_rate, altitude, elevation, grade, cadence, power, temperature.' }
+        - { name: axis, in: query, schema: { type: string, enum: [time, distance], default: time } }
+        - { name: resolution, in: query, schema: { type: string, enum: [raw, high, medium, low], default: medium } }
+        - { name: max_points, in: query, schema: { type: integer, minimum: 50, maximum: 5000 }, description: Sobrescreve o limite de pontos. raw sem max_points pode retornar até 50000 samples. }
+      responses:
+        '200':
+          description: Samples alinhados para gráfico interativo. Pausas são representadas por elapsed_ms/moving_ms e gaps explícitos.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ActivityStreamReadResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    put:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 8, maxLength: 128 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ActivityStreamBundleInput' }
+      responses:
+        '201':
+          description: Bundle canônico criado ou substituído com nova Idempotency-Key.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ActivityStreamBundleSaveResponse' }
+        '200':
+          description: Retry idempotente do mesmo bundle.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ActivityStreamBundleSaveResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /activities/{id}/splits:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: distance_m, in: query, schema: { type: integer, minimum: 100, maximum: 100000, default: 1000 } }
+      responses:
+        '200':
+          description: Splits automáticos derivados; não são manual laps.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ActivitySplitsResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /activities/{id}/laps:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Voltas persistidas, incluindo origin=manual ou import.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ActivityLapsResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    put:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ActivityLapsWriteRequest' }
+      responses:
+        '200':
+          description: Conjunto de manual laps substituído atomicamente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ActivityLapsResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /activities/{id}/analysis:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: recompute, in: query, schema: { type: integer, enum: [0, 1], default: 0 }, description: 1 força recálculo da versão atual. }
+      responses:
+        '200':
+          description: Análise determinística versionada. Se os dados forem parciais, somente blocos suportados são preenchidos.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ActivityAnalysisResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /zone-profiles:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: profile_type, in: query, schema: { type: string, enum: [heart_rate, pace] } }
+      responses:
+        '200':
+          description: Perfis manuais do usuário; não existe perfil fisiológico inferido automaticamente.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/ZoneProfile' } }
+        '401': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    post:
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ZoneProfileWriteRequest' }
+      responses:
+        '201':
+          description: Perfil criado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ZoneProfile' }
+        '401': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /zone-profiles/{id}:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Perfil do owner.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ZoneProfile' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ZoneProfilePatchRequest' }
+      responses:
+        '200':
+          description: Perfil atualizado e cache de analysis do usuário invalidado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ZoneProfile' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    delete:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '204': { description: Perfil excluído. }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /pacer-plans/generate:
+    post:
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PacerGenerateRequest' }
+      responses:
+        '200':
+          description: Blueprint determinístico não persistido.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/PacerBlueprint' }
+        '401': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /pacer-plans:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [active, archived] } }
+      responses:
+        '200':
+          description: Pacer Plans do owner.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/PacerPlan' } }
+        '401': { $ref: '#/components/responses/Error' }
+    post:
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PacerPlanWriteRequest' }
+      responses:
+        '201':
+          description: Plano persistido.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/PacerPlan' }
+        '401': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /pacer-plans/{id}:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Pacer Plan completo do owner.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/PacerPlan' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PacerPlanPatchRequest' }
+      responses:
+        '200':
+          description: Pacer Plan atualizado; version incrementada.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/PacerPlan' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    delete:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '204': { description: Pacer Plan arquivado. }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /pacer-plans/{id}/evaluate:
+    post:
+      security: [{ bearerAuth: [] }]
+      description: Evaluator de referência para testes/simulação. O runtime durante a atividade deve ser reproduzido localmente pelo Mobile e não chamado continuamente.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PacerEvaluationInput' }
+      responses:
+        '200':
+          description: Guidance determinístico e next_state da state machine.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/PacerEvaluation' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+
 components:
+  parameters:
+    ProgressFrom:
+      name: from
+      in: query
+      description: Data civil inicial inclusiva em America/Sao_Paulo. Deve ser enviada com to. Sem ambos, o default é 28 dias.
+      schema: { type: string, format: date }
+    ProgressTo:
+      name: to
+      in: query
+      description: Data civil final inclusiva em America/Sao_Paulo. Intervalo máximo de 1827 dias.
+      schema: { type: string, format: date }
+    ProgressSport:
+      name: sport
+      in: query
+      description: Slug canônico de modalidade. Ausente significa todas as modalidades.
+      schema: { type: string }
   securitySchemes:
     bearerAuth: { type: http, scheme: bearer }
   schemas:
+    ProgressRange:
+      type: object
+      required: [from, to, days, timezone]
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        days: { type: integer, minimum: 1, maximum: 1827 }
+        timezone: { type: string, enum: [America/Sao_Paulo] }
+    ProgressSport:
+      type: object
+      nullable: true
+      required: [id, slug, name, family, route_capable, derived_metric, behavior]
+      properties:
+        id: { type: string }
+        slug: { type: string }
+        name: { type: string }
+        family: { type: string }
+        route_capable: { type: boolean }
+        derived_metric: { type: string, enum: [nenhuma, pace_km, pace_100m, velocidade_kmh, split_500m] }
+        behavior: { type: string, enum: [pace, speed, pace_100m, distance_time], nullable: true, description: Derivado de metrica_derivada no Core; o cliente não deve inferir pelo slug. }
+    ProgressComparison:
+      type: object
+      nullable: true
+      required: [current, previous, delta, change_percent]
+      properties:
+        current: { type: number, nullable: true }
+        previous: { type: number, nullable: true }
+        delta: { type: number, nullable: true }
+        change_percent: { type: number, nullable: true, description: Null quando previous é zero ou quando algum lado é indisponível. }
+    ProgressUnits:
+      type: object
+      required: [duration, distance, elevation_gain, load, strength_volume, pace, pace_100m, speed, perceived_effort, training_load, count]
+      properties:
+        duration: { type: string, enum: [s] }
+        distance: { type: string, enum: [m] }
+        elevation_gain: { type: string, enum: [m] }
+        load: { type: string, enum: [kg] }
+        strength_volume: { type: string, enum: [kg] }
+        pace: { type: string, enum: [s_per_km] }
+        pace_100m: { type: string, enum: [s_per_100m] }
+        speed: { type: string, enum: [km_h] }
+        perceived_effort: { type: string, enum: [rpe_1_10] }
+        training_load: { type: string, enum: [session_rpe_au] }
+        count: { type: string, enum: [count] }
+    ProgressPreviousRange:
+      type: object
+      required: [from, to, timezone]
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        timezone: { type: string, enum: [America/Sao_Paulo] }
+    ProgressEffortSummary:
+      type: object
+      nullable: true
+      required: [count, average, min, max]
+      properties:
+        count: { type: integer, minimum: 1 }
+        average: { type: number, minimum: 1, maximum: 10 }
+        min: { type: number, minimum: 1, maximum: 10 }
+        max: { type: number, minimum: 1, maximum: 10 }
+    ProgressConsistency:
+      type: object
+      required: [active_days, weeks_with_activity, weeks_in_range, planned_completion_rate]
+      properties:
+        active_days: { type: integer, minimum: 0 }
+        weeks_with_activity: { type: integer, minimum: 0 }
+        weeks_in_range: { type: integer, minimum: 1 }
+        planned_completion_rate: { type: number, minimum: 0, maximum: 1, nullable: true }
+    ProgressOverviewSummary:
+      type: object
+      required: [activities_count, active_days, total_duration_s, total_distance_m, elevation_gain_m, total_training_load, perceived_effort, total_workouts, planned_workouts, completed_workouts, consistency]
+      properties:
+        activities_count: { type: integer, minimum: 0 }
+        active_days: { type: integer, minimum: 0 }
+        total_duration_s: { type: number, minimum: 0, nullable: true }
+        total_distance_m: { type: number, minimum: 0, nullable: true }
+        elevation_gain_m: { type: number, minimum: 0, nullable: true }
+        total_training_load: { type: number, minimum: 0, nullable: true, description: 'duration_minutes × perceived_effort, mesma semântica do Sport Hub Web.' }
+        perceived_effort: { $ref: '#/components/schemas/ProgressEffortSummary' }
+        total_workouts: { type: integer, minimum: 0 }
+        planned_workouts: { type: integer, minimum: 0 }
+        completed_workouts: { type: integer, minimum: 0 }
+        consistency: { $ref: '#/components/schemas/ProgressConsistency' }
+    ProgressOverviewData:
+      type: object
+      required: [range, previous_range, sport, summary, adherence, previous_period, units]
+      properties:
+        range: { $ref: '#/components/schemas/ProgressRange' }
+        previous_range: { $ref: '#/components/schemas/ProgressPreviousRange' }
+        sport: { $ref: '#/components/schemas/ProgressSport' }
+        summary: { $ref: '#/components/schemas/ProgressOverviewSummary' }
+        adherence: { $ref: '#/components/schemas/ProgressAdherenceData' }
+        previous_period:
+          type: object
+          required: [activities_count, active_days, total_duration_s, total_distance_m, elevation_gain_m, total_training_load, perceived_effort_average]
+          properties:
+            activities_count: { $ref: '#/components/schemas/ProgressComparison' }
+            active_days: { $ref: '#/components/schemas/ProgressComparison' }
+            total_duration_s: { $ref: '#/components/schemas/ProgressComparison' }
+            total_distance_m: { $ref: '#/components/schemas/ProgressComparison' }
+            elevation_gain_m: { $ref: '#/components/schemas/ProgressComparison' }
+            total_training_load: { $ref: '#/components/schemas/ProgressComparison' }
+            perceived_effort_average: { $ref: '#/components/schemas/ProgressComparison' }
+        units: { $ref: '#/components/schemas/ProgressUnits' }
+    ProgressOverviewResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/ProgressOverviewData' }
+    ProgressTimeseriesPoint:
+      type: object
+      required: [start, end, value]
+      properties:
+        start: { type: string, format: date }
+        end: { type: string, format: date }
+        value: { type: number, nullable: true, description: Zero representa ausência real no bucket quando a métrica é somável/contável; null representa dado indisponível. }
+    ProgressTimeseriesData:
+      type: object
+      required: [range, sport, metric, bucket, unit, data]
+      properties:
+        range: { $ref: '#/components/schemas/ProgressRange' }
+        sport: { $ref: '#/components/schemas/ProgressSport' }
+        metric: { type: string, enum: [activities, duration, distance, elevation_gain, training_load, perceived_effort, strength_volume] }
+        bucket: { type: string, enum: [day, week, month] }
+        unit: { type: string, enum: [count, s, m, session_rpe_au, rpe_1_10, kg] }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/ProgressTimeseriesPoint' }
+    ProgressTimeseriesResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/ProgressTimeseriesData' }
+    ProgressSportDistributionItem:
+      type: object
+      required: [sport, activities_count, duration_s, distance_m, elevation_gain_m, activities_percentage]
+      properties:
+        sport: { $ref: '#/components/schemas/ProgressSport' }
+        activities_count: { type: integer, minimum: 0 }
+        duration_s: { type: number, minimum: 0, nullable: true }
+        distance_m: { type: number, minimum: 0, nullable: true }
+        elevation_gain_m: { type: number, minimum: 0, nullable: true }
+        activities_percentage: { type: number, minimum: 0, maximum: 100 }
+    ProgressSportsData:
+      type: object
+      required: [range, data, units]
+      properties:
+        range: { $ref: '#/components/schemas/ProgressRange' }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/ProgressSportDistributionItem' }
+        units: { $ref: '#/components/schemas/ProgressUnits' }
+    ProgressSportsResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/ProgressSportsData' }
+    ProgressCalendarDay:
+      type: object
+      required: [date, activities_count, duration_s, distance_m, training_load]
+      properties:
+        date: { type: string, format: date }
+        activities_count: { type: integer, minimum: 0 }
+        duration_s: { type: number, minimum: 0, nullable: true }
+        distance_m: { type: number, minimum: 0, nullable: true }
+        training_load: { type: number, minimum: 0, nullable: true }
+    ProgressCalendarData:
+      type: object
+      required: [range, sport, data, units]
+      properties:
+        range: { $ref: '#/components/schemas/ProgressRange' }
+        sport: { $ref: '#/components/schemas/ProgressSport' }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/ProgressCalendarDay' }
+        units: { $ref: '#/components/schemas/ProgressUnits' }
+    ProgressCalendarResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/ProgressCalendarData' }
+    ProgressCardioSummary:
+      type: object
+      required: [activities_count, active_days, duration_s, distance_m, elevation_gain_m, longest_distance_m, longest_duration_s, average_pace_s_per_km, average_pace_s_per_100m, average_speed_kmh, paired_activities_count]
+      properties:
+        activities_count: { type: integer, minimum: 0 }
+        active_days: { type: integer, minimum: 0 }
+        duration_s: { type: number, minimum: 0, nullable: true }
+        distance_m: { type: number, minimum: 0, nullable: true }
+        elevation_gain_m: { type: number, minimum: 0, nullable: true }
+        longest_distance_m: { type: number, minimum: 0, nullable: true }
+        longest_duration_s: { type: number, minimum: 0, nullable: true }
+        average_pace_s_per_km: { type: number, minimum: 0, nullable: true }
+        average_pace_s_per_100m: { type: number, minimum: 0, nullable: true }
+        average_speed_kmh: { type: number, minimum: 0, nullable: true }
+        paired_activities_count: { type: integer, minimum: 0 }
+    ProgressCardioSeriesPoint:
+      type: object
+      required: [start, end, distance_m, duration_s, average_pace_s_per_km, average_pace_s_per_100m, average_speed_kmh]
+      properties:
+        start: { type: string, format: date }
+        end: { type: string, format: date }
+        distance_m: { type: number, minimum: 0, nullable: true }
+        duration_s: { type: number, minimum: 0, nullable: true }
+        average_pace_s_per_km: { type: number, minimum: 0, nullable: true }
+        average_pace_s_per_100m: { type: number, minimum: 0, nullable: true }
+        average_speed_kmh: { type: number, minimum: 0, nullable: true }
+    ProgressCardioTrends:
+      type: object
+      required: [distance, duration, activities, performance]
+      properties:
+        distance: { $ref: '#/components/schemas/ProgressComparison' }
+        duration: { $ref: '#/components/schemas/ProgressComparison' }
+        activities: { $ref: '#/components/schemas/ProgressComparison' }
+        performance: { $ref: '#/components/schemas/ProgressComparison' }
+    ProgressCardioData:
+      type: object
+      required: [range, sport, behavior, current, previous, trends, bucket, timeseries, units]
+      properties:
+        range: { $ref: '#/components/schemas/ProgressRange' }
+        sport: { $ref: '#/components/schemas/ProgressSport' }
+        behavior: { type: string, enum: [pace, speed, pace_100m, distance_time] }
+        current: { $ref: '#/components/schemas/ProgressCardioSummary' }
+        previous: { $ref: '#/components/schemas/ProgressCardioSummary' }
+        trends: { $ref: '#/components/schemas/ProgressCardioTrends' }
+        bucket: { type: string, enum: [day, week, month] }
+        timeseries:
+          type: array
+          items: { $ref: '#/components/schemas/ProgressCardioSeriesPoint' }
+        units: { $ref: '#/components/schemas/ProgressUnits' }
+    ProgressCardioResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/ProgressCardioData' }
+    ProgressStrengthExerciseDistribution:
+      type: object
+      required: [exercise_id, name, sets_count, reps, volume_load_kg]
+      properties:
+        exercise_id: { type: string, nullable: true }
+        name: { type: string }
+        sets_count: { type: integer, minimum: 0 }
+        reps: { type: integer, minimum: 0 }
+        volume_load_kg: { type: number, minimum: 0, nullable: true }
+    ProgressStrengthMuscleDistribution:
+      type: object
+      required: [name, completed_sets]
+      properties:
+        name: { type: string }
+        completed_sets: { type: integer, minimum: 0 }
+    ProgressStrengthData:
+      type: object
+      required: [range, sport, sessions, active_days, total_sets, completed_sets, total_reps, volume_load_kg, exercises_count, duration_s, distribution_by_exercise, distribution_by_primary_muscle, units]
+      properties:
+        range: { $ref: '#/components/schemas/ProgressRange' }
+        sport: { $ref: '#/components/schemas/ProgressSport' }
+        sessions: { type: integer, minimum: 0 }
+        active_days: { type: integer, minimum: 0 }
+        total_sets: { type: integer, minimum: 0 }
+        completed_sets: { type: integer, minimum: 0 }
+        total_reps: { type: integer, minimum: 0, nullable: true }
+        volume_load_kg: { type: number, minimum: 0, nullable: true, description: Soma de repetitions × load_kg somente em séries concluídas com ambos numéricos. }
+        exercises_count: { type: integer, minimum: 0 }
+        duration_s: { type: number, minimum: 0, nullable: true }
+        distribution_by_exercise:
+          type: array
+          items: { $ref: '#/components/schemas/ProgressStrengthExerciseDistribution' }
+        distribution_by_primary_muscle:
+          type: array
+          items: { $ref: '#/components/schemas/ProgressStrengthMuscleDistribution' }
+        units: { $ref: '#/components/schemas/ProgressUnits' }
+    ProgressStrengthResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/ProgressStrengthData' }
+    ProgressExerciseSummary:
+      type: object
+      required: [exercise_id, name, sessions_count, sets_count, last_performed_at, best_load_kg, recent_load_kg, recent_volume_load_kg]
+      properties:
+        exercise_id: { type: string }
+        name: { type: string }
+        sessions_count: { type: integer, minimum: 0 }
+        sets_count: { type: integer, minimum: 0 }
+        last_performed_at: { type: string, format: date-time }
+        best_load_kg: { type: number, minimum: 0, nullable: true, description: 'MAX(carga_kg) all-time em série concluída, mesma definição da Training Platform.' }
+        recent_load_kg: { type: number, minimum: 0, nullable: true }
+        recent_volume_load_kg: { type: number, minimum: 0, nullable: true }
+    ProgressExerciseListData:
+      type: object
+      required: [range, data, meta]
+      properties:
+        range: { $ref: '#/components/schemas/ProgressRange' }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/ProgressExerciseSummary' }
+        meta:
+          type: object
+          required: [page, limit, has_more]
+          properties:
+            page: { type: integer, minimum: 1 }
+            limit: { type: integer, minimum: 1, maximum: 100 }
+            has_more: { type: boolean }
+    ProgressExerciseListResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/ProgressExerciseListData' }
+    ProgressExerciseSet:
+      type: object
+      required: [number, repetitions, load_kg, rir, rpe, completed]
+      properties:
+        number: { type: integer, minimum: 1 }
+        repetitions: { type: integer, minimum: 0, nullable: true }
+        load_kg: { type: number, minimum: 0, nullable: true }
+        rir: { type: number, nullable: true }
+        rpe: { type: number, nullable: true }
+        completed: { type: boolean }
+    ProgressExerciseSession:
+      type: object
+      required: [activity_id, date, title, sets_count, completed_sets, total_reps, best_load_kg, volume_load_kg, sets]
+      properties:
+        activity_id: { type: string }
+        date: { type: string, format: date }
+        title: { type: string, nullable: true }
+        sets_count: { type: integer, minimum: 0 }
+        completed_sets: { type: integer, minimum: 0 }
+        total_reps: { type: integer, minimum: 0, nullable: true }
+        best_load_kg: { type: number, minimum: 0, nullable: true }
+        volume_load_kg: { type: number, minimum: 0, nullable: true }
+        sets:
+          type: array
+          items: { $ref: '#/components/schemas/ProgressExerciseSet' }
+    ProgressExerciseDetailData:
+      type: object
+      required: [range, exercise, sessions_count, sets_count, best_load_kg, recent_load_kg, recent_volume_load_kg, data, units]
+      properties:
+        range: { $ref: '#/components/schemas/ProgressRange' }
+        exercise:
+          type: object
+          required: [id, name]
+          properties:
+            id: { type: string }
+            name: { type: string }
+        sessions_count: { type: integer, minimum: 0 }
+        sets_count: { type: integer, minimum: 0 }
+        best_load_kg: { type: number, minimum: 0, nullable: true }
+        recent_load_kg: { type: number, minimum: 0, nullable: true }
+        recent_volume_load_kg: { type: number, minimum: 0, nullable: true }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/ProgressExerciseSession' }
+        units: { $ref: '#/components/schemas/ProgressUnits' }
+    ProgressExerciseDetailResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/ProgressExerciseDetailData' }
+    ProgressPlannedActualDuration:
+      type: object
+      required: [planned_duration_s, actual_duration_s, comparable_completed_count]
+      properties:
+        planned_duration_s: { type: number, minimum: 0, nullable: true }
+        actual_duration_s: { type: number, minimum: 0, nullable: true }
+        comparable_completed_count: { type: integer, minimum: 0 }
+    ProgressPlannedActualDistance:
+      type: object
+      required: [planned_distance_m, actual_distance_m, comparable_completed_count]
+      properties:
+        planned_distance_m: { type: number, minimum: 0, nullable: true }
+        actual_distance_m: { type: number, minimum: 0, nullable: true }
+        comparable_completed_count: { type: integer, minimum: 0 }
+      description: Só é comparada para modalidades route-capable com distância planejada e executada disponíveis.
+    ProgressAdherenceData:
+      type: object
+      required: [total_count, planned_count, completed_count, cancelled_count, pending_count, past_due_count, due_count, completion_rate, planned_vs_executed]
+      properties:
+        total_count: { type: integer, minimum: 0 }
+        planned_count: { type: integer, minimum: 0 }
+        completed_count: { type: integer, minimum: 0 }
+        cancelled_count: { type: integer, minimum: 0 }
+        pending_count: { type: integer, minimum: 0 }
+        past_due_count: { type: integer, minimum: 0 }
+        due_count: { type: integer, minimum: 0 }
+        completion_rate: { type: number, minimum: 0, maximum: 1, nullable: true, description: completed_count / (completed_count + past_due_count). Futuro não entra no denominador. }
+        planned_vs_executed:
+          type: object
+          required: [duration, distance]
+          properties:
+            duration: { $ref: '#/components/schemas/ProgressPlannedActualDuration' }
+            distance: { $ref: '#/components/schemas/ProgressPlannedActualDistance' }
+    ProgressAdherenceWithRange:
+      allOf:
+        - { $ref: '#/components/schemas/ProgressAdherenceData' }
+        - type: object
+          required: [range, sport]
+          properties:
+            range: { $ref: '#/components/schemas/ProgressRange' }
+            sport: { $ref: '#/components/schemas/ProgressSport' }
+    ProgressAdherenceResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/ProgressAdherenceWithRange' }
+    ProgressDashboardData:
+      type: object
+      required: [range, overview, timeseries, sports, adherence, strength]
+      properties:
+        range: { $ref: '#/components/schemas/ProgressRange' }
+        overview: { $ref: '#/components/schemas/ProgressOverviewData' }
+        timeseries: { $ref: '#/components/schemas/ProgressTimeseriesData' }
+        sports: { $ref: '#/components/schemas/ProgressSportsData' }
+        adherence: { $ref: '#/components/schemas/ProgressAdherenceWithRange' }
+        strength:
+          nullable: true
+          allOf:
+            - { $ref: '#/components/schemas/ProgressStrengthData' }
+    ProgressDashboardResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/ProgressDashboardData' }
     LoginRequest:
       type: object
       required: [email, password]
@@ -361,28 +1619,62 @@ components:
             workout:
               allOf: [{ $ref: '#/components/schemas/WorkoutLinkRef' }]
               nullable: true
+            stream_capabilities:
+              $ref: '#/components/schemas/ActivityStreamCapabilities'
+    InstitutionalContext:
+      type: object
+      description: Contexto institucional athlete-safe. É uma projection opcional; não contém Membership internals nem dados privados de outros atletas.
+      properties:
+        organization:
+          type: object
+          nullable: true
+          properties:
+            ref: { type: string }
+            name: { type: string }
+        team:
+          type: object
+          nullable: true
+          properties:
+            ref: { type: string }
+            name: { type: string }
+        season:
+          type: object
+          nullable: true
+          properties:
+            ref: { type: string }
+            label: { type: string }
+        training_ref: { type: string, nullable: true, description: Referência opaca da prescription institucional. }
+        planning_block:
+          type: object
+          nullable: true
+          additionalProperties: true
+        competition:
+          type: object
+          nullable: true
+          additionalProperties: true
     WorkoutLinkRef:
       type: object
       required: [id, kind]
       properties:
         id: { type: string }
-        kind: { type: string, enum: [scheduled, recurring] }
+        kind: { type: string, enum: [scheduled, recurring, institutional] }
     WorkoutCalendarItem:
       type: object
       required: [id, kind, title, date, status, source, has_structure, exercise_count]
       properties:
         id: { type: string, description: ID opaco; não deve ser desmontado pelo cliente. }
-        kind: { type: string, enum: [scheduled, recurring] }
+        kind: { type: string, enum: [scheduled, recurring, institutional] }
         title: { type: string }
         sport:
           allOf: [{ $ref: '#/components/schemas/SportRef' }]
           nullable: true
         date: { type: string, format: date }
         time: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$', nullable: true }
+        end_time: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$', nullable: true }
         planned_duration_s: { type: integer, minimum: 60, nullable: true }
         planned_distance_m: { type: number, format: double, minimum: 0, nullable: true }
         status: { type: string, enum: [rascunho, publicado, concluido, cancelado] }
-        source: { type: string, enum: [usuario, treinador, cronograma] }
+        source: { type: string, enum: [usuario, treinador, cronograma, teams] }
         template_id: { type: string, nullable: true }
         updated_at: { type: string, format: date-time, nullable: true }
         has_structure: { type: boolean }
@@ -392,6 +1684,15 @@ components:
           nullable: true
           properties:
             id: { type: string }
+        recurrence:
+          type: object
+          nullable: true
+          additionalProperties: true
+        pacer_plan_id: { type: string, nullable: true }
+        institutional_context:
+          allOf: [{ $ref: '#/components/schemas/InstitutionalContext' }]
+          nullable: true
+        capabilities: { $ref: '#/components/schemas/WorkoutCapabilities' }
     WorkoutScheduleResponse:
       type: object
       required: [data, meta]
@@ -407,41 +1708,69 @@ components:
             to: { type: string, format: date }
             timezone: { type: string, example: America/Sao_Paulo }
             count: { type: integer, minimum: 0 }
+    WorkoutStepTarget:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, enum: [pace, speed, heart_rate, rpe, duration, distance] }
+        min: { type: number, nullable: true }
+        max: { type: number, nullable: true }
+        unit: { type: string, enum: [s_per_km, km_h, bpm, rpe_1_10, s, m], nullable: true }
+    WorkoutStepRecovery:
+      type: object
+      properties:
+        duration_s: { type: integer, minimum: 0, nullable: true }
+        distance_m: { type: number, minimum: 0, nullable: true }
     WorkoutExercise:
       type: object
-      required: [name]
+      required: [name, step_type]
       properties:
         id: { type: string, nullable: true }
         name: { type: string }
         sets: { type: integer, nullable: true }
+        planned_repetitions: { type: string, nullable: true }
+        planned_load: { type: string, nullable: true }
+        actual_repetitions: { type: string, nullable: true }
+        actual_load: { type: string, nullable: true }
         repetitions: { type: string, nullable: true }
         load: { type: string, nullable: true }
         rest: { type: string, nullable: true }
+        rest_s: { type: integer, minimum: 0, nullable: true }
         block: { type: string, nullable: true }
         cluster: { type: string, nullable: true }
         duration: { type: string, nullable: true }
+        duration_s: { type: integer, minimum: 0, nullable: true }
         distance: { type: string, nullable: true }
         intensity: { type: string, nullable: true }
         rpe: { type: number, nullable: true }
         rir: { type: number, nullable: true }
         tempo: { type: string, nullable: true }
         cadence: { type: string, nullable: true }
+        step_type: { type: string, enum: [exercise, warmup, work, recovery, cooldown, interval_group] }
+        repeat_count: { type: integer, minimum: 1, maximum: 99, nullable: true }
+        target:
+          allOf: [{ $ref: '#/components/schemas/WorkoutStepTarget' }]
+          nullable: true
+        recovery:
+          allOf: [{ $ref: '#/components/schemas/WorkoutStepRecovery' }]
+          nullable: true
         notes: { type: string, nullable: true }
         order: { type: integer, nullable: true }
     WorkoutPermissions:
       type: object
-      required: [can_edit, can_reschedule, can_cancel, can_complete]
+      required: [can_edit, can_reschedule, can_cancel, can_delete, can_complete]
       properties:
         can_edit: { type: boolean }
         can_reschedule: { type: boolean }
         can_cancel: { type: boolean }
+        can_delete: { type: boolean }
         can_complete: { type: boolean }
     WorkoutDetail:
       type: object
       required: [id, kind, title, date, timezone, status, source, structure, permissions]
       properties:
         id: { type: string }
-        kind: { type: string, enum: [scheduled, recurring] }
+        kind: { type: string, enum: [scheduled, recurring, institutional] }
         title: { type: string }
         sport:
           allOf: [{ $ref: '#/components/schemas/SportRef' }]
@@ -449,6 +1778,7 @@ components:
         date: { type: string, format: date }
         original_date: { type: string, format: date, nullable: true }
         time: { type: string, nullable: true }
+        end_time: { type: string, nullable: true }
         timezone: { type: string, example: America/Sao_Paulo }
         notes: { type: string, nullable: true }
         objective: { type: string, nullable: true }
@@ -456,7 +1786,7 @@ components:
         planned_distance_m: { type: number, format: double, nullable: true }
         intensity: { type: string, nullable: true }
         status: { type: string, enum: [rascunho, publicado, concluido, cancelado] }
-        source: { type: string, enum: [usuario, treinador, cronograma] }
+        source: { type: string, enum: [usuario, treinador, cronograma, teams] }
         author:
           type: object
           nullable: true
@@ -475,19 +1805,428 @@ components:
             exercises:
               type: array
               items: { $ref: '#/components/schemas/WorkoutExercise' }
+            blocks:
+              type: array
+              items: { $ref: '#/components/schemas/WorkoutBlock' }
         session:
           type: object
           nullable: true
           properties:
             id: { type: string }
+            status: { type: string, enum: [ativo, concluido, cancelado] }
         activity:
           type: object
           nullable: true
           properties:
             id: { type: string }
+        pacer_plan:
+          allOf: [{ $ref: '#/components/schemas/PacerPlan' }]
+          nullable: true
+        institutional_context:
+          allOf: [{ $ref: '#/components/schemas/InstitutionalContext' }]
+          nullable: true
         created_at: { type: string, format: date-time, nullable: true }
         updated_at: { type: string, format: date-time, nullable: true }
+        version: { type: string, nullable: true }
+        recurrence:
+          allOf: [{ $ref: '#/components/schemas/WorkoutRecurrence' }]
+          nullable: true
         permissions: { $ref: '#/components/schemas/WorkoutPermissions' }
+        capabilities: { $ref: '#/components/schemas/WorkoutCapabilities' }
+    WorkoutCapabilities:
+      type: object
+      required: [can_edit, can_reschedule, can_cancel, can_delete, can_complete_manually, can_start_session, can_resume_session, can_quick_register, can_start_gps]
+      properties:
+        can_edit: { type: boolean }
+        can_reschedule: { type: boolean }
+        can_cancel: { type: boolean }
+        can_delete: { type: boolean }
+        can_complete_manually: { type: boolean }
+        can_start_session: { type: boolean }
+        can_resume_session: { type: boolean }
+        can_quick_register: { type: boolean }
+        can_start_gps: { type: boolean }
+        preferred_execution: { type: string, enum: [workout_session, gps, quick_register], nullable: true }
+    WorkoutSessionSet:
+      type: object
+      required: [id, number, completed]
+      properties:
+        id: { type: string }
+        number: { type: integer, minimum: 1 }
+        completed: { type: boolean }
+        planned_repetitions: { type: string, nullable: true }
+        planned_load: { type: string, nullable: true }
+        actual_repetitions: { type: string, nullable: true }
+        actual_load: { type: string, nullable: true }
+        repetitions: { type: string, nullable: true, deprecated: true }
+        load: { type: string, nullable: true, deprecated: true }
+        completed_at: { type: string, format: date-time, nullable: true }
+    WorkoutHistorySet:
+      type: object
+      required: [number, completed]
+      properties:
+        number: { type: integer, minimum: 1 }
+        completed: { type: boolean }
+        repetitions: { type: string, nullable: true }
+        load: { type: string, nullable: true }
+    WorkoutExerciseHistory:
+      type: object
+      nullable: true
+      properties:
+        last:
+          type: object
+          nullable: true
+          properties:
+            date: { type: string, format: date, nullable: true }
+            sets_completed: { type: integer }
+            sets_total: { type: integer }
+            repetitions: { type: string, nullable: true }
+            load: { type: string, nullable: true }
+            sets:
+              type: array
+              items: { $ref: '#/components/schemas/WorkoutHistorySet' }
+        best_load: { type: string, nullable: true }
+    WorkoutSessionExercise:
+      type: object
+      required: [id, name, order, completed, planned, sets]
+      properties:
+        id: { type: string }
+        exercise_id: { type: string, nullable: true }
+        name: { type: string }
+        order: { type: integer }
+        block: { type: string, nullable: true }
+        cluster: { type: string, nullable: true }
+        completed: { type: boolean }
+        planned:
+          type: object
+          properties:
+            sets: { type: integer, nullable: true }
+            repetitions: { type: string, nullable: true }
+            load: { type: string, nullable: true }
+            rest: { type: string, nullable: true }
+            rest_s: { type: integer, minimum: 0, nullable: true }
+            notes: { type: string, nullable: true }
+            duration: { type: string, nullable: true }
+            distance: { type: string, nullable: true }
+            intensity: { type: string, nullable: true }
+            rpe: { type: number, nullable: true }
+            rir: { type: number, nullable: true }
+            tempo: { type: string, nullable: true }
+            cadence: { type: string, nullable: true }
+        sets:
+          type: array
+          items: { $ref: '#/components/schemas/WorkoutSessionSet' }
+        history: { $ref: '#/components/schemas/WorkoutExerciseHistory' }
+    WorkoutSession:
+      type: object
+      required: [id, title, source, status, progress, exercises]
+      example:
+        id: session_01J7X8A0KQ8C2G4YB7R9M1N3P5
+        workout_id: scheduled:workout_01J7X7V9B7N2JH5M6K8Q0R4S1T
+        title: Treino A
+        source: scheduled
+        status: ativo
+        started_at: '2026-09-14T18:02:00-03:00'
+        ended_at: null
+        activity: null
+        schedule: null
+        planned_occurrence:
+          original_date: '2026-09-14'
+          date: '2026-09-14'
+          time: '18:00'
+          timezone: America/Sao_Paulo
+        progress:
+          exercises_completed: 0
+          exercises_total: 1
+          sets_completed: 1
+          sets_total: 4
+        exercises:
+          - id: session_exercise_01J7X8B4D1K9P2Q3R5S6T7V8W9
+            exercise_id: exercise_01J7X700000000000000000001
+            name: Supino reto
+            order: 1
+            block: A
+            cluster: null
+            completed: false
+            planned:
+              sets: 4
+              repetitions: '10'
+              load: '70 kg'
+              rest: '90 s'
+            sets:
+              - id: set_01J7X8C0000000000000000001
+                number: 1
+                completed: true
+                repetitions: '10'
+                load: '70 kg'
+                completed_at: '2026-09-14T18:08:00-03:00'
+            history:
+              last:
+                date: '2026-09-10'
+                sets_completed: 4
+                sets_total: 4
+                repetitions: '10'
+                load: '67.5 kg'
+                sets:
+                  - number: 1
+                    completed: true
+                    repetitions: '10'
+                    load: '67.5 kg'
+              best_load: '75 kg'
+      properties:
+        id: { type: string }
+        workout_id: { type: string, nullable: true }
+        workout:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string }
+            kind: { type: string, enum: [scheduled, recurring, institutional] }
+            source: { type: string, enum: [scheduled, recurring, manual, teams] }
+        institutional_context:
+          allOf: [{ $ref: '#/components/schemas/InstitutionalContext' }]
+          nullable: true
+        title: { type: string }
+        source: { type: string, enum: [scheduled, recurring, manual, teams] }
+        status: { type: string, enum: [ativo, concluido, cancelado] }
+        started_at: { type: string, format: date-time, nullable: true }
+        ended_at: { type: string, format: date-time, nullable: true }
+        activity:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string }
+        schedule:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string }
+            name: { type: string, nullable: true }
+        planned_occurrence:
+          type: object
+          properties:
+            original_date: { type: string, format: date, nullable: true }
+            date: { type: string, format: date, nullable: true }
+            time: { type: string, nullable: true }
+            timezone: { type: string, example: America/Sao_Paulo }
+        progress:
+          type: object
+          required: [exercises_completed, exercises_total, sets_completed, sets_total]
+          properties:
+            exercises_completed: { type: integer }
+            exercises_total: { type: integer }
+            sets_completed: { type: integer }
+            sets_total: { type: integer }
+        exercises:
+          type: array
+          items: { $ref: '#/components/schemas/WorkoutSessionExercise' }
+    WorkoutSessionSetUpdateRequest:
+      type: object
+      properties:
+        repetitions: { type: string, nullable: true }
+        load: { type: string, nullable: true }
+        propagate_load: { type: boolean, default: false }
+        edited_field: { type: string, enum: [load, reps, ''] }
+    WorkoutSessionToggleRequest:
+      type: object
+      properties:
+        completed: { type: boolean, default: true }
+    WorkoutSessionFinishRequest:
+      type: object
+      example:
+        started_at_local: '2026-09-14T18:02'
+        ended_at_local: '2026-09-14T19:05'
+        intensity: moderado
+        feeling: 4
+        notes: Boa execução
+      properties:
+        started_at_local: { type: string, description: YYYY-MM-DDTHH:MM no timezone local America/Sao_Paulo. }
+        ended_at_local: { type: string, description: YYYY-MM-DDTHH:MM no timezone local America/Sao_Paulo. }
+        intensity: { type: string, enum: [leve, moderado, intenso], nullable: true }
+        feeling: { type: integer, minimum: 1, maximum: 5, nullable: true }
+        notes: { type: string, maxLength: 1000, nullable: true }
+    WorkoutQuickRegisterRequest:
+      type: object
+      example:
+        performed_date: '2026-09-14'
+        start_time: '18:00'
+        duration_min: 45
+        intensity: moderado
+        feeling: 4
+        notes: Treino concluído sem acompanhamento série a série
+      properties:
+        performed_date: { type: string, format: date }
+        start_time: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$' }
+        duration_min: { type: integer, minimum: 1, maximum: 1440, nullable: true }
+        intensity: { type: string, enum: [leve, moderado, intenso], nullable: true }
+        feeling: { type: integer, minimum: 1, maximum: 5, nullable: true }
+        notes: { type: string, maxLength: 1000, nullable: true }
+    WorkoutScheduleContainer:
+      type: object
+      required: [id, name, active]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        active: { type: boolean }
+        updated_at: { type: string, format: date-time, nullable: true }
+        version: { type: string, nullable: true }
+    WorkoutScheduleContainerListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/WorkoutScheduleContainer' }
+    ExerciseListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/ExerciseCatalogItem' }
+        meta:
+          type: object
+          properties:
+            page: { type: integer }
+            limit: { type: integer }
+            total: { type: integer }
+            pages: { type: integer }
+    ExerciseHistoryResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              activity_id: { type: string }
+              date: { type: string, format: date }
+              title: { type: string, nullable: true }
+              sets:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    number: { type: integer }
+                    repetitions: { type: integer, nullable: true }
+                    load_kg: { type: number, nullable: true }
+                    rir: { type: number, nullable: true }
+                    rpe: { type: number, nullable: true }
+                    completed: { type: boolean }
+        meta:
+          type: object
+          properties:
+            limit: { type: integer }
+            best_load_kg: { type: number, nullable: true }
+    WorkoutPlannedExerciseInput:
+      type: object
+      description: Para step_type=exercise, exercise_id é obrigatório. Passos estruturados de endurance podem omitir exercise_id e usar name.
+      properties:
+        exercise_id: { type: string, nullable: true }
+        name: { type: string, maxLength: 120, nullable: true }
+        step_type: { type: string, enum: [exercise, warmup, work, recovery, cooldown, interval_group], default: exercise }
+        repeat_count: { type: integer, minimum: 1, maximum: 99, nullable: true }
+        target:
+          allOf: [{ $ref: '#/components/schemas/WorkoutStepTarget' }]
+          nullable: true
+        recovery:
+          allOf: [{ $ref: '#/components/schemas/WorkoutStepRecovery' }]
+          nullable: true
+        sets: { type: integer, minimum: 1, maximum: 99, nullable: true }
+        repetitions: { type: string, maxLength: 40, nullable: true }
+        load: { type: string, maxLength: 40, nullable: true }
+        rest_s: { type: integer, minimum: 0, maximum: 86400, nullable: true }
+        block: { type: string, maxLength: 40, nullable: true }
+        cluster: { type: string, maxLength: 80, nullable: true }
+        duration_s: { type: integer, minimum: 0, maximum: 86400, nullable: true }
+        distance_m: { type: number, minimum: 0, nullable: true }
+        intensity: { type: string, maxLength: 80, nullable: true }
+        rpe: { type: number, minimum: 0, maximum: 10, nullable: true }
+        rir: { type: number, minimum: 0, maximum: 10, nullable: true }
+        tempo: { type: string, maxLength: 40, nullable: true }
+        cadence: { type: string, maxLength: 40, nullable: true }
+        notes: { type: string, nullable: true }
+    WorkoutStructureInput:
+      type: object
+      required: [exercises]
+      properties:
+        exercises:
+          type: array
+          maxItems: 200
+          items: { $ref: '#/components/schemas/WorkoutPlannedExerciseInput' }
+    WorkoutBlock:
+      type: object
+      properties:
+        label: { type: string, nullable: true }
+        exercises:
+          type: array
+          items: { $ref: '#/components/schemas/WorkoutExercise' }
+    WorkoutRecurrence:
+      type: object
+      properties:
+        frequency: { type: string, enum: [weekly] }
+        interval: { type: integer, enum: [1] }
+        weekday: { type: integer, minimum: 0, maximum: 6 }
+        start_date: { type: string, format: date }
+        end_date: { type: string, format: date, nullable: true }
+        scope_options:
+          type: array
+          items: { type: string, enum: [this, future, all] }
+    WorkoutRecurrenceCreate:
+      type: object
+      required: [schedule_id]
+      properties:
+        frequency: { type: string, enum: [weekly], default: weekly }
+        interval: { type: integer, enum: [1], default: 1 }
+        schedule_id: { type: string }
+        start_date: { type: string, format: date }
+        end_date: { type: string, format: date, nullable: true }
+    WorkoutScheduleContainerRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, maxLength: 120 }
+        description: { type: string, nullable: true }
+    WorkoutTemplateWriteRequest:
+      type: object
+      properties:
+        title: { type: string, maxLength: 120 }
+        code: { type: string, nullable: true }
+        sport: { type: string, nullable: true }
+        objective: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        structure: { $ref: '#/components/schemas/WorkoutStructureInput' }
+        if_version: { type: string, nullable: true }
+    ExerciseCatalogItem:
+      type: object
+      required: [id, name, custom, categories, sports, primary_muscles, secondary_muscles]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        custom: { type: boolean }
+        owner_id: { type: string, nullable: true }
+        categories: { type: array, items: { type: object } }
+        sports: { type: array, items: { type: object } }
+        primary_muscles: { type: array, items: { type: string } }
+        secondary_muscles: { type: array, items: { type: string } }
+        media:
+          type: object
+          properties:
+            image_url: { type: string, nullable: true }
+            video_url: { type: string, nullable: true }
+        updated_at: { type: string, format: date-time, nullable: true }
+        version: { type: string, nullable: true }
+    ExerciseWriteRequest:
+      type: object
+      properties:
+        name: { type: string, maxLength: 120 }
+        description: { type: string, nullable: true }
+        category_ids: { type: array, items: { type: string } }
+        sport_ids: { type: array, items: { type: string } }
+        image_url: { type: string, nullable: true }
+        video_url: { type: string, nullable: true }
+        if_version: { type: string, nullable: true }
     WorkoutCreateRequest:
       type: object
       required: [date]
@@ -502,6 +2241,8 @@ components:
         objective: { type: string, maxLength: 160, nullable: true }
         intensity: { type: string, maxLength: 80, nullable: true }
         template_id: { type: string, description: Template pessoal opcional; fornece título/modalidade/estrutura quando omitidos. }
+        structure: { $ref: '#/components/schemas/WorkoutStructureInput' }
+        recurrence: { $ref: '#/components/schemas/WorkoutRecurrenceCreate' }
       anyOf:
         - required: [title, sport]
         - required: [template_id]
@@ -517,6 +2258,9 @@ components:
         notes: { type: string, nullable: true }
         objective: { type: string, maxLength: 160, nullable: true }
         intensity: { type: string, maxLength: 80, nullable: true }
+        structure: { $ref: '#/components/schemas/WorkoutStructureInput' }
+        scope: { type: string, enum: [this, future, all], description: Aplicável a workout recorrente. }
+        if_version: { type: string, nullable: true }
     WorkoutTemplateSummary:
       type: object
       required: [id, title, exercise_count]
@@ -530,6 +2274,7 @@ components:
           nullable: true
         exercise_count: { type: integer, minimum: 0 }
         updated_at: { type: string, format: date-time, nullable: true }
+        version: { type: string, nullable: true }
     WorkoutTemplateDetail:
       allOf:
         - { $ref: '#/components/schemas/WorkoutTemplateSummary' }
@@ -545,6 +2290,9 @@ components:
                 exercises:
                   type: array
                   items: { $ref: '#/components/schemas/WorkoutExercise' }
+                blocks:
+                  type: array
+                  items: { $ref: '#/components/schemas/WorkoutBlock' }
     WorkoutTemplateListResponse:
       type: object
       required: [data, meta]
@@ -610,6 +2358,586 @@ components:
             hide_route_start_m: { type: integer, minimum: 0, maximum: 10000 }
             hide_route_end_m: { type: integer, minimum: 0, maximum: 10000 }
         segments: { type: array }
+        streams:
+          allOf: [{ $ref: '#/components/schemas/ActivityStreamBundleInput' }]
+          nullable: true
+        laps:
+          type: array
+          maxItems: 1000
+          items: { $ref: '#/components/schemas/ActivityLapInput' }
+    ActivityStreamType:
+      type: string
+      enum: [elapsed_time, moving_time, distance, speed, pace, heart_rate, altitude, elevation, grade, cadence, power, temperature]
+    ActivityStreamSampleInput:
+      type: object
+      required: [elapsed_ms]
+      properties:
+        elapsed_ms: { type: integer, format: int64, minimum: 0 }
+        moving_ms: { type: integer, format: int64, minimum: 0, nullable: true }
+        distance_m: { type: number, format: double, minimum: 0, nullable: true }
+        speed_mps: { type: number, format: double, minimum: 0, nullable: true }
+        heart_rate_bpm: { type: integer, minimum: 20, maximum: 260, nullable: true }
+        altitude_m: { type: number, format: double, nullable: true }
+        cadence: { type: number, format: double, minimum: 0, nullable: true }
+        power_w: { type: number, format: double, minimum: 0, nullable: true }
+        temperature_c: { type: number, format: double, nullable: true }
+        horizontal_accuracy_m: { type: number, format: double, minimum: 0, nullable: true }
+        vertical_accuracy_m: { type: number, format: double, minimum: 0, nullable: true }
+        speed_accuracy_mps: { type: number, format: double, minimum: 0, nullable: true }
+        bearing_deg: { type: number, format: double, minimum: 0, maximum: 360, nullable: true }
+        gap_before_ms: { type: integer, format: int64, minimum: 0, nullable: true }
+        route_point_index: { type: integer, minimum: 0, nullable: true }
+        source: { type: string, maxLength: 40, nullable: true, example: wear_os }
+    ActivityStreamBundleInput:
+      type: object
+      required: [schema_version, samples]
+      properties:
+        schema_version: { type: integer, enum: [1] }
+        source: { type: string, maxLength: 40, nullable: true, example: stridebr_android }
+        source_metadata:
+          type: object
+          additionalProperties: true
+        samples:
+          type: array
+          maxItems: 50000
+          items: { $ref: '#/components/schemas/ActivityStreamSampleInput' }
+    ActivityStreamBundleSave:
+      type: object
+      required: [bundle_id, sample_count, available_streams, reused]
+      properties:
+        bundle_id: { type: string }
+        sample_count: { type: integer, minimum: 0 }
+        available_streams:
+          type: array
+          items: { $ref: '#/components/schemas/ActivityStreamType' }
+        reused: { type: boolean }
+    ActivityStreamBundleSaveResponse:
+      type: object
+      properties:
+        data: { $ref: '#/components/schemas/ActivityStreamBundleSave' }
+    ActivityStreamCapabilities:
+      type: object
+      required: [has_streams, available_streams, has_analysis, has_heart_rate, has_cadence, has_laps]
+      properties:
+        has_streams: { type: boolean }
+        available_streams:
+          type: array
+          items: { $ref: '#/components/schemas/ActivityStreamType' }
+        has_analysis: { type: boolean }
+        has_heart_rate: { type: boolean }
+        has_cadence: { type: boolean }
+        has_laps: { type: boolean }
+    ActivityStreamGap:
+      type: object
+      required: [at_elapsed_ms, gap_ms]
+      properties:
+        at_elapsed_ms: { type: integer, format: int64, minimum: 0 }
+        gap_ms: { type: integer, format: int64, minimum: 0 }
+    ActivityStreamSample:
+      type: object
+      required: [x, elapsed_ms]
+      properties:
+        x: { type: number, format: double, description: Eixo comum; ms quando axis=time e m quando axis=distance. }
+        elapsed_ms: { type: integer, format: int64, minimum: 0 }
+        moving_ms: { type: integer, format: int64, minimum: 0, nullable: true }
+        distance_m: { type: number, format: double, minimum: 0, nullable: true }
+        elapsed_time: { type: integer, format: int64, nullable: true }
+        moving_time: { type: integer, format: int64, nullable: true }
+        distance: { type: number, format: double, nullable: true }
+        speed: { type: number, format: double, nullable: true, description: m/s }
+        pace: { type: number, format: double, nullable: true, description: s/km }
+        pace_s_per_km: { type: number, format: double, nullable: true, description: Alias explícito em s/km retornado quando o stream pace é solicitado. }
+        heart_rate: { type: number, format: double, nullable: true, description: bpm }
+        altitude: { type: number, format: double, nullable: true, description: m }
+        elevation: { type: number, format: double, nullable: true, description: Alias de altitude em m na timeline. }
+        grade: { type: number, format: double, nullable: true, description: percent }
+        cadence: { type: number, format: double, nullable: true, description: spm em corrida/caminhada e rpm em ciclismo. }
+        power: { type: number, format: double, nullable: true, description: W }
+        temperature: { type: number, format: double, nullable: true, description: Celsius }
+    ActivityStreamReadData:
+      type: object
+      required: [activity_id, schema_version, axis, axis_unit, resolution, requested_streams, available_streams, sample_count_raw, sample_count_returned, gaps, samples, units]
+      properties:
+        activity_id: { type: string }
+        sport: { $ref: '#/components/schemas/SportRef' }
+        schema_version: { type: integer, enum: [1] }
+        axis: { type: string, enum: [time, distance] }
+        axis_unit: { type: string, enum: [ms, m] }
+        resolution: { type: string, enum: [raw, high, medium, low] }
+        requested_streams: { type: array, items: { $ref: '#/components/schemas/ActivityStreamType' } }
+        available_streams: { type: array, items: { $ref: '#/components/schemas/ActivityStreamType' } }
+        source: { type: string, nullable: true }
+        sample_count_raw: { type: integer, minimum: 0 }
+        sample_count_returned: { type: integer, minimum: 0 }
+        gaps: { type: array, items: { $ref: '#/components/schemas/ActivityStreamGap' } }
+        samples: { type: array, items: { $ref: '#/components/schemas/ActivityStreamSample' } }
+        units:
+          type: object
+          additionalProperties: { type: string }
+    ActivityStreamReadResponse:
+      type: object
+      properties:
+        data: { $ref: '#/components/schemas/ActivityStreamReadData' }
+    ActivitySplit:
+      type: object
+      required: [index, partial, start_distance_m, end_distance_m, distance_m]
+      properties:
+        index: { type: integer, minimum: 1 }
+        partial: { type: boolean }
+        start_distance_m: { type: number, format: double }
+        end_distance_m: { type: number, format: double }
+        distance_m: { type: number, format: double }
+        elapsed_duration_s: { type: number, format: double, nullable: true }
+        moving_duration_s: { type: number, format: double, nullable: true }
+        pace_s_per_km: { type: number, format: double, nullable: true }
+        speed_kmh: { type: number, format: double, nullable: true }
+        heart_rate_avg_bpm: { type: number, format: double, nullable: true }
+        heart_rate_max_bpm: { type: number, format: double, nullable: true }
+        elevation_gain_m: { type: number, format: double, nullable: true }
+        elevation_loss_m: { type: number, format: double, nullable: true }
+        cadence_avg: { type: number, format: double, nullable: true }
+        power_avg_w: { type: number, format: double, nullable: true }
+    ActivitySplitsData:
+      type: object
+      required: [activity_id, split_distance_m, data]
+      properties:
+        activity_id: { type: string }
+        sport: { $ref: '#/components/schemas/SportRef' }
+        split_distance_m: { type: integer }
+        data: { type: array, items: { $ref: '#/components/schemas/ActivitySplit' } }
+        units: { type: object, additionalProperties: { type: string } }
+    ActivitySplitsResponse:
+      type: object
+      properties:
+        data: { $ref: '#/components/schemas/ActivitySplitsData' }
+    ActivityLapInput:
+      type: object
+      required: [start_elapsed_ms, end_elapsed_ms]
+      properties:
+        start_elapsed_ms: { type: integer, format: int64, minimum: 0 }
+        end_elapsed_ms: { type: integer, format: int64, minimum: 0 }
+        start_moving_ms: { type: integer, format: int64, minimum: 0, nullable: true }
+        end_moving_ms: { type: integer, format: int64, minimum: 0, nullable: true }
+        start_distance_m: { type: number, format: double, minimum: 0, nullable: true }
+        end_distance_m: { type: number, format: double, minimum: 0, nullable: true }
+        metadata: { type: object, additionalProperties: true }
+    ActivityLap:
+      allOf:
+        - { $ref: '#/components/schemas/ActivitySplit' }
+        - type: object
+          required: [id, order, origin, start_elapsed_ms, end_elapsed_ms]
+          properties:
+            id: { type: string }
+            order: { type: integer, minimum: 1 }
+            origin: { type: string, enum: [manual, import] }
+            start_elapsed_ms: { type: integer, format: int64 }
+            end_elapsed_ms: { type: integer, format: int64 }
+            source: { type: string, nullable: true }
+    ActivityLapsWriteRequest:
+      type: object
+      required: [laps]
+      properties:
+        source: { type: string, maxLength: 40, nullable: true }
+        laps:
+          type: array
+          maxItems: 1000
+          items: { $ref: '#/components/schemas/ActivityLapInput' }
+    ActivityLapsData:
+      type: object
+      required: [activity_id, data]
+      properties:
+        activity_id: { type: string }
+        sport: { $ref: '#/components/schemas/SportRef' }
+        data: { type: array, items: { $ref: '#/components/schemas/ActivityLap' } }
+    ActivityLapsResponse:
+      type: object
+      properties:
+        data: { $ref: '#/components/schemas/ActivityLapsData' }
+    ZoneRangeInput:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string, maxLength: 20, example: Z2 }
+        label: { type: string, maxLength: 60, nullable: true }
+        min: { type: number, format: double, nullable: true }
+        max: { type: number, format: double, nullable: true }
+    ZoneRange:
+      allOf:
+        - { $ref: '#/components/schemas/ZoneRangeInput' }
+        - type: object
+          properties:
+            id: { type: string }
+            order: { type: integer, minimum: 1 }
+    ZoneProfileWriteRequest:
+      type: object
+      required: [profile_type, name, zones]
+      properties:
+        profile_type: { type: string, enum: [heart_rate, pace] }
+        name: { type: string, minLength: 1, maxLength: 80 }
+        sport: { type: string, nullable: true, description: ID ou slug; null cria perfil global. }
+        is_default: { type: boolean, default: false }
+        zones:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/ZoneRangeInput' }
+    ZoneProfilePatchRequest:
+      type: object
+      properties:
+        profile_type: { type: string, enum: [heart_rate, pace] }
+        name: { type: string, minLength: 1, maxLength: 80 }
+        sport: { type: string, nullable: true }
+        is_default: { type: boolean }
+        zones:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/ZoneRangeInput' }
+    ZoneProfile:
+      type: object
+      required: [id, profile_type, name, unit, is_default, zones]
+      properties:
+        id: { type: string }
+        profile_type: { type: string, enum: [heart_rate, pace] }
+        name: { type: string }
+        unit: { type: string, enum: [bpm, s_per_km] }
+        is_default: { type: boolean }
+        sport:
+          allOf: [{ $ref: '#/components/schemas/SportRef' }]
+          nullable: true
+        zones: { type: array, items: { $ref: '#/components/schemas/ZoneRange' } }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    ZoneDistributionItem:
+      type: object
+      required: [code, time_s, distance_m, percentage]
+      properties:
+        code: { type: string }
+        label: { type: string, nullable: true }
+        time_s: { type: number, format: double, minimum: 0 }
+        distance_m: { type: number, format: double, minimum: 0 }
+        percentage: { type: number, format: double, minimum: 0, maximum: 100 }
+    ZoneDistribution:
+      type: object
+      required: [profile, observed_time_s, observed_distance_m, zones]
+      properties:
+        profile:
+          type: object
+          properties:
+            id: { type: string }
+            name: { type: string }
+            unit: { type: string }
+        observed_time_s: { type: number, format: double }
+        observed_distance_m: { type: number, format: double }
+        zones: { type: array, items: { $ref: '#/components/schemas/ZoneDistributionItem' } }
+    ActivityPacingAnalysis:
+      type: object
+      required: [behavior, unit, pattern, pattern_even_threshold_percent]
+      properties:
+        behavior: { type: string, enum: [pace, speed, pace_100m] }
+        unit: { type: string, enum: [s_per_km, km_h, s_per_100m] }
+        average: { type: number, format: double, nullable: true }
+        moving_average: { type: number, format: double, nullable: true }
+        median: { type: number, format: double, nullable: true }
+        p10: { type: number, format: double, nullable: true }
+        p50: { type: number, format: double, nullable: true }
+        p90: { type: number, format: double, nullable: true }
+        standard_deviation: { type: number, format: double, nullable: true }
+        median_absolute_deviation: { type: number, format: double, nullable: true }
+        variability_percent: { type: number, format: double, nullable: true }
+        first_half: { type: number, format: double, nullable: true }
+        second_half: { type: number, format: double, nullable: true }
+        difference: { type: number, format: double, nullable: true }
+        difference_percent: { type: number, format: double, nullable: true }
+        pattern: { type: string, enum: [negative_split, even, positive_split, insufficient_data] }
+        pattern_even_threshold_percent: { type: number, format: double, example: 2 }
+        start: { type: object, additionalProperties: { type: number, nullable: true } }
+        middle: { type: object, additionalProperties: { type: number, nullable: true } }
+        finish: { type: object, additionalProperties: true }
+    ActivityHeartRateAnalysis:
+      type: object
+      properties:
+        average_bpm: { type: number, format: double, nullable: true }
+        max_bpm: { type: number, format: double }
+        min_bpm: { type: number, format: double }
+        coverage_percent: { type: number, format: double, minimum: 0, maximum: 100 }
+        observed_time_s: { type: number, format: double, minimum: 0 }
+        first_half_bpm: { type: number, format: double, nullable: true }
+        second_half_bpm: { type: number, format: double, nullable: true }
+        trend_bpm: { type: number, format: double, nullable: true }
+        zones:
+          allOf: [{ $ref: '#/components/schemas/ZoneDistribution' }]
+          nullable: true
+        decoupling:
+          type: object
+          nullable: true
+          properties:
+            first_half_efficiency_mps_per_bpm: { type: number, format: double }
+            second_half_efficiency_mps_per_bpm: { type: number, format: double }
+            decoupling_percent: { type: number, format: double }
+            method: { type: string, enum: [speed_mps_per_bpm_halves_by_distance] }
+            requirements: { type: object, additionalProperties: { type: number } }
+    ActivityElevationAnalysis:
+      type: object
+      properties:
+        min_m: { type: number, format: double }
+        max_m: { type: number, format: double }
+        gain_m: { type: number, format: double }
+        loss_m: { type: number, format: double }
+        grade:
+          type: object
+          nullable: true
+          properties:
+            average_percent: { type: number, format: double, nullable: true }
+            p10_percent: { type: number, format: double, nullable: true }
+            p50_percent: { type: number, format: double, nullable: true }
+            p90_percent: { type: number, format: double, nullable: true }
+            window_min_distance_m: { type: number, format: double }
+            target_window_distance_m: { type: number, format: double }
+        smoothing: { type: object, additionalProperties: { type: number } }
+    ActivityCadenceAnalysis:
+      type: object
+      properties:
+        unit: { type: string, enum: [spm, rpm] }
+        average: { type: number, format: double, nullable: true }
+        max: { type: number, format: double }
+        coverage_percent: { type: number, format: double }
+        first_half: { type: number, format: double, nullable: true }
+        second_half: { type: number, format: double, nullable: true }
+    ActivityBestEffort:
+      type: object
+      properties:
+        label: { type: string, enum: [400m, 500m, 1km, 1mile, 5km] }
+        distance_m: { type: number, format: double }
+        duration_s: { type: number, format: double }
+        start_distance_m: { type: number, format: double }
+        end_distance_m: { type: number, format: double }
+        pace_s_per_km: { type: number, format: double }
+        speed_kmh: { type: number, format: double }
+    ActivityAnalysisFinding:
+      type: object
+      required: [code, analysis_version, formula, thresholds, supporting_values]
+      properties:
+        code: { type: string, enum: [negative_split, even, positive_split, strong_finish, pace_variability_high, heart_rate_drift_detected] }
+        analysis_version: { type: integer, minimum: 1 }
+        formula: { type: string }
+        thresholds: { type: object, additionalProperties: true }
+        supporting_values: { type: object, additionalProperties: true }
+    ActivityAnalysis:
+      type: object
+      required: [activity_id, analysis_version, data_quality, rolling, best_efforts, findings, cache, units]
+      properties:
+        activity_id: { type: string }
+        analysis_version: { type: integer, enum: [1] }
+        sport: { $ref: '#/components/schemas/SportRef' }
+        data_quality:
+          type: object
+          properties:
+            sample_count: { type: integer, minimum: 0 }
+            available_streams: { type: array, items: { $ref: '#/components/schemas/ActivityStreamType' } }
+            has_streams: { type: boolean }
+        pacing:
+          allOf: [{ $ref: '#/components/schemas/ActivityPacingAnalysis' }]
+          nullable: true
+        rolling: { type: array, items: { type: object, additionalProperties: true } }
+        best_efforts: { type: array, items: { $ref: '#/components/schemas/ActivityBestEffort' } }
+        heart_rate:
+          allOf: [{ $ref: '#/components/schemas/ActivityHeartRateAnalysis' }]
+          nullable: true
+        pace_zones:
+          allOf: [{ $ref: '#/components/schemas/ZoneDistribution' }]
+          nullable: true
+        elevation:
+          allOf: [{ $ref: '#/components/schemas/ActivityElevationAnalysis' }]
+          nullable: true
+        cadence:
+          allOf: [{ $ref: '#/components/schemas/ActivityCadenceAnalysis' }]
+          nullable: true
+        power:
+          type: object
+          nullable: true
+          properties:
+            average_w: { type: number, format: double, nullable: true }
+            max_w: { type: number, format: double }
+            coverage_percent: { type: number, format: double }
+        findings: { type: array, items: { $ref: '#/components/schemas/ActivityAnalysisFinding' } }
+        cache:
+          type: object
+          properties:
+            hit: { type: boolean }
+            computed_at: { type: string, format: date-time }
+        units: { type: object, additionalProperties: { type: string } }
+    ActivityAnalysisResponse:
+      type: object
+      properties:
+        data: { $ref: '#/components/schemas/ActivityAnalysis' }
+    PacerGuidanceRules:
+      type: object
+      properties:
+        rules_version: { type: integer, enum: [1] }
+        persistence_s: { type: integer, minimum: 1, maximum: 120, default: 15 }
+        hysteresis_s_per_km: { type: number, format: double, minimum: 0, maximum: 120, default: 3 }
+        cooldown_s: { type: integer, minimum: 0, maximum: 300, default: 20 }
+        heart_rate_persistence_s: { type: integer, minimum: 1, maximum: 120, default: 15 }
+        final_push:
+          type: object
+          properties:
+            enabled: { type: boolean, default: false }
+            remaining_distance_m: { type: number, format: double, exclusiveMinimum: 0, maximum: 10000, default: 1000 }
+            max_behind_s: { type: number, format: double, minimum: -3600, maximum: 3600, default: 0 }
+    PacerSegmentInput:
+      type: object
+      required: [start_distance_m, end_distance_m, target_pace_s_per_km]
+      properties:
+        basis: { type: string, enum: [distance], default: distance }
+        start_distance_m: { type: number, format: double, minimum: 0 }
+        end_distance_m: { type: number, format: double, exclusiveMinimum: 0 }
+        target_pace_s_per_km: { type: number, format: double, minimum: 60, maximum: 3600 }
+        tolerance_s_per_km: { type: number, format: double, minimum: 0, maximum: 600 }
+        heart_rate_floor_bpm: { type: integer, minimum: 20, maximum: 260, nullable: true }
+        heart_rate_ceiling_bpm: { type: integer, minimum: 20, maximum: 260, nullable: true }
+        instruction_metadata: { type: object, additionalProperties: true }
+    PacerSegment:
+      allOf:
+        - { $ref: '#/components/schemas/PacerSegmentInput' }
+        - type: object
+          properties:
+            id: { type: string, nullable: true }
+            order: { type: integer, minimum: 1 }
+            start_time_s: { type: number, nullable: true }
+            end_time_s: { type: number, nullable: true }
+    PacerGenerateRequest:
+      type: object
+      required: [sport, target_distance_m, target_time_s, strategy]
+      properties:
+        sport: { type: string, description: Modalidade com metrica_derivada=pace_km. }
+        target_distance_m: { type: number, format: double, exclusiveMinimum: 0, maximum: 500000 }
+        target_time_s: { type: number, format: double, exclusiveMinimum: 0, maximum: 604800 }
+        strategy: { type: string, enum: [even, negative_split, positive_split, custom] }
+        tolerance_s_per_km: { type: number, format: double, minimum: 0, maximum: 600, default: 10 }
+        guidance_rules: { $ref: '#/components/schemas/PacerGuidanceRules' }
+        constraints:
+          type: object
+          properties:
+            progression_percent: { type: number, exclusiveMinimum: 0, maximum: 30 }
+            segment_distance_m: { type: number, minimum: 200 }
+            heart_rate_floor_bpm: { type: integer, minimum: 20, maximum: 260 }
+            heart_rate_ceiling_bpm: { type: integer, minimum: 20, maximum: 260 }
+        segments:
+          type: array
+          minItems: 1
+          maxItems: 200
+          items: { $ref: '#/components/schemas/PacerSegmentInput' }
+    PacerPlanWriteRequest:
+      allOf:
+        - { $ref: '#/components/schemas/PacerGenerateRequest' }
+        - type: object
+          properties:
+            name: { type: string, maxLength: 120 }
+            status: { type: string, enum: [active, archived] }
+    PacerPlanPatchRequest:
+      type: object
+      properties:
+        name: { type: string, maxLength: 120 }
+        sport: { type: string }
+        strategy: { type: string, enum: [even, negative_split, positive_split, custom] }
+        target_distance_m: { type: number, format: double, exclusiveMinimum: 0, maximum: 500000 }
+        target_time_s: { type: number, format: double, exclusiveMinimum: 0, maximum: 604800 }
+        tolerance_s_per_km: { type: number, format: double, minimum: 0, maximum: 600 }
+        guidance_rules: { $ref: '#/components/schemas/PacerGuidanceRules' }
+        status: { type: string, enum: [active, archived] }
+        constraints:
+          type: object
+          additionalProperties: true
+        segments:
+          type: array
+          minItems: 1
+          maxItems: 200
+          items: { $ref: '#/components/schemas/PacerSegmentInput' }
+    PacerBlueprint:
+      type: object
+      required: [sport, strategy, target_distance_m, target_time_s, target_average_pace_s_per_km, default_tolerance_s_per_km, terrain_adjustment_mode, guidance_rules, segments, calculated_target_time_s]
+      properties:
+        sport: { $ref: '#/components/schemas/SportRef' }
+        strategy: { type: string, enum: [even, negative_split, positive_split, custom] }
+        target_distance_m: { type: number, format: double }
+        target_time_s: { type: number, format: double }
+        target_average_pace_s_per_km: { type: number, format: double }
+        default_tolerance_s_per_km: { type: number, format: double }
+        terrain_adjustment_mode: { type: string, enum: [none] }
+        guidance_rules: { $ref: '#/components/schemas/PacerGuidanceRules' }
+        segments: { type: array, items: { $ref: '#/components/schemas/PacerSegment' } }
+        calculated_target_time_s: { type: number, format: double }
+    PacerPlan:
+      allOf:
+        - { $ref: '#/components/schemas/PacerBlueprint' }
+        - type: object
+          required: [id, name, status, version, created_at, updated_at]
+          properties:
+            id: { type: string }
+            name: { type: string }
+            status: { type: string, enum: [active, archived] }
+            version: { type: integer, minimum: 1 }
+            created_at: { type: string, format: date-time }
+            updated_at: { type: string, format: date-time }
+    PacerGuidanceState:
+      type: object
+      properties:
+        segment_order: { type: integer, minimum: 1, nullable: true }
+        candidate_code: { type: string, nullable: true }
+        candidate_since_s: { type: number, format: double, nullable: true }
+        hr_above_since_s: { type: number, format: double, nullable: true }
+        last_guidance_code: { type: string, nullable: true }
+        last_guidance_at_s: { type: number, format: double, nullable: true }
+    PacerEvaluationInput:
+      type: object
+      required: [distance_m, elapsed_s, moving_time_s]
+      properties:
+        distance_m: { type: number, format: double, minimum: 0 }
+        elapsed_s: { type: number, format: double, minimum: 0 }
+        moving_time_s: { type: number, format: double, minimum: 0 }
+        recent_pace_s_per_km: { type: number, format: double, nullable: true }
+        average_pace_s_per_km: { type: number, format: double, nullable: true }
+        heart_rate_bpm: { type: integer, minimum: 20, maximum: 260, nullable: true }
+        guidance_state: { $ref: '#/components/schemas/PacerGuidanceState' }
+    PacerEvaluation:
+      type: object
+      required: [code, ahead_behind_s, target_elapsed_s, projected_finish, heart_rate_constraint, next_state]
+      properties:
+        code: { type: string, enum: [on_target, speed_up, slow_down, ease, segment_change, final_push_available, finished] }
+        segment:
+          type: object
+          nullable: true
+          properties:
+            order: { type: integer }
+            start_distance_m: { type: number }
+            end_distance_m: { type: number }
+            progress_percent: { type: number, minimum: 0, maximum: 100 }
+        target:
+          type: object
+          nullable: true
+          properties:
+            pace_s_per_km: { type: number }
+            tolerance_s_per_km: { type: number }
+            lower_pace_s_per_km: { type: number }
+            upper_pace_s_per_km: { type: number }
+            heart_rate_floor_bpm: { type: integer, nullable: true }
+            heart_rate_ceiling_bpm: { type: integer, nullable: true }
+        ahead_behind_s: { type: number, format: double, description: Positivo = atrasado; negativo = adiantado. }
+        target_elapsed_s: { type: number, format: double }
+        remaining_distance_m: { type: number, format: double, nullable: true }
+        projected_finish:
+          type: object
+          properties:
+            at_current_average_s: { type: number, format: double, nullable: true }
+            if_plan_followed_s: { type: number, format: double, nullable: true }
+        heart_rate_constraint:
+          type: object
+          properties:
+            available: { type: boolean }
+            status: { type: string, enum: [not_configured, unavailable, within_constraint, above_ceiling, finished] }
+            current_bpm: { type: integer, nullable: true }
+            ceiling_bpm: { type: integer, nullable: true }
+        rules: { $ref: '#/components/schemas/PacerGuidanceRules' }
+        next_state: { $ref: '#/components/schemas/PacerGuidanceState' }
   responses:
     Error:
       description: Erro JSON padronizado

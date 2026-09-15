@@ -12,6 +12,7 @@ require_once dirname(__DIR__, 2) . '/src/function/atividade_modelo.php';
 
 $errors = [];
 $editId = trim((string) ($_GET['edit'] ?? $_POST['id'] ?? ''));
+$viewId = trim((string) ($_GET['view'] ?? ''));
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     stridebr_verify_csrf();
@@ -55,6 +56,8 @@ $categorias = [
     'protecao' => stridebr_t('equipment.category.protection'),
     'outro' => stridebr_t('equipment.category.other'),
 ];
+$equipmentHistoryFilters = ['q' => trim((string) ($_GET['eq_q'] ?? '')), 'from' => trim((string) ($_GET['eq_from'] ?? '')), 'to' => trim((string) ($_GET['eq_to'] ?? ''))];
+$detalheEquipamento = $viewId !== '' ? atividadeDetalheEquipamento($pdo, $idUsuario, $viewId, 100, $equipmentHistoryFilters) : [];
 $flashes = stridebr_take_flashes();
 ?>
 <!DOCTYPE html>
@@ -94,6 +97,8 @@ $flashes = stridebr_take_flashes();
                         <div class="input-field"><label for="modelo"><?php echo stridebr_e(stridebr_t('equipment.model')); ?></label><input id="modelo" name="modelo" maxlength="100" value="<?php echo stridebr_e($editando['modelo'] ?? ''); ?>"></div>
                         <div class="input-field"><label for="data_inicio_uso"><?php echo stridebr_e(stridebr_t('equipment.start_use')); ?></label><input type="date" id="data_inicio_uso" name="data_inicio_uso" value="<?php echo stridebr_e($editando['data_inicio_uso'] ?? ''); ?>"></div>
                         <div class="input-field"><label for="distancia_inicial_km"><?php echo stridebr_e(stridebr_t('equipment.previous_mileage')); ?> <span class="field-unit">km</span></label><input type="number" min="0" step="0.001" inputmode="decimal" id="distancia_inicial_km" name="distancia_inicial_km" value="<?php echo stridebr_e($editando['distancia_inicial_km'] ?? '0'); ?>"></div>
+                        <div class="input-field"><label for="limite_alerta_km">Alerta de uso <span class="field-unit">km</span></label><input type="number" min="1" step="1" id="limite_alerta_km" name="limite_alerta_km" value="<?php echo stridebr_e($editando['limite_alerta_km'] ?? ''); ?>" placeholder="600"></div>
+                        <div class="input-field"><label for="data_fim_uso">Fim de uso</label><input type="date" id="data_fim_uso" name="data_fim_uso" value="<?php echo stridebr_e($editando['data_fim_uso'] ?? ''); ?>"></div>
                     </div>
                     <div class="input-field equipment-notes"><label for="observacoes"><?php echo stridebr_e(stridebr_t('activity.notes')); ?></label><textarea id="observacoes" name="observacoes" rows="3"><?php echo stridebr_e($editando['observacoes'] ?? ''); ?></textarea></div>
                     <div class="activity-form-actions">
@@ -118,7 +123,7 @@ $flashes = stridebr_take_flashes();
                                 <div class="equipment-row-stat"><strong><?php echo stridebr_e(stridebr_format_number((float) $equipamento['distancia_total_km'], 1)); ?> km</strong><span><?php echo stridebr_e(stridebr_t('equipment.distance')); ?></span></div>
                                 <div class="equipment-row-stat"><strong><?php echo (int) $equipamento['total_atividades']; ?></strong><span><?php echo stridebr_e(stridebr_tn('equipment.activities.one', 'equipment.activities.other', (int) $equipamento['total_atividades'], ['count' => ''])); ?></span></div>
                                 <div class="equipment-row-actions">
-                                    <a href="/user/equipamentos.php?edit=<?php echo rawurlencode($equipamento['idequipamento']); ?>"><?php echo stridebr_e(stridebr_t('activity.edit')); ?></a>
+                                    <a href="/user/equipamentos.php?view=<?php echo rawurlencode($equipamento['idequipamento']); ?>">Abrir</a><a href="/user/equipamentos.php?edit=<?php echo rawurlencode($equipamento['idequipamento']); ?>"><?php echo stridebr_e(stridebr_t('activity.edit')); ?></a>
                                     <form method="POST">
                                         <?php echo stridebr_csrf_field(); ?>
                                         <input type="hidden" name="action" value="toggle">
@@ -132,6 +137,22 @@ $flashes = stridebr_take_flashes();
                     </div>
                 <?php endif; ?>
             </section>
+            <?php if ($detalheEquipamento): ?>
+            <section class="equipment-panel equipment-detail-v2">
+                <div class="equipment-panel-heading"><div><h2><?php echo stridebr_e((string) $detalheEquipamento['nome']); ?></h2><span><?php echo stridebr_e($categorias[$detalheEquipamento['categoria']] ?? ucfirst((string) $detalheEquipamento['categoria'])); ?></span></div><a class="activity-secondary-button" href="/user/equipamentos.php?edit=<?php echo rawurlencode((string) $detalheEquipamento['idequipamento']); ?>">Editar</a></div>
+                <div class="equipment-detail-metrics">
+                    <div><strong><?php echo stridebr_e(stridebr_format_number((float) $detalheEquipamento['distancia_total_km'],1)); ?> km</strong><span>Distância</span></div>
+                    <div><strong><?php echo (int) $detalheEquipamento['total_atividades']; ?></strong><span>Atividades</span></div>
+                    <div><strong><?php echo stridebr_e(stridebr_format_number((float) $detalheEquipamento['duracao_total_s']/3600,1)); ?> h</strong><span>Duração</span></div>
+                    <div><strong><?php echo stridebr_e(stridebr_format_number((float) $detalheEquipamento['elevacao_total_m'],0)); ?> m</strong><span>Elevação</span></div>
+                </div>
+                <?php if (!empty($detalheEquipamento['limite_alerta_km'])): $ratio=min(100,max(0,(float)$detalheEquipamento['distancia_total_km']/(float)$detalheEquipamento['limite_alerta_km']*100)); ?>
+                <div class="equipment-usage"><div><span>Uso configurado</span><strong><?php echo stridebr_e(stridebr_format_number((float)$detalheEquipamento['distancia_total_km'],1)); ?> / <?php echo stridebr_e(stridebr_format_number((float)$detalheEquipamento['limite_alerta_km'],0)); ?> km</strong></div><progress max="100" value="<?php echo stridebr_e((string)$ratio); ?>"></progress></div>
+                <?php endif; ?>
+                <div class="equipment-detail-dates"><span>Primeiro uso: <strong><?php echo $detalheEquipamento['primeiro_uso'] ? stridebr_e(stridebr_format_date((string)$detalheEquipamento['primeiro_uso'])) : '—'; ?></strong></span><span>Último uso: <strong><?php echo $detalheEquipamento['ultimo_uso'] ? stridebr_e(stridebr_format_date((string)$detalheEquipamento['ultimo_uso'])) : '—'; ?></strong></span></div>
+                <div class="equipment-history-v2"><div class="equipment-history-heading"><h3>Histórico</h3><form method="get" class="equipment-history-filters"><input type="hidden" name="view" value="<?php echo stridebr_e((string)$detalheEquipamento['idequipamento']); ?>"><label>Buscar<input type="search" name="eq_q" value="<?php echo stridebr_e($equipmentHistoryFilters['q']); ?>" placeholder="Activity ou modalidade"></label><label>De<input type="date" name="eq_from" value="<?php echo stridebr_e($equipmentHistoryFilters['from']); ?>"></label><label>Até<input type="date" name="eq_to" value="<?php echo stridebr_e($equipmentHistoryFilters['to']); ?>"></label><button type="submit">Filtrar</button><?php if(array_filter($equipmentHistoryFilters,static fn($v)=>$v!=='')): ?><a href="/user/equipamentos.php?view=<?php echo rawurlencode((string)$detalheEquipamento['idequipamento']); ?>">Limpar</a><?php endif; ?></form></div><?php if (empty($detalheEquipamento['atividades'])): ?><p>Nenhuma atividade com este equipamento.</p><?php else: ?><?php foreach ($detalheEquipamento['atividades'] as $atividade): ?><a href="/user/atividades.php?activity=<?php echo rawurlencode((string)$atividade['idregistro']); ?>"><span><strong><?php echo stridebr_e(stridebr_present_activity_title((string)($atividade['titulo'] ?: $atividade['modalidade_nome']), (string)$atividade['modalidade_slug'])); ?></strong><small><?php echo stridebr_e(stridebr_format_date((string)$atividade['data_inicio'])); ?></small></span><span><?php echo is_numeric($atividade['distancia_metros']??null)?stridebr_e(stridebr_format_number((float)$atividade['distancia_metros']/1000,2)).' km':'—'; ?></span></a><?php endforeach; ?><?php endif; ?></div>
+            </section>
+            <?php endif; ?>
             <?php stridebr_render_ad_slot('equipment-end', '/user/equipamentos.php', true); ?>
         </div>
     </main>

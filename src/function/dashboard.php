@@ -357,6 +357,7 @@ function dashboardCalcularProgressoMeta(PDO $pdo, string $idUsuario, array $meta
          WHERE ra.idusuario = :usuario
            AND ra.excluido_em IS NULL
            AND ra.status = 'concluido'
+           AND COALESCE(ra.excluir_estatisticas,FALSE)=FALSE
            AND ra.data_inicio >= :inicio
            AND ra.data_inicio <= :fim";
     $params = [
@@ -726,6 +727,7 @@ function dashboardVisaoAtividades(PDO $pdo, string $idUsuario, int $weekOffset =
             WHERE ra.idusuario = :usuario
               AND ra.excluido_em IS NULL
               AND ra.status = 'concluido'
+           AND COALESCE(ra.excluir_estatisticas,FALSE)=FALSE
               AND ra.data_inicio >= :inicio
               AND ra.data_inicio < :fim
             GROUP BY ra.idregistro, ra.titulo, ra.data_inicio, (ra.data_inicio AT TIME ZONE 'America/Sao_Paulo')::date, m.nome, m.slug, m.familia_hub
@@ -772,6 +774,7 @@ function dashboardResumoSemana(PDO $pdo, string $idUsuario): array
          WHERE ra.idusuario = :usuario
            AND ra.excluido_em IS NULL
            AND ra.status = 'concluido'
+           AND COALESCE(ra.excluir_estatisticas,FALSE)=FALSE
            AND ra.data_inicio >= :inicio"
     );
     $stmt->execute([':usuario' => $idUsuario, ':inicio' => $inicio]);
@@ -799,6 +802,7 @@ function dashboardAtividadesSemana(PDO $pdo, string $idUsuario): array
          WHERE ra.idusuario = :usuario
            AND ra.excluido_em IS NULL
            AND ra.status = 'concluido'
+           AND COALESCE(ra.excluir_estatisticas,FALSE)=FALSE
            AND ra.data_inicio >= :inicio
          GROUP BY ra.data_inicio::date
          ORDER BY ra.data_inicio::date"

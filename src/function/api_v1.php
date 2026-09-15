@@ -12,6 +12,13 @@ function stridebr_api_lower(string $value): string
     return function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
 }
 
+function stridebr_api_build_identifier(): ?string
+{
+    $build = trim((string) (getenv('STRIDEBR_BUILD') ?: ''));
+    if ($build === '') return null;
+    return substr($build, 0, 80);
+}
+
 function stridebr_api_id(int $length = 21): string
 {
     $bytes = random_bytes((int) ceil($length * 3 / 4) + 2);
@@ -346,6 +353,8 @@ function stridebr_api_create_activity(PDO $pdo, string $userId, array $payload, 
     if ($existing !== null) {
         stridebr_api_mark_mobile_activity_source($pdo, $existing, $userId);
         if ($workoutLink !== null) stridebr_api_workout_link_activity($pdo, $userId, $existing, $workoutLink);
+        if (is_array($payload['streams'] ?? null)) activityStreamSaveBundle($pdo, $userId, $existing, $payload['streams'], $idempotencyKey . ':streams', 'stridebr_android');
+        if (is_array($payload['laps'] ?? null)) activityStreamSaveLaps($pdo, $userId, $existing, $payload['laps'], 'manual', 'stridebr_android');
         return ['id' => $existing, 'activity' => stridebr_api_activity_detail($pdo, $existing, $userId), 'reused' => true];
     }
 
@@ -359,6 +368,8 @@ function stridebr_api_create_activity(PDO $pdo, string $userId, array $payload, 
         stridebr_api_mark_mobile_activity_source($pdo, $id, $userId);
         gpsWebSaveMetadata($pdo, $id, $meta);
         if ($workoutLink !== null) stridebr_api_workout_link_activity($pdo, $userId, $id, $workoutLink);
+        if (is_array($payload['streams'] ?? null)) activityStreamSaveBundle($pdo, $userId, $id, $payload['streams'], $idempotencyKey . ':streams', 'stridebr_android');
+        if (is_array($payload['laps'] ?? null)) activityStreamSaveLaps($pdo, $userId, $id, $payload['laps'], 'manual', 'stridebr_android');
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
@@ -480,7 +491,7 @@ function stridebr_api_activity_detail(PDO $pdo, string $activityId, string $user
 {
     $stmt = $pdo->prepare("SELECT ra.idregistro,ra.idmodalidade,ra.titulo,ra.observacoes,ra.data_inicio,ra.data_fim,ra.status,ra.visibilidade,ra.origem,ra.origem_provedor,ra.esforco_percebido,ra.usa_trechos,
             ra.ocultar_inicio_m,ra.ocultar_fim_m,ra.calorias_ativas_estimadas,ra.calorias_totais_estimadas,
-            m.nome AS modalidade_nome,m.slug AS modalidade_slug,
+            m.nome AS modalidade_nome,m.slug AS modalidade_slug,m.familia_hub,m.metrica_derivada,m.permite_rota,
             COALESCE(NULLIF(g.distancia_final_m,0),CASE WHEN ra.usa_trechos THEN NULLIF(seg.distancia_m,0) END,NULLIF(r.distancia_metros,0),NULLIF(metric.distancia_m,0)) AS api_distance_m,
             COALESCE(NULLIF(g.duracao_s,0),CASE WHEN ra.usa_trechos THEN NULLIF(seg.duracao_s,0) END,NULLIF(GREATEST(EXTRACT(EPOCH FROM (COALESCE(ra.data_fim,ra.data_inicio)-ra.data_inicio)),0),0),NULLIF(metric.duracao_s,0)) AS api_duration_s,
             COALESCE(CASE WHEN ra.usa_trechos THEN NULLIF(seg.elevacao_gain_m,0) END,r.ganho_elevacao_m,metric.elevacao_m) AS api_elevation_gain_m,
@@ -600,7 +611,23 @@ function stridebr_api_activity_detail(PDO $pdo, string $activityId, string $user
             if ($date !== '') $detail['workout'] = ['id' => stridebr_api_workout_id_recurring((string) $workout['idtreino_cronograma'], substr($date, 0, 10)), 'kind' => 'recurring'];
         }
     }
+    $detail['sport']['family'] = (string) ($row['familia_hub'] ?? '');
+    $detail['sport']['derived_metric'] = (string) ($row['metrica_derivada'] ?? 'nenhuma');
+    $detail['sport']['route_capable'] = stridebr_api_bool($row['permite_rota'] ?? false);
+    try {
+        $detail['stream_capabilities'] = activityStreamCapabilities($pdo, $userId, $activityId);
+    } catch (PDOException $e) {
+        if (!in_array($e->getCode(), ['42P01','42703'], true)) throw $e;
+        $detail['stream_capabilities'] = ['has_streams'=>false,'available_streams'=>[],'has_analysis'=>false,'has_heart_rate'=>false,'has_cadence'=>false,'has_laps'=>false];
+    }
     return $detail;
 }
 
+require_once __DIR__ . '/activity_stream_service.php';
+require_once __DIR__ . '/zone_profile_service.php';
+require_once __DIR__ . '/activity_analysis_service.php';
+require_once __DIR__ . '/pacer_service.php';
 require_once __DIR__ . '/api_workouts.php';
+require_once __DIR__ . '/api_training_platform.php';
+require_once __DIR__ . '/api_workout_sessions.php';
+require_once __DIR__ . '/api_progress.php';

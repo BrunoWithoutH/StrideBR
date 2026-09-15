@@ -10,6 +10,7 @@ require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
 require_once dirname(__DIR__, 2) . '/src/function/treinador.php';
 require_once dirname(__DIR__, 2) . '/src/function/cronograma.php';
 require_once dirname(__DIR__, 2) . '/src/function/planejamento.php';
+require_once dirname(__DIR__, 2) . '/src/function/teams_surface_provider.php';
 
 if (!stridebr_feature_enabled($pdo, 'monthly_calendar.enabled', false)) {
     stridebr_error_document(404);
@@ -222,9 +223,21 @@ $scheduledByDate = [];
 foreach ($scheduled as $item) {
     $scheduledByDate[(string) $item['data_treino']][] = $item;
 }
+$institutionalWorkouts = [];
+$institutionalByDate = [];
+if ($isSelf && stridebr_teams_enabled()) {
+    try {
+        $institutionalWorkouts = stridebr_teams_surface_trainings($pdo, $idUsuario, $monthStart->format('Y-m-d'), $monthEnd->format('Y-m-d'));
+        foreach ($institutionalWorkouts as $item) $institutionalByDate[(string) ($item['date'] ?? '')][] = $item;
+    } catch (Throwable $e) {
+        error_log('StrideBR Teams agenda surface: ' . $e->getMessage());
+        $institutionalWorkouts = [];
+        $institutionalByDate = [];
+    }
+}
 $recurringCompleted = count(array_filter($recurringOccurrences, static fn(array $item): bool => !empty($item['concluido'])));
 $scheduledCompleted = count(array_filter($scheduled, static fn(array $item): bool => (string) ($item['status'] ?? '') === 'concluido'));
-$monthTotal = count($recurringOccurrences) + count($scheduled);
+$monthTotal = count($recurringOccurrences) + count($scheduled) + count($institutionalWorkouts);
 $monthCompleted = $recurringCompleted + $scheduledCompleted;
 
 $prefs = is_array($targetUser['preferenciasusuario'] ?? null) ? $targetUser['preferenciasusuario'] : (json_decode((string) ($targetUser['preferenciasusuario'] ?? '{}'), true) ?: []);
@@ -253,7 +266,7 @@ $flashes = stridebr_take_flashes();
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/style.css')); ?>">
     <title><?php echo stridebr_e(stridebr_t('agenda.page_title')); ?> | StrideBR</title>
-    <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>">
+    <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>"><link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/institutional.css')); ?>">
 </head>
 <body>
 <div class="container-fluid">
@@ -291,11 +304,11 @@ $flashes = stridebr_take_flashes();
                     <span><i class="is-recurring"></i><?php echo stridebr_e(stridebr_t('agenda.routine')); ?></span>
                     <span><i class="is-completed"></i><?php echo stridebr_e(stridebr_t('agenda.completed')); ?></span>
                     <span><i class="is-scheduled"></i><?php echo stridebr_e(stridebr_t('agenda.specific_date')); ?></span>
-                    <span><i class="is-trainer"></i><?php echo stridebr_e(stridebr_t('agenda.trainer')); ?></span>
+                    <span><i class="is-trainer"></i><?php echo stridebr_e(stridebr_t('agenda.trainer')); ?></span><?php if ($institutionalWorkouts !== []): ?><span><i class="is-scheduled"></i><?php echo stridebr_e(stridebr_t('teams.institutional')); ?></span><?php endif; ?>
                 </div>
                 <div class="monthly-summary-pills" aria-label="<?php echo stridebr_e(stridebr_t('agenda.month_summary')); ?>">
                     <span><strong><?php echo count($recurringOccurrences); ?></strong> <?php echo stridebr_e(stridebr_t('agenda.from_routine')); ?></span>
-                    <?php if ($scheduled !== []): ?><span><strong><?php echo count($scheduled); ?></strong> <?php echo stridebr_e(stridebr_t('agenda.specific_plural')); ?></span><?php endif; ?>
+                    <?php if ($scheduled !== []): ?><span><strong><?php echo count($scheduled); ?></strong> <?php echo stridebr_e(stridebr_t('agenda.specific_plural')); ?></span><?php endif; ?><?php if ($institutionalWorkouts !== []): ?><span><strong><?php echo count($institutionalWorkouts); ?></strong> <?php echo stridebr_e(stridebr_t('teams.institutional')); ?></span><?php endif; ?>
                 </div>
             </div>
 
@@ -326,6 +339,7 @@ $flashes = stridebr_take_flashes();
                     $dateKey = $date->format('Y-m-d');
                     $dayRecurring = $recurringOccurrencesByDate[$dateKey] ?? [];
                     $dayScheduled = $scheduledByDate[$dateKey] ?? [];
+                    $dayInstitutional = $institutionalByDate[$dateKey] ?? [];
                     ?>
                     <article class="monthly-day<?php echo $dateKey === $today ? ' is-today' : ''; ?>">
                         <header><strong><?php echo $day; ?></strong><?php if ($dateKey === $today): ?><span><?php echo stridebr_e(stridebr_t('common.today')); ?></span><?php endif; ?></header>
@@ -337,6 +351,14 @@ $flashes = stridebr_take_flashes();
                                     <strong><?php echo stridebr_e($item['titulo']); ?></strong>
                                     <?php if ($canViewActivityFacts): ?><small><?php echo stridebr_e(stridebr_t('planning.status.' . planejamentoEstado($item))); ?></small><?php endif; ?>
                                     <?php if ($isSelf && $item['status'] === 'publicado'): ?><details class="monthly-event-more"><summary aria-label="<?php echo stridebr_e(stridebr_t('schedule.more_actions')); ?>">•••</summary><div class="monthly-event-more-menu"><button type="button" data-start-scheduled-workout="<?php echo stridebr_e($item['idagendamento']); ?>"><?php echo stridebr_e(stridebr_t('agenda.start')); ?></button><form method="POST" data-confirm="<?php echo stridebr_e(stridebr_t('agenda.cancel_confirm')); ?>"><?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="cancel_scheduled"><input type="hidden" name="idagendamento" value="<?php echo stridebr_e($item['idagendamento']); ?>"><input type="hidden" name="month" value="<?php echo stridebr_e($monthKey); ?>"><button type="submit"><?php echo stridebr_e(stridebr_t('common.cancel')); ?></button></form></div></details><?php endif; ?>
+                                </div>
+                            <?php endforeach; ?>
+                            <?php foreach ($dayInstitutional as $item): ?>
+                                <div class="monthly-event is-institutional">
+                                    <div class="monthly-event-kicker"><span><?php echo stridebr_e((string) ($item['time'] ?? '')); ?></span><em><?php echo stridebr_e(stridebr_t('teams.institutional')); ?></em></div>
+                                    <strong><a href="/user/treino-institucional.php?id=<?php echo rawurlencode((string) $item['training_ref']); ?>"><?php echo stridebr_e((string) $item['title']); ?></a></strong>
+                                    <small><?php echo stridebr_e((string) ($item['organization']['name'] ?? '')); ?> · <?php echo stridebr_e((string) ($item['team']['name'] ?? '')); ?></small>
+                                    <?php if (!empty($item['capabilities']['can_start_session'])): ?><button type="button" class="monthly-inline-action" data-start-institutional="<?php echo stridebr_e((string) $item['training_ref']); ?>"><?php echo stridebr_e(stridebr_t('agenda.start')); ?></button><?php endif; ?>
                                 </div>
                             <?php endforeach; ?>
                             <?php foreach ($dayRecurring as $workout): ?>
@@ -388,6 +410,6 @@ $flashes = stridebr_take_flashes();
 <?php require dirname(__DIR__, 2) . '/src/layout/footer.php'; ?>
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/time24.js')); ?>"></script>
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/trainer.js')); ?>"></script>
-<script src="<?php echo stridebr_e(stridebr_asset('/assets/js/agenda-mensal.js')); ?>"></script>
+<script src="<?php echo stridebr_e(stridebr_asset('/assets/js/agenda-mensal.js')); ?>"></script><script src="<?php echo stridebr_e(stridebr_asset('/assets/js/institutional.js')); ?>"></script>
 </body>
 </html>

@@ -98,6 +98,15 @@ php scripts/tests/test_core_nav_strava_backfill_static.php
 php scripts/tests/test_api_v1_static.php
 php scripts/tests/test_mobile_activities_v2_static.php
 php scripts/tests/test_mobile_workouts_v1_static.php
+php scripts/tests/test_mobile_workout_session_v1_static.php
+php scripts/tests/test_mobile_training_platform_v1_static.php
+php scripts/tests/test_mobile_progress_platform_v1_static.php
+php scripts/tests/test_activity_streams_analysis_pacer_v1_static.php
+php scripts/tests/test_web_activity_detail_v3_static.php
+php scripts/tests/test_web_pacer_v1_static.php
+php scripts/tests/test_web_product_expansion_v1_static.php
+php scripts/tests/test_teams_surface_core_v1_static.php
+php scripts/tests/test_core_stabilization_postgresql_gate_static.php
 php scripts/tests/test_notification_contract_static.php
 php scripts/tests/test_activity_tools_menu_static.php
 php scripts/tests/test_ads_placements_static.php

@@ -87,18 +87,37 @@ function sportHubPeriodForDate(DateTimeImmutable $date, array $periodWindow): ?s
     return null;
 }
 
-function sportHubActivityRows(PDO $pdo, string $userId, ?int $days = 370): array
+function sportHubActivityRowsQuery(PDO $pdo, string $userId, ?DateTimeImmutable $from = null, ?DateTimeImmutable $to = null, ?array $activityIds = null): array
 {
-    $whereDate = '';
+    $filters = [];
     $params = [':usuario' => $userId];
-    if ($days !== null) {
-        $days = max(30, min(36500, $days));
-        $whereDate = " AND ra.data_inicio >= NOW() - (CAST(:dias AS integer) * INTERVAL '1 day')";
-        $params[':dias'] = $days;
+    if ($from instanceof DateTimeImmutable) {
+        $filters[] = 'ra.data_inicio >= :inicio';
+        $params[':inicio'] = $from->format('Y-m-d H:i:sP');
     }
+    if ($to instanceof DateTimeImmutable) {
+        $filters[] = 'ra.data_inicio < :fim';
+        $params[':fim'] = $to->format('Y-m-d H:i:sP');
+    }
+    if (is_array($activityIds)) {
+        $activityIds = array_values(array_unique(array_filter(array_map(static fn(mixed $id): string => trim((string) $id), $activityIds))));
+        if ($activityIds === []) return [];
+        $placeholders = [];
+        foreach ($activityIds as $index => $activityId) {
+            $key = ':activity_' . $index;
+            $placeholders[] = $key;
+            $params[$key] = $activityId;
+        }
+        $filters[] = 'ra.idregistro IN (' . implode(',', $placeholders) . ')';
+    }
+    $whereRange = $filters === [] ? '' : ' AND ' . implode(' AND ', $filters);
     $stmt = $pdo->prepare("SELECT ra.idregistro, ra.titulo, ra.data_inicio, ra.data_fim, ra.origem_provedor, ra.dispositivo_origem, ra.esforco_percebido,
-        m.nome AS modalidade_nome, m.slug AS modalidade_slug, m.categoria, m.familia_hub,
-        COALESCE(NULLIF(r.distancia_metros, 0), metric.distancia_m, 0) AS distancia_metros, COALESCE(NULLIF(r.ganho_elevacao_m, 0), metric.elevacao_m, 0) AS ganho_elevacao_m,
+        m.idmodalidade, m.nome AS modalidade_nome, m.slug AS modalidade_slug, m.categoria, m.familia_hub, m.metrica_derivada, m.permite_rota,
+        COALESCE(NULLIF(r.distancia_metros, 0), metric.distancia_m) AS distancia_raw_m,
+        COALESCE(NULLIF(r.ganho_elevacao_m, 0), metric.elevacao_m) AS elevacao_raw_m,
+        COALESCE(NULLIF(GREATEST(0, EXTRACT(EPOCH FROM (COALESCE(ra.data_fim, ra.data_inicio) - ra.data_inicio))), 0), metric.duracao_s) AS duration_raw_s,
+        COALESCE(NULLIF(r.distancia_metros, 0), metric.distancia_m, 0) AS distancia_metros,
+        COALESCE(NULLIF(r.ganho_elevacao_m, 0), metric.elevacao_m, 0) AS ganho_elevacao_m,
         COALESCE(ra.calorias_externas, ra.calorias_ativas_estimadas, 0) AS calorias_kcal,
         perf.fc_media_bpm, perf.fc_maxima_bpm, perf.cadencia_media, perf.potencia_media_w, perf.vento_m_s, perf.tempo_reacao_s,
         perf.tipo_sessao, perf.formato_jogo, perf.resultado, perf.adversario, perf.placar, perf.placar_favor, perf.placar_contra, perf.posicao, perf.rounds, perf.pontuacao, perf.rodadas,
@@ -139,16 +158,28 @@ function sportHubActivityRows(PDO $pdo, string $userId, ?int $days = 370): array
             LEFT JOIN campos_modelo_opcoes o ON o.idcampo = va.idcampo AND o.idopcao = va.idopcao
             WHERE va.idregistro = ra.idregistro
         ) perf ON TRUE
-        WHERE ra.idusuario = :usuario AND ra.excluido_em IS NULL AND ra.status = 'concluido'{$whereDate}
+        WHERE ra.idusuario = :usuario AND ra.excluido_em IS NULL AND ra.status = 'concluido' AND COALESCE(ra.excluir_estatisticas,FALSE)=FALSE{$whereRange}
         ORDER BY ra.data_inicio DESC");
     $stmt->execute($params);
     $rows = $stmt->fetchAll();
     foreach ($rows as &$row) {
         $row['hub_bucket'] = sportHubBucket((string) ($row['categoria'] ?? ''), (string) ($row['modalidade_slug'] ?? ''), (string) ($row['familia_hub'] ?? ''));
         $row['duration_s'] = is_numeric($row['duration_db_s'] ?? null) ? max(0.0, (float) $row['duration_db_s']) : 0.0;
+        $row['duration_raw_s'] = is_numeric($row['duration_raw_s'] ?? null) ? max(0.0, (float) $row['duration_raw_s']) : null;
+        $row['distancia_raw_m'] = is_numeric($row['distancia_raw_m'] ?? null) ? max(0.0, (float) $row['distancia_raw_m']) : null;
+        $row['elevacao_raw_m'] = is_numeric($row['elevacao_raw_m'] ?? null) ? max(0.0, (float) $row['elevacao_raw_m']) : null;
     }
     unset($row);
     return $rows;
+}
+
+function sportHubActivityRows(PDO $pdo, string $userId, ?int $days = 370): array
+{
+    if ($days === null) return sportHubActivityRowsQuery($pdo, $userId);
+    $days = max(30, min(36500, $days));
+    $timezone = new DateTimeZone('America/Sao_Paulo');
+    $from = (new DateTimeImmutable('now', $timezone))->modify('-' . $days . ' days');
+    return sportHubActivityRowsQuery($pdo, $userId, $from);
 }
 
 function sportHubAvailableSports(array $activities): array
@@ -182,7 +213,7 @@ function sportHubNavigationSports(PDO $pdo, string $userId, array $activities = 
                 MAX(b.last_benchmark) AS last_benchmark,
                 COALESCE(BOOL_OR(COALESCE(mu.ativo, FALSE)), FALSE) AS active
             FROM modalidades m
-            LEFT JOIN registros_atividade ra ON ra.idmodalidade=m.idmodalidade AND ra.idusuario=:usuario_atividade AND ra.excluido_em IS NULL AND ra.status='concluido'
+            LEFT JOIN registros_atividade ra ON ra.idmodalidade=m.idmodalidade AND ra.idusuario=:usuario_atividade AND ra.excluido_em IS NULL AND ra.status='concluido' AND COALESCE(ra.excluir_estatisticas,FALSE)=FALSE
             LEFT JOIN modalidades_usuario mu ON mu.idmodalidade=m.idmodalidade AND mu.idusuario=:usuario_modalidade
             LEFT JOIN (
                 SELECT idmodalidade,COUNT(*) AS benchmark_count,MIN(data_resultado) AS first_benchmark,MAX(data_resultado) AS last_benchmark
@@ -324,7 +355,7 @@ function sportHubAthleticsEvents(PDO $pdo, string $userId): array
                 MAX(ra.data_inicio) AS last_activity,
                 COALESCE(BOOL_OR(COALESCE(mu.ativo, FALSE)), FALSE) AS active
             FROM modalidades m
-            LEFT JOIN registros_atividade ra ON ra.idmodalidade=m.idmodalidade AND ra.idusuario=:usuario AND ra.excluido_em IS NULL AND ra.status='concluido'
+            LEFT JOIN registros_atividade ra ON ra.idmodalidade=m.idmodalidade AND ra.idusuario=:usuario AND ra.excluido_em IS NULL AND ra.status='concluido' AND COALESCE(ra.excluir_estatisticas,FALSE)=FALSE
             LEFT JOIN modalidades_usuario mu ON mu.idmodalidade=m.idmodalidade AND mu.idusuario=:usuario
             WHERE m.familia_hub='athletics'
             GROUP BY m.idmodalidade, m.slug, m.nome, m.categoria, m.familia_hub
@@ -773,7 +804,7 @@ function sportHubActiveFamilies(array $activities): array
     return $active;
 }
 
-function sportHubStrengthSets(PDO $pdo, string $userId, ?DateTimeImmutable $from = null, ?DateTimeImmutable $to = null): array
+function sportHubStrengthSets(PDO $pdo, string $userId, ?DateTimeImmutable $from = null, ?DateTimeImmutable $to = null, bool $canonicalOnly = false): array
 {
     $rows = [];
     $filters = [];
@@ -782,12 +813,12 @@ function sportHubStrengthSets(PDO $pdo, string $userId, ?DateTimeImmutable $from
     if ($to instanceof DateTimeImmutable) { $filters[] = 'ra.data_inicio < :fim'; $params[':fim'] = $to->format('Y-m-d H:i:sP'); }
     $filter = $filters === [] ? '' : ' AND ' . implode(' AND ', $filters);
     try {
-        $stmt = $pdo->prepare("SELECT sa.idserie, sa.idregistro, sa.idexercicio, sa.nome_exercicio, sa.ordem_serie, sa.carga_kg, sa.repeticoes, sa.concluida,
+        $stmt = $pdo->prepare("SELECT sa.idserie, sa.idregistro, sa.idexercicio, sa.nome_exercicio, sa.ordem_exercicio, sa.ordem_serie, sa.carga_kg, sa.repeticoes, sa.rir, sa.rpe, sa.concluida,
             ra.data_inicio, e.grupos_musculares_primarios, e.grupos_musculares_secundarios
             FROM series_exercicio_atividade sa
             JOIN registros_atividade ra ON ra.idregistro = sa.idregistro
             LEFT JOIN exercicios e ON e.idexercicio = sa.idexercicio
-            WHERE ra.idusuario = :usuario AND ra.excluido_em IS NULL AND ra.status = 'concluido'{$filter}
+            WHERE ra.idusuario = :usuario AND ra.excluido_em IS NULL AND ra.status = 'concluido' AND COALESCE(ra.excluir_estatisticas,FALSE)=FALSE{$filter}
             ORDER BY ra.data_inicio DESC, sa.ordem_exercicio, sa.ordem_serie");
         $stmt->execute($params);
         foreach ($stmt->fetchAll() as $row) {
@@ -797,6 +828,7 @@ function sportHubStrengthSets(PDO $pdo, string $userId, ?DateTimeImmutable $from
     } catch (PDOException $e) {
         if (!in_array($e->getCode(), ['42P01', '42703'], true)) throw $e;
     }
+    if ($canonicalOnly) return $rows;
     try {
         $legacy = $pdo->prepare("SELECT st.idserie, ra.idregistro, se.idexercicio, se.nome_snapshot AS nome_exercicio, st.numero AS ordem_serie,
             st.carga_realizada, st.repeticoes_realizadas, st.concluida, ra.data_inicio,
@@ -807,7 +839,7 @@ function sportHubStrengthSets(PDO $pdo, string $userId, ?DateTimeImmutable $from
             JOIN registros_atividade ra ON ra.idregistro = s.idregistro_atividade
             LEFT JOIN exercicios e ON e.idexercicio = se.idexercicio
             WHERE s.idusuario = :usuario AND s.status = 'concluido' AND st.concluida = TRUE
-              AND ra.excluido_em IS NULL{$filter}
+              AND ra.excluido_em IS NULL AND COALESCE(ra.excluir_estatisticas,FALSE)=FALSE{$filter}
               AND NOT EXISTS (SELECT 1 FROM series_exercicio_atividade sa WHERE sa.idregistro = ra.idregistro)
             ORDER BY ra.data_inicio DESC, se.ordem, st.numero");
         $legacy->execute($params);
@@ -1118,7 +1150,7 @@ function sportHubAthleticsDashboard(PDO $pdo, string $userId, array $activities,
             JOIN unidades_atividade ua ON ua.idregistro = ra.idregistro
             LEFT JOIN valores_atividade va ON va.idunidade_atividade = ua.idunidade_atividade
             LEFT JOIN campos_modelo c ON c.idcampo = va.idcampo
-            WHERE ra.idusuario = :usuario AND ra.excluido_em IS NULL AND ra.status = 'concluido'
+            WHERE ra.idusuario = :usuario AND ra.excluido_em IS NULL AND ra.status = 'concluido' AND COALESCE(ra.excluir_estatisticas,FALSE)=FALSE
               AND m.familia_hub = 'athletics' AND ua.tipo_unidade = 'tentativa'
               AND ra.data_inicio >= :inicio AND ra.data_inicio < :fim
             GROUP BY ra.idregistro, ra.data_inicio, m.nome, m.slug, ua.idunidade_atividade, ua.ordem

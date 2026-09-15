@@ -100,7 +100,7 @@ $assert(str_contains($competitionPage, "stridebr_t('competitions.delete_confirm'
 $assert(str_contains($competitionPage, 'competitionFindByEvent') && str_contains($competitionPage, 'competitionPrefillFromEvent'), 'Fluxo por evento público deve reaproveitar existente ou pré-preencher.');
 $assert(str_contains($eventPage, "stridebr_t('competitions.register_participation')") && str_contains($eventPage, '/user/competicoes.php?new=1&event='), 'Evento público deve oferecer Registrar minha participação, sem fingir inscrição.');
 $assert(str_contains($eventPage, "stridebr_t(stridebr_db_bool(\$event['salvo']) ? 'event.saved' : 'event.save')"), 'Ação de participação não pode substituir comportamento de evento salvo.');
-$assert(!str_contains($competitionPage, 'ranking') && !str_contains($competitionPage, 'medalha') && !str_contains($competitionPage, 'colocacao'), 'B3 não deve abrir ranking/medalha/colocação.');
+$assert(!str_contains($competitionPage, 'ranking'), 'Página pessoal de competição não deve criar engine de ranking.');
 $assert(str_contains($competitionCss, '.competitions-page') && str_contains($competitionCss, '@media(max-width:800px)') && str_contains($competitionCss, '@media(max-width:520px)'), 'Página de competições deve ser densa e responsiva.');
 
 $assert(str_contains($progress, 'competitionRecentForProgress') && str_contains($progress, 'progress-competitions-section'), 'Progresso deve integrar competições recentes de forma discreta.');

@@ -8266,6 +8266,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const historyCount = historyRoot?.querySelector('[data-history-count]')
     const historySearch = historyRoot?.querySelector('[data-history-search]')
     const historySport = historyRoot?.querySelector('[data-history-sport]')
+    const historyFilters = Array.from(historyRoot?.querySelectorAll('[data-history-filter]') || [])
+    const historyClearFilters = historyRoot?.querySelector('[data-history-clear-filters]')
     const historyStatus = document.querySelector('[data-activity-history-status]')
     const detailDrawer = document.querySelector('[data-activity-detail-drawer]')
     const detailPanel = detailDrawer?.querySelector('[data-activity-detail-panel]')
@@ -8379,6 +8381,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="activity-row-title">
                     <strong>${escapeHtml(item.titulo)}</strong>
                     <span>${escapeHtml(item.modalidade)} · ${escapeHtml(item.hora)}</span>
+                    <small class="activity-row-signals">${item.has_route?'Rota':''}${item.has_hr?' · FC':''}${item.has_analysis?' · Análise':''}${item.excluded_from_stats?' · Fora das estatísticas':''}</small>
                 </div>
                 ${article.classList.contains('is-strength-row') ? renderStrengthPreview(item) : renderMetricas(item.metricas)}
                 <span class="activity-row-open" aria-hidden="true">›</span>
@@ -8393,7 +8396,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const HISTORY_CACHE_PREFIX = 'stridebr.activity.history.v3:'
     const PENDING_IMPORT_REFRESH_KEY = 'stridebr.activity.import.pendingRefresh.v1'
-    const historyCacheKey = () => `${HISTORY_CACHE_PREFIX}${String(historySearch?.value || '').trim()}|${String(historySport?.value || '').trim()}`
+    const historyFilterValues = () => {
+        const values = {}
+        historyFilters.forEach(input => { if (input.name) values[input.name] = String(input.value || '').trim() })
+        return values
+    }
+    const historyCacheKey = () => `${HISTORY_CACHE_PREFIX}${String(historySearch?.value || '').trim()}|${String(historySport?.value || '').trim()}|${JSON.stringify(historyFilterValues())}`
     const clearHistoryCache = () => {
         try {
             for (let index = sessionStorage.length - 1; index >= 0; index -= 1) {
@@ -8545,6 +8553,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const sport = String(historySport?.value || '').trim()
         if (query) params.set('q', query)
         if (sport) params.set('sport', sport)
+        const filterValues = historyFilterValues()
+        Object.entries(filterValues).forEach(([key,value]) => {
+            if (!value) return
+            if (key === 'distance_min_km') params.set('distance_min_m', String(Number(value) * 1000))
+            else if (key === 'distance_max_km') params.set('distance_max_m', String(Number(value) * 1000))
+            else if (key === 'duration_min_min') params.set('duration_min_s', String(Number(value) * 60))
+            else if (key === 'duration_max_min') params.set('duration_max_s', String(Number(value) * 60))
+            else params.set(key, value)
+        })
+        if (!append) {
+            const url = new URL(window.location.href)
+            ;['q','sport','from','to','distance_min_m','distance_max_m','duration_min_s','duration_max_s','equipment','source','with_route','with_hr','with_analysis','workout_linked','competition_linked','stats'].forEach(key => url.searchParams.delete(key))
+            if (query) url.searchParams.set('q', query)
+            if (sport) url.searchParams.set('sport', sport)
+            for (const [key,value] of params.entries()) if (key !== 'limit' && key !== 'cursor' && key !== 'q' && key !== 'sport') url.searchParams.set(key,value)
+            history.replaceState(history.state, '', `${url.pathname}${url.search}${url.hash}`)
+        }
         if (append && historyCursor) params.set('cursor', historyCursor)
         try {
             const response = await fetchWithRetry(`/api/atividades-historico.php?${params.toString()}`, {
@@ -8793,11 +8818,21 @@ document.addEventListener('DOMContentLoaded', () => {
         if (title) title.textContent = activity.titulo
         if (sport) sport.textContent = activity.modalidade
         if (date) date.textContent = `${activity.data} · ${activity.hora}`
+        const headerMetrics = detailDrawer.querySelector('[data-detail-header-metrics]')
+        if (headerMetrics) {
+            const compact = cleanDetailValues(activity.metricas || []).slice(0, 4)
+            headerMetrics.innerHTML = compact.map(item => `<span><b>${escapeHtml(item.rotulo)}</b><strong>${escapeHtml(item.valor)}</strong></span>`).join('')
+            headerMetrics.hidden = compact.length === 0
+        }
         if (compareLink) compareLink.href = `/user/comparar-atividades.php?a=${encodeURIComponent(activity.id)}`
         if (visibility) {
             const labels = {privado: tr('activity.only_me'), amigos: tr('common.friends'), publico: tr('common.public')}
             visibility.textContent = labels[String(activity.visibilidade || '')] || ''
             visibility.hidden = visibility.textContent === ''
+        }
+        if (window.StrideBRActivityDetailV3?.render?.({content: detailContent, activity})) {
+            if (detailLoading) detailLoading.hidden = true
+            return
         }
         const metricValues = cleanDetailValues(activity.metricas || [])
         const metricPairs = new Set(metricValues.map(detailPairKey))
@@ -9385,6 +9420,8 @@ document.addEventListener('DOMContentLoaded', () => {
         historyDebounce = window.setTimeout(() => loadHistory(), 220)
     })
     historySport?.addEventListener('change', () => loadHistory())
+    historyFilters.forEach(input => input.addEventListener('change', () => loadHistory()))
+    historyClearFilters?.addEventListener('click', () => { historyFilters.forEach(input => { input.value = '' }); loadHistory() })
     const initialHistoryState = String(historyRoot?.dataset.initialState || '')
     if (initialHistoryState === 'ready' || initialHistoryState === 'empty') {
         historyCursor = String(historyRoot?.dataset.initialCursor || '') || null

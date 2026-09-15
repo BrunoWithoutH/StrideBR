@@ -22,7 +22,7 @@ $assert(str_contains($dashboard, "'modalidade_familia_hub', modalidade_familia_h
 $assert(str_contains($dashboard, 'atividadeContextoFormatarDistancia') && str_contains($dashboard, 'atividadeContextoFormatarTempo'), 'apresentação semanal reutiliza formatters centrais');
 $assert(str_contains($home, 'data-week-popover-trigger') && str_contains($home, 'data-week-popover-template'), 'marcadores expõem popover contextual');
 $assert(str_contains($home, 'aria-controls="dashboard-week-popover"') && str_contains($home, 'id="dashboard-week-popover"'), 'marcadores associam semanticamente o popover');
-$assert(str_contains($home, '/user/atividades.php#atividade-'), 'contrato de abertura de atividade continua alinhado ao histórico');
+$assert(str_contains($dashboard, "'/user/atividades.php#atividade-'"), 'contrato de abertura de atividade continua alinhado ao histórico');
 $assert(str_contains($js, "document.body.append(popover)"), 'popover sai do container para evitar clipping');
 $assert(str_contains($js, "trigger.addEventListener('focus'") && str_contains($js, "isTouchContext"), 'popover cobre teclado e toque');
 $assert(str_contains($css, '.dashboard-week-popover[hidden]{display:none!important}'), 'hidden contract do popover é estrutural');

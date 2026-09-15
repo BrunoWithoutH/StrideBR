@@ -322,6 +322,38 @@ document.addEventListener('DOMContentLoaded', () => {
     const editorDataNode = document.querySelector('[data-workout-editor-data]');
     const editorExercisesLink = editor?.querySelector('[data-workout-exercises-link]');
     const editorOccurrenceOriginal = editor?.querySelector('[data-editor-occurrence-original]');
+    const editorSport = editorForm?.querySelector('[data-editor-sport]');
+    const editorPacer = editorForm?.querySelector('[data-editor-pacer]');
+    const editorRoute = editorForm?.querySelector('[data-editor-route]');
+    const syncEditorRoute = () => {
+        if (!editorRoute) return;
+        const sport = String(editorSport?.value || '');
+        let selectedAvailable = editorRoute.value === '';
+        [...editorRoute.options].forEach(option => {
+            if (!option.value) { option.hidden = false; option.disabled = false; return; }
+            const routeSport = String(option.dataset.sport || '');
+            const compatible = sport !== '' && (routeSport === '' || routeSport === sport);
+            option.hidden = !compatible;
+            option.disabled = !compatible;
+            if (compatible && option.value === editorRoute.value) selectedAvailable = true;
+        });
+        if (!selectedAvailable) editorRoute.value = '';
+        editorRoute.closest('[data-route-field]')?.classList.toggle('is-unavailable', sport === '' || ![...editorRoute.options].some(option => option.value && !option.disabled));
+    };
+    const syncEditorPacer = () => {
+        if (!editorPacer) return;
+        const sport = String(editorSport?.value || '');
+        let selectedAvailable = editorPacer.value === '';
+        [...editorPacer.options].forEach(option => {
+            if (!option.value) { option.hidden = false; option.disabled = false; return; }
+            const compatible = sport !== '' && option.dataset.sport === sport;
+            option.hidden = !compatible;
+            option.disabled = !compatible;
+            if (compatible && option.value === editorPacer.value) selectedAvailable = true;
+        });
+        if (!selectedAvailable) editorPacer.value = '';
+        editorPacer.closest('[data-pacer-plan-field]')?.classList.toggle('is-unavailable', sport === '' || ![...editorPacer.options].some(option => option.value && !option.disabled));
+    };
     const editorReturnTo = editor?.querySelector('[data-editor-return-to]');
     const saveScopeModal = document.querySelector('[data-workout-save-scope]');
     let pendingWorkoutPayload = null;
@@ -477,6 +509,10 @@ document.addEventListener('DOMContentLoaded', () => {
         set('codigo', item.codigo || '');
         set('foco', item.foco || '');
         set('idmodalidade', item.idmodalidade || '');
+        set('pacer_plan_id', item.pacer_plan_id || '');
+        set('route_id', item.route_id || '');
+        syncEditorPacer();
+        syncEditorRoute();
         set('dia_semana', String(item.dia_semana ?? 1));
         set('hora_inicio', item.hora_inicio || '18:00');
         set('hora_fim', item.hora_fim || '19:00');
@@ -504,6 +540,9 @@ document.addEventListener('DOMContentLoaded', () => {
         document.documentElement.style.overflow = 'hidden';
         editorForm.querySelector('input[name="titulo"]')?.focus();
     };
+    editorSport?.addEventListener('change', () => { syncEditorPacer(); syncEditorRoute(); });
+    syncEditorRoute();
+    syncEditorPacer();
     editor?.querySelectorAll('[data-close-workout]').forEach(button => button.addEventListener('click', closeWorkoutEditor));
     document.addEventListener('click', event => {
         const button = event.target.closest('[data-edit-workout]');
@@ -605,7 +644,33 @@ document.addEventListener('DOMContentLoaded', () => {
         context.textContent = text;
         context.hidden = text === '';
     };
+    const compactSeconds = value => {
+        const total=Math.max(0,Math.round(Number(value)||0))
+        if(total>=3600){const h=Math.floor(total/3600),m=Math.floor((total%3600)/60),s=total%60;return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`}
+        if(total>=60&&total%60===0)return `${Math.round(total/60)} min`
+        if(total>=60)return `${Math.floor(total/60)}:${String(total%60).padStart(2,'0')}`
+        return `${total} s`
+    };
+    const paceValue = value => {const total=Math.max(0,Math.round(Number(value)||0));return `${Math.floor(total/60)}:${String(total%60).padStart(2,'0')}/km`};
+    const structuredTarget = exercise => {
+        const min=Number(exercise.alvo_min), max=Number(exercise.alvo_max)
+        if(!exercise.alvo_tipo || !Number.isFinite(min)) return ''
+        const hasRange=Number.isFinite(max)&&max!==min
+        if(exercise.alvo_unidade==='s_per_km')return hasRange?`${paceValue(min)}–${paceValue(max).replace('/km','')}/km`:`${paceValue(min)}`
+        if(exercise.alvo_unidade==='s')return hasRange?`${compactSeconds(min)}–${compactSeconds(max)}`:compactSeconds(min)
+        const formatter=value=>exercise.alvo_unidade==='km_h'?Number(value).toFixed(1):exercise.alvo_unidade==='bpm'||exercise.alvo_unidade==='rpe_1_10'||exercise.alvo_unidade==='m'?String(Math.round(Number(value))):String(value)
+        const value=hasRange?`${formatter(min)}–${formatter(max)}`:formatter(min)
+        const unit={km_h:'km/h',bpm:'bpm',rpe_1_10:'RPE',m:'m'}[exercise.alvo_unidade]||exercise.alvo_unidade||''
+        return `${value} ${unit}`.trim()
+    };
     const previewExerciseMeta = exercise => [
+        exercise.tipo_passo && exercise.tipo_passo!=='exercise' ? ({warmup:'Aquecimento',work:'Trabalho',recovery:'Recuperação',cooldown:'Desaquecimento',interval_group:'Intervalo'}[exercise.tipo_passo] || exercise.tipo_passo) : '',
+        exercise.repeticoes_bloco ? `${Number(exercise.repeticoes_bloco)} ×` : '',
+        exercise.duracao || '',
+        exercise.distancia || '',
+        structuredTarget(exercise),
+        exercise.recuperacao_duracao_s ? `Rec. ${compactSeconds(exercise.recuperacao_duracao_s)}` : '',
+        exercise.recuperacao_distancia_m ? `Rec. ${Number(exercise.recuperacao_distancia_m)} m` : '',
         exercise.series !== null && exercise.series !== undefined ? `${Number(exercise.series)} ${tr('schedule.sets')}` : '',
         exercise.repeticoes ? String(exercise.repeticoes).replace(/\s*(?:reps?|repetições?)\s*$/i, '') + ' reps' : '',
         exercise.carga || '',
@@ -623,7 +688,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const exercises = Array.isArray(data.exercises) ? data.exercises : [];
         const exerciseMarkup = exercises.length ? exercises.map((exercise, index) => {
             const meta = previewExerciseMeta(exercise).map(value => `<span>${escapeHtml(value)}</span>`).join('');
-            return `<article class="preview-exercise"><span class="preview-exercise-number">${index + 1}</span><div><strong>${escapeHtml(exercise.nome || '')}</strong>${meta ? `<div class="preview-exercise-meta">${meta}</div>` : ''}${exercise.observacoes ? `<small>${escapeHtml(exercise.observacoes)}</small>` : ''}</div></article>`;
+            return `<article class="preview-exercise${exercise.tipo_passo && exercise.tipo_passo!=='exercise' ? ' is-endurance' : ''}"><span class="preview-exercise-number">${index + 1}</span><div><strong>${escapeHtml(exercise.nome || '')}</strong>${meta ? `<div class="preview-exercise-meta">${meta}</div>` : ''}${exercise.observacoes ? `<small>${escapeHtml(exercise.observacoes)}</small>` : ''}</div></article>`;
         }).join('') : `<p class="preview-empty">${escapeHtml(tr('schedule.no_exercises'))}</p>`;
         const libraryAction = workout.biblioteca_disponivel
             ? workout.idtreino_modelo
@@ -1019,6 +1084,20 @@ document.addEventListener('DOMContentLoaded', () => {
         renumberRows();
         row.querySelector('[data-exercise-name]')?.focus();
     });
+    document.querySelectorAll('[data-add-endurance-preset]').forEach(button=>button.addEventListener('click',()=>{
+        addExercise?.click()
+        const row=rowsContainer?.lastElementChild
+        if(!row)return
+        const type=button.dataset.addEndurancePreset||'work'
+        const typeInput=row.querySelector('[name$="[tipo_passo]"]')
+        const name=row.querySelector('[data-exercise-name]')
+        const labels={warmup:'Aquecimento',work:'Trabalho',recovery:'Recuperação',cooldown:'Desaquecimento',interval_group:'Bloco intervalado'}
+        if(typeInput)typeInput.value=type
+        if(name&&!name.value)name.value=labels[type]||'Trecho'
+        if(type==='interval_group')row.querySelector('[name$="[repeticoes_bloco]"]')?.focus()
+        else if(type==='warmup'||type==='cooldown'||type==='recovery')row.querySelector('[name$="[duracao]"]')?.focus()
+        else row.querySelector('[name$="[distancia]"]')?.focus()
+    }));
     if (rowsContainer && rowsContainer.children.length === 0) addExercise?.click();
 
     const search = document.querySelector('[data-library-search]');
@@ -1074,6 +1153,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const quickCode = quickForm?.querySelector('[data-quick-code]');
     const quickFocus = quickForm?.querySelector('[data-quick-focus]');
     const quickModality = quickForm?.querySelector('[data-quick-modality]');
+    const quickRoute = quickForm?.querySelector('[data-quick-route]');
     const quickDescription = quickForm?.querySelector('[data-quick-description]');
     const quickScheduleFields = quickForm?.querySelector('[data-quick-schedule-fields]');
     const quickSaveLibraryRow = quickForm?.querySelector('[data-quick-save-library-row]');
@@ -1129,6 +1209,7 @@ document.addEventListener('DOMContentLoaded', () => {
             code: quickCode?.value || '',
             focus: quickFocus?.value || '',
             modality: quickModality?.value || '',
+            routeId: quickRoute?.value || '',
             description: quickDescription?.value || '',
             date: quickDate?.value || localDate(),
             start: quickStart?.value || '18:00',
@@ -1187,6 +1268,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (quickCode) quickCode.value = draft.code || '';
         if (quickFocus) quickFocus.value = draft.focus || '';
         if (quickModality) quickModality.value = draft.modality || '';
+        if (quickRoute) quickRoute.value = draft.routeId || '';
         if (quickDescription) quickDescription.value = draft.description || '';
         if (quickDate) quickDate.value = draft.date || localDate();
         if (quickStart) {
@@ -1257,7 +1339,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 sourceModel,
                 title: '', code: '', focus: '', description: '',
                 date: date || localDate(), start: '18:00', end: '19:00', nextDay: false,
-                repeat: 'once', until: '', saveLibrary: false, exercises: [],
+                repeat: 'once', until: '', saveLibrary: false, exercises: [], routeId: '',
             };
         }
         if (!restore) {
@@ -1296,9 +1378,23 @@ document.addEventListener('DOMContentLoaded', () => {
         if (event.key === 'Escape' && quickModal && !quickModal.hidden) closeQuickCreate(true);
     });
     quickForm?.addEventListener('input', () => writeQuickDraft(collectQuickState()));
+    const syncQuickRoute = () => {
+        if (!quickRoute) return;
+        const sport=String(quickModality?.value||'');
+        let selectedAvailable=quickRoute.value==='';
+        [...quickRoute.options].forEach(option=>{
+            if(!option.value){option.hidden=false;option.disabled=false;return}
+            const routeSport=String(option.dataset.sport||'');
+            const compatible=sport!==''&&(routeSport===''||routeSport===sport);
+            option.hidden=!compatible;option.disabled=!compatible;
+            if(compatible&&option.value===quickRoute.value)selectedAvailable=true;
+        });
+        if(!selectedAvailable)quickRoute.value='';
+    };
     quickForm?.addEventListener('change', event => {
         if (event.target === quickRepeat && quickUntil) quickUntil.hidden = quickRepeat.value !== 'weekly';
         if (event.target === quickSource) applyQuickSource(quickSource.value, true);
+        if (event.target === quickModality) syncQuickRoute();
         writeQuickDraft(collectQuickState());
     });
     quickSourceCards?.addEventListener('click', event => {
@@ -1361,6 +1457,7 @@ document.addEventListener('DOMContentLoaded', () => {
         payload.set('codigo', state.code.trim());
         payload.set('foco', state.focus.trim());
         payload.set('idmodalidade', state.modality || '');
+        payload.set('route_id', state.routeId || '');
         payload.set('descricao', state.description.trim());
         payload.set('exercicios', JSON.stringify(Array.isArray(state.exercises) ? state.exercises : []));
         if (state.mode !== 'library') {
@@ -1409,10 +1506,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const requestedCreate = pageParams.get('new');
     if (requestedCreate === 'workout') {
+        const requestedRoute = pageParams.get('route') || '';
         const url = new URL(window.location.href);
         url.searchParams.delete('new');
+        url.searchParams.delete('route');
         history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
         openQuickCreate({mode:'schedule', date:localDate()});
+        if (requestedRoute && quickRoute) {
+            quickRoute.value=requestedRoute;
+            const selected=quickRoute.selectedOptions[0];
+            if(selected?.dataset?.sport&&quickModality&&!quickModality.value)quickModality.value=selected.dataset.sport;
+            syncQuickRoute();
+            writeQuickDraft(collectQuickState());
+        }
     } else if (requestedCreate === 'schedule') {
         const url = new URL(window.location.href);
         url.searchParams.delete('new');

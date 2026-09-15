@@ -23,13 +23,30 @@ try {
     $queryStartedAt = microtime(true);
     $cursor = trim((string) ($_GET['cursor'] ?? '')) ?: null;
     $sport = trim((string) ($_GET['sport'] ?? ''));
+    $historyFilters = [
+        'from' => trim((string) ($_GET['from'] ?? '')),
+        'to' => trim((string) ($_GET['to'] ?? '')),
+        'distance_min_m' => trim((string) ($_GET['distance_min_m'] ?? '')),
+        'distance_max_m' => trim((string) ($_GET['distance_max_m'] ?? '')),
+        'duration_min_s' => trim((string) ($_GET['duration_min_s'] ?? '')),
+        'duration_max_s' => trim((string) ($_GET['duration_max_s'] ?? '')),
+        'equipment' => trim((string) ($_GET['equipment'] ?? '')),
+        'source' => trim((string) ($_GET['source'] ?? '')),
+        'with_route' => trim((string) ($_GET['with_route'] ?? '')),
+        'with_hr' => trim((string) ($_GET['with_hr'] ?? '')),
+        'with_analysis' => trim((string) ($_GET['with_analysis'] ?? '')),
+        'workout_linked' => trim((string) ($_GET['workout_linked'] ?? '')),
+        'competition_linked' => trim((string) ($_GET['competition_linked'] ?? '')),
+        'stats' => trim((string) ($_GET['stats'] ?? '')),
+    ];
     $result = atividadeListarRegistrosPagina(
         $pdo,
         $idUsuario,
         (int) ($_GET['limit'] ?? 20),
         $cursor,
         trim((string) ($_GET['q'] ?? '')),
-        $sport
+        $sport,
+        $historyFilters
     );
     if ($cursor === null) $result['resumo'] = atividadeResumoHistorico($pdo, $idUsuario, $sport);
     stridebr_timing_measure('activity_history', $queryStartedAt, 'Histórico de atividades');

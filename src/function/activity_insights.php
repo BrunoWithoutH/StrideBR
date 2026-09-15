@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/atividade_modelo.php';
 require_once __DIR__ . '/atividade_presenter.php';
+require_once __DIR__ . '/activity_stream_service.php';
+require_once __DIR__ . '/activity_analysis_service.php';
 
 function activityInsightsList(PDO $pdo, string $idUsuario, int $limit = 240): array
 {
@@ -128,44 +130,26 @@ function activityInsightsDefaultB(PDO $pdo, string $idUsuario, array $activities
 
 function activityInsightsStrength(PDO $pdo, string $idUsuario, string $idRegistro): array
 {
-    $stmt = $pdo->prepare("SELECT s.idsessao FROM sessoes_treino s JOIN registros_atividade ra ON ra.idregistro = s.idregistro_atividade WHERE s.idregistro_atividade = :registro AND s.idusuario = :usuario AND ra.excluido_em IS NULL LIMIT 1");
+    $stmt = $pdo->prepare("SELECT sea.idexercicio,sea.nome_exercicio,sea.concluida,sea.repeticoes,sea.carga_kg
+        FROM series_exercicio_atividade sea
+        JOIN registros_atividade ra ON ra.idregistro=sea.idregistro
+        WHERE sea.idregistro=:registro AND ra.idusuario=:usuario AND ra.excluido_em IS NULL
+        ORDER BY sea.ordem_exercicio,sea.ordem_serie,sea.idserie");
     $stmt->execute([':registro' => $idRegistro, ':usuario' => $idUsuario]);
-    $sessionId = $stmt->fetchColumn();
-    if (!$sessionId) return [];
-    $rowsStmt = $pdo->prepare("SELECT se.nome_snapshot, st.numero, st.concluida, st.repeticoes_realizadas, st.carga_realizada
-                               FROM sessoes_treino_exercicios se
-                               JOIN sessoes_treino_series st ON st.idsessao_exercicio = se.idsessao_exercicio
-                               WHERE se.idsessao = :sessao ORDER BY se.ordem, st.numero");
-    $rowsStmt->execute([':sessao' => $sessionId]);
-    $exercises = [];
-    $setsDone = 0;
-    $repsTotal = 0.0;
-    $volume = 0.0;
-    $maxLoad = null;
-    foreach ($rowsStmt->fetchAll() as $row) {
-        $name = trim((string) ($row['nome_snapshot'] ?? 'Exercício'));
-        $key = stridebr_lower($name);
-        $exercises[$key] ??= ['nome' => $name, 'series' => 0, 'repeticoes' => 0.0, 'volume' => 0.0, 'maior_carga' => null];
-        if (!stridebr_db_bool($row['concluida'] ?? false)) continue;
-        $setsDone++;
-        $exercises[$key]['series']++;
-        $repsRaw = str_replace(',', '.', trim((string) ($row['repeticoes_realizadas'] ?? '')));
-        $loadRaw = str_replace(',', '.', trim((string) ($row['carga_realizada'] ?? '')));
-        $reps = preg_match('/^-?\d+(?:\.\d+)?$/', $repsRaw) ? (float) $repsRaw : 0.0;
-        $load = preg_match('/^-?\d+(?:\.\d+)?$/', $loadRaw) ? max(0.0, (float) $loadRaw) : null;
-        $repsTotal += max(0.0, $reps);
-        $exercises[$key]['repeticoes'] += max(0.0, $reps);
-        if ($load !== null) {
-            $maxLoad = $maxLoad === null ? $load : max($maxLoad, $load);
-            $exercises[$key]['maior_carga'] = $exercises[$key]['maior_carga'] === null ? $load : max((float) $exercises[$key]['maior_carga'], $load);
-            if ($reps > 0) {
-                $setVolume = $load * $reps;
-                $volume += $setVolume;
-                $exercises[$key]['volume'] += $setVolume;
-            }
-        }
+    $rows = $stmt->fetchAll();
+    if ($rows === []) return [];
+    $exercises=[];$setsDone=0;$repsTotal=0.0;$volume=0.0;$maxLoad=null;
+    foreach($rows as $row){
+        $name=trim((string)($row['nome_exercicio']??'Exercício'));$key=stridebr_lower($name);
+        $exercises[$key]??=['nome'=>$name,'series'=>0,'repeticoes'=>0.0,'volume'=>0.0,'maior_carga'=>null];
+        if(!stridebr_db_bool($row['concluida']??false))continue;
+        $setsDone++;$exercises[$key]['series']++;
+        $reps=is_numeric($row['repeticoes']??null)?max(0.0,(float)$row['repeticoes']):0.0;
+        $load=is_numeric($row['carga_kg']??null)?max(0.0,(float)$row['carga_kg']):null;
+        $repsTotal+=$reps;$exercises[$key]['repeticoes']+=$reps;
+        if($load!==null){$maxLoad=$maxLoad===null?$load:max($maxLoad,$load);$exercises[$key]['maior_carga']=$exercises[$key]['maior_carga']===null?$load:max((float)$exercises[$key]['maior_carga'],$load);if($reps>0){$setVolume=$load*$reps;$volume+=$setVolume;$exercises[$key]['volume']+=$setVolume;}}
     }
-    return ['series' => $setsDone, 'repeticoes' => $repsTotal, 'volume' => $volume, 'maior_carga' => $maxLoad, 'exercicios' => array_values($exercises)];
+    return ['series'=>$setsDone,'repeticoes'=>$repsTotal,'volume'=>$volume,'maior_carga'=>$maxLoad,'exercicios'=>array_values($exercises)];
 }
 
 function activityInsightsCompare(PDO $pdo, string $idUsuario, string $idA, string $idB): array
@@ -192,7 +176,14 @@ function activityInsightsCompare(PDO $pdo, string $idUsuario, string $idA, strin
             'b' => $metricsB[$key]['valor'] ?? '—',
         ];
     }
-    return ['a' => $a, 'b' => $b, 'metricas' => $metrics, 'forca_a' => activityInsightsStrength($pdo, $idUsuario, $idA), 'forca_b' => activityInsightsStrength($pdo, $idUsuario, $idB)];
+    $streamQuery=['axis'=>'distance','resolution'=>'medium','streams'=>'pace,speed,heart_rate,altitude,cadence'];
+    try { $streamsA=activityStreamRead($pdo,$idUsuario,$idA,$streamQuery); } catch(Throwable) { $streamsA=null; }
+    try { $streamsB=activityStreamRead($pdo,$idUsuario,$idB,$streamQuery); } catch(Throwable) { $streamsB=null; }
+    try { $splitsA=activityStreamSplits($pdo,$idUsuario,$idA,1000); } catch(Throwable) { $splitsA=null; }
+    try { $splitsB=activityStreamSplits($pdo,$idUsuario,$idB,1000); } catch(Throwable) { $splitsB=null; }
+    try { $analysisA=activityAnalysisCompute($pdo,$idUsuario,$idA); } catch(Throwable) { $analysisA=null; }
+    try { $analysisB=activityAnalysisCompute($pdo,$idUsuario,$idB); } catch(Throwable) { $analysisB=null; }
+    return ['a'=>$a,'b'=>$b,'metricas'=>$metrics,'forca_a'=>activityInsightsStrength($pdo,$idUsuario,$idA),'forca_b'=>activityInsightsStrength($pdo,$idUsuario,$idB),'streams_a'=>$streamsA,'streams_b'=>$streamsB,'splits_a'=>$splitsA,'splits_b'=>$splitsB,'analysis_a'=>$analysisA,'analysis_b'=>$analysisB];
 }
 
 function activityInsightsProgress(PDO $pdo, string $idUsuario, ?DateTimeImmutable $anchorEnd = null): array
@@ -220,7 +211,7 @@ function activityInsightsProgress(PDO $pdo, string $idUsuario, ?DateTimeImmutabl
         FROM registros_atividade ra
         LEFT JOIN rotas_atividade r ON r.idregistro = ra.idregistro
         CROSS JOIN params p
-        WHERE ra.idusuario = :usuario AND ra.excluido_em IS NULL AND ra.status = 'concluido'
+        WHERE ra.idusuario = :usuario AND ra.excluido_em IS NULL AND ra.status = 'concluido' AND COALESCE(ra.excluir_estatisticas,FALSE)=FALSE
           AND (ra.data_inicio AT TIME ZONE 'America/Sao_Paulo')::date >= (date_trunc('week', p.anchor_date::timestamp) - INTERVAL '7 weeks')::date
           AND (ra.data_inicio AT TIME ZONE 'America/Sao_Paulo')::date <= p.anchor_date
         GROUP BY 1
@@ -238,21 +229,17 @@ function activityInsightsProgress(PDO $pdo, string $idUsuario, ?DateTimeImmutabl
         MAX(EXTRACT(EPOCH FROM (ra.data_fim - ra.data_inicio))) FILTER (WHERE ra.data_fim IS NOT NULL) AS max_duration,
         COUNT(*) AS activities_total
         FROM registros_atividade ra LEFT JOIN rotas_atividade r ON r.idregistro = ra.idregistro
-        WHERE ra.idusuario = :usuario AND ra.excluido_em IS NULL AND ra.status = 'concluido'");
+        WHERE ra.idusuario = :usuario AND ra.excluido_em IS NULL AND ra.status = 'concluido' AND COALESCE(ra.excluir_estatisticas,FALSE)=FALSE");
     $recordStmt->execute([':usuario' => $idUsuario]);
     $records = $recordStmt->fetch() ?: [];
 
-    $setsStmt = $pdo->prepare("SELECT st.carga_realizada FROM sessoes_treino s
-        JOIN registros_atividade ra ON ra.idregistro = s.idregistro_atividade AND ra.excluido_em IS NULL
-        JOIN sessoes_treino_exercicios se ON se.idsessao = s.idsessao
-        JOIN sessoes_treino_series st ON st.idsessao_exercicio = se.idsessao_exercicio
-        WHERE s.idusuario = :usuario AND st.concluida = TRUE AND st.carga_realizada IS NOT NULL");
+    $setsStmt = $pdo->prepare("SELECT MAX(sea.carga_kg) FROM series_exercicio_atividade sea
+        JOIN registros_atividade ra ON ra.idregistro=sea.idregistro
+        WHERE ra.idusuario=:usuario AND ra.excluido_em IS NULL AND ra.status='concluido'
+          AND COALESCE(ra.excluir_estatisticas,FALSE)=FALSE AND sea.concluida=TRUE AND sea.carga_kg IS NOT NULL");
     $setsStmt->execute([':usuario' => $idUsuario]);
-    $maxLoad = null;
-    foreach ($setsStmt->fetchAll(PDO::FETCH_COLUMN) as $rawLoad) {
-        $normalized = str_replace(',', '.', trim((string) $rawLoad));
-        if (preg_match('/^-?\d+(?:\.\d+)?$/', $normalized)) $maxLoad = max($maxLoad ?? 0.0, max(0.0, (float) $normalized));
-    }
+    $maxLoadRaw = $setsStmt->fetchColumn();
+    $maxLoad = is_numeric($maxLoadRaw) ? max(0.0, (float) $maxLoadRaw) : null;
 
     $recent = array_slice($weeks, -4);
     $previous = array_slice($weeks, 0, 4);

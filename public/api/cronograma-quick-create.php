@@ -34,6 +34,7 @@ try {
     $foco = trim((string) ($_POST['foco'] ?? ''));
     $descricao = trim((string) ($_POST['descricao'] ?? ''));
     $idmodalidade = trim((string) ($_POST['idmodalidade'] ?? ''));
+    $routeId = trim((string) ($_POST['route_id'] ?? ''));
     $exercicios = quickCreateExercises((string) ($_POST['exercicios'] ?? ''));
 
     if ($action === 'create_library') {
@@ -104,6 +105,7 @@ try {
                 'foco' => $foco !== '' ? $foco : (string) ($modelo['foco'] ?? ''),
                 'descricao' => $descricao !== '' ? $descricao : (string) ($modelo['descricao'] ?? ''),
                 'idmodalidade' => $idmodalidade !== '' ? $idmodalidade : (string) ($modelo['idmodalidade'] ?? ''),
+                'route_id' => $routeId,
                 'dia_semana' => (int) $date->format('w'),
                 'hora_inicio' => $horaInicio,
                 'hora_fim' => $horaFim,
@@ -119,6 +121,7 @@ try {
                 'foco' => $foco,
                 'descricao' => $descricao,
                 'idmodalidade' => $idmodalidade,
+                'route_id' => $routeId,
                 'dia_semana' => (int) $date->format('w'),
                 'hora_inicio' => $horaInicio,
                 'hora_fim' => $horaFim,

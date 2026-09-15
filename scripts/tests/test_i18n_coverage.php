@@ -62,7 +62,7 @@ $ok(stridebr_present_activity_title('Corrida de madrugada', 'corrida', 'en') ===
 $ok(stridebr_present_activity_title('Corrida com o Boligon', 'corrida', 'en') === 'Corrida com o Boligon', 'título manual preservado');
 
 $pages = [
-    'public/home.php' => ['home.page_title', 'home.view_agenda', 'home.recent_activities'],
+    'public/home.php' => ['home.page_title', 'home.view_agenda'],
     'public/user/cronogramatreinos.php' => ['schedule.page_title', 'schedule.library', 'schedule.open_month'],
     'public/user/agenda-mensal.php' => ['agenda.page_title'],
     'public/user/biblioteca.php' => ['library.page_title'],

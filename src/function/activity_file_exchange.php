@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/activity_stream_service.php';
+
 const STRIDEBR_ACTIVITY_FILE_MAX_BYTES = 26214400;
 const STRIDEBR_ACTIVITY_IMPORT_MAX_STREAM_POINTS = 24000;
 const STRIDEBR_ACTIVITY_ROUTE_POINTS = 1800;
@@ -820,6 +822,7 @@ function atividadeArquivoConfirmarImportacao(PDO $pdo, string $idUsuario, string
         $idRegistro = atividadeSalvarRegistro($pdo, $idUsuario, $payload);
         $update = $pdo->prepare("UPDATE stridebr.atividade_importacoes SET idregistro = :registro, status = 'importado', data_atualizacao = NOW() WHERE idimportacao = :id AND idusuario = :usuario");
         $update->execute([':registro' => $idRegistro, ':id' => $idImportacao, ':usuario' => $idUsuario]);
+        activityStreamEnsureMaterialized($pdo, $idUsuario, $idRegistro);
         if ($ownsTransaction && $pdo->inTransaction()) $pdo->commit();
         return $idRegistro;
     } catch (Throwable $e) {

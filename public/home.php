@@ -10,9 +10,13 @@ require_once dirname(__DIR__) . '/src/config/pg_config.php';
 require_once dirname(__DIR__) . '/src/function/dashboard.php';
 require_once dirname(__DIR__) . '/src/function/cronograma.php';
 require_once dirname(__DIR__) . '/src/function/eventos.php';
+require_once dirname(__DIR__) . '/src/function/competitions.php';
+require_once dirname(__DIR__) . '/src/function/progress_service.php';
+require_once dirname(__DIR__) . '/src/function/pacer_service.php';
 require_once dirname(__DIR__) . '/src/includes/sport_icons.php';
 require_once dirname(__DIR__) . '/src/layout/sport_picker.php';
 require_once dirname(__DIR__) . '/src/layout/ads.php';
+require_once dirname(__DIR__) . '/src/function/teams_surface_provider.php';
 
 $user = stridebr_display_name();
 $errors = [];
@@ -53,6 +57,25 @@ $proximos = dashboardTreinosProximos($pdo, $idUsuario, 5);
 $metas = $metasDisponiveis ? dashboardListarMetas($pdo, $idUsuario) : [];
 $goalModalidades = $metasDisponiveis ? dashboardListarModalidades($pdo, $idUsuario) : [];
 $contextoHoje = dashboardContextoHoje($pdo, $idUsuario);
+$homePacer = null;
+$nextCompetition = null;
+$progress28 = null;
+$lastActivityMap = null;
+$institutionalHome = null;
+if (stridebr_teams_enabled()) {
+    try {
+        $teamsContext = stridebr_teams_surface_context($pdo, $idUsuario);
+        $teamItem = (array) (($teamsContext['my_teams'][0] ?? null) ?: []);
+        if ($teamItem !== []) {
+            $institutionalTrainings = stridebr_teams_surface_trainings($pdo, $idUsuario, (new DateTimeImmutable('today'))->format('Y-m-d'), (new DateTimeImmutable('today'))->modify('+550 days')->format('Y-m-d'), (string) $teamItem['team']['ref']);
+            $institutionalCompetitions = stridebr_teams_surface_competitions($pdo, $idUsuario);
+            $institutionalHome = ['team' => $teamItem, 'training' => $institutionalTrainings[0] ?? null, 'competition' => $institutionalCompetitions[0] ?? null];
+        }
+    } catch (Throwable $e) {
+        error_log('StrideBR Teams home surface: ' . $e->getMessage());
+        $institutionalHome = null;
+    }
+}
 $flashes = stridebr_take_flashes();
 
 
@@ -60,6 +83,45 @@ $tz = new DateTimeZone('America/Sao_Paulo');
 $hoje = new DateTimeImmutable('today', $tz);
 $amanha = $hoje->modify('+1 day');
 $todayLabel = stridebr_format_date_weekday($hoje);
+try {
+    $pacerId = trim((string) (($contextoHoje['primary']['idpacerplan'] ?? '') ?: ($proximos[0]['idpacerplan'] ?? '')));
+    if ($pacerId !== '') {
+        $candidate = pacerPlanGet($pdo, $idUsuario, $pacerId, false);
+        if ($candidate !== []) $homePacer = $candidate;
+    }
+} catch (Throwable $e) {
+    error_log('StrideBR home pacer: ' . $e->getMessage());
+}
+try {
+    foreach (competitionList($pdo, $idUsuario, ['status' => 'planejada']) as $competition) {
+        if ((string) ($competition['participacao_status'] ?? '') === 'cancelou') continue;
+        if ((string) ($competition['data_inicio'] ?? '') < $hoje->format('Y-m-d')) continue;
+        $nextCompetition = $competition;
+        break;
+    }
+} catch (Throwable $e) {
+    error_log('StrideBR home competition: ' . $e->getMessage());
+}
+try {
+    $progress28 = progressOverview($pdo, $idUsuario, [
+        'from' => $hoje->modify('-27 days')->format('Y-m-d'),
+        'to' => $hoje->format('Y-m-d'),
+    ]);
+} catch (Throwable $e) {
+    error_log('StrideBR home progress: ' . $e->getMessage());
+}
+if ($recentes !== []) {
+    $rawMap = $recentes[0]['route_geojson'] ?? null;
+    $decodedMap = is_array($rawMap) ? $rawMap : json_decode((string) ($rawMap ?? ''), true);
+    if (is_array($decodedMap) && ($decodedMap['type'] ?? '') === 'LineString' && count((array) ($decodedMap['coordinates'] ?? [])) >= 2) $lastActivityMap = $decodedMap;
+}
+$nextWorkout = $proximos[0] ?? null;
+$lastActivity = $recentes[0] ?? null;
+$homePacerPaceLabel = null;
+if (is_array($homePacer) && is_numeric($homePacer['target_average_pace_s_per_km'] ?? null)) {
+    $paceSeconds = max(1, (int) round((float) $homePacer['target_average_pace_s_per_km']));
+    $homePacerPaceLabel = sprintf('%d:%02d/km', intdiv($paceSeconds, 60), $paceSeconds % 60);
+}
 $eventosHoje = [];
 try {
     foreach (eventosListarPublicados($pdo, ['salvos' => true, 'mes' => $hoje->format('Y-m')], $idUsuario, 20) as $event) {
@@ -93,8 +155,9 @@ $weekSummary = implode(' · ', $weekSummaryParts);
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/style.css')); ?>">
 
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/dashboard.css')); ?>">
+    <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/dashboard-v2.css')); ?>">
     <title><?php echo stridebr_e(stridebr_t('home.page_title')); ?></title>
-    <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>">
+    <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>"><link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/institutional.css')); ?>">
 </head>
 <body>
 <div class="container-fluid">
@@ -207,6 +270,65 @@ $weekSummary = implode(' · ', $weekSummaryParts);
             </section>
             <?php endif; ?>
 
+            <?php if (is_array($institutionalHome)): $institutionalTeam = $institutionalHome['team']; ?>
+            <section class="dashboard-v2-card institutional-home-card" aria-label="<?php echo stridebr_e(stridebr_t('teams.my_team')); ?>">
+                <div class="dashboard-v2-card-head"><span><?php echo stridebr_e(stridebr_t('teams.my_team')); ?></span><a href="/user/equipe.php?team=<?php echo rawurlencode((string) $institutionalTeam['team']['ref']); ?>&amp;season=<?php echo rawurlencode((string) $institutionalTeam['season']['ref']); ?>"><?php echo stridebr_e(stridebr_t('teams.my_teams')); ?></a></div>
+                <a href="/user/equipe.php?team=<?php echo rawurlencode((string) $institutionalTeam['team']['ref']); ?>&amp;season=<?php echo rawurlencode((string) $institutionalTeam['season']['ref']); ?>"><strong><?php echo stridebr_e((string) $institutionalTeam['team']['name']); ?></strong><small><?php echo stridebr_e((string) $institutionalTeam['organization']['name']); ?></small></a>
+                <div class="institutional-meta"><?php if (is_array($institutionalHome['training'])): ?><a href="/user/treino-institucional.php?id=<?php echo rawurlencode((string) $institutionalHome['training']['training_ref']); ?>"><?php echo stridebr_e(stridebr_t('teams.next_training')); ?>: <?php echo stridebr_e((string) $institutionalHome['training']['title']); ?></a><?php endif; ?><?php if (is_array($institutionalHome['competition'])): ?><a href="/user/competicao-institucional.php?id=<?php echo rawurlencode((string) $institutionalHome['competition']['competition_ref']); ?>"><?php echo stridebr_e(stridebr_t('teams.next_competition')); ?>: <?php echo stridebr_e((string) $institutionalHome['competition']['display_name']); ?></a><?php endif; ?></div>
+            </section>
+            <?php endif; ?>
+
+            <section class="dashboard-v2-priority" aria-label="Prioridades">
+                <div class="dashboard-v2-grid">
+                    <article class="dashboard-v2-card dashboard-v2-next">
+                        <div class="dashboard-v2-card-head"><span>Próximo treino</span><a href="/user/cronogramatreinos.php">Agenda</a></div>
+                        <?php if ($nextWorkout): $nextDate = $nextWorkout['proxima_data']; ?>
+                            <strong><?php echo stridebr_e((string) $nextWorkout['titulo']); ?></strong>
+                            <small><?php echo stridebr_e($nextDate->format('Y-m-d') === $hoje->format('Y-m-d') ? 'Hoje' : ($nextDate->format('Y-m-d') === $amanha->format('Y-m-d') ? 'Amanhã' : stridebr_format_date_weekday($nextDate))); ?> · <?php echo stridebr_e(substr((string) $nextWorkout['hora_inicio'], 0, 5)); ?></small>
+                            <?php if ($homePacer): ?>
+                                <a class="dashboard-v2-pacer" href="/user/pacer.php?edit=<?php echo rawurlencode((string) $homePacer['id']); ?>"><span>Pacer pronto</span><strong><?php echo stridebr_e(number_format((float) $homePacer['target_distance_m'] / 1000, 2, ',', '.')); ?> km · <?php echo stridebr_e(gmdate((float) $homePacer['target_time_s'] >= 3600 ? 'H:i:s' : 'i:s', (int) round((float) $homePacer['target_time_s']))); ?></strong><small><?php echo stridebr_e(ucwords(str_replace('_', ' ', (string) $homePacer['strategy']))); ?><?php echo $homePacerPaceLabel ? ' · ' . stridebr_e($homePacerPaceLabel) : ''; ?></small></a>
+                            <?php endif; ?>
+                        <?php else: ?>
+                            <strong>Nenhum treino próximo.</strong><small>Adicione um treino ao cronograma quando precisar.</small><a class="secondary-button compact" href="/user/cronogramatreinos.php?new=workout">Novo treino</a>
+                        <?php endif; ?>
+                    </article>
+
+                    <article class="dashboard-v2-card">
+                        <div class="dashboard-v2-card-head"><span>Próxima competição</span><a href="/user/competicoes.php">Competições</a></div>
+                        <?php if ($nextCompetition): $competitionDate = new DateTimeImmutable((string) $nextCompetition['data_inicio']); ?>
+                            <strong><?php echo stridebr_e((string) $nextCompetition['nome']); ?></strong>
+                            <small><?php echo stridebr_e(stridebr_format_date_weekday($competitionDate)); ?><?php $competitionPlace = implode(', ', array_filter([(string) ($nextCompetition['cidade'] ?? ''), (string) ($nextCompetition['estado'] ?? '')])); echo $competitionPlace !== '' ? ' · ' . stridebr_e($competitionPlace) : ''; ?></small>
+                            <a class="dashboard-v2-inline-link" href="/user/competicoes.php?id=<?php echo rawurlencode((string) $nextCompetition['idcompeticao']); ?>">Abrir preparação</a>
+                        <?php else: ?>
+                            <strong>Nenhuma competição futura.</strong><small>Eventos que você pretende disputar aparecem aqui.</small>
+                        <?php endif; ?>
+                    </article>
+
+                    <article class="dashboard-v2-card">
+                        <div class="dashboard-v2-card-head"><span>Últimos 28 dias</span><a href="/user/progresso.php">Progresso</a></div>
+                        <?php $progressSummary = is_array($progress28['summary'] ?? null) ? $progress28['summary'] : []; ?>
+                        <div class="dashboard-v2-progress">
+                            <div><strong><?php echo (int) ($progressSummary['active_days'] ?? 0); ?></strong><span>dias ativos</span></div>
+                            <div><strong><?php echo is_numeric($progressSummary['total_distance_m'] ?? null) ? stridebr_e(number_format((float) $progressSummary['total_distance_m'] / 1000, 1, ',', '.')) : '—'; ?></strong><span>km</span></div>
+                            <div><strong><?php echo (int) ($progressSummary['activities_count'] ?? 0); ?></strong><span>Activities</span></div>
+                        </div>
+                        <?php if (is_numeric($progressSummary['total_duration_s'] ?? null) && (float) $progressSummary['total_duration_s'] > 0): ?><small><?php echo stridebr_e(dashboardFormatarDuracao((float) $progressSummary['total_duration_s'])); ?> de atividade</small><?php endif; ?>
+                    </article>
+
+                    <article class="dashboard-v2-card dashboard-v2-last">
+                        <div class="dashboard-v2-card-head"><span>Última Activity</span><a href="/user/atividades.php">Histórico</a></div>
+                        <?php if ($lastActivity): $lastTitle = trim((string) ($lastActivity['titulo'] ?? '')) ?: stridebr_sport_name((string) ($lastActivity['modalidade_slug'] ?? ''), (string) ($lastActivity['modalidade_nome'] ?? 'Activity')); ?>
+                            <?php if ($lastActivityMap): ?><div class="dashboard-v2-last-map" data-home-last-map aria-label="Mapa da última Activity"></div><?php endif; ?>
+                            <a class="dashboard-v2-last-copy" href="/user/atividades.php?highlight=<?php echo rawurlencode((string) $lastActivity['idregistro']); ?>"><strong><?php echo stridebr_e($lastTitle); ?></strong><small><?php echo stridebr_e(stridebr_format_datetime_short(new DateTimeImmutable((string) $lastActivity['data_inicio']))); ?></small><span><?php if ((float) ($lastActivity['distancia_m'] ?? 0) > 0): ?><?php echo stridebr_e(number_format((float) $lastActivity['distancia_m'] / 1000, 2, ',', '.')); ?> km<?php endif; ?><?php if ((float) ($lastActivity['duracao_s'] ?? 0) > 0): ?><?php echo (float) ($lastActivity['distancia_m'] ?? 0) > 0 ? ' · ' : ''; ?><?php echo stridebr_e(dashboardFormatarDuracao((float) $lastActivity['duracao_s'])); ?><?php endif; ?></span></a>
+                        <?php else: ?>
+                            <strong>Nenhuma Activity ainda.</strong><small>Registre uma atividade para começar o histórico.</small>
+                        <?php endif; ?>
+                    </article>
+                </div>
+                <nav class="dashboard-v2-actions" aria-label="Ações rápidas"><a href="/user/atividades.php?new=1">Registrar atividade</a><a href="/user/cronogramatreinos.php?new=workout">Novo treino</a><a href="/user/pacer.php?new=1">Criar Pacer</a><a href="/user/importar-exportar.php">Importar Activity</a></nav>
+                <?php if ($lastActivityMap): ?><script type="application/json" data-home-last-map-data><?php echo json_encode($lastActivityMap['coordinates'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP); ?></script><?php endif; ?>
+            </section>
+
             <section class="dashboard-panel dashboard-week-panel" aria-labelledby="dashboard-week-title">
                 <div class="dashboard-panel-heading">
                     <div><span class="dashboard-eyebrow"><?php echo stridebr_e($weekOffset === 0 ? stridebr_t('home.this_week') : stridebr_format_date_short($activityOverview['inicio']) . ' – ' . stridebr_format_date_short($activityOverview['fim']->modify('-1 day'))); ?></span><h2 id="dashboard-week-title"><?php echo stridebr_e(stridebr_t('home.week_consistency')); ?></h2></div>
@@ -271,37 +393,9 @@ $weekSummary = implode(' · ', $weekSummaryParts);
                     </section>
                 <?php endif; ?>
 
-                <section class="dashboard-panel dashboard-module" data-dashboard-module="upcoming">
-                    <div class="dashboard-panel-heading"><div><h2><?php echo stridebr_e(stridebr_t('home.upcoming_workouts')); ?></h2></div><a href="/user/cronogramatreinos.php"><?php echo stridebr_e(stridebr_t('common.schedules')); ?></a></div>
-                    <?php if ($proximos === []): ?>
-                        <div class="dashboard-empty compact"><strong><?php echo stridebr_e(stridebr_t('home.nothing_scheduled')); ?></strong><span><?php echo stridebr_e(stridebr_t('home.nothing_scheduled_help')); ?></span><a class="secondary-button compact" href="/user/cronogramatreinos.php"><?php echo stridebr_e(stridebr_t('home.add_workout')); ?></a></div>
-                    <?php else: ?><div class="dashboard-schedule-list">
-                        <?php foreach ($proximos as $treino): $data = $treino['proxima_data']; $quando = $data->format('Y-m-d') === $hoje->format('Y-m-d') ? stridebr_t('common.today') : ($data->format('Y-m-d') === $amanha->format('Y-m-d') ? stridebr_t('common.tomorrow') : strtoupper(stridebr_weekday_short($data)) . ' ' . stridebr_format_date_short($data)); $corTreino = trim((string) ($treino['cor'] ?? '')); if (!preg_match('/^#[0-9a-fA-F]{6}$/', $corTreino)) $corTreino = '#65759d'; ?>
-                            <a class="dashboard-schedule-row" href="/user/cronogramatreinos.php"><span class="dashboard-schedule-mark" style="--schedule-color: <?php echo stridebr_e($corTreino); ?>"></span><span class="dashboard-schedule-time"><strong><?php echo stridebr_e($quando); ?></strong><small><?php echo stridebr_e(substr((string) $treino['hora_inicio'], 0, 5)); ?></small></span><span class="dashboard-schedule-info"><strong><?php echo stridebr_e((string) $treino['titulo']); ?></strong><small><?php echo stridebr_e((string) $treino['cronograma_nome']); ?></small></span><span aria-hidden="true">›</span></a>
-                        <?php endforeach; ?>
-                    </div><?php endif; ?>
-                </section>
-
-                <section class="dashboard-panel dashboard-module" data-dashboard-module="recent">
-                    <div class="dashboard-panel-heading"><div><h2><?php echo stridebr_e(stridebr_t('home.recent_activities')); ?></h2></div><a href="/user/atividades.php"><?php echo stridebr_e(stridebr_t('common.history')); ?></a></div>
-                    <?php if ($recentes === []): ?>
-                        <div class="dashboard-empty compact dashboard-empty-actions"><strong><?php echo stridebr_e(stridebr_t('home.no_activities')); ?></strong><span><?php echo stridebr_e(stridebr_t('home.no_activities_help')); ?></span><div><a class="secondary-button compact" href="/user/atividades.php?new=1"><?php echo stridebr_e(stridebr_t('home.log_activity')); ?></a><a class="secondary-button compact" href="/user/gravar-atividade.php"><?php echo stridebr_e(stridebr_t('home.record_gps')); ?></a></div></div>
-                    <?php else: ?><div class="dashboard-activity-list">
-                        <?php foreach ($recentes as $atividade): $distanciaKm = ((float) $atividade['distancia_m']) / 1000; $duracao = (float) $atividade['duracao_s']; $tituloRaw = trim((string) $atividade['titulo']); $titulo = $tituloRaw !== '' ? stridebr_present_activity_title($tituloRaw, (string) $atividade['modalidade_slug']) : stridebr_sport_name((string) $atividade['modalidade_slug'], (string) $atividade['modalidade_nome']); ?>
-                            <a class="dashboard-activity-row" href="/user/atividades.php#atividade-<?php echo rawurlencode((string) $atividade['idregistro']); ?>"><span class="dashboard-activity-icon"><?php echo stridebr_sport_icon_html((string) $atividade['modalidade_slug'], 'sport-icon'); ?></span><span class="dashboard-activity-info"><strong><?php echo stridebr_e($titulo); ?></strong><small><?php echo stridebr_e(stridebr_format_datetime_short(new DateTimeImmutable((string) $atividade['data_inicio']))); ?> · <?php echo stridebr_e(stridebr_sport_name((string) $atividade['modalidade_slug'], (string) $atividade['modalidade_nome'])); ?></small></span><span class="dashboard-activity-values"><?php if ($distanciaKm > 0): ?><strong><?php echo stridebr_e(dashboardFormatarNumero($distanciaKm)); ?> km</strong><?php endif; ?><?php if ($duracao > 0): ?><small><?php echo stridebr_e(dashboardFormatarDuracao($duracao)); ?></small><?php endif; ?></span><span aria-hidden="true">›</span></a>
-                        <?php endforeach; ?>
-                    </div><?php endif; ?>
-                </section>
             </div>
 
-            <section class="dashboard-quickbar" aria-label="<?php echo stridebr_e(stridebr_t('home.quick_access')); ?>">
-                <strong><?php echo stridebr_e(stridebr_t('home.quick_access')); ?></strong>
-                <a href="/user/biblioteca.php?tab=exercicios"><?php echo stridebr_e(stridebr_t('home.exercises')); ?></a>
-                <a href="/user/equipamentos.php"><?php echo stridebr_e(stridebr_t('home.equipment')); ?></a>
-                <a href="/user/ferramentastreino.php"><?php echo stridebr_e(stridebr_t('home.tools')); ?></a>
-                <a href="/calendario.php"><?php echo stridebr_e(stridebr_t('home.events')); ?></a>
-                <a href="/user/settings.php"><?php echo stridebr_e(stridebr_t('home.settings')); ?></a>
-            </section>
+
         </div>
     </main>
 </div>
@@ -361,6 +455,7 @@ $weekSummary = implode(' · ', $weekSummaryParts);
 <?php endif; ?>
 
 <?php require dirname(__DIR__) . '/src/layout/footer.php'; ?>
+<?php if ($lastActivityMap): ?><?php echo stridebr_maps_runtime_script(); ?><script src="<?php echo stridebr_e(stridebr_asset('/assets/js/web-map.js')); ?>"></script><script src="<?php echo stridebr_e(stridebr_asset('/assets/js/dashboard-v2.js')); ?>"></script><?php endif; ?>
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/dashboard.js')); ?>"></script>
 </body>
 </html>

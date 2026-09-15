@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once dirname(__DIR__) . '/function/teams_surface_provider.php';
+
 require_once dirname(__DIR__) . '/includes/app.php';
 
 $headerLoggedIn = stridebr_is_logged_in();
@@ -60,15 +62,17 @@ $headerMenuLink = static function (string $href, string $label, string $icon, st
         <button class="nav-toggle" type="button" data-nav-toggle aria-expanded="false" aria-label="<?php echo stridebr_e(stridebr_t('nav.open_navigation')); ?>">☰</button>
         <nav class="main-nav" data-nav-menu aria-label="<?php echo stridebr_e(stridebr_t('nav.open_navigation')); ?>">
             <a class="<?php echo trim($headerActive(['/home.php'])); ?>" href="/home.php"><?php echo stridebr_e(stridebr_t('nav.home')); ?></a>
-            <details data-header-menu="hover-toggle" class="nav-menu-group<?php echo $headerActive(['/user/cronogramatreinos.php', '/user/agenda-mensal.php', '/user/biblioteca.php', '/user/exercicioscronograma.php', '/user/exerciciostreinomodelo.php']); ?>">
+            <details data-header-menu="hover-toggle" class="nav-menu-group<?php echo $headerActive(['/user/cronogramatreinos.php', '/user/agenda-mensal.php', '/user/biblioteca.php', '/user/pacer.php', '/user/exercicioscronograma.php', '/user/exerciciostreinomodelo.php']); ?>">
                 <summary><?php echo stridebr_e(stridebr_t('nav.training')); ?> <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 6 3.5 3.5L11.5 6"></path></svg></summary>
                 <div class="nav-dropdown">
                     <a href="/user/cronogramatreinos.php"><strong><?php echo stridebr_e(stridebr_t('nav.schedules')); ?></strong><span><?php echo stridebr_e(stridebr_t('nav.training_schedules_desc')); ?></span></a>
                     <a href="/user/agenda-mensal.php"><strong><?php echo stridebr_e(stridebr_t('nav.agenda')); ?></strong><span><?php echo stridebr_e(stridebr_t('nav.training_agenda_desc')); ?></span></a>
                     <a href="/user/biblioteca.php"><strong><?php echo stridebr_e(stridebr_t('nav.library')); ?></strong><span><?php echo stridebr_e(stridebr_t('nav.training_library_desc')); ?></span></a>
+                    <a href="/user/pacer.php"><strong>Pacer</strong><span>Estratégias de pace para treinos e provas.</span></a>
                 </div>
             </details>
             <a class="<?php echo trim($headerActive(['/user/atividades.php', '/user/editatividade.php', '/user/equipamentos.php', '/user/gravar-atividade.php'])); ?>" href="/user/atividades.php"><?php echo stridebr_e(stridebr_t('nav.activities')); ?></a>
+            <a class="<?php echo trim($headerActive(['/user/rotas.php'])); ?>" href="/user/rotas.php">Rotas</a>
             <a class="<?php echo trim($headerActive(['/user/progresso.php', '/user/metas.php', '/user/comparar-atividades.php'])); ?>" href="/user/progresso.php"><?php echo stridebr_e(stridebr_t('nav.progress')); ?></a>
             <a class="<?php echo trim($headerActive(['/user/ferramentastreino.php'])); ?>" href="/user/ferramentastreino.php"><?php echo stridebr_e(stridebr_t('nav.tools')); ?></a>
             <a class="<?php echo trim($headerActive(['/calendario.php', '/evento.php'])); ?>" href="/calendario.php"><?php echo stridebr_e(stridebr_t('nav.events')); ?></a>
@@ -105,7 +109,7 @@ $headerMenuLink = static function (string $href, string $label, string $icon, st
                     <div class="user-menu-content">
                         <div class="user-menu-identity"><img src="<?php echo stridebr_e($headerPhoto); ?>" alt="" width="42" height="42"><span><strong><?php echo stridebr_e($headerDisplayName); ?></strong><?php if ($headerUsername !== ''): ?><small>@<?php echo stridebr_e($headerUsername); ?></small><?php endif; ?><a href="<?php echo stridebr_e($headerProfileUrl); ?>"><?php echo stridebr_e(stridebr_t('nav.profile')); ?></a></span></div>
                         <div class="user-menu-section"><span class="user-menu-label"><?php echo stridebr_e(stridebr_t('nav.account')); ?></span><?php echo $headerMenuLink('/user/edit-profile.php', stridebr_t('nav.edit_profile', [], 'Editar perfil'), 'edit'); ?><?php echo $headerMenuLink('/user/settings.php?view=preferences', stridebr_t('settings.preferences'), 'preferences'); ?><?php echo $headerMenuLink('/user/settings.php?view=connections', stridebr_t('settings.connections'), 'connections', stridebr_t('nav.connections_hint')); ?><?php echo $headerMenuLink('/user/account.php', stridebr_t('nav.security'), 'security'); ?></div>
-                        <div class="user-menu-section"><span class="user-menu-label"><?php echo stridebr_e(stridebr_t('nav.people')); ?></span><?php echo $headerMenuLink('/user/amigos.php', stridebr_t('nav.friends'), 'people'); ?><?php echo $headerMenuLink('/user/treinador.php', stridebr_t('nav.trainer'), 'trainer'); ?></div>
+                        <div class="user-menu-section"><span class="user-menu-label"><?php echo stridebr_e(stridebr_t('nav.people')); ?></span><?php echo $headerMenuLink('/user/amigos.php', stridebr_t('nav.friends'), 'people'); ?><?php echo $headerMenuLink('/user/treinador.php', stridebr_t('nav.trainer'), 'trainer'); ?><?php if (stridebr_teams_enabled()): ?><?php echo $headerMenuLink('/user/equipes.php', stridebr_t('teams.my_teams'), 'people'); ?><?php endif; ?></div>
                         <div class="user-menu-section"><span class="user-menu-label"><?php echo stridebr_e(stridebr_t('nav.resources')); ?></span><?php echo $headerMenuLink('/pages/extras/changelog.php', stridebr_t('nav.news'), 'news'); ?></div>
                         <?php if (stridebr_has_role('moderator')): ?><div class="user-menu-section"><?php echo $headerMenuLink('/admin/index.php', stridebr_has_role('admin') ? stridebr_t('nav.administration', [], 'Administração') : stridebr_t('nav.moderation', [], 'Moderação'), 'admin'); ?></div><?php endif; ?>
                         <form method="POST" action="/function/logout.php"><?php echo stridebr_csrf_field(); ?><button type="submit"><?php echo $headerIcon('logout'); ?><span class="user-menu-link-copy"><strong><?php echo stridebr_e(stridebr_t('nav.sign_out')); ?></strong></span></button></form>
@@ -116,7 +120,7 @@ $headerMenuLink = static function (string $href, string $label, string $icon, st
                     <button class="mobile-global-menu-backdrop" type="button" data-header-menu-close aria-label="<?php echo stridebr_e(stridebr_t('common.close')); ?>"></button>
                     <div class="mobile-global-menu-content">
                         <div class="mobile-global-menu-head"><strong><?php echo stridebr_e(stridebr_t('nav.global_menu')); ?></strong><span>@<?php echo stridebr_e($headerUsername); ?></span></div>
-                        <div class="user-menu-section"><span class="user-menu-label"><?php echo stridebr_e(stridebr_t('nav.people')); ?></span><?php echo $headerMenuLink('/user/amigos.php', stridebr_t('nav.friends'), 'people'); ?><?php echo $headerMenuLink('/user/treinador.php', stridebr_t('nav.trainer'), 'trainer'); ?></div>
+                        <div class="user-menu-section"><span class="user-menu-label"><?php echo stridebr_e(stridebr_t('nav.people')); ?></span><?php echo $headerMenuLink('/user/amigos.php', stridebr_t('nav.friends'), 'people'); ?><?php echo $headerMenuLink('/user/treinador.php', stridebr_t('nav.trainer'), 'trainer'); ?><?php if (stridebr_teams_enabled()): ?><?php echo $headerMenuLink('/user/equipes.php', stridebr_t('teams.my_teams'), 'people'); ?><?php endif; ?></div>
                         <div class="user-menu-section"><span class="user-menu-label"><?php echo stridebr_e(stridebr_t('nav.resources')); ?></span><?php echo $headerMenuLink('/calendario.php', stridebr_t('nav.events'), 'events'); ?><?php echo $headerMenuLink('/user/ferramentastreino.php', stridebr_t('nav.tools'), 'tools'); ?></div>
                         <div class="user-menu-section"><span class="user-menu-label"><?php echo stridebr_e(stridebr_t('nav.account_stridebr')); ?></span><?php echo $headerMenuLink('/user/settings.php?view=connections', stridebr_t('settings.connections'), 'connections', stridebr_t('nav.connections_hint')); ?><?php echo $headerMenuLink('/user/settings.php', stridebr_t('nav.settings'), 'preferences'); ?><?php echo $headerMenuLink('/pages/extras/changelog.php', stridebr_t('nav.news'), 'news'); ?></div>
                         <?php if (stridebr_has_role('moderator')): ?><div class="user-menu-section"><?php echo $headerMenuLink('/admin/index.php', stridebr_has_role('admin') ? stridebr_t('nav.administration', [], 'Administração') : stridebr_t('nav.moderation', [], 'Moderação'), 'admin'); ?></div><?php endif; ?>

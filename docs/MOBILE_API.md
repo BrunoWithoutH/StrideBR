@@ -23,9 +23,25 @@ ou sessões PHP do site.
 - `POST /workouts/{id}/cancel`
 - `GET /workouts/templates`
 - `GET /workouts/templates/{id}`
+- `GET /workout-sessions/current`
+- `POST /workouts/{id}/start`
+- `POST /workouts/{id}/quick-register`
+- `PATCH /workout-sessions/{session_id}/sets/{set_id}`
+- `POST /workout-sessions/{session_id}/sets/{set_id}/toggle`
+- `POST /workout-sessions/{session_id}/exercises/{exercise_id}/toggle`
+- `POST /workout-sessions/{session_id}/mark-all`
+- `POST /workout-sessions/{session_id}/finish`
+- `POST /workout-sessions/{session_id}/cancel`
 
 As rotas são JSON-only. Sucesso usa `{ "data": ... }`; falhas usam
 `{ "error": { "code", "message", "fields"? } }`.
+
+### Diagnóstico de build
+
+`GET /meta` responde sem depender do PostgreSQL e inclui `api_version`, `server_time` e
+`build`. O campo `build` vem exclusivamente de `STRIDEBR_BUILD` definido pelo deploy;
+quando a variável não está configurada, o valor é `null`. O Core não executa Git em
+runtime para descobrir commit. O Mobile pode exibir esse campo em telas de diagnóstico.
 
 ## Autenticação
 
@@ -346,7 +362,7 @@ individual por usuário; isso é uma limitação explícita desta versão.
 
 Os status expostos são os status reais do domínio: `rascunho`, `publicado`, `concluido` e
 `cancelado`. Uma data passada não muda o status para concluído. `source` identifica
-`usuario`, `treinador` ou `cronograma`.
+`usuario`, `treinador`, `cronograma` ou, quando a Institutional Athlete Surface estiver habilitada, `teams`. Workouts `source=teams` usam `kind=institutional`, são read-only e podem trazer `institutional_context` opcional. Com `STRIDEBR_TEAMS_ENABLED=false`, a API continua retornando somente as fontes Core anteriores.
 
 ### Detalhe
 
@@ -524,6 +540,227 @@ Limitações explícitas da v1:
   janela de calendário após timeout antes de repetir uma criação;
 - a API não cria uma Activity ao concluir manualmente um treino não-GPS.
 
+## MOBILE WORKOUT SESSION V1
+
+A execução nativa reutiliza a mesma engine usada pelo Web. O transporte Web continua usando
+sessão PHP/CSRF; o aplicativo usa Bearer Token, mas ambos chamam o mesmo serviço de domínio
+para snapshot, séries, histórico, conclusão e criação da Activity canônica.
+
+### Sessão ativa
+
+`GET /workout-sessions/current` retorna `{ "data": null }` quando não existe treino em
+andamento. Com sessão ativa, `data` contém o ID da sessão, `workout_id` opaco quando a sessão
+veio de calendário, origem, timestamps, ocorrência planejada, progresso, exercícios, séries e
+histórico de exercício. `?history=0` permite omitir a busca histórica quando o cliente não
+precisar dela.
+
+Exemplo resumido:
+
+```json
+{
+  "data": {
+    "id": "SESSION_ID",
+    "workout_id": "scheduled:WORKOUT_ID",
+    "title": "Treino A",
+    "source": "scheduled",
+    "status": "ativo",
+    "started_at": "2026-09-14T18:02:00-03:00",
+    "activity": null,
+    "planned_occurrence": {
+      "original_date": null,
+      "date": "2026-09-14",
+      "time": "18:00",
+      "timezone": "America/Sao_Paulo"
+    },
+    "progress": {
+      "exercises_completed": 0,
+      "exercises_total": 1,
+      "sets_completed": 1,
+      "sets_total": 4
+    },
+    "exercises": [
+      {
+        "id": "SESSION_EXERCISE_ID",
+        "exercise_id": null,
+        "name": "Supino reto",
+        "order": 1,
+        "block": "A",
+        "cluster": null,
+        "completed": false,
+        "planned": {
+          "sets": 4,
+          "repetitions": "10",
+          "load": "70 kg",
+          "rest": "90 s"
+        },
+        "sets": [
+          {
+            "id": "SET_ID",
+            "number": 1,
+            "completed": true,
+            "repetitions": "10",
+            "load": "67.5 kg",
+            "completed_at": "2026-09-14T18:08:00-03:00"
+          }
+        ],
+        "history": {
+          "last": {
+            "date": "2026-09-10",
+            "sets_completed": 4,
+            "sets_total": 4,
+            "repetitions": "10",
+            "load": "67.5 kg",
+            "sets": []
+          },
+          "best_load": "75 kg"
+        }
+      }
+    ]
+  }
+}
+```
+
+`planned` é a prescrição congelada no início da sessão. `sets[].repetitions` e
+`sets[].load` são valores realizados. Quantidade de práticas anteriores não é convertida em
+score; o histórico serve apenas como referência factual.
+
+### Iniciar
+
+`POST /workouts/{id}/start` recebe o mesmo ID opaco `scheduled:...` ou
+`recurring:...:YYYY-MM-DD` retornado pelo calendário. O Core resolve internamente qual regra
+Web usar. O cliente não chama `start_scheduled` nem precisa conhecer tabelas internas.
+
+Só uma sessão `ativo` pode existir por usuário. Uma segunda tentativa retorna `409` com
+`active_session_exists` e referência à sessão que já está em andamento. O snapshot inclui
+exercícios, ordem, bloco, cluster, séries, reps, carga, descanso, duração, distância,
+intensidade, RPE, RIR, tempo e cadência quando esses dados existem na prescrição.
+
+`GET /workouts/{id}` inclui `capabilities` para a UI não inferir o fluxo pelo nome do esporte:
+
+```json
+{
+  "capabilities": {
+    "can_start_session": true,
+    "can_resume_session": false,
+    "can_quick_register": true,
+    "can_start_gps": false,
+    "preferred_execution": "workout_session"
+  }
+}
+```
+
+`route_capable` e a família canônica do catálogo definem a preferência. Modalidades
+`strength` com estrutura preferem `workout_session`; modalidades com rota podem preferir
+`gps`; estrutura existente continua habilitando sessão mesmo fora de strength.
+
+### Atualizar e concluir séries
+
+`PATCH /workout-sessions/{session_id}/sets/{set_id}` aceita:
+
+```json
+{
+  "repetitions": "10",
+  "load": "67.5 kg",
+  "propagate_load": true,
+  "edited_field": "load"
+}
+```
+
+`propagate_load=true` reutiliza a mesma regra Web de propagação para séries posteriores não
+concluídas. `edited_field` pode ser `load`, `reps` ou omitido.
+
+`POST /workout-sessions/{session_id}/sets/{set_id}/toggle` usa
+`{ "completed": true }`. Concluir a série grava `completed_at`. Desmarcar limpa a conclusão.
+
+`POST /workout-sessions/{session_id}/exercises/{exercise_id}/toggle` marca/desmarca o
+exercício e suas séries. `POST /workout-sessions/{session_id}/mark-all` evita que o cliente
+precise emitir uma request por série.
+
+Todos os IDs são ownership-scoped. Série/exercício de outra sessão ou usuário não pode ser
+alterado.
+
+### Registro rápido
+
+`POST /workouts/{id}/quick-register` representa o mesmo fluxo Web de Registrar rapidamente.
+Ele exige `Idempotency-Key` para tornar retry de rede seguro.
+
+```json
+{
+  "performed_date": "2026-09-14",
+  "start_time": "18:00",
+  "duration_min": 45,
+  "intensity": "moderado",
+  "feeling": 4,
+  "notes": "Treino concluído sem acompanhamento série a série"
+}
+```
+
+`performed_date` pode ser omitido e, nesse caso, usa a data planejada do workout.
+`start_time` pode ser omitido quando o workout já possui horário planejado, reutilizando esse
+horário. Quando o workout não possui horário, o cliente precisa informar `start_time`; o Core
+não inventa `00:00` nem usa a hora atual silenciosamente.
+
+A primeira chamada retorna `201`. Repetir a mesma chave e mesmo payload retorna `200` com a
+mesma Activity e `reused=true`. Reutilizar a chave com payload diferente retorna
+`409 idempotency_conflict`. Além do lock da chave, o Core bloqueia a própria ocorrência
+planejada durante a criação; duas chaves diferentes concorrendo pelo mesmo workout não podem
+gerar duas Activities. Se ele já estiver realizado, a Activity existente é reutilizada. A tabela
+de idempotência pertence ao usuário e não representa um segundo domínio de treino.
+
+O registro rápido cria a Activity no Core, preserva ocorrência/cronograma/agendamento e
+concilia o workout. O cliente nunca cria uma Activity de força localmente.
+
+### Finalizar
+
+`POST /workout-sessions/{session_id}/finish` aceita campos opcionais:
+
+```json
+{
+  "started_at_local": "2026-09-14T18:02",
+  "ended_at_local": "2026-09-14T19:05",
+  "intensity": "moderado",
+  "feeling": 4,
+  "notes": "Boa execução"
+}
+```
+
+Os horários são wall-clock values de `America/Sao_Paulo`. A engine Web continua validando
+mínimo de 1 minuto, máximo de 24 horas e término futuro. Ao finalizar, o Core cria uma
+`registros_atividade` canônica, persiste `series_exercicio_atividade`, relaciona a sessão,
+conclui o agendamento quando aplicável e retorna o `activity.id`.
+
+Finish é idempotente por estado da sessão + row lock transacional: depois de a sessão estar
+`concluido` com `idregistro_atividade`, um retry devolve a mesma Activity com `reused=true`.
+Não existe janela para criar uma segunda Activity pela mesma sessão.
+
+### Cancelar
+
+`POST /workout-sessions/{session_id}/cancel` muda uma sessão ativa para `cancelado`. Não
+apaga registros históricos nem cancela automaticamente o workout planejado. Sessão de outro
+usuário não pode ser cancelada.
+
+### Erros
+
+Além de `401`, os endpoints usam `422 validation_error` para payload inválido, `409
+invalid_state` para transições incompatíveis, `409 active_session_exists` quando já existe
+sessão ativa, `409 idempotency_conflict` para retry conflitante e `503 feature_disabled`
+quando a execução de treinos estiver desativada no Core.
+
+### Concorrência e offline
+
+A unicidade parcial de sessão ativa no PostgreSQL continua sendo a autoridade contra dois
+dispositivos iniciando ao mesmo tempo. Updates de série validam sessão ativa e ownership;
+finish bloqueia a linha com `FOR UPDATE`. IDs de sessão/série são estáveis durante a execução.
+O cliente pode guardar estado local para tolerar perda de rede, mas a reconciliação deve
+sempre usar `GET /workout-sessions/current` antes de retomar mutações remotas.
+
+## MOBILE WORKOUT EDITOR API
+
+O editor Mobile de estrutura foi incorporado ao contrato consolidado `MOBILE TRAINING PLATFORM V1`.
+O Android pode buscar/criar exercícios pessoais, criar/editar templates e salvar a estrutura completa
+de workouts pessoais usando os mesmos campos e tabelas do editor Web. O contrato canônico e as
+limitações reais da modelagem atual estão em [`MOBILE_TRAINING_API.md`](MOBILE_TRAINING_API.md).
+
 ## Transporte e segurança
 
 Produção é `https://stridebr.com.br/api/v1`. Android nativo não depende de CORS de
@@ -533,3 +770,21 @@ webhook pertence ao APK.
 
 OAuth de Strava e demais provedores continua no Core. Fluxos mobile de OAuth serão
 contratos próprios quando forem expostos.
+
+## MOBILE TRAINING PLATFORM V1
+
+O contrato consolidado de calendário, editor, templates, catálogo de exercícios, sessões, séries, histórico, quick register e vínculo Workout ↔ Activity está em [`MOBILE_TRAINING_API.md`](MOBILE_TRAINING_API.md).
+
+Esse contrato substitui, para implementação nova no Android, a necessidade de combinar manualmente as seções antigas de Mobile Workouts v1 e Mobile Workout Session v1. Os endpoints antigos compatíveis continuam válidos.
+## MOBILE PROGRESS PLATFORM API V1
+
+A API de Progresso Mobile reutiliza o mesmo domínio analítico do Core Web para Activities, modalidades, carga de treino, planejamento e séries executadas. O contrato canônico está em [`MOBILE_PROGRESS_API.md`](MOBILE_PROGRESS_API.md).
+
+Ela expõe overview, séries temporais, distribuição por modalidade, calendário/heatmap, cardio por modalidade, força, evolução por exercício, aderência planejado × realizado e dashboard composto. Os endpoints trabalham por `from`/`to`, respeitam `America/Sao_Paulo`, mantêm `null` para métrica indisponível e `0` apenas para ausência real de ocorrência.
+## ACTIVITY STREAMS + ACTIVITY ANALYSIS + PACER V1
+
+Activities podem opcionalmente possuir timeline esportiva canônica para pace/velocidade, FC, altitude/grade, cadência, potência e temperatura quando os dados existirem. Latitude/longitude continuam pertencendo à rota; Streams não duplicam o track.
+
+O contrato de ingestão/leitura, downsampling, splits e manual laps está em [`MOBILE_ACTIVITY_STREAMS_API.md`](MOBILE_ACTIVITY_STREAMS_API.md). A análise determinística versionada está em [`ACTIVITY_ANALYSIS.md`](ACTIVITY_ANALYSIS.md), e a fundação offline do Stride Pacer está em [`PACER.md`](PACER.md).
+
+A Activity Detail expõe apenas `stream_capabilities`; gráficos usam `/activities/{id}/streams`, splits usam `/splits`, manual laps usam `/laps` e análise usa `/analysis`. Workouts podem referenciar `pacer_plan_id`. Streams continuam opcionais, portanto Activities antigas, Quick Register e Workout Session permanecem compatíveis.

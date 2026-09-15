@@ -17,3 +17,11 @@ Core e Teams têm repositórios, roadmaps, releases e deploys independentes. Ide
 Antes da criação do repositório próprio, a especificação do Teams era mantida neste arquivo. Essa especificação histórica foi substituída em setembro de 2026 pela documentação canônica de StrideBR-Teams. O Git preserva a versão anterior; este documento permanece somente como ponte e referência de ecossistema.
 
 O piloto desejado para 2027 é IFFar — Campus Frederico Westphalen. Escopo, requisitos e decisões do piloto são mantidos no repositório Teams.
+
+## Athlete Surface consumer no Core
+
+O Core possui agora um consumidor inicial do Athlete Surface Contract, documentado em `docs/INSTITUTIONAL_ATHLETE_SURFACE.md`. A implementação adiciona uma fronteira de provider substituível, Minhas equipes, roster athlete-safe, prescriptions institucionais compostas no calendário Core, execution local via Workout Session e competitions institucionais read-only.
+
+Isso não define o transporte final Core ↔ Teams e não autoriza acesso direto ao banco Teams. O modo implementado para desenvolvimento é fixture controlada; produção permanece com `STRIDEBR_TEAMS_ENABLED=false` por padrão.
+
+A existência do código não representa lançamento público do Teams. O rollout real continua dependente de provider real e elegibilidade futura.
