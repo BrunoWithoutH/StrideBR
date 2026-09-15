@@ -96,6 +96,7 @@ php scripts/tests/test_integrations_external_rc4.php
 php scripts/tests/test_strava_webhooks.php
 php scripts/tests/test_core_nav_strava_backfill_static.php
 php scripts/tests/test_api_v1_static.php
+php scripts/tests/test_api_v1_bootstrap_static.php
 php scripts/tests/test_mobile_activities_v2_static.php
 php scripts/tests/test_mobile_workouts_v1_static.php
 php scripts/tests/test_mobile_workout_session_v1_static.php

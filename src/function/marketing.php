@@ -3,18 +3,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/includes/app.php';
-
-function stridebr_marketing_schema_available(PDO $pdo): bool
-{
-    static $cache = null;
-    if (is_bool($cache)) return $cache;
-    try {
-        $cache = (bool) $pdo->query("SELECT to_regclass('stridebr.marketing_campanhas') IS NOT NULL AND to_regclass('stridebr.marketing_eventos_aquisicao') IS NOT NULL")->fetchColumn();
-    } catch (Throwable) {
-        $cache = false;
-    }
-    return $cache;
-}
+require_once __DIR__ . '/marketing_service.php';
 
 function stridebr_marketing_slug(string $value): string
 {
@@ -46,16 +35,6 @@ function stridebr_marketing_validate_slug(string $value): string
         throw new InvalidArgumentException('Código inválido. Use letras minúsculas, números, hífen ou underscore.');
     }
     return $slug;
-}
-
-function stridebr_marketing_clean_text(mixed $value, int $limit): ?string
-{
-    $text = trim((string) $value);
-    if ($text === '') return null;
-    $text = preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $text) ?? '';
-    $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
-    if (function_exists('mb_substr')) return mb_substr($text, 0, $limit, 'UTF-8');
-    return substr($text, 0, $limit);
 }
 
 function stridebr_marketing_internal_destination(string $value): string
@@ -310,15 +289,6 @@ function stridebr_marketing_capture_first_touch(PDO $pdo, array $params = [], ?a
     return stridebr_marketing_attribution_by_hash($pdo, $hash);
 }
 
-function stridebr_marketing_attribution_for_user(PDO $pdo, string $userId): ?array
-{
-    if (!stridebr_marketing_schema_available($pdo) || trim($userId) === '') return null;
-    $stmt = $pdo->prepare('SELECT * FROM marketing_atribuicoes WHERE idusuario = :usuario LIMIT 1');
-    $stmt->execute([':usuario' => $userId]);
-    $row = $stmt->fetch();
-    return is_array($row) ? $row : null;
-}
-
 function stridebr_marketing_link_user(PDO $pdo, string $userId): ?array
 {
     if (!stridebr_marketing_schema_available($pdo) || trim($userId) === '') return null;
@@ -398,15 +368,6 @@ function stridebr_marketing_signup_complete(PDO $pdo, string $userId): void
         stridebr_marketing_record_event($pdo, 'signup_complete', $userId, '/signup.php');
     } catch (Throwable $e) {
         error_log('StrideBR acquisition signup_complete failed: ' . get_class($e));
-    }
-}
-
-function stridebr_marketing_activation(PDO $pdo, string $userId, string $path = '/user/atividades.php'): void
-{
-    try {
-        stridebr_marketing_record_event($pdo, 'activation', $userId, $path);
-    } catch (Throwable $e) {
-        error_log('StrideBR acquisition activation failed: ' . get_class($e));
     }
 }
 

@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/activity_sport_context.php';
-require_once __DIR__ . '/marketing.php';
+require_once __DIR__ . '/marketing_service.php';
 require_once __DIR__ . '/competitions.php';
 
 
