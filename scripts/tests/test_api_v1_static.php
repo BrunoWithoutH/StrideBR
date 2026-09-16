@@ -9,8 +9,10 @@ $assert = static function (bool $condition, string $message): void { if (!$condi
 $router = $read('public/api/v1/index.php');
 $helpers = $read('src/function/api_v1.php');
 $buildHelper = $read('src/function/build_identifier.php');
+$dbSchema = $read('src/includes/db_schema.php');
 $migration = $read('src/database/migrations/20260910_api_sessions.sql');
 $assert(!str_contains($router, "includes/app.php"), 'API v1 não pode carregar app.php nem iniciar sessão PHP.');
+$assert(str_contains($helpers, "includes/db_schema.php") && str_contains($dbSchema, 'function stridebr_db_column_exists') && str_contains($dbSchema, 'function stridebr_db_table_exists'), 'API v1 precisa carregar introspecção de schema sem depender de app.php.');
 $assert(strpos($router, "if (\$route === 'health')") < strpos($router, "pg_config.php") && strpos($router, "if (\$route === 'meta')") < strpos($router, "pg_config.php"), 'health/meta precisam responder sem depender do PostgreSQL.');
 $assert(str_contains($router, 'stridebr_api_build_identifier()') && str_contains($buildHelper, "getenv('STRIDEBR_BUILD')"), 'GET /meta precisa expor build opcional vindo do ambiente de deploy.');
 $assert(!str_contains($helpers, 'git rev-parse') && !str_contains($helpers, 'shell_exec') && !str_contains($helpers, 'exec(\'git'), 'API não pode executar Git em runtime para descobrir build.');
