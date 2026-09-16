@@ -21,6 +21,7 @@ if ($route === 'meta') {
 }
 
 try {
+    stridebr_api_set_stage('bootstrap.database');
     if (!defined('STRIDEBR_API_JSON')) define('STRIDEBR_API_JSON', true);
     require dirname(__DIR__, 3) . '/src/config/pg_config.php';
     if ($route === 'auth/login') {
@@ -489,6 +490,6 @@ try {
     }
     stridebr_api_error(404, 'not_found', 'Endpoint não encontrado.');
 } catch (Throwable $e) {
-    error_log('StrideBR API v1 failure: ' . get_class($e));
+    stridebr_api_log_failure($e);
     stridebr_api_error(500, 'internal_error', 'Não foi possível concluir a requisição.');
 }

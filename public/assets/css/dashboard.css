@@ -1696,12 +1696,12 @@ body:has(.goals-editor-modal) {
 /* Product UX: present-first home and weekly consistency */
 .dashboard-week-panel{margin-top:24px}
 .dashboard-week-consistency{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;border-block:1px solid var(--border-color,#c9ced4);background:var(--border-color,#c9ced4)}
-.dashboard-week-day{min-width:0;min-height:112px;padding:14px 10px;background:var(--panel-color,#fff);display:grid;grid-template-columns:1fr auto;grid-template-rows:auto 1fr auto;gap:8px;align-items:start;position:relative}
+.dashboard-week-day{min-width:0;min-height:88px;padding:10px 8px;background:var(--panel-color,#fff);display:grid;grid-template-columns:1fr auto;grid-template-rows:auto 1fr auto;gap:5px;align-items:start;position:relative}
 .dashboard-week-day>strong{font-size:12px;line-height:16px;text-transform:uppercase;letter-spacing:.045em;color:var(--text-muted,#667085)}
 .dashboard-week-date{font:600 13px/16px var(--font-ui,Inter,sans-serif);color:var(--text-muted,#667085);font-variant-numeric:tabular-nums}
-.dashboard-week-markers{grid-column:1/-1;align-self:center;display:flex;justify-content:center;align-items:center;gap:8px;min-height:34px}
-.dashboard-week-sport{width:32px;height:32px;display:grid;place-items:center;border:1px solid var(--border-color,#c9ced4);border-radius:var(--radius-circle);corner-shape:round;background:var(--surface-soft,#f7f8f9);color:var(--accent-color,#40507c)}
-.dashboard-week-sport .sport-icon,.dashboard-week-sport svg{width:18px;height:18px}
+.dashboard-week-markers{grid-column:1/-1;align-self:center;display:flex;justify-content:center;align-items:center;gap:6px;min-height:28px}
+.dashboard-week-sport{width:28px;height:28px;display:grid;place-items:center;border:1px solid var(--border-color,#c9ced4);border-radius:var(--radius-circle);corner-shape:round;background:var(--surface-soft,#f7f8f9);color:var(--accent-color,#40507c)}
+.dashboard-week-sport .sport-icon,.dashboard-week-sport svg{width:16px;height:16px}
 .dashboard-week-sport{cursor:pointer;text-decoration:none;transition:background var(--motion-hover,120ms) var(--ease-standard,ease),border-color var(--motion-hover,120ms) var(--ease-standard,ease),transform var(--motion-hover,120ms) var(--ease-standard,ease)}
 .dashboard-week-sport:hover{background:var(--ui-surface-hover,var(--surface-hover,#eef1f5));border-color:var(--ui-border-strong,var(--border-color,#aeb5bf));text-decoration:none}
 .dashboard-week-sport:active{transform:translateY(1px)}
@@ -1723,6 +1723,7 @@ body:has(.goals-editor-modal) {
 .dashboard-week-popover-list>a:hover span,.dashboard-week-popover-list>a:focus-visible span{color:var(--ui-accent,var(--accent-color,#40507c))}
 .dashboard-week-popover-list span{font-weight:700;color:var(--ui-text-strong,var(--text-color,#20252b))}
 .dashboard-week-popover-list small{color:var(--ui-text-secondary,var(--text-muted,#667085));font-variant-numeric:tabular-nums}
+.dashboard-week-inline-meta{grid-column:1/-1;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;font-size:10px;line-height:13px;color:var(--text-muted,#667085)}
 .dashboard-week-day>small{grid-column:1/-1;text-align:center;font:600 11px/14px var(--font-ui,Inter,sans-serif);color:var(--text-muted,#667085)}
 .dashboard-week-day.is-today{box-shadow:inset 0 -3px 0 var(--accent-color,#40507c)}
 .dashboard-week-day.is-today>strong,.dashboard-week-day.is-today .dashboard-week-date{color:var(--text-color,#20252b)}

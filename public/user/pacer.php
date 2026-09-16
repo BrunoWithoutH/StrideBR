@@ -137,6 +137,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 
 $status = in_array((string) ($_GET['status'] ?? 'active'), ['active', 'archived'], true) ? (string) $_GET['status'] : 'active';
 $plans = pacerPlanList($pdo, $idUsuario, ['status' => $status]);
+$hasAnyPlans = $plans !== [] || pacerPlanList($pdo, $idUsuario, ['status' => $status === 'active' ? 'archived' : 'active']) !== [];
 $editId = trim((string) ($_GET['edit'] ?? ''));
 $editing = $editId !== '' ? pacerPlanGet($pdo, $idUsuario, $editId) : [];
 $sportsStmt = $pdo->prepare("SELECT idmodalidade,slug,nome FROM modalidades WHERE ativo=TRUE AND metrica_derivada='pace_km' AND (idusuario IS NULL OR idusuario=:user) ORDER BY CASE WHEN idusuario IS NULL THEN 0 ELSE 1 END,nome");
@@ -166,17 +167,17 @@ $editingHrCeiling = $editingSegments[0]['heart_rate_ceiling_bpm'] ?? '';
 <div class="container-fluid">
 <?php require dirname(__DIR__, 2) . '/src/layout/header.php'; ?>
 <main class="main-content pacer-page" data-pacer-page data-csrf="<?php echo stridebr_e($csrf); ?>">
-    <header class="pacer-head"><div><span>Treino</span><h1>Pacer</h1><p>Crie uma estratégia de pace para executar offline no app.</p></div><a class="secondary-button" href="/user/cronogramatreinos.php">Treinos</a></header>
+    <header class="pacer-head"><div><span>Treino</span><h1>Pacer</h1><p>Estratégias de ritmo para treinos e provas.</p></div><a class="secondary-button" href="/user/cronogramatreinos.php">Treinos</a></header>
     <?php foreach ($errors as $error): ?><div class="pacer-error" role="alert"><?php echo stridebr_e($error); ?></div><?php endforeach; ?>
-    <div class="pacer-layout">
-        <section class="pacer-library">
+    <div class="pacer-layout<?php echo !$hasAnyPlans ? ' is-first-use' : ''; ?>">
+        <?php if ($hasAnyPlans): ?><section class="pacer-library">
             <div class="pacer-toolbar"><div><strong>Estratégias</strong><span><?php echo count($plans); ?></span></div><div><a class="<?php echo $status === 'active' ? 'is-active' : ''; ?>" href="/user/pacer.php">Ativas</a><a class="<?php echo $status === 'archived' ? 'is-active' : ''; ?>" href="/user/pacer.php?status=archived">Arquivadas</a></div></div>
             <?php if ($plans === []): ?><div class="pacer-empty"><strong>Nenhuma estratégia aqui.</strong><span>Crie uma estratégia para corrida ou outra modalidade baseada em pace.</span></div><?php else: ?><div class="pacer-list"><?php foreach ($plans as $plan): ?><article class="pacer-card<?php echo $editId === $plan['id'] ? ' is-active' : ''; ?>"><a href="/user/pacer.php?edit=<?php echo rawurlencode($plan['id']); ?><?php echo $status === 'archived' ? '&status=archived' : ''; ?>"><span><?php echo stridebr_e($plan['sport']['name']); ?> · <?php echo stridebr_e(number_format($plan['target_distance_m'] / 1000, 2, ',', '.')); ?> km</span><strong><?php echo stridebr_e($plan['name']); ?></strong><small><?php echo stridebr_e(stridebr_pacer_web_time($plan['target_time_s'])); ?> · <?php echo stridebr_e(stridebr_pacer_web_time($plan['target_average_pace_s_per_km'])); ?>/km · <?php echo stridebr_e(str_replace('_', ' ', $plan['strategy'])); ?></small></a><div><?php if ($plan['status'] === 'active'): ?><form method="post"><?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="duplicate"><input type="hidden" name="idplan" value="<?php echo stridebr_e($plan['id']); ?>"><button type="submit">Duplicar</button></form><form method="post" data-confirm="Arquivar esta estratégia?"><?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="archive"><input type="hidden" name="idplan" value="<?php echo stridebr_e($plan['id']); ?>"><button type="submit">Arquivar</button></form><?php endif; ?></div></article><?php endforeach; ?></div><?php endif; ?>
-        </section>
+        </section><?php endif; ?>
         <section class="pacer-editor">
             <form method="post" data-pacer-form>
                 <?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="save"><input type="hidden" name="generated_options_changed" value="" data-generated-options-changed><input type="hidden" name="idplan" value="<?php echo stridebr_e((string) ($editing['id'] ?? '')); ?>">
-                <div class="pacer-editor-head"><div><span><?php echo $editing ? 'Editar estratégia' : 'Nova estratégia'; ?></span><strong><?php echo stridebr_e((string) ($editing['name'] ?? 'Plano de pace')); ?></strong></div><?php if ($editing): ?><a href="/user/pacer.php">Novo</a><?php endif; ?></div>
+                <div class="pacer-editor-head"><div><span><?php echo $editing ? 'Editar estratégia' : 'Nova estratégia'; ?></span><strong><?php echo stridebr_e((string) ($editing['name'] ?? (!$hasAnyPlans ? 'Defina distância, tempo e estratégia' : 'Plano de pace'))); ?></strong></div><?php if ($editing): ?><a href="/user/pacer.php">Novo</a><?php endif; ?></div>
                 <div class="pacer-fields">
                     <label class="is-wide"><span>Nome</span><input type="text" name="name" maxlength="120" value="<?php echo stridebr_e((string) ($editing['name'] ?? '')); ?>" placeholder="Ex.: 10 km · 52:00"></label>
                     <label><span>Modalidade</span><select name="sport" required data-pacer-sport><?php foreach ($sports as $sport): ?><option value="<?php echo stridebr_e((string) $sport['idmodalidade']); ?>"<?php echo $defaultSport === (string) $sport['idmodalidade'] ? ' selected' : ''; ?>><?php echo stridebr_e((string) $sport['nome']); ?></option><?php endforeach; ?></select></label>

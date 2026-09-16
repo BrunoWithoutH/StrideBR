@@ -39,9 +39,11 @@ As rotas são JSON-only. Sucesso usa `{ "data": ... }`; falhas usam
 ### Diagnóstico de build
 
 `GET /meta` responde sem depender do PostgreSQL e inclui `api_version`, `server_time` e
-`build`. O campo `build` vem exclusivamente de `STRIDEBR_BUILD` definido pelo deploy;
-quando a variável não está configurada, o valor é `null`. O Core não executa Git em
-runtime para descobrir commit. O Mobile pode exibir esse campo em telas de diagnóstico.
+`build`. `STRIDEBR_BUILD` é a fonte canônica definida pelo deploy. Sem essa variável,
+o valor é `null` por padrão; o arquivo legado `.stridebr-build` só é consultado quando
+`STRIDEBR_BUILD_FILE_FALLBACK=true` é habilitado explicitamente. O Core não executa
+Git em runtime para descobrir commit. O Mobile pode exibir esse campo em telas de
+diagnóstico.
 
 ## Autenticação
 

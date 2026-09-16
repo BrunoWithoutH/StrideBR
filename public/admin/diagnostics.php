@@ -140,7 +140,7 @@ $flashes = stridebr_take_flashes();
             <div><span class="health-dot <?php echo $environment === 'production' ? 'ok' : ''; ?>"></span><strong>Ambiente</strong><span><?php echo stridebr_e($environment); ?></span></div>
             <div><span class="health-dot <?php echo $https ? 'ok' : ''; ?>"></span><strong>HTTPS desta requisição</strong><span><?php echo $https ? 'sim' : 'não'; ?></span></div>
             <div><span class="health-dot <?php echo $appUrlHttps ? 'ok' : ''; ?>"></span><strong>STRIDEBR_APP_URL</strong><span><?php echo stridebr_e($appUrl); ?></span></div>
-            <div><span class="health-dot ok"></span><strong>Versão</strong><span><?php echo stridebr_e(stridebr_version()); ?> · <?php echo stridebr_e(stridebr_build()); ?></span></div>
+            <div><span class="health-dot ok"></span><strong>Versão</strong><span><?php echo stridebr_e(stridebr_version()); ?> · <?php echo stridebr_e(stridebr_build() !== '' ? stridebr_build() : 'build não informado'); ?></span></div>
             <div><span class="health-dot <?php echo $mailReady ? 'ok' : ''; ?>"></span><strong>E-mail</strong><span><?php echo $mailReady ? stridebr_e((string) getenv('STRIDEBR_MAIL_FROM')) : 'não configurado'; ?></span></div>
         </div></article>
 

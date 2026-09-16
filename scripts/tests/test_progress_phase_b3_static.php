@@ -94,7 +94,7 @@ $assert(str_contains($progressJs, 'competition.required = !competition.disabled'
 $assert(str_contains($benchmarks, 'benchmarkValidateOfficialContext($officiality, $context)'), 'B3 não pode regredir hotfix oficial=Competição da B1.');
 
 $assert(str_contains($competitionPage, "stridebr_t('competitions.title')") && str_contains($competitionPage, "stridebr_t('competitions.register')"), 'B3 deve criar central Minhas competições.');
-$assert(str_contains($competitionPage, "stridebr_t('competitions.upcoming')") && str_contains($competitionPage, "stridebr_t('competitions.recent')"), 'Lista deve separar próximas/recentes sem dashboard gigante.');
+$assert(str_contains($competitionPage, "stridebr_t('competitions.upcoming')") && str_contains($competitionPage, "stridebr_t('competitions.history')"), 'Lista deve separar próximas/histórico sem dashboard gigante.');
 $assert(str_contains($competitionPage, 'competition-detail') && str_contains($competitionPage, 'competitionActivities') && str_contains($competitionPage, 'competitionBenchmarks'), 'Detalhe deve mostrar atividades e marcas sem duplicar resultados.');
 $assert(str_contains($competitionPage, "stridebr_t('competitions.delete_confirm')") && str_contains($competitionPage, "stridebr_t('competitions.delete_help')"), 'Excluir competição deve explicar que evidências permanecem salvas.');
 $assert(str_contains($competitionPage, 'competitionFindByEvent') && str_contains($competitionPage, 'competitionPrefillFromEvent'), 'Fluxo por evento público deve reaproveitar existente ou pré-preencher.');

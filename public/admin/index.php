@@ -89,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $recipientStmt->execute([':id' => $idUsuario]);
             $recipient = $recipientStmt->fetch();
             if (!$recipient || !filter_var((string) $recipient['emailusuario'], FILTER_VALIDATE_EMAIL)) throw new RuntimeException('Sua conta administrativa não tem um e-mail válido.');
-            $body = "Olá, {$recipient['nome']}.\n\nEste é um teste do e-mail transacional do StrideBR.\n\nVersão: " . stridebr_version() . "\nBuild: " . stridebr_build() . "\nHorário: " . date('d/m/Y H:i:s') . "\n\nSe esta mensagem chegou, o envio básico está funcionando.";
+            $body = "Olá, {$recipient['nome']}.\n\nEste é um teste do e-mail transacional do StrideBR.\n\nVersão: " . stridebr_version() . "\nBuild: " . (stridebr_build() !== '' ? stridebr_build() : 'não informado') . "\nHorário: " . date('d/m/Y H:i:s') . "\n\nSe esta mensagem chegou, o envio básico está funcionando.";
             if (!stridebr_send_mail((string) $recipient['emailusuario'], 'Teste de e-mail do StrideBR', $body)) throw new RuntimeException('O servidor não confirmou o envio do e-mail de teste.');
             stridebr_admin_audit($pdo, $idUsuario, 'auth.mail.test', 'email', (string) $recipient['emailusuario'], []);
             stridebr_flash('success', 'E-mail de teste enviado para sua conta administrativa.');

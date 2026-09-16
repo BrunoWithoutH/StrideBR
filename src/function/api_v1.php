@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/build_identifier.php';
+
 /*
  * Transport helpers for the public API.  This file intentionally does not load
  * app.php: app.php starts the browser session and is reserved for the web UI.
@@ -14,15 +16,58 @@ function stridebr_api_lower(string $value): string
 
 function stridebr_api_build_identifier(): ?string
 {
-    $build = trim((string) (getenv('STRIDEBR_BUILD') ?: ''));
-    if ($build === '') return null;
-    return substr($build, 0, 80);
+    return stridebr_build_identifier();
 }
 
 function stridebr_api_id(int $length = 21): string
 {
     $bytes = random_bytes((int) ceil($length * 3 / 4) + 2);
     return substr(rtrim(strtr(base64_encode($bytes), '+/', '-_'), '='), 0, $length);
+}
+
+function stridebr_api_request_id(): string
+{
+    static $requestId = null;
+    if ($requestId === null) $requestId = stridebr_api_id(16);
+    return $requestId;
+}
+
+function stridebr_api_set_stage(string $stage): void
+{
+    $GLOBALS['stridebr_api_stage'] = $stage;
+}
+
+function stridebr_api_current_stage(): string
+{
+    $stage = trim((string) ($GLOBALS['stridebr_api_stage'] ?? 'router'));
+    return $stage !== '' ? $stage : 'router';
+}
+
+function stridebr_api_pdo_sqlstate(Throwable $exception): ?string
+{
+    if (!$exception instanceof PDOException) return null;
+    $sqlState = $exception->errorInfo[0] ?? $exception->getCode();
+    if (!is_string($sqlState) && !is_int($sqlState)) return null;
+    $sqlState = trim((string) $sqlState);
+    return preg_match('/^[A-Z0-9]{5}$/', $sqlState) === 1 ? $sqlState : null;
+}
+
+function stridebr_api_log_failure(Throwable $exception): void
+{
+    $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+    $path = (string) (parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH) ?: '/');
+    $message = preg_replace('/[\r\n\t]+/', ' ', $exception->getMessage()) ?? '';
+    $message = preg_replace('/\bDETAIL:\s.*$/i', 'DETAIL: [redacted]', $message) ?? $message;
+    if (strlen($message) > 1200) $message = substr($message, 0, 1200);
+    $fields = [
+        'request=' . stridebr_api_request_id(),
+        'route=' . $method . ' ' . $path,
+        'stage=' . stridebr_api_current_stage(),
+        'exception=' . get_class($exception),
+        'sqlstate=' . (stridebr_api_pdo_sqlstate($exception) ?? '-'),
+        'message=' . ($message !== '' ? $message : '-'),
+    ];
+    error_log('StrideBR API v1 failure ' . implode(' ', $fields));
 }
 
 function stridebr_api_token(int $bytes = 32): string
@@ -54,6 +99,7 @@ function stridebr_api_response(int $status, array $payload = []): never
 {
     http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');
+    header('X-Request-Id: ' . stridebr_api_request_id());
     header('Cache-Control: no-store');
     header('X-Content-Type-Options: nosniff');
     if ($status !== 204) echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
@@ -345,45 +391,96 @@ function stridebr_api_mark_mobile_activity_source(PDO $pdo, string $activityId, 
 function stridebr_api_create_activity(PDO $pdo, string $userId, array $payload, string $idempotencyKey): array
 {
     require_once __DIR__ . '/gps_web.php';
+    stridebr_api_set_stage('activity.prepare');
     $recording = stridebr_api_activity_mobile_recording($pdo, $userId, $payload, $idempotencyKey);
     $workoutId = trim((string) ($payload['workout_id'] ?? ''));
+    stridebr_api_set_stage('activity.workout_prepare');
     $workoutLink = $workoutId !== '' ? stridebr_api_workout_prepare_activity_link($pdo, $userId, $workoutId, (string) $recording['idmodalidade']) : null;
     $recordingKey = gpsWebRecordingKey($recording);
+    stridebr_api_set_stage('activity.idempotency_lookup');
     $existing = gpsWebFindExistingRecording($pdo, $userId, $recordingKey);
     if ($existing !== null) {
+        stridebr_api_set_stage('activity.source');
         stridebr_api_mark_mobile_activity_source($pdo, $existing, $userId);
-        if ($workoutLink !== null) stridebr_api_workout_link_activity($pdo, $userId, $existing, $workoutLink);
-        if (is_array($payload['streams'] ?? null)) activityStreamSaveBundle($pdo, $userId, $existing, $payload['streams'], $idempotencyKey . ':streams', 'stridebr_android');
-        if (is_array($payload['laps'] ?? null)) activityStreamSaveLaps($pdo, $userId, $existing, $payload['laps'], 'manual', 'stridebr_android');
-        return ['id' => $existing, 'activity' => stridebr_api_activity_detail($pdo, $existing, $userId), 'reused' => true];
+        if ($workoutLink !== null) {
+            stridebr_api_set_stage('activity.workout_link');
+            stridebr_api_workout_link_activity($pdo, $userId, $existing, $workoutLink);
+        }
+        if (is_array($payload['streams'] ?? null)) {
+            stridebr_api_set_stage('streams');
+            activityStreamSaveBundle($pdo, $userId, $existing, $payload['streams'], $idempotencyKey . ':streams', 'stridebr_android');
+        }
+        if (is_array($payload['laps'] ?? null)) {
+            stridebr_api_set_stage('laps');
+            activityStreamSaveLaps($pdo, $userId, $existing, $payload['laps'], 'manual', 'stridebr_android');
+        }
+        stridebr_api_set_stage('activity.detail');
+        $activity = stridebr_api_activity_detail($pdo, $existing, $userId);
+        stridebr_api_set_stage('activity.complete');
+        return ['id' => $existing, 'activity' => $activity, 'reused' => true];
     }
 
+    stridebr_api_set_stage('activity.payload');
     $activityPayload = gpsWebBuildActivityPayload($pdo, $userId, $recording);
     if ($workoutLink !== null) $activityPayload = stridebr_api_workout_apply_activity_payload($activityPayload, $workoutLink);
     $meta = $activityPayload['_gps_meta'];
     unset($activityPayload['_gps_meta']);
     $pdo->beginTransaction();
     try {
+        stridebr_api_set_stage('activity.persist');
         $id = atividadeSalvarRegistro($pdo, $userId, $activityPayload);
+        stridebr_api_set_stage('activity.source');
         stridebr_api_mark_mobile_activity_source($pdo, $id, $userId);
+        stridebr_api_set_stage('gps.metadata');
         gpsWebSaveMetadata($pdo, $id, $meta);
-        if ($workoutLink !== null) stridebr_api_workout_link_activity($pdo, $userId, $id, $workoutLink);
-        if (is_array($payload['streams'] ?? null)) activityStreamSaveBundle($pdo, $userId, $id, $payload['streams'], $idempotencyKey . ':streams', 'stridebr_android');
-        if (is_array($payload['laps'] ?? null)) activityStreamSaveLaps($pdo, $userId, $id, $payload['laps'], 'manual', 'stridebr_android');
+        if ($workoutLink !== null) {
+            stridebr_api_set_stage('activity.workout_link');
+            stridebr_api_workout_link_activity($pdo, $userId, $id, $workoutLink);
+        }
+        if (is_array($payload['streams'] ?? null)) {
+            stridebr_api_set_stage('streams');
+            activityStreamSaveBundle($pdo, $userId, $id, $payload['streams'], $idempotencyKey . ':streams', 'stridebr_android');
+        }
+        if (is_array($payload['laps'] ?? null)) {
+            stridebr_api_set_stage('laps');
+            activityStreamSaveLaps($pdo, $userId, $id, $payload['laps'], 'manual', 'stridebr_android');
+        }
+        stridebr_api_set_stage('activity.commit');
         $pdo->commit();
     } catch (Throwable $e) {
+        $failureStage = stridebr_api_current_stage();
         if ($pdo->inTransaction()) $pdo->rollBack();
-        if ($e instanceof PDOException && $e->getCode() === '23505') {
+        if ($e instanceof PDOException && stridebr_api_pdo_sqlstate($e) === '23505') {
+            stridebr_api_set_stage('activity.idempotency_recovery');
             $existing = gpsWebFindExistingRecording($pdo, $userId, $recordingKey);
             if ($existing !== null) {
+                stridebr_api_set_stage('activity.source');
                 stridebr_api_mark_mobile_activity_source($pdo, $existing, $userId);
-                if ($workoutLink !== null) stridebr_api_workout_link_activity($pdo, $userId, $existing, $workoutLink);
-                return ['id' => $existing, 'activity' => stridebr_api_activity_detail($pdo, $existing, $userId), 'reused' => true];
+                if ($workoutLink !== null) {
+                    stridebr_api_set_stage('activity.workout_link');
+                    stridebr_api_workout_link_activity($pdo, $userId, $existing, $workoutLink);
+                }
+                if (is_array($payload['streams'] ?? null)) {
+                    stridebr_api_set_stage('streams');
+                    activityStreamSaveBundle($pdo, $userId, $existing, $payload['streams'], $idempotencyKey . ':streams', 'stridebr_android');
+                }
+                if (is_array($payload['laps'] ?? null)) {
+                    stridebr_api_set_stage('laps');
+                    activityStreamSaveLaps($pdo, $userId, $existing, $payload['laps'], 'manual', 'stridebr_android');
+                }
+                stridebr_api_set_stage('activity.detail');
+                $activity = stridebr_api_activity_detail($pdo, $existing, $userId);
+                stridebr_api_set_stage('activity.complete');
+                return ['id' => $existing, 'activity' => $activity, 'reused' => true];
             }
         }
+        stridebr_api_set_stage($failureStage);
         throw $e;
     }
-    return ['id' => $id, 'activity' => stridebr_api_activity_detail($pdo, $id, $userId), 'reused' => false];
+    stridebr_api_set_stage('activity.detail');
+    $activity = stridebr_api_activity_detail($pdo, $id, $userId);
+    stridebr_api_set_stage('activity.complete');
+    return ['id' => $id, 'activity' => $activity, 'reused' => false];
 }
 
 function stridebr_api_list_activities(PDO $pdo, string $userId, array $filters = []): array

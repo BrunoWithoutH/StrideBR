@@ -66,19 +66,22 @@ if ($detail !== null && !array_filter($mapRoutes, static fn(array $route): bool 
 <div class="container-fluid">
 <?php require dirname(__DIR__, 2) . '/src/layout/header.php'; ?>
 <main class="main-content routes-page" data-routes-page>
-    <header class="routes-head"><div><span>Atividades</span><h1>Minhas Rotas</h1><p>Rotas salvas para repetir em treinos.</p></div><a class="secondary-button" href="/user/atividades.php?with_route=1">Atividades com rota</a></header>
+    <header class="routes-head"><div><span>Atividades</span><h1>Minhas Rotas</h1><p>Rotas salvas para repetir em treinos.</p></div><?php if ($routes !== [] || $detail !== null): ?><a class="secondary-button" href="/user/atividades.php?with_route=1">Atividades com rota</a><?php endif; ?></header>
     <?php foreach ($errors as $error): ?><div class="routes-error" role="alert"><?php echo stridebr_e($error); ?></div><?php endforeach; ?>
+    <?php if ($routes === [] && $detail === null): ?>
+        <section class="routes-zero-state"><h2>Nenhuma rota salva.</h2><p>Abra uma atividade com GPS e use “Salvar rota” para reutilizar esse percurso em futuros treinos.</p><div><a class="primary-button" href="/user/atividades.php?with_route=1">Ver atividades com rota</a><a class="secondary-button" href="/user/atividades.php">Como funciona</a></div></section>
+    <?php else: ?>
     <nav class="routes-status" aria-label="Estado das rotas"><a class="<?php echo $status === 'active' ? 'is-active' : ''; ?>" href="/user/rotas.php">Ativas</a><a class="<?php echo $status === 'archived' ? 'is-active' : ''; ?>" href="/user/rotas.php?status=archived">Arquivadas</a></nav>
     <div class="routes-layout">
         <section class="routes-library" aria-label="Rotas salvas">
             <?php if ($routes === []): ?>
-                <div class="routes-empty"><strong>Nenhuma rota aqui.</strong><span>Abra uma Activity com GPS e use “Salvar rota”.</span></div>
+                <div class="routes-empty"><strong>Nenhuma rota aqui.</strong><span>Abra uma atividade com GPS e use “Salvar rota”.</span></div>
             <?php else: ?>
                 <div class="routes-grid">
                 <?php foreach ($routes as $route): ?>
                     <a class="route-card<?php echo $detail && (string) $detail['idrota_salva'] === (string) $route['idrota_salva'] ? ' is-active' : ''; ?>" href="/user/rotas.php?id=<?php echo rawurlencode((string) $route['idrota_salva']); ?><?php echo $status === 'archived' ? '&status=archived' : ''; ?>">
                         <span class="route-card-map" data-route-mini-map="<?php echo stridebr_e((string) $route['idrota_salva']); ?>" aria-hidden="true"></span>
-                        <span class="route-card-copy"><strong><?php echo stridebr_e((string) $route['nome']); ?></strong><small><?php echo stridebr_e((string) ($route['modalidade_nome'] ?? 'Rota')); ?><?php if (is_numeric($route['distancia_m'] ?? null)): ?> · <?php echo stridebr_e(number_format((float) $route['distancia_m'] / 1000, 2, ',', '.')); ?> km<?php endif; ?><?php if (is_numeric($route['ganho_elevacao_m'] ?? null)): ?> · +<?php echo stridebr_e(number_format((float) $route['ganho_elevacao_m'], 0, ',', '.')); ?> m<?php endif; ?></small><small><?php echo (int) ($route['atividades_count'] ?? 0); ?> Activities<?php if (!empty($route['ultima_atividade'])): ?> · último uso <?php echo stridebr_e(stridebr_format_date_short((string) $route['ultima_atividade'])); ?><?php endif; ?></small></span>
+                        <span class="route-card-copy"><strong><?php echo stridebr_e((string) $route['nome']); ?></strong><small><?php echo stridebr_e((string) ($route['modalidade_nome'] ?? 'Rota')); ?><?php if (is_numeric($route['distancia_m'] ?? null)): ?> · <?php echo stridebr_e(number_format((float) $route['distancia_m'] / 1000, 2, ',', '.')); ?> km<?php endif; ?><?php if (is_numeric($route['ganho_elevacao_m'] ?? null)): ?> · +<?php echo stridebr_e(number_format((float) $route['ganho_elevacao_m'], 0, ',', '.')); ?> m<?php endif; ?></small><small><?php echo (int) ($route['atividades_count'] ?? 0); ?> atividades<?php if (!empty($route['ultima_atividade'])): ?> · último uso <?php echo stridebr_e(stridebr_format_date_short((string) $route['ultima_atividade'])); ?><?php endif; ?></small></span>
                     </a>
                 <?php endforeach; ?>
                 </div>
@@ -93,9 +96,9 @@ if ($detail !== null && !array_filter($mapRoutes, static fn(array $route): bool 
             <div class="route-stats">
                 <div><strong><?php echo is_numeric($detail['distancia_m'] ?? null) ? stridebr_e(number_format((float) $detail['distancia_m'] / 1000, 2, ',', '.')) . ' km' : '—'; ?></strong><span>Distância</span></div>
                 <div><strong><?php echo is_numeric($detail['ganho_elevacao_m'] ?? null) ? '+' . stridebr_e(number_format((float) $detail['ganho_elevacao_m'], 0, ',', '.')) . ' m' : '—'; ?></strong><span>Elevação</span></div>
-                <div><strong><?php echo count((array) ($detail['atividades'] ?? [])); ?></strong><span>Activities</span></div>
+                <div><strong><?php echo count((array) ($detail['atividades'] ?? [])); ?></strong><span>atividades</span></div>
             </div>
-            <div class="route-actions"><a class="primary-button" href="/user/cronogramatreinos.php?new=workout&route=<?php echo rawurlencode((string) $detail['idrota_salva']); ?>">Usar em treino</a><?php if (!empty($detail['idatividade_origem'])): ?><a class="secondary-button" href="/user/atividades.php?atividade=<?php echo rawurlencode((string) $detail['idatividade_origem']); ?>">Activity de origem</a><?php endif; ?><?php if (count((array) ($detail['atividades'] ?? [])) >= 2): ?><a class="secondary-button" href="/user/comparar-atividades.php?a=<?php echo rawurlencode((string) $detail['atividades'][0]['idregistro']); ?>&b=<?php echo rawurlencode((string) $detail['atividades'][1]['idregistro']); ?>">Comparar usos</a><?php endif; ?></div>
+            <div class="route-actions"><a class="primary-button" href="/user/cronogramatreinos.php?new=workout&route=<?php echo rawurlencode((string) $detail['idrota_salva']); ?>">Usar em treino</a><?php if (!empty($detail['idatividade_origem'])): ?><a class="secondary-button" href="/user/atividades.php?atividade=<?php echo rawurlencode((string) $detail['idatividade_origem']); ?>">Atividade de origem</a><?php endif; ?><?php if (count((array) ($detail['atividades'] ?? [])) >= 2): ?><a class="secondary-button" href="/user/comparar-atividades.php?a=<?php echo rawurlencode((string) $detail['atividades'][0]['idregistro']); ?>&b=<?php echo rawurlencode((string) $detail['atividades'][1]['idregistro']); ?>">Comparar usos</a><?php endif; ?></div>
             <form method="POST" class="route-settings">
                 <?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="update"><input type="hidden" name="id" value="<?php echo stridebr_e((string) $detail['idrota_salva']); ?>">
                 <label>Nome<input name="nome" maxlength="140" required value="<?php echo stridebr_e((string) $detail['nome']); ?>"></label>
@@ -103,12 +106,13 @@ if ($detail !== null && !array_filter($mapRoutes, static fn(array $route): bool 
                 <label>Pacer Plan<select name="idpacerplan"><option value="">Sem Pacer</option><?php foreach ($pacerPlans as $plan): ?><?php if ((string) ($detail['idmodalidade'] ?? '') !== '' && (string) ($plan['sport']['id'] ?? '') !== (string) $detail['idmodalidade']) continue; ?><option value="<?php echo stridebr_e((string) $plan['id']); ?>"<?php echo (string) ($detail['idpacerplan'] ?? '') === (string) $plan['id'] ? ' selected' : ''; ?>><?php echo stridebr_e((string) $plan['name']); ?></option><?php endforeach; ?></select></label>
                 <button class="primary-button" type="submit">Salvar</button>
             </form>
-            <section class="route-history"><div class="route-section-head"><strong>Histórico</strong><span>Activities vinculadas a esta rota.</span></div><?php if (($detail['atividades'] ?? []) === []): ?><p>Nenhuma Activity vinculada ainda.</p><?php else: ?><div><?php foreach ($detail['atividades'] as $activity): ?><a href="/user/atividades.php?atividade=<?php echo rawurlencode((string) $activity['idregistro']); ?>"><span><strong><?php echo stridebr_e((string) $activity['titulo']); ?></strong><small><?php echo stridebr_e(stridebr_format_datetime_short((string) $activity['data_inicio'])); ?></small></span><span><?php echo is_numeric($activity['distancia_metros'] ?? null) ? stridebr_e(number_format((float) $activity['distancia_metros'] / 1000, 2, ',', '.')) . ' km' : ''; ?></span></a><?php endforeach; ?></div><?php endif; ?></section>
+            <section class="route-history"><div class="route-section-head"><strong>Histórico</strong><span>atividades vinculadas a esta rota.</span></div><?php if (($detail['atividades'] ?? []) === []): ?><p>Nenhuma atividade vinculada ainda.</p><?php else: ?><div><?php foreach ($detail['atividades'] as $activity): ?><a href="/user/atividades.php?atividade=<?php echo rawurlencode((string) $activity['idregistro']); ?>"><span><strong><?php echo stridebr_e((string) $activity['titulo']); ?></strong><small><?php echo stridebr_e(stridebr_format_datetime_short((string) $activity['data_inicio'])); ?></small></span><span><?php echo is_numeric($activity['distancia_metros'] ?? null) ? stridebr_e(number_format((float) $activity['distancia_metros'] / 1000, 2, ',', '.')) . ' km' : ''; ?></span></a><?php endforeach; ?></div><?php endif; ?></section>
             <form method="POST" class="route-archive" data-confirm="<?php echo stridebr_e(stridebr_db_bool($detail['arquivada'] ?? false) ? 'Reativar esta rota?' : 'Arquivar esta rota?'); ?>"><?php echo stridebr_csrf_field(); ?><input type="hidden" name="id" value="<?php echo stridebr_e((string) $detail['idrota_salva']); ?>"><input type="hidden" name="action" value="<?php echo stridebr_db_bool($detail['arquivada'] ?? false) ? 'restore' : 'archive'; ?>"><button type="submit"><?php echo stridebr_db_bool($detail['arquivada'] ?? false) ? 'Reativar rota' : 'Arquivar rota'; ?></button></form>
         <?php endif; ?>
         </section>
     </div>
-    <script type="application/json" data-routes-map-data><?php echo json_encode($mapRoutes, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP); ?></script>
+    <?php endif; ?>
+    <?php if ($mapRoutes !== []): ?><script type="application/json" data-routes-map-data><?php echo json_encode($mapRoutes, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP); ?></script><?php endif; ?>
 </main>
 <?php require dirname(__DIR__, 2) . '/src/layout/footer.php'; ?>
 <?php echo stridebr_maps_runtime_script(); ?>

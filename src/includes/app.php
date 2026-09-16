@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once dirname(__DIR__) . '/function/build_identifier.php';
+
 require_once __DIR__ . '/environment.php';
 require_once __DIR__ . '/seo.php';
 
@@ -646,14 +648,7 @@ function stridebr_version(): string
 
 function stridebr_build(): string
 {
-    $configured = trim((string) (getenv('STRIDEBR_BUILD') ?: ''));
-    if ($configured !== '') return $configured;
-    $file = dirname(__DIR__, 2) . '/.stridebr-build';
-    if (is_file($file)) {
-        $value = trim((string) @file_get_contents($file));
-        if ($value !== '' && stridebr_length($value) <= 80) return $value;
-    }
-    return '20260825-daily-use-polish';
+    return stridebr_build_identifier() ?? '';
 }
 
 function stridebr_db_table_exists(PDO $pdo, string $table): bool

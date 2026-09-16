@@ -106,6 +106,7 @@ php scripts/tests/test_activity_streams_analysis_pacer_v1_static.php
 php scripts/tests/test_web_activity_detail_v3_static.php
 php scripts/tests/test_web_pacer_v1_static.php
 php scripts/tests/test_web_product_expansion_v1_static.php
+php scripts/tests/test_production_stabilization_web_static.php
 php scripts/tests/test_teams_surface_core_v1_static.php
 php scripts/tests/test_core_stabilization_postgresql_gate_static.php
 php scripts/tests/test_notification_contract_static.php

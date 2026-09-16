@@ -6,6 +6,7 @@ $footerUsername = trim((string) ($_SESSION['Username'] ?? ''));
 $footerProfileUrl = $footerUsername !== '' ? '/u/' . rawurlencode($footerUsername) : '/user/perfil.php';
 $footerProfilePhoto = $footerLoggedIn ? stridebr_profile_photo_url((string) ($_SESSION['FotoUsuario'] ?? ''), 64) : '';
 $footerInstagramUrl = trim((string) (getenv('STRIDEBR_INSTAGRAM_URL') ?: ''));
+$footerBuild = stridebr_build();
 if ($footerInstagramUrl !== '' && (filter_var($footerInstagramUrl, FILTER_VALIDATE_URL) === false || strtolower((string) parse_url($footerInstagramUrl, PHP_URL_SCHEME)) !== 'https')) $footerInstagramUrl = '';
 $feedbackEnabled = false;
 if ($footerLoggedIn) {
@@ -41,7 +42,7 @@ $navActive = static function (array $prefixes) use ($currentPath): string {
             <div class="footer-column"><h4><?php echo stridebr_e(stridebr_t('footer.legal')); ?></h4><a href="/pages/legal/terms.php"><?php echo stridebr_e(stridebr_t('footer.terms')); ?></a><a href="/pages/legal/privacy.php"><?php echo stridebr_e(stridebr_t('footer.privacy')); ?></a><a href="/pages/legal/cookies.php"><?php echo stridebr_e(stridebr_t('footer.cookies')); ?></a></div>
             <div class="footer-column"><h4><?php echo stridebr_e(stridebr_t('footer.project')); ?></h4><a href="/pages/extras/roadmap.php"><?php echo stridebr_e(stridebr_t('footer.roadmap')); ?></a><a href="/pages/extras/changelog.php"><?php echo stridebr_e(stridebr_t('footer.updates')); ?></a><a href="/pages/extras/credits.php"><?php echo stridebr_e(stridebr_t('footer.credits')); ?></a><?php if (stridebr_donation_enabled()): ?><a href="/pages/about/support-project.php"><?php echo stridebr_e(stridebr_t('footer.support_project')); ?></a><?php endif; ?></div>
         </div>
-        <div class="footer-bottom"><div><a href="https://github.com/BrunoWithoutH/StrideBR" target="_blank" rel="noopener noreferrer">GitHub</a><?php if ($footerInstagramUrl !== ''): ?><a href="<?php echo stridebr_e($footerInstagramUrl); ?>" target="_blank" rel="noopener noreferrer">Instagram</a><?php endif; ?><span class="footer-build" data-stridebr-version="<?php echo stridebr_e(stridebr_version()); ?>" data-stridebr-build="<?php echo stridebr_e(stridebr_build()); ?>"><?php echo stridebr_e(stridebr_t('library.stridebr')); ?> <?php echo stridebr_e(stridebr_version()); ?> · build <?php echo stridebr_e(stridebr_build()); ?></span></div><p>© <?php echo date('Y'); ?> StrideBR.</p></div>
+        <div class="footer-bottom"><div><a href="https://github.com/BrunoWithoutH/StrideBR" target="_blank" rel="noopener noreferrer">GitHub</a><?php if ($footerInstagramUrl !== ''): ?><a href="<?php echo stridebr_e($footerInstagramUrl); ?>" target="_blank" rel="noopener noreferrer">Instagram</a><?php endif; ?><span class="footer-build" data-stridebr-version="<?php echo stridebr_e(stridebr_version()); ?>" data-stridebr-build="<?php echo stridebr_e($footerBuild); ?>"><?php echo stridebr_e(stridebr_t('library.stridebr')); ?> <?php echo stridebr_e(stridebr_version()); ?><?php if ($footerBuild !== ''): ?> · build <?php echo stridebr_e($footerBuild); ?><?php endif; ?></span></div><p>© <?php echo date('Y'); ?> StrideBR.</p></div>
     </div>
 </footer>
 

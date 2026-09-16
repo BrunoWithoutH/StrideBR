@@ -92,10 +92,12 @@ $assert(str_contains($competitionsPage, 'resultado_tempo_s') && str_contains($co
 $assert(str_contains($competitions, 'function competitionLinkActivity') && str_contains($competitions, 'UPDATE registros_atividade SET idcompeticao=:competicao'), 'Competition precisa vincular Activity explicitamente.');
 $assert(str_contains($competitions, "':participacao'=>\$data['participacao_status']") && str_contains($competitions, "':resultado_tempo'=>\$data['resultado_tempo_s']"), 'UPDATE de competição precisa bindar os novos campos V2.');
 $assert(str_contains($competitionsPage, 'Preparação') && str_contains($competitionsPage, '/user/pacer.php') && str_contains($competitionsPage, '/user/cronogramatreinos.php'), 'competição futura precisa conectar preparação sem AI plan.');
+$assert(str_contains($competitionsPage, "stridebr_t('competitions.empty')") && str_contains($competitionsPage, "stridebr_t('competitions.empty_help')") && str_contains($competitionsPage, "stridebr_t('competitions.history')") && str_contains($competitionsPage, "stridebr_t('competitions.upcoming')"), 'Competições precisa ter empty state útil e separar próximas de histórico.');
 
 $assert(str_contains($routes, 'function routeSavedCreateFromActivity') && str_contains($routes, 'function routeSavedValidateForWorkout') && str_contains($routes, 'function routeSavedLinkActivityFromWorkout'), 'Routes precisa salvar de Activity, validar Workout e registrar reuso.');
 $assert(str_contains($routes, 'p.idplan=r.idpacerplan') && str_contains($routes, 'WHERE idplan=:id'), 'Routes precisa usar idplan do Pacer real.');
 $assert(str_contains($routesPage, 'Minhas Rotas') && str_contains($routesPage, 'Usar em treino') && str_contains($routesPage, 'data-route-detail-map'), 'Routes Web precisa ter lista/detail/map/reuse.');
+$assert(str_contains($routesPage, 'if ($routes === [] && $detail === null)') && str_contains($routesPage, 'Nenhuma rota salva.') && str_contains($routesPage, 'Ver atividades com rota'), 'Zero rotas precisa usar empty state único antes do split pane.');
 $assert(str_contains($routesJs, 'IntersectionObserver') && str_contains($routesJs, 'StrideBRWebMap'), 'mini mapas de Routes precisam ser lazy e reutilizar mapa centralizado.');
 $assert(str_contains($activityDetailJs, '/api/rota-salvar.php') && str_contains($activityDetailJs, 'Salvar rota'), 'Activity Detail precisa permitir salvar rota sem duplicar Activity.');
 $assert(str_contains($schedulePage, 'name="route_id"') && str_contains($schedulePage, 'data-editor-route') && str_contains($schedulePage, 'data-quick-route'), 'Workout Web precisa aceitar Route no editor e Quick Create.');
@@ -103,9 +105,9 @@ $assert(str_contains($scheduleJs, 'syncEditorRoute') && str_contains($scheduleJs
 $assert(str_contains($cronograma, 'routeSavedValidateForWorkout(') && str_contains($cronograma, 'idrota_salva = :rota') && str_contains($cronograma, "\$payload['route_id'] = \$requestedRouteId"), 'cronograma precisa persistir/propagar Route pelo service compartilhado.');
 $assert(str_contains($header, '/user/rotas.php'), 'Minhas Rotas precisa estar acessível na navegação.');
 
-$assert(str_contains($home, 'Próximo treino') && str_contains($home, 'Próxima competição') && str_contains($home, 'Últimos 28 dias') && str_contains($home, 'Última Activity'), 'Home V2 precisa priorizar treino, competição, progresso e última Activity.');
+$assert(str_contains($home, 'Próximo treino') && str_contains($home, 'Próxima competição') && str_contains($home, 'Últimos 28 dias') && str_contains($home, 'Última atividade'), 'Home V2 precisa priorizar treino, competição, progresso e última atividade.');
 $assert(str_contains($home, 'Pacer pronto') && str_contains($home, 'Criar Pacer'), 'Home V2 precisa expor Pacer útil e quick action.');
-$assert(str_contains($home, 'Registrar atividade') && str_contains($home, 'Novo treino') && str_contains($home, 'Importar Activity'), 'Home V2 precisa manter quatro ações rápidas concretas.');
+$assert(str_contains($home, 'Registrar atividade') && str_contains($home, 'Novo treino') && str_contains($home, 'Importar atividade') && str_contains($home, 'class="is-primary"'), 'Home V2 precisa manter toolbar de ações rápidas com prioridades visuais.');
 $assert(str_contains($home, 'data-home-last-map') && str_contains($home, '/assets/js/web-map.js') && str_contains($home, '/assets/js/dashboard-v2.js'), 'última Activity com rota precisa usar mini mapa OSM centralizado.');
 $assert(str_contains($homeJs, 'IntersectionObserver') && str_contains($homeJs, 'StrideBRWebMap'), 'mini mapa da Home precisa ser lazy.');
 $assert(str_contains($homeCss, '@media') && str_contains($homeCss, '.dashboard-v2-grid') && str_contains($homeCss, '.dashboard-v2-last-map'), 'Home V2 precisa ser responsiva e dimensionar mini mapa.');

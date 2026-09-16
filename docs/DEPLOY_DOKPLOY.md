@@ -120,3 +120,9 @@ GPS conserva Wake Lock quando disponível, fallback sem hack, bloqueio dos contr
 Build → provisionar volumes → banco → env → migrations → iniciar app sem tráfego externo → readiness → smoke → liberar tráfego. Infra define os comandos finais e a rede. Staging vem antes de production; versão/tag 1.0.0 só depois da validação final autorizada.
 
 Job opcional existente: `php scripts/sync_integrations.php --limit=500`, somente com integrações efetivamente conectadas. Sugestão operacional: a cada 15 minutos, uma execução por ambiente, respeitando quotas dos providers; não é requisito para subir a 1.0 sem integrações. Não foi configurado scheduler. Backup: `scripts/backup_db.sh`; executar e ensaiar restore somente na etapa Infra.
+
+## Build identifier
+
+Use `STRIDEBR_BUILD` as the canonical deployed build identifier for Dokploy. Set it from the commit SHA (or immutable deployment revision) in the deployment environment. The Web footer, `/api/v1/meta` and Admin Diagnostics all read the same helper.
+
+Do not depend on `.stridebr-build` in Dokploy. The legacy file is ignored unless `STRIDEBR_BUILD_FILE_FALLBACK=true` is explicitly enabled; this prevents an old artifact file from being displayed as the current build. If `STRIDEBR_BUILD` is absent, the API returns `build: null` and the Web displays `não informado` rather than a stale identifier.

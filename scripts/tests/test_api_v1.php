@@ -114,6 +114,53 @@ return function (PDO $pdo): void {
     $otherList = stridebr_api_list_activities($pdo, $other, ['q'=>'Alpha Android GPS']);
     AlphaTest::same(0, count($otherList['data']), 'Listagem nunca pode vazar atividade de outro usuário');
 
+    $aBundleCount = $pdo->prepare('SELECT COUNT(*) FROM activity_stream_bundles WHERE idregistro = :id');
+    $aBundleCount->execute([':id' => (string) $created['id']]);
+    AlphaTest::same(0, (int) $aBundleCount->fetchColumn(), 'Variante A não deve criar bundle de streams');
+    $aLapCount = $pdo->prepare('SELECT COUNT(*) FROM activity_laps WHERE idregistro = :id');
+    $aLapCount->execute([':id' => (string) $created['id']]);
+    AlphaTest::same(0, (int) $aLapCount->fetchColumn(), 'Variante A não deve criar laps');
+
+    $streamSamples = [
+        ['elapsed_ms'=>0, 'moving_ms'=>0, 'distance_m'=>0.0, 'altitude_m'=>421.2, 'horizontal_accuracy_m'=>4.5, 'route_point_index'=>0],
+        ['elapsed_ms'=>5000, 'moving_ms'=>5000, 'distance_m'=>20.0, 'speed_mps'=>4.0, 'altitude_m'=>423.8, 'horizontal_accuracy_m'=>3.2, 'route_point_index'=>1],
+    ];
+    $streamsPayload = $mobilePayload;
+    $streamsPayload['title'] = 'Alpha Android GPS Streams';
+    $streamsPayload['streams'] = ['schema_version'=>1, 'source'=>'stridebr_android', 'samples'=>$streamSamples];
+    $streamsCreated = stridebr_api_create_activity($pdo, $owner, $streamsPayload, 'alpha-mobile-idem-streams-0001');
+    AlphaTest::assert(empty($streamsCreated['reused']), 'Variante B precisa criar Activity com streams');
+    $streamBundle = $pdo->prepare('SELECT sample_count, source FROM activity_stream_bundles WHERE idregistro = :id');
+    $streamBundle->execute([':id'=>(string)$streamsCreated['id']]);
+    $streamBundleRow = $streamBundle->fetch();
+    AlphaTest::assert((bool)$streamBundleRow, 'Variante B precisa persistir bundle de streams');
+    AlphaTest::same(2, (int)$streamBundleRow['sample_count'], 'Variante B precisa persistir todos os samples');
+    AlphaTest::same('stridebr_android', (string)$streamBundleRow['source'], 'Variante B precisa preservar source dos streams');
+    $streamSampleCount = $pdo->prepare('SELECT COUNT(*) FROM activity_stream_samples s JOIN activity_stream_bundles b ON b.idbundle=s.idbundle WHERE b.idregistro=:id');
+    $streamSampleCount->execute([':id'=>(string)$streamsCreated['id']]);
+    AlphaTest::same(2, (int)$streamSampleCount->fetchColumn(), 'Variante B precisa persistir samples do bundle');
+
+    $lapsPayload = $streamsPayload;
+    $lapsPayload['title'] = 'Alpha Android GPS Streams Laps';
+    $lapsPayload['laps'] = [
+        ['start_elapsed_ms'=>0, 'end_elapsed_ms'=>5000, 'start_moving_ms'=>0, 'end_moving_ms'=>5000, 'start_distance_m'=>0.0, 'end_distance_m'=>20.0],
+    ];
+    $lapsCreated = stridebr_api_create_activity($pdo, $owner, $lapsPayload, 'alpha-mobile-idem-streams-laps-0001');
+    AlphaTest::assert(empty($lapsCreated['reused']), 'Variante C precisa criar Activity com streams e laps');
+    $lapCount = $pdo->prepare('SELECT COUNT(*) FROM activity_laps WHERE idregistro=:id AND origin=:origin');
+    $lapCount->execute([':id'=>(string)$lapsCreated['id'], ':origin'=>'manual']);
+    AlphaTest::same(1, (int)$lapCount->fetchColumn(), 'Variante C precisa persistir lap manual');
+    $lapsAgain = stridebr_api_create_activity($pdo, $owner, $lapsPayload, 'alpha-mobile-idem-streams-laps-0001');
+    AlphaTest::assert(!empty($lapsAgain['reused']), 'Retry da variante C precisa reutilizar Activity');
+    AlphaTest::same((string)$lapsCreated['id'], (string)$lapsAgain['id'], 'Retry da variante C precisa manter o mesmo ID');
+    $lapCount->execute([':id'=>(string)$lapsCreated['id'], ':origin'=>'manual']);
+    AlphaTest::same(1, (int)$lapCount->fetchColumn(), 'Retry da variante C não pode duplicar lap');
+    $streamSampleCount->execute([':id'=>(string)$lapsCreated['id']]);
+    AlphaTest::same(2, (int)$streamSampleCount->fetchColumn(), 'Retry da variante C não pode duplicar samples');
+    $cDuplicates = $pdo->prepare("SELECT COUNT(*) FROM registros_atividade WHERE idusuario = :user AND titulo = 'Alpha Android GPS Streams Laps'");
+    $cDuplicates->execute([':user'=>$owner]);
+    AlphaTest::same(1, (int)$cDuplicates->fetchColumn(), 'Retry da variante C não pode duplicar Activity');
+
     $logoutTokens = stridebr_api_issue_session($pdo, $ownerRow, ['platform'=>'android']);
     $logoutLookup = $pdo->prepare('SELECT idsessao FROM api_sessoes WHERE access_token_hash = :hash');
     $logoutLookup->execute([':hash'=>stridebr_api_token_hash($logoutTokens['access_token'])]);

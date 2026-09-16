@@ -62,6 +62,37 @@ function stridebr_configuration_check(bool $filesystem = true): array
     return ['ok' => $errors === [], 'status' => $status, 'errors' => array_values(array_unique($errors))];
 }
 
+function stridebr_database_schema_ready(PDO $pdo): bool
+{
+    $sql = <<<'SQL'
+SELECT
+    to_regclass('stridebr.usuarios') IS NOT NULL
+    AND to_regclass('stridebr.activity_stream_bundles') IS NOT NULL
+    AND to_regclass('stridebr.activity_stream_samples') IS NOT NULL
+    AND to_regclass('stridebr.activity_laps') IS NOT NULL
+    AND to_regclass('stridebr.activity_analysis_cache') IS NOT NULL
+    AND to_regclass('stridebr.gravacoes_gps_web') IS NOT NULL
+    AND to_regclass('stridebr.rotas_atividade') IS NOT NULL
+    AND EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'stridebr'
+          AND table_name = 'rotas_atividade'
+          AND column_name = 'pontos_metadata'
+          AND data_type = 'jsonb'
+    )
+    AND EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'stridebr'
+          AND table_name = 'gravacoes_gps_web'
+          AND column_name = 'duracao_s'
+          AND data_type = 'numeric'
+    )
+SQL;
+    return filter_var($pdo->query($sql)->fetchColumn(), FILTER_VALIDATE_BOOLEAN);
+}
+
 function stridebr_database_ready(): bool
 {
     try {
@@ -74,6 +105,6 @@ function stridebr_database_ready(): bool
         $pdo->exec("SET statement_timeout = '3000ms'");
         $applied = $pdo->query('SELECT version FROM public.stridebr_schema_migrations')->fetchAll(PDO::FETCH_COLUMN);
         foreach (glob(dirname(__DIR__) . '/database/migrations/*.sql') ?: [] as $file) if (!in_array(basename($file), $applied, true)) return false;
-        return (bool) $pdo->query("SELECT to_regclass('stridebr.usuarios') IS NOT NULL")->fetchColumn();
+        return stridebr_database_schema_ready($pdo);
     } catch (Throwable) { return false; }
 }

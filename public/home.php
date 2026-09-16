@@ -310,22 +310,23 @@ $weekSummary = implode(' · ', $weekSummaryParts);
                         <div class="dashboard-v2-progress">
                             <div><strong><?php echo (int) ($progressSummary['active_days'] ?? 0); ?></strong><span>dias ativos</span></div>
                             <div><strong><?php echo is_numeric($progressSummary['total_distance_m'] ?? null) ? stridebr_e(number_format((float) $progressSummary['total_distance_m'] / 1000, 1, ',', '.')) : '—'; ?></strong><span>km</span></div>
-                            <div><strong><?php echo (int) ($progressSummary['activities_count'] ?? 0); ?></strong><span>Activities</span></div>
+                            <div><strong><?php echo (int) ($progressSummary['activities_count'] ?? 0); ?></strong><span>atividades</span></div>
                         </div>
                         <?php if (is_numeric($progressSummary['total_duration_s'] ?? null) && (float) $progressSummary['total_duration_s'] > 0): ?><small><?php echo stridebr_e(dashboardFormatarDuracao((float) $progressSummary['total_duration_s'])); ?> de atividade</small><?php endif; ?>
                     </article>
 
+
+                </div>
                     <article class="dashboard-v2-card dashboard-v2-last">
-                        <div class="dashboard-v2-card-head"><span>Última Activity</span><a href="/user/atividades.php">Histórico</a></div>
-                        <?php if ($lastActivity): $lastTitle = trim((string) ($lastActivity['titulo'] ?? '')) ?: stridebr_sport_name((string) ($lastActivity['modalidade_slug'] ?? ''), (string) ($lastActivity['modalidade_nome'] ?? 'Activity')); ?>
-                            <?php if ($lastActivityMap): ?><div class="dashboard-v2-last-map" data-home-last-map aria-label="Mapa da última Activity"></div><?php endif; ?>
+                        <div class="dashboard-v2-card-head"><span>Última atividade</span><a href="/user/atividades.php">Histórico</a></div>
+                        <?php if ($lastActivity): $lastTitle = trim((string) ($lastActivity['titulo'] ?? '')) ?: stridebr_sport_name((string) ($lastActivity['modalidade_slug'] ?? ''), (string) ($lastActivity['modalidade_nome'] ?? 'Atividade')); ?>
+                            <?php if ($lastActivityMap): ?><div class="dashboard-v2-last-map" data-home-last-map aria-label="Mapa da última atividade"></div><?php endif; ?>
                             <a class="dashboard-v2-last-copy" href="/user/atividades.php?highlight=<?php echo rawurlencode((string) $lastActivity['idregistro']); ?>"><strong><?php echo stridebr_e($lastTitle); ?></strong><small><?php echo stridebr_e(stridebr_format_datetime_short(new DateTimeImmutable((string) $lastActivity['data_inicio']))); ?></small><span><?php if ((float) ($lastActivity['distancia_m'] ?? 0) > 0): ?><?php echo stridebr_e(number_format((float) $lastActivity['distancia_m'] / 1000, 2, ',', '.')); ?> km<?php endif; ?><?php if ((float) ($lastActivity['duracao_s'] ?? 0) > 0): ?><?php echo (float) ($lastActivity['distancia_m'] ?? 0) > 0 ? ' · ' : ''; ?><?php echo stridebr_e(dashboardFormatarDuracao((float) $lastActivity['duracao_s'])); ?><?php endif; ?></span></a>
                         <?php else: ?>
-                            <strong>Nenhuma Activity ainda.</strong><small>Registre uma atividade para começar o histórico.</small>
+                            <strong>Nenhuma atividade ainda.</strong><small>Registre uma atividade para começar o histórico.</small>
                         <?php endif; ?>
                     </article>
-                </div>
-                <nav class="dashboard-v2-actions" aria-label="Ações rápidas"><a href="/user/atividades.php?new=1">Registrar atividade</a><a href="/user/cronogramatreinos.php?new=workout">Novo treino</a><a href="/user/pacer.php?new=1">Criar Pacer</a><a href="/user/importar-exportar.php">Importar Activity</a></nav>
+                <nav class="dashboard-v2-actions" aria-label="Ações rápidas"><a class="is-primary" href="/user/atividades.php?new=1">Registrar atividade</a><a class="is-primary" href="/user/cronogramatreinos.php?new=workout">Novo treino</a><a href="/user/pacer.php?new=1">Criar Pacer</a><a href="/user/importar-exportar.php">Importar atividade</a></nav>
                 <?php if ($lastActivityMap): ?><script type="application/json" data-home-last-map-data><?php echo json_encode($lastActivityMap['coordinates'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP); ?></script><?php endif; ?>
             </section>
 
@@ -362,6 +363,7 @@ $weekSummary = implode(' · ', $weekSummaryParts);
                                     <?php endif; ?>
                                 <?php endif; ?>
                             </span>
+                            <?php if ((int) $dia['atividades'] === 1 && !empty($visibleActivities[0]['metadata'])): ?><span class="dashboard-week-inline-meta"><?php echo stridebr_e((string) $visibleActivities[0]['metadata']); ?></span><?php endif; ?>
                             <?php if ((int) $dia['atividades'] > 1): ?><small><?php echo (int) $dia['atividades']; ?></small><?php endif; ?>
                         </div>
                     <?php endforeach; ?>

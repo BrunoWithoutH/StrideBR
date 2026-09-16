@@ -8,10 +8,11 @@ $assert = static function (bool $condition, string $message): void { if (!$condi
 
 $router = $read('public/api/v1/index.php');
 $helpers = $read('src/function/api_v1.php');
+$buildHelper = $read('src/function/build_identifier.php');
 $migration = $read('src/database/migrations/20260910_api_sessions.sql');
 $assert(!str_contains($router, "includes/app.php"), 'API v1 não pode carregar app.php nem iniciar sessão PHP.');
 $assert(strpos($router, "if (\$route === 'health')") < strpos($router, "pg_config.php") && strpos($router, "if (\$route === 'meta')") < strpos($router, "pg_config.php"), 'health/meta precisam responder sem depender do PostgreSQL.');
-$assert(str_contains($router, 'stridebr_api_build_identifier()') && str_contains($helpers, "getenv('STRIDEBR_BUILD')"), 'GET /meta precisa expor build opcional vindo do ambiente de deploy.');
+$assert(str_contains($router, 'stridebr_api_build_identifier()') && str_contains($buildHelper, "getenv('STRIDEBR_BUILD')"), 'GET /meta precisa expor build opcional vindo do ambiente de deploy.');
 $assert(!str_contains($helpers, 'git rev-parse') && !str_contains($helpers, 'shell_exec') && !str_contains($helpers, 'exec(\'git'), 'API não pode executar Git em runtime para descobrir build.');
 $assert(str_contains($read('src/config/pg_config.php'), 'STRIDEBR_API_JSON') && str_contains($read('src/config/pg_config.php'), 'throw $e'), 'Falha de banco da API precisa voltar ao envelope JSON do router.');
 $assert(str_contains($router, "'auth/login'") && str_contains($router, "'auth/refresh'") && str_contains($router, "'activities'"), 'Rotas iniciais obrigatórias ausentes.');
@@ -33,5 +34,10 @@ $assert(str_contains($helpers, "origem_provedor = 'stridebr_android'") && str_co
 $assert(str_contains($htaccess, 'HTTP_AUTHORIZATION') && str_contains($helpers, 'getallheaders'), 'Authorization precisa sobreviver ao Apache e ter fallback no PHP.');
 $assert(str_contains($docs, 'POST /activities') && !str_contains($docs, 'criação/edição e importação ainda não fazem parte'), 'MOBILE_API precisa documentar a criação já implementada.');
 $assert(str_contains($openapi, 'GpsActivityCreateRequest') && str_contains($openapi, 'Idempotency-Key'), 'OpenAPI precisa documentar POST /activities e idempotência.');
+$assert(str_contains($router, 'stridebr_api_log_failure($e)') && !str_contains($router, "StrideBR API v1 failure: "), 'Falha 500 precisa usar logging estruturado server-side.');
+$assert(str_contains($helpers, 'function stridebr_api_request_id') && str_contains($helpers, 'function stridebr_api_pdo_sqlstate') && str_contains($helpers, 'function stridebr_api_log_failure'), 'API precisa gerar request id e registrar SQLSTATE sem expor detalhes ao cliente.');
+$assert(str_contains($helpers, "'route=' . \$method . ' ' . \$path") && str_contains($helpers, "'stage=' . stridebr_api_current_stage()") && str_contains($helpers, "'exception=' . get_class(\$exception)") && str_contains($helpers, "'sqlstate=' . (stridebr_api_pdo_sqlstate(\$exception) ?? '-')"), 'Logging precisa incluir route, stage, exception e SQLSTATE.');
+$assert(str_contains($helpers, "stridebr_api_set_stage('activity.persist')") && str_contains($helpers, "stridebr_api_set_stage('gps.metadata')") && str_contains($helpers, "stridebr_api_set_stage('streams')") && str_contains($helpers, "stridebr_api_set_stage('laps')"), 'POST /activities precisa marcar os estágios críticos de persistência.');
+$assert(str_contains($helpers, "header('X-Request-Id: ' . stridebr_api_request_id())"), 'Resposta da API precisa expor o request id para correlação sem dados sensíveis.');
 
 echo "API v1 static checks passed\n";

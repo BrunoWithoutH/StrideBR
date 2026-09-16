@@ -176,6 +176,8 @@ return function (PDO $pdo): void {
     AlphaTest::same('speed', $bikeAnalysis['pacing']['behavior'], 'Ciclismo deve analisar speed, não min/km');
     AlphaTest::same('rpm', $bikeAnalysis['cadence']['unit'], 'Cadência de ciclismo deve ser rpm');
 
+    AlphaTest::same([], pacerPlanList($pdo, $owner, ['status' => 'active']), 'Pacer novo precisa iniciar com biblioteca vazia.');
+
     $plan = pacerPlanSave($pdo, $owner, [
         'name' => '5 km 25 min', 'sport' => 'corrida', 'strategy' => 'even', 'target_distance_m' => 5000, 'target_time_s' => 1500,
         'tolerance_s_per_km' => 10,
@@ -195,6 +197,26 @@ return function (PDO $pdo): void {
     $negativeMetadataType->execute([':id' => (string) $negativePlan['id']]);
     AlphaTest::same('object', (string) $negativeMetadataType->fetchColumn(), 'Negative split também precisa persistir instruction_metadata como JSON object.');
 
+
+    $customPlan = pacerPlanSave($pdo, $owner, [
+        'name' => '2 km custom', 'sport' => 'corrida', 'strategy' => 'custom', 'target_distance_m' => 2000, 'target_time_s' => 620,
+        'tolerance_s_per_km' => 8,
+        'segments' => [
+            ['basis' => 'distance', 'start_distance_m' => 0, 'end_distance_m' => 1000, 'target_pace_s_per_km' => 315, 'tolerance_s_per_km' => 8],
+            ['basis' => 'distance', 'start_distance_m' => 1000, 'end_distance_m' => 2000, 'target_pace_s_per_km' => 305, 'tolerance_s_per_km' => 8],
+        ],
+    ]);
+    AlphaTest::same('custom', (string) $customPlan['strategy'], 'Pacer custom precisa salvar segmentos explícitos.');
+    AlphaTest::same(2, count($customPlan['segments']), 'Pacer custom precisa preservar dois segmentos.');
+    $copyPlan = pacerPlanSave($pdo, $owner, [
+        'name' => $plan['name'] . ' (cópia)', 'sport' => $plan['sport']['id'], 'strategy' => 'custom',
+        'target_distance_m' => $plan['target_distance_m'], 'target_time_s' => $plan['target_time_s'],
+        'tolerance_s_per_km' => $plan['default_tolerance_s_per_km'], 'segments' => $plan['segments'],
+    ]);
+    AlphaTest::assert((string) $copyPlan['id'] !== (string) $plan['id'], 'Duplicar Pacer precisa criar novo ID.');
+    pacerPlanArchive($pdo, $owner, (string) $customPlan['id']);
+    AlphaTest::same('archived', (string) pacerPlanGet($pdo, $owner, (string) $customPlan['id'])['status'], 'Arquivar Pacer precisa preservar plano como read-only histórico.');
+    AlphaTest::assert((bool) array_filter(pacerPlanList($pdo, $owner, ['status' => 'archived']), static fn(array $row): bool => (string) $row['id'] === (string) $customPlan['id']), 'Biblioteca arquivada precisa listar o plano arquivado.');
     $eval1 = pacerPlanEvaluate($pdo, $owner, (string) $plan['id'], ['distance_m' => 1000, 'elapsed_s' => 320, 'moving_time_s' => 320, 'recent_pace_s_per_km' => 330]);
     $eval2 = pacerPlanEvaluate($pdo, $owner, (string) $plan['id'], ['distance_m' => 1100, 'elapsed_s' => 353, 'moving_time_s' => 338, 'recent_pace_s_per_km' => 330, 'guidance_state' => $eval1['next_state']]);
     AlphaTest::same('speed_up', $eval2['code'], 'Reference evaluator deve aplicar persistence e pedir speed_up');

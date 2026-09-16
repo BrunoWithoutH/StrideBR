@@ -42,6 +42,7 @@ $assert(str_contains($schedulePage, 'name="pacer_plan_id"') && str_contains($sch
 $assert(str_contains($schedulePage, "'pacer_plan_id' => (string) (\$item['idpacerplan'] ?? '')"), 'payload do editor precisa carregar o Pacer já vinculado.');
 $assert(str_contains($scheduleJs, "set('pacer_plan_id'") && str_contains($scheduleJs, 'syncEditorPacer') && str_contains($scheduleJs, 'option.dataset.sport === sport'), 'editor JS precisa restaurar o plano e filtrar por modalidade compatível.');
 $assert(str_contains($header, '/user/pacer.php') && str_contains($header, 'Estratégias de pace para treinos e provas.'), 'Pacer deve estar acessível pela navegação de Treino.');
+$assert(str_contains($page, '$hasAnyPlans') && str_contains($page, 'is-first-use') && str_contains($page, 'Estratégias de ritmo para treinos e provas.'), 'Primeiro acesso ao Pacer precisa priorizar criação e preview, sem coluna vazia.');
 $assert(str_contains($css, '@media(max-width:980px)') && str_contains($css, '@media(max-width:620px)'), 'Pacer Web precisa ter layout responsivo.');
 $assert(!str_contains($page, 'IA') && !str_contains($js, 'OpenAI'), 'Pacer Web não deve depender de IA generativa.');
 
