@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/build_identifier.php';
 require_once dirname(__DIR__) . '/includes/db_schema.php';
+require_once dirname(__DIR__) . '/includes/i18n.php';
 
 /*
  * Transport helpers for the public API.  This file intentionally does not load
