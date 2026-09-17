@@ -1,4 +1,51 @@
 (() => {
+    const pacerChartGeometry=(rawSegments,rawDistance,rawRules={})=>{
+        const chart={width:800,height:220,left:52,right:780,top:24,bottom:176}
+        const totalDistance=Number(rawDistance)
+        if(!Number.isFinite(totalDistance)||totalDistance<=0)return null
+        const clamp=(value,min,max)=>Math.min(max,Math.max(min,value))
+        const segments=(Array.isArray(rawSegments)?rawSegments:[]).map(segment=>({
+            start:Number(segment?.start_distance_m),
+            end:Number(segment?.end_distance_m),
+            pace:Number(segment?.target_pace_s_per_km)
+        })).filter(segment=>Number.isFinite(segment.start)&&Number.isFinite(segment.end)&&Number.isFinite(segment.pace)&&segment.pace>0&&segment.end>=segment.start).sort((a,b)=>a.start-b.start)
+        if(!segments.length)return null
+        const plotWidth=chart.right-chart.left
+        const plotHeight=chart.bottom-chart.top
+        const paces=segments.map(segment=>segment.pace)
+        const minPace=Math.min(...paces)
+        const maxPace=Math.max(...paces)
+        const paceRange=Math.max(1,maxPace-minPace)
+        const xAt=distance=>clamp(chart.left+clamp(distance,0,totalDistance)/totalDistance*plotWidth,chart.left,chart.right)
+        const yAt=pace=>clamp(chart.top+(pace-minPace)/paceRange*plotHeight,chart.top,chart.bottom)
+        const points=[]
+        segments.forEach((segment,index)=>{
+            const startX=xAt(segment.start)
+            const endX=xAt(segment.end)
+            const y=yAt(segment.pace)
+            if(index===0)points.push([startX,y])
+            else if(points.at(-1)?.[0]!==startX)points.push([startX,points.at(-1)?.[1]??y])
+            points.push([endX,y])
+            const next=segments[index+1]
+            if(next)points.push([endX,yAt(next.pace)])
+        })
+        const finalPhase=rawRules?.final_phase||{}
+        const configuredMin=Number(finalPhase.min_distance_m)
+        const minDistance=Number.isFinite(configuredMin)&&configuredMin>=0?configuredMin:150
+        const configuredMax=Number(finalPhase.max_distance_m)
+        const maxDistance=Math.max(minDistance,Number.isFinite(configuredMax)&&configuredMax>0?configuredMax:1000)
+        const configuredPercent=Number(finalPhase.percent)
+        const percent=Number.isFinite(configuredPercent)&&configuredPercent>=0?configuredPercent:10
+        const finalDistance=clamp(Math.min(maxDistance,Math.max(minDistance,totalDistance*percent/100)),0,totalDistance)
+        const finalStartX=xAt(totalDistance-finalDistance)
+        return {
+            chart,
+            plot:{x:chart.left,y:chart.top,width:plotWidth,height:plotHeight,right:chart.right,bottom:chart.bottom},
+            points:points.map(([x,y])=>`${x.toFixed(2)},${y.toFixed(2)}`).join(' '),
+            finalBand:{x:finalStartX,y:chart.top,width:chart.right-finalStartX,height:plotHeight},
+        }
+    }
+    if(typeof globalThis!=='undefined'&&globalThis.__stridebrPacerChartTest)globalThis.__stridebrPacerChartTest.geometry=pacerChartGeometry
     const root=document.querySelector('[data-pacer-page]')
     const form=root?.querySelector('[data-pacer-form]')
     if(!root||!form)return
@@ -7,17 +54,21 @@
     const custom=form.querySelector('[data-custom-segments]')
     const rows=form.querySelector('[data-pacer-segments]')
     const preview=form.querySelector('[data-pacer-preview]')
+    const helpDialog=root.querySelector('[data-pacer-help-dialog]')
+    const helpClose=helpDialog?.querySelector('[data-pacer-help-close]')
+    let helpReturnFocus=null
     let timer=0
     let request=0
+    let simulationDistance=null
     const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char]))
     const seconds=value=>{
         const raw=String(value??'').trim()
         if(!raw)return null
         if(/^\d+(?:\.\d+)?$/.test(raw))return Number(raw)
         const parts=raw.split(':').map(Number)
-        if(parts.some(value=>!Number.isFinite(value)))return null
-        if(parts.length===2)return parts[0]*60+parts[1]
-        if(parts.length===3)return parts[0]*3600+parts[1]*60+parts[2]
+        if(parts.some(value=>!Number.isFinite(value)||value<0))return null
+        if(parts.length===2&&parts[1]<60)return parts[0]*60+parts[1]
+        if(parts.length===3&&parts[1]<60&&parts[2]<60)return parts[0]*3600+parts[1]*60+parts[2]
         return null
     }
     const pace=value=>{
@@ -30,6 +81,33 @@
         if(!Number.isFinite(total)||total<0)return '—'
         const h=Math.floor(total/3600),m=Math.floor(total%3600/60),s=total%60
         return h?`${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`:`${m}:${String(s).padStart(2,'0')}`
+    }
+    const openHelp=section=>{
+        if(!helpDialog)return
+        helpReturnFocus=document.activeElement instanceof HTMLElement?document.activeElement:null
+        if(typeof helpDialog.showModal==='function'){
+            if(!helpDialog.open)helpDialog.showModal()
+        }else helpDialog.setAttribute('open','')
+        const target=helpDialog.querySelector(`[data-pacer-help-section="${section||'goal'}"]`)||helpDialog.querySelector('[data-pacer-help-section]')
+        window.requestAnimationFrame(()=>{
+            target?.scrollIntoView({block:'nearest'})
+            helpClose?.focus()
+        })
+    }
+    const closeHelp=()=>{
+        if(!helpDialog)return
+        if(typeof helpDialog.close==='function'&&helpDialog.open)helpDialog.close()
+        else{helpDialog.removeAttribute('open');helpReturnFocus?.focus();helpReturnFocus=null}
+    }
+    root.querySelectorAll('[data-pacer-help-open]').forEach(button=>button.addEventListener('click',()=>openHelp(button.dataset.pacerHelpOpen||'goal')))
+    helpClose?.addEventListener('click',closeHelp)
+    helpDialog?.addEventListener('click',event=>{if(event.target===helpDialog)closeHelp()})
+    helpDialog?.addEventListener('close',()=>{helpReturnFocus?.focus();helpReturnFocus=null})
+    const validateInputs=()=>{
+        const time=form.elements.namedItem('target_time'),floor=form.elements.namedItem('heart_rate_floor_bpm'),ceiling=form.elements.namedItem('heart_rate_ceiling_bpm')
+        if(time)time.setCustomValidity(String(time.value||'').trim()!==''&&(!Number.isFinite(seconds(time.value))||seconds(time.value)<=0)?'Informe um tempo válido, como 52:00 ou 1:02:30.':'')
+        ;[floor,ceiling].forEach(input=>{if(!input)return;const value=String(input.value||'').trim();input.setCustomValidity(value!==''&&(!Number.isFinite(Number(value))||Number(value)<20||Number(value)>260)?'Informe um valor entre 20 e 260 bpm.':'')})
+        if(floor&&ceiling&&String(floor.value||'')!==''&&String(ceiling.value||'')!==''&&Number(floor.value)>Number(ceiling.value))ceiling.setCustomValidity('A FC mínima não pode ser maior que a FC máxima.')
     }
     const syncMode=()=>{
         const current=String(strategy?.value||'even')
@@ -78,12 +156,13 @@
     const renderPreview=data=>{
         const segments=Array.isArray(data?.segments)?data.segments:[]
         let cumulative=0
-        const paces=segments.map(s=>Number(s.target_pace_s_per_km));const min=Math.min(...paces),max=Math.max(...paces),spread=Math.max(1,max-min)
-        const points=segments.flatMap((s,i)=>{const x1=Number(s.start_distance_m)/Number(data.target_distance_m)*100,x2=Number(s.end_distance_m)/Number(data.target_distance_m)*100,y=12+(Number(s.target_pace_s_per_km)-min)/spread*70;return i?`${x1},${y} ${x2},${y}`:`${x1},${y} ${x2},${y}`}).join(' ')
-        const finalRules=data.guidance_rules?.final_phase||{},finalDistance=Math.min(Number(finalRules.max_distance_m||1000),Math.max(Number(finalRules.min_distance_m||150),Number(data.target_distance_m)*Number(finalRules.percent||10)/100)),finalStart=Math.max(0,100-finalDistance/Number(data.target_distance_m)*100)
-        preview.innerHTML=`<div class="pacer-preview-summary"><div><span>Distância</span><strong>${(Number(data.target_distance_m)/1000).toLocaleString('pt-BR',{maximumFractionDigits:2})} km</strong></div><div><span>${data.guidance_rules?.goal_mode==='best_effort'?'Referência':'Meta'}</span><strong>${clock(data.target_time_s)}</strong></div><div><span>Pace médio</span><strong>${pace(data.target_average_pace_s_per_km)}</strong></div></div><div class="pacer-preview-chart" aria-label="Curva de pace da estratégia"><div class="pacer-chart-label">PACE · mais rápido acima</div><svg viewBox="0 0 100 94" preserveAspectRatio="none" role="img"><rect class="pacer-final-band" x="${finalStart}" y="0" width="${100-finalStart}" height="94"></rect><polyline points="${points}" fill="none" vector-effect="non-scaling-stroke"></polyline></svg><div class="pacer-chart-axis"><span>0</span><span>${(Number(data.target_distance_m)/2000).toLocaleString('pt-BR',{maximumFractionDigits:1})}</span><span>${(Number(data.target_distance_m)/1000).toLocaleString('pt-BR',{maximumFractionDigits:1})} km</span></div></div><div class="pacer-simulation"><label>Simular distância <input type="range" min="0" max="${data.target_distance_m}" step="100" value="${Math.min(data.target_distance_m, data.target_distance_m*.62)}" data-pacer-simulation></label><output data-pacer-simulation-output></output></div><div class="pacer-preview-table"><div class="pacer-preview-row is-head"><span>Trecho</span><span>Alvo</span><span>Faixa</span><span>Acumulado</span></div>${segments.map(segment=>{const segmentTime=(segment.end_distance_m-segment.start_distance_m)/1000*segment.target_pace_s_per_km;cumulative+=segmentTime;return `<div class="pacer-preview-row"><strong>${(segment.start_distance_m/1000).toLocaleString('pt-BR',{maximumFractionDigits:2})}–${(segment.end_distance_m/1000).toLocaleString('pt-BR',{maximumFractionDigits:2})} km</strong><span>${escape(pace(segment.target_pace_s_per_km))}</span><span>${escape(pace(segment.target_pace_s_per_km-segment.tolerance_s_per_km))}–${escape(pace(segment.target_pace_s_per_km+segment.tolerance_s_per_km))}</span><span>${escape(clock(cumulative))}</span></div>`}).join('')}</div>`
+        const chart=pacerChartGeometry(segments,data.target_distance_m,data.guidance_rules)
+        if(!chart){preview.innerHTML='<div class="pacer-preview-error"><strong>Revise a estratégia.</strong><span>Não foi possível desenhar a curva de pace.</span></div>';return}
+        const plot=chart.plot,band=chart.finalBand
+        const maxDistance=Number(data.target_distance_m);simulationDistance=Number.isFinite(simulationDistance)?Math.max(0,Math.min(maxDistance,simulationDistance)):maxDistance*.5
+        preview.innerHTML=`<div class="pacer-preview-summary"><div><span>Distância</span><strong>${(Number(data.target_distance_m)/1000).toLocaleString('pt-BR',{maximumFractionDigits:2})} km</strong></div><div><span>${data.guidance_rules?.goal_mode==='best_effort'?'Referência':'Meta'}</span><strong>${clock(data.target_time_s)}</strong></div><div><span>Pace médio</span><strong>${pace(data.target_average_pace_s_per_km)}</strong></div></div><div class="pacer-preview-chart" aria-label="Curva de pace da estratégia"><div class="pacer-chart-label">PACE · mais rápido acima</div><div class="pacer-chart-frame"><svg class="pacer-plan-chart" viewBox="0 0 ${chart.chart.width} ${chart.chart.height}" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="pacer-chart-title pacer-chart-description" data-pacer-chart-width="${chart.chart.width}" data-pacer-chart-height="${chart.chart.height}" data-pacer-plot-x="${plot.x}" data-pacer-plot-y="${plot.y}" data-pacer-plot-width="${plot.width}" data-pacer-plot-height="${plot.height}"><title id="pacer-chart-title">Perfil de pace do plano</title><desc id="pacer-chart-description">Pace mais rápido aparece acima.</desc><defs><clipPath id="pacer-plan-plot-clip"><rect x="${plot.x}" y="${plot.y}" width="${plot.width}" height="${plot.height}"></rect></clipPath></defs><rect class="pacer-plot-outline" x="${plot.x}" y="${plot.y}" width="${plot.width}" height="${plot.height}"></rect><g clip-path="url(#pacer-plan-plot-clip)"><rect class="pacer-final-band" x="${band.x}" y="${band.y}" width="${band.width}" height="${band.height}"></rect><polyline class="pacer-plan-line" points="${chart.points}" fill="none" vector-effect="non-scaling-stroke"></polyline></g></svg></div><div class="pacer-chart-axis"><span>0</span><span>${(Number(data.target_distance_m)/2000).toLocaleString('pt-BR',{maximumFractionDigits:1})}</span><span>${(Number(data.target_distance_m)/1000).toLocaleString('pt-BR',{maximumFractionDigits:1})} km</span></div></div><div class="pacer-simulation"><label>Distância simulada <input type="range" min="0" max="${maxDistance}" step="100" value="${simulationDistance}" data-pacer-simulation></label><output data-pacer-simulation-output></output></div><div class="pacer-preview-table"><div class="pacer-preview-row is-head"><span>Trecho</span><span>Alvo</span><span>Faixa</span><span>Acumulado</span></div>${segments.map(segment=>{const segmentTime=(segment.end_distance_m-segment.start_distance_m)/1000*segment.target_pace_s_per_km;cumulative+=segmentTime;return `<div class="pacer-preview-row"><strong>${(segment.start_distance_m/1000).toLocaleString('pt-BR',{maximumFractionDigits:2})}–${(segment.end_distance_m/1000).toLocaleString('pt-BR',{maximumFractionDigits:2})} km</strong><span>${escape(pace(segment.target_pace_s_per_km))}</span><span>${escape(pace(segment.target_pace_s_per_km-segment.tolerance_s_per_km))}–${escape(pace(segment.target_pace_s_per_km+segment.tolerance_s_per_km))}</span><span>${escape(clock(cumulative))}</span></div>`}).join('')}</div>`
         const slider=preview.querySelector('[data-pacer-simulation]'),output=preview.querySelector('[data-pacer-simulation-output]')
-        const updateSimulation=()=>{const d=Number(slider.value),segment=segments.find(s=>d>=s.start_distance_m&&d<=s.end_distance_m)||segments.at(-1),target=segments.reduce((total,s)=>total+Math.max(0,Math.min(d,s.end_distance_m)-s.start_distance_m)/1000*s.target_pace_s_per_km,0);output.textContent=`${(d/1000).toLocaleString('pt-BR',{maximumFractionDigits:1})} km · alvo aqui ${clock(target)} · bloco ${pace(segment.target_pace_s_per_km)} · faixa ${pace(segment.target_pace_s_per_km-segment.tolerance_s_per_km)}–${pace(segment.target_pace_s_per_km+segment.tolerance_s_per_km)}`}
+        const updateSimulation=()=>{const d=Number(slider.value);simulationDistance=d;const segment=segments.find(s=>d>=s.start_distance_m&&d<=s.end_distance_m)||segments.at(-1),target=segments.reduce((total,s)=>total+Math.max(0,Math.min(d,s.end_distance_m)-s.start_distance_m)/1000*s.target_pace_s_per_km,0);output.textContent=`${(d/1000).toLocaleString('pt-BR',{maximumFractionDigits:1})} km / ${(maxDistance/1000).toLocaleString('pt-BR',{maximumFractionDigits:1})} km · tempo esperado ${clock(target)} · ritmo do trecho ${pace(segment.target_pace_s_per_km)} · faixa alvo ${pace(segment.target_pace_s_per_km-segment.tolerance_s_per_km)}–${pace(segment.target_pace_s_per_km+segment.tolerance_s_per_km)}`}
         slider?.addEventListener('input',updateSimulation);updateSimulation()
     }
     const updatePreview=async()=>{
@@ -101,13 +180,15 @@
     }
     const schedule=()=>{clearTimeout(timer);timer=setTimeout(updatePreview,220)}
     form.addEventListener('input',event=>{
+        validateInputs()
         if(event.target.matches('[name="progression_percent"],[name="segment_distance_m"],[name="heart_rate_floor_bpm"],[name="heart_rate_ceiling_bpm"]')){form.dataset.generatedOptionsChanged='1';const marker=form.querySelector('[data-generated-options-changed]');if(marker)marker.value='1'}
         schedule()
     })
-    form.addEventListener('change',event=>{if(event.target===strategy)syncMode();schedule()})
+    form.addEventListener('change',event=>{if(event.target===strategy)syncMode();validateInputs();schedule()})
     form.addEventListener('change',event=>{if(event.target.name==='goal_mode'){const best=event.target.value==='best_effort';form.querySelector('[data-target-time-label]').textContent=best?'Tempo de referência':'Tempo-alvo';const note=form.parentElement.querySelector('[data-best-effort-explainer]');if(note)note.hidden=!best}schedule()})
     form.querySelector('[data-add-pacer-segment]')?.addEventListener('click',()=>{addRow();schedule()})
     rows?.addEventListener('click',event=>{const button=event.target.closest('[data-remove-pacer-segment]');if(!button)return;button.closest('[data-pacer-segment]')?.remove();reindex();schedule()})
     syncMode()
+    validateInputs()
     schedule()
 })()

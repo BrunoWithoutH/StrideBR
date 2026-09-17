@@ -573,6 +573,14 @@ function atividadeArquivoAnalisar(string $name, string $binary): array
     ];
 }
 
+function atividadeArquivoTituloFallback(string $fileName): string
+{
+    $base = trim(pathinfo($fileName, PATHINFO_FILENAME));
+    $base = preg_replace('/[_-]+/', ' ', $base);
+    $base = preg_replace('/\s+/', ' ', (string) $base);
+    return trim((string) $base);
+}
+
 function atividadeArquivoModalidade(PDO $pdo, string $idUsuario, string $slug): array
 {
     $stmt = $pdo->prepare(
@@ -698,7 +706,7 @@ function atividadeArquivoCriarPreview(PDO $pdo, string $idUsuario, array $file):
         'file_name' => $name,
         'file_size' => strlen($binary),
         'modality' => ['id' => $modalidade['idmodalidade'], 'model' => $modalidade['idmodelo'], 'name' => $modalidade['nome'], 'slug' => $modalidade['slug']],
-        'title' => $parsed['title'] ?: $modalidade['nome'],
+        'title' => $parsed['title'] ?: (atividadeArquivoTituloFallback($name) ?: $modalidade['nome']),
         'start' => atividadeArquivoIso(is_numeric($parsed['summary']['start_ts'] ?? null) ? (float) $parsed['summary']['start_ts'] : null),
         'duration_s' => is_numeric($parsed['summary']['duration_s'] ?? null) ? round((float) $parsed['summary']['duration_s'], 3) : null,
         'distance_m' => is_numeric($parsed['summary']['distance_m'] ?? null) ? round((float) $parsed['summary']['distance_m'], 1) : null,

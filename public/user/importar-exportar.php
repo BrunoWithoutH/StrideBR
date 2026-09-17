@@ -122,9 +122,9 @@ $registros = $recordsStmt->fetchAll();
                             <span><?php echo stridebr_e(stridebr_sport_name((string) ($registro['modalidade_slug'] ?? ''), (string) $registro['modalidade_nome'])); ?> · <?php echo stridebr_e(stridebr_format_datetime_short($date)); ?></span>
                         </div>
                         <div class="exchange-export-actions">
-                            <?php if ($hasRoute): ?><a href="/user/exportar-atividade.php?id=<?php echo rawurlencode($id); ?>&format=gpx">GPX</a><?php endif; ?>
-                            <a href="/user/exportar-atividade.php?id=<?php echo rawurlencode($id); ?>&format=tcx">TCX</a>
-                            <a href="/user/exportar-atividade.php?id=<?php echo rawurlencode($id); ?>&format=json">JSON</a>
+                            <?php if ($hasRoute): ?><a href="/user/exportar-atividade.php?id=<?php echo rawurlencode($id); ?>&format=gpx">Exportar GPX</a><?php endif; ?>
+                            <a href="/user/exportar-atividade.php?id=<?php echo rawurlencode($id); ?>&format=tcx">Exportar TCX</a>
+                            <a href="/user/exportar-atividade.php?id=<?php echo rawurlencode($id); ?>&format=json">Exportar JSON</a>
                             <?php if (stridebr_db_bool($registro['original_disponivel'] ?? false)): ?>
                                 <a class="is-source" href="/user/exportar-atividade.php?id=<?php echo rawurlencode($id); ?>&format=original"><?php echo stridebr_e(stridebr_t('exchange.original')); ?> <?php echo strtoupper(stridebr_e((string) ($registro['formato'] ?? ''))); ?></a>
                             <?php endif; ?>

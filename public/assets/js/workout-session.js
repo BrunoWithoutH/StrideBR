@@ -1,6 +1,7 @@
 (() => {
     const t = (key, values = {}, fallback = key) => window.StrideBRI18n?.t?.(key, values, fallback) ?? fallback
     const tn = (oneKey, otherKey, count, values = {}) => window.StrideBRI18n?.tn?.(oneKey, otherKey, count, values) ?? t(Number(count) === 1 ? oneKey : otherKey, {...values, count})
+    const workoutPrescription = window.StrideBRWorkoutPrescription
     const root = document.querySelector('[data-global-tools]');
     if (!root) return;
     const csrf = root.dataset.csrf || '';
@@ -155,16 +156,13 @@
         return 0;
     };
 
-    const formatRepetitions = value => {
-        const text = String(value || '').trim();
-        if (!text) return '';
-        let match = text.match(/^(\d+(?:[.,]\d+)?)\s*(?:mn|min|mins|minuto|minutos)$/i);
-        if (match) return `${match[1].replace(',', '.')} min`;
-        match = text.match(/^(\d+(?:[.,]\d+)?)\s*(?:s|seg|segs|segundo|segundos)$/i);
-        if (match) return `${match[1].replace(',', '.')} s`;
-        if (/\b(?:rep|reps|repetiç(?:ão|ões))\b/i.test(text)) return text;
-        return `${text} reps`;
-    };
+    const formatRepetitions = value => workoutPrescription?.formatReps?.(value) || String(value || '').trim();
+    const plannedPrescription = exercise => workoutPrescription?.resolve?.({
+        load: exercise?.carga_snapshot,
+        repetitions: exercise?.repeticoes_snapshot,
+        duration: exercise?.duracao_snapshot,
+        distance: exercise?.distancia_snapshot,
+    }) || {mode:'EMPTY',fields:[],values:{},labels:{load:'Carga',reps:'Reps',duration:'Duração',distance:'Distância'},summaryParts:[]};
 
     const formatDuration = value => {
         const seconds = Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : 0;
@@ -182,8 +180,8 @@
         if (!latest) return '';
         const details = [];
         if (Number(latest.series_total || 0) > 0) details.push(setCountText(Number(latest.series_concluidas || 0), Number(latest.series_total || 0)));
-        if (latest.repeticoes) details.push(formatRepetitions(latest.repeticoes));
-        if (latest.carga) details.push(String(latest.carga));
+        const previousPrescription = workoutPrescription?.resolve?.({repetitions: latest.repeticoes, load: latest.carga});
+        if (previousPrescription?.summaryParts?.length) details.push(...previousPrescription.summaryParts);
         const best = history.melhor_carga ? `<span><b>${escapeHtml(t('workout_session.best_recent_load', {}, 'Best recent load'))}</b>${escapeHtml(history.melhor_carga)}</span>` : '';
         return `<div class="session-exercise-history"><span><b>${escapeHtml(t('workout_session.last_time', {date: latest.data || ''}, `Last time · ${latest.data || ''}`))}</b>${escapeHtml(details.join(' · ') || t('workout_session.completed', {}, 'Workout completed'))}</span>${best}</div>`;
     };
@@ -218,24 +216,35 @@
             return;
         }
         exercisesContainer.innerHTML = exercises.map((exercise, index) => {
-            const meta = [exercise.series_planejadas ? `${exercise.series_planejadas} ${tn('workout_session.set_unit.one', 'workout_session.set_unit.other', Number(exercise.series_planejadas))}` : '', exercise.repeticoes_snapshot ? formatRepetitions(exercise.repeticoes_snapshot) : '', exercise.carga_snapshot || ''].filter(Boolean).join(' · ');
+            const prescription = plannedPrescription(exercise);
+            const meta = [exercise.series_planejadas ? `${exercise.series_planejadas} ${tn('workout_session.set_unit.one', 'workout_session.set_unit.other', Number(exercise.series_planejadas))}` : '', ...prescription.summaryParts].filter(Boolean).join(' · ');
             const previousSets = new Map(((exercise.historico || {}).ultima?.series || []).map(set => [Number(set.numero || 0), set]));
+            const fields = prescription.fields;
+            const header = [`<span>${escapeHtml(t('workout_session.series', {}, 'Set'))}</span>`, ...fields.map(field => `<span>${escapeHtml(prescription.labels[field] || field)}</span>`), `<span>${escapeHtml(t('workout_session.done', {}, 'Done'))}</span>`].join('');
             const sets = (exercise.series || []).map(set => {
                 const previous = previousSets.get(Number(set.numero || 0)) || {};
-                const loadPlaceholder = previous.carga || exercise.carga_snapshot || 'kg';
-                const repsPlaceholder = previous.repeticoes || String(exercise.repeticoes_snapshot || '').replace(/\D.*$/, '') || 'reps';
-                return `<div class="session-set-row${set.concluida ? ' is-done' : ''}" data-session-set-row="${escapeHtml(set.idserie)}">
+                const cells = fields.map(field => {
+                    if (field === 'load') {
+                        const loadPlaceholder = previous.carga || exercise.carga_snapshot || 'kg';
+                        return `<label><span>${escapeHtml(t('workout_session.load', {}, 'Load'))}</span><input type="text" inputmode="decimal" pattern="[0-9]+([.,][0-9]{1,3})?" data-session-set-load="${escapeHtml(set.idserie)}" value="${escapeHtml(set.carga_realizada || '')}" placeholder="${escapeHtml(loadPlaceholder)}"></label>`;
+                    }
+                    if (field === 'reps') {
+                        const repsPlaceholder = previous.repeticoes || String(exercise.repeticoes_snapshot || '').replace(/\D.*$/, '') || 'reps';
+                        return `<label><span>${escapeHtml(t('workout_session.repetitions', {}, 'Reps'))}</span><input type="number" min="0" max="999" step="1" inputmode="numeric" data-session-set-reps="${escapeHtml(set.idserie)}" value="${escapeHtml(set.repeticoes_realizadas || '')}" placeholder="${escapeHtml(repsPlaceholder)}"></label>`;
+                    }
+                    return `<div class="session-set-planned"><span>${escapeHtml(prescription.labels[field] || field)}</span><strong>${escapeHtml(prescription.values[field] || '—')}</strong></div>`;
+                }).join('');
+                return `<div class="session-set-row${set.concluida ? ' is-done' : ''}" data-session-set-row="${escapeHtml(set.idserie)}" data-session-field-count="${fields.length}" style="--session-field-count:${fields.length}" data-prescription-mode="${escapeHtml(prescription.mode)}">
                     <span class="session-set-number">${set.numero}</span>
-                    <label><span>${escapeHtml(t('workout_session.load', {}, 'Load'))}</span><input type="text" inputmode="decimal" pattern="[0-9]+([.,][0-9]{1,3})?" data-session-set-load="${escapeHtml(set.idserie)}" value="${escapeHtml(set.carga_realizada || '')}" placeholder="${escapeHtml(loadPlaceholder)}"></label>
-                    <label><span>${escapeHtml(t('workout_session.repetitions', {}, 'Reps'))}</span><input type="number" min="0" max="999" step="1" inputmode="numeric" data-session-set-reps="${escapeHtml(set.idserie)}" value="${escapeHtml(set.repeticoes_realizadas || '')}" placeholder="${escapeHtml(repsPlaceholder)}"></label>
+                    ${cells}
                     <button type="button" class="session-set-check" data-toggle-session-set="${escapeHtml(set.idserie)}" data-next-value="${set.concluida ? '0' : '1'}" aria-label="${escapeHtml(set.concluida ? t('workout_session.reopen_set', {number:set.numero}, `Reopen set ${set.numero}`) : t('workout_session.complete_set', {number:set.numero}, `Complete set ${set.numero}`))}">${set.concluida ? '✓' : '○'}</button>
                 </div>`;
             }).join('');
             const rest = parseRestSeconds(exercise.descanso_snapshot);
-            return `<article class="session-exercise${exercise.concluido ? ' is-done' : ''}">
+            return `<article class="session-exercise${exercise.concluido ? ' is-done' : ''}" data-prescription-mode="${escapeHtml(prescription.mode)}">
                 <div class="session-exercise-heading"><span class="session-exercise-number">${index + 1}</span><div><strong>${escapeHtml(exercise.nome_snapshot)}</strong>${meta ? `<small>${escapeHtml(meta)}</small>` : ''}</div><button type="button" class="session-exercise-check" data-toggle-session-exercise="${escapeHtml(exercise.idsessao_exercicio)}" data-next-value="${exercise.concluido ? '0' : '1'}" aria-label="${escapeHtml(exercise.concluido ? t('workout_session.reopen_exercise', {}, 'Reopen exercise') : t('workout_session.complete_exercise', {}, 'Complete exercise'))}">${exercise.concluido ? '✓' : '○'}</button></div>
                 ${historyHtml(exercise)}
-                <div class="session-set-table-head"><span>${escapeHtml(t('workout_session.series', {}, 'Set'))}</span><span>${escapeHtml(t('workout_session.load', {}, 'Load'))}</span><span>${escapeHtml(t('workout_session.repetitions', {}, 'Reps'))}</span><span>${escapeHtml(t('workout_session.done', {}, 'Done'))}</span></div>
+                <div class="session-set-table-head" data-session-field-count="${fields.length}" style="--session-field-count:${fields.length}">${header}</div>
                 <div class="session-sets">${sets}</div>
                 ${(exercise.descanso_snapshot || exercise.observacoes_snapshot) ? `<div class="session-exercise-footer">${exercise.descanso_snapshot ? `<span>${escapeHtml(t('workout_session.rest', {value: exercise.descanso_snapshot}, `Rest: ${exercise.descanso_snapshot}`))}</span>` : '<span></span>'}${rest > 0 ? `<button type="button" data-session-rest="${rest}">${escapeHtml(t('workout_session.start_rest', {}, 'Start rest'))}</button>` : ''}${exercise.observacoes_snapshot ? `<p>${escapeHtml(exercise.observacoes_snapshot)}</p>` : ''}</div>` : ''}
             </article>`;

@@ -1152,14 +1152,15 @@ function stridebr_integrations_strava_backfill_step(PDO $pdo, string $userId, ar
                     $result['existing']++;
                     continue;
                 }
-                if ($detailBudget <= 0 || microtime(true) >= $deadline) {
+                $deferReason = $detailBudget <= 0 ? 'detail_budget' : (microtime(true) >= $deadline ? 'deadline' : null);
+                if ($deferReason !== null) {
                     $state['status'] = 'pending';
                     $state['retry_at'] = $now + 900;
                     $state['created'] = (int) ($state['created'] ?? 0) + (int) $result['created'];
                     $state['existing'] = (int) ($state['existing'] ?? 0) + (int) $result['existing'];
                     $state['failed'] = (int) ($state['failed'] ?? 0) + (int) $result['failed'];
                     stridebr_integrations_strava_backfill_write($pdo, $userId, $state);
-                    return $result + ['backfill_pending' => true, 'backfill_deferred' => true];
+                    return $result + ['backfill_pending' => true, 'backfill_deferred' => true, 'backfill_deferred_reason' => $deferReason];
                 }
                 $detailBudget--;
                 $detail = stridebr_integrations_http('GET', $provider['api_base_url'] . '/activities/' . rawurlencode($externalId), ['headers' => $headers, 'timeout' => max(1, min(20, (int) ceil($deadline - microtime(true))))]);

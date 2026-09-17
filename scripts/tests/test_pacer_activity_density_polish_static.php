@@ -46,7 +46,7 @@ $assert(str_contains($activitiesCss, 'repeat(auto-fit,minmax(min(130px,100%),180
 $assert(str_contains($activitiesJs, '<span><strong>${escapeHtml(item.valor)}</strong><b>${escapeHtml(item.rotulo)}</b></span>'), 'Faixa principal deve priorizar valor e usar label secundário.');
 $assert(str_contains($detailCss, '.activity-detail-page .activity-v3-section{border:0;border-top:1px solid var(--ui-border-soft)'), 'Sections do full detail devem evitar card dentro de card.');
 $assert(str_contains($detailCss, 'grid-template-columns:minmax(160px,1.4fr) minmax(0,2.6fr)'), 'Trechos precisam usar colunas fluidas e compactas.');
-$assert(str_contains($detailJs, 'eleva(?:ção|cao|tion)') && str_contains($detailJs, 'terrain\\s+elevation'), 'Filtro de elevação PT/EN precisa permanecer no Detail.');
+$assert(str_contains($detailJs, "label:'Elevação'") && str_contains($detailJs, 'const routeProfileHtml'), 'Detail precisa mostrar elevação quando a rota ou stream fornecer dados válidos.');
 $assert(str_contains($activitiesJs, "activitiesHistoryView.hidden = detailExpanded") && str_contains($activitiesJs, "activityDetailView.hidden = !detailExpanded"), 'Main Takeover precisa permanecer intacto.');
 $assert(str_contains($activitiesCss, 'var(--ui-border)') && str_contains($detailCss, 'var(--ui-border-soft)'), 'Polish precisa continuar baseado em tokens para light/dark.');
 

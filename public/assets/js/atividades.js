@@ -8331,7 +8331,6 @@ document.addEventListener('DOMContentLoaded', () => {
         historyList?.querySelectorAll('[data-history-row]').forEach(row => row.classList.toggle('is-active-detail', String(row.dataset.activityId || '') === activeDetailId))
     }
 
-    const isElevationPresentation = value => /eleva(?:ção|cao|tion)|altitude|desn[ií]vel|desnivel|gain|loss|ganho|perda|ascent|descent|inclina(?:ção|cao|tion)|grade|relevo|terrain\s+elevation/i.test(String(value || ''))
     const activityMetricKind = (label) => {
         const value = String(label || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
         if (value.includes('codigo')) return 'code'
@@ -8343,7 +8342,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return 'metric'
     }
     const renderMetricas = (metrics) => {
-        const visible = (Array.isArray(metrics) ? metrics : []).filter(metric => !isElevationPresentation(`${metric?.rotulo || ''} ${metric?.key || ''}`))
+        const visible = Array.isArray(metrics) ? metrics : []
         if (!visible.length) return ''
         return `<div class="activity-row-metrics">${visible.map((metric) => `<span data-metric-kind="${activityMetricKind(metric.rotulo)}"><small>${escapeHtml(metric.rotulo)}</small><strong>${escapeHtml(metric.valor)}</strong></span>`).join('')}</div>`
     }
@@ -8700,7 +8699,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('focus', passiveHistoryRefresh)
 
     const detailSection = (title, body, extraClass = '') => body ? `<div class="activity-detail-section${extraClass ? ` ${extraClass}` : ''}"><h3>${escapeHtml(title)}</h3>${body}</div>` : ''
-    const cleanDetailValues = (values) => (Array.isArray(values) ? values : []).filter((item) => String(item?.rotulo || '').trim() !== '' && String(item?.valor || '').trim() !== '' && !isElevationPresentation(`${item?.rotulo || ''} ${item?.slug || ''} ${item?.chave || ''}`))
+    const cleanDetailValues = (values) => (Array.isArray(values) ? values : []).filter((item) => String(item?.rotulo || '').trim() !== '' && String(item?.valor || '').trim() !== '')
     const detailPairKey = (item) => `${String(item?.rotulo || '').trim().toLocaleLowerCase('pt-BR')}::${String(item?.valor || '').trim().toLocaleLowerCase('pt-BR')}`
     const normalizedDetailLabel = (value) => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()
     const detailStats = (values, extraClass = '') => {

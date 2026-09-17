@@ -25,7 +25,7 @@ $header = $read('src/layout/header.php');
 
 $assert(str_contains($page, 'pacerPlanList(') && str_contains($page, 'pacerPlanSave(') && str_contains($page, 'pacerPlanArchive('), 'Pacer Web deve operar no service canônico.');
 $assert(str_contains($page, 'action" value="duplicate') && str_contains($page, 'Estratégia duplicada.'), 'Pacer Web precisa permitir duplicar planos sem domínio paralelo.');
-$assert(str_contains($page, 'Ritmo constante') && str_contains($page, 'Negative split') && str_contains($page, 'Custom') && str_contains($page, 'Positive split'), 'editor precisa expor as estratégias suportadas pelo Core.');
+$assert(str_contains($page, 'Ritmo constante') && str_contains($page, 'negative split') && str_contains($page, 'Personalizada') && str_contains($page, 'Positive split'), 'editor precisa explicar as estratégias suportadas pelo Core.');
 $assert(str_contains($page, 'target_distance_km') && str_contains($page, 'target_time') && str_contains($page, 'tolerance_s_per_km'), 'editor precisa coletar distância, tempo e tolerância.');
 $assert(str_contains($page, 'heart_rate_floor_bpm') && str_contains($page, 'heart_rate_ceiling_bpm') && str_contains($page, 'Não são recomendação médica.'), 'constraints de FC precisam ser opcionais e não médicas.');
 $assert(str_contains($page, 'generated_options_changed') && str_contains($page, "'_preserve_segments'") && str_contains($page, "\$payload['segments'] = \$existing['segments']"), 'edições administrativas não podem regenerar silenciosamente segmentos gerados.');
@@ -46,6 +46,10 @@ $assert(str_contains($scheduleJs, "set('pacer_plan_id'") && str_contains($schedu
 $assert(str_contains($header, '/user/pacer.php') && str_contains($header, 'Estratégias de pace para treinos e provas.'), 'Pacer deve estar acessível pela navegação de Treino.');
 $assert(str_contains($page, '$hasAnyPlans') && str_contains($page, 'is-first-use') && str_contains($page, 'Estratégias de ritmo para treinos e provas.'), 'Primeiro acesso ao Pacer precisa priorizar criação e preview, sem coluna vazia.');
 $assert(str_contains($css, '@media(max-width:980px)') && str_contains($css, '@media(max-width:620px)'), 'Pacer Web precisa ter layout responsivo.');
+$assert(str_contains($page, 'data-pacer-help-dialog') && str_contains($page, 'data-pacer-help-section="strategy"') && str_contains($js, 'helpDialog.showModal()') && !str_contains($page, 'class="pacer-guide"'), 'Editor precisa oferecer ajuda contextual sob demanda sem guia lateral permanente.');
+$assert(str_contains($page, 'field-with-unit') && str_contains($css, '.pacer-input-unit.field-with-unit input{') && !str_contains($page, '<b>km</b>'), 'Campos com unidade precisam usar um único contorno visual.');
+$assert(str_contains($js, 'simulationDistance') && str_contains($js, 'maxDistance*.5') && !str_contains($js, 'data.target_distance_m*.62'), 'Simulador precisa preservar posição e usar 50% apenas no estado inicial.');
+$assert(str_contains($js, 'A FC mínima não pode ser maior que a FC máxima.') && str_contains($js, 'Informe um valor entre 20 e 260 bpm.'), 'Validação de FC opcional precisa explicar range e ordem dos limites.');
 $assert(!str_contains($page, 'IA') && !str_contains($js, 'OpenAI'), 'Pacer Web não deve depender de IA generativa.');
 
 printf("✓ Web Pacer v1 static: %d assertions\n", $count);

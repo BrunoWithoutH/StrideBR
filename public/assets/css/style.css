@@ -995,7 +995,7 @@ body {
 .workout-session-exercises { min-height: 0; min-width: 0; grid-template-columns: minmax(0, 1fr); flex: 1 1 auto; overflow: auto; display: grid; gap: 10px; padding: 14px; overscroll-behavior: contain; }
 .session-exercise { padding: 14px; border: 1px solid var(--ui-border); border-radius: var(--radius-card); background: var(--ui-panel); transition: opacity .15s, border-color .15s; }
 .session-exercise.is-done { border-color: var(--ui-success); background: var(--ui-success-soft); }
-.session-exercise-number { width: 28px; height: 28px; flex: 0 0 28px; display: grid; place-items: center; border-radius: var(--radius-circle);corner-shape:round; background: #e2e8f0; color: var(--ui-text-secondary); font-size: .78rem; font-weight: 800; }
+.session-exercise-number { width: 28px; height: 28px; flex: 0 0 28px; display: grid; place-items: center; border: 1px solid var(--ui-border); border-radius: var(--radius-circle);corner-shape:round; background: var(--ui-panel-strong, var(--ui-panel-soft)); color: var(--ui-text-strong); font-size: .78rem; font-weight: 800; }
 .session-exercise-heading > div { min-width: 0; flex: 1; }
 .session-exercise-heading strong { display: block; overflow-wrap: anywhere; }
 .session-exercise-heading small { display: block; margin-top: 2px; color: var(--ui-muted); }
@@ -3587,23 +3587,23 @@ body {
     gap: 10px;
     margin-top: 18px;
     padding: 12px;
-    border: 1px solid #dbe2ea;
+    border: 1px solid var(--ui-border);
     border-radius: var(--radius-card);
     background: var(--ui-panel-soft);
 }
 .workout-finish-time > div:first-child { display: grid; gap: 3px; }
-.workout-finish-time strong { color: #263348; font-size: .82rem; }
+.workout-finish-time strong { color: var(--ui-text-secondary); font-size: .82rem; }
 .workout-finish-time small { color: var(--ui-muted); font-size: .72rem; font-weight: 500; line-height: 1.35; }
 .workout-finish-time-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.workout-finish-time-grid label { display: grid; gap: 4px; color: #536174; font-size: .7rem; font-weight: 750; }
-.workout-finish-time-grid input { min-width: 0; min-height: 40px; padding: 7px 9px; border: 1px solid #cfd8e3; border-radius: var(--radius-control); background: var(--ui-panel); color: #263348; font: inherit; font-weight: 500; }
+.workout-finish-time-grid label { display: grid; gap: 4px; color: var(--ui-muted); font-size: .7rem; font-weight: 750; }
+.workout-finish-time-grid input { min-width: 0; min-height: 40px; padding: 7px 9px; border: 1px solid var(--ui-border); border-radius: var(--radius-control); background: var(--ui-panel); color: var(--ui-text-secondary); font: inherit; font-weight: 500; }
 .workout-finish-time > span { min-height: 1em; color: var(--ui-accent); font-size: .72rem; font-weight: 750; }
 @media (max-width: 560px) { .workout-finish-time-grid { grid-template-columns: 1fr; } }
 
 .session-set-table-head,
 .session-set-row {
     display: grid;
-    grid-template-columns: 52px minmax(100px, 1fr) minmax(84px, .8fr) 54px;
+    grid-template-columns: 52px repeat(var(--session-field-count, 2), minmax(100px, 1fr)) 54px;
     gap: 8px;
     align-items: end;
 }
@@ -3633,7 +3633,13 @@ body {
     background: var(--ui-success-soft);
 }
 .session-set-row.is-saving { opacity: .65; }
-.session-set-row.has-save-error { border-color: #fda29b; }
+
+.session-set-table-head[data-session-field-count="0"],
+.session-set-row[data-session-field-count="0"] { grid-template-columns: 52px 54px; justify-content: start; }
+.session-set-planned { display: grid; gap: 4px; min-width: 0; align-self: stretch; }
+.session-set-planned span { color: var(--ui-muted); font-size: .68rem; font-weight: 700; }
+.session-set-planned strong { min-height: 38px; display: flex; align-items: center; padding: 6px 9px; border: 1px solid var(--ui-border-soft); border-radius: var(--radius-control); background: var(--ui-panel-soft); color: var(--ui-text-secondary); font-size: .82rem; font-variant-numeric: tabular-nums; }
+.session-set-row.has-save-error { border-color: var(--ui-danger); }
 .session-set-number {
     align-self: center;
     justify-self: center;
@@ -3655,7 +3661,7 @@ body {
     border: 1px solid var(--ui-border);
     border-radius: var(--radius-control);
     background: var(--ui-panel);
-    color: #101828;
+    color: var(--ui-text-strong);
     padding: 6px 9px;
     font: inherit;
     font-size: .86rem;
@@ -3663,7 +3669,7 @@ body {
 }
 .session-set-row input:focus {
     outline: 2px solid rgba(37, 99, 235, .16);
-    border-color: #2563eb;
+    border-color: var(--ui-accent);
 }
 .session-set-check {
     width: 38px;
@@ -3704,14 +3710,16 @@ body {
 :root[data-theme="dark"] .session-set-row label { color: var(--ui-faint); }
 @media (max-width: 560px) {
     .session-set-table-head,
-    .session-set-row { grid-template-columns: 28px minmax(0, 1fr) minmax(0, .75fr) 44px; gap: 8px; }
+    .session-set-row { grid-template-columns: 28px repeat(var(--session-field-count, 2), minmax(0, 1fr)) 44px; gap: 8px; }
+    .session-set-table-head[data-session-field-count="0"],
+    .session-set-row[data-session-field-count="0"] { grid-template-columns: 28px 44px; }
     .workout-session-modal.is-keyboard-open { top: var(--workout-keyboard-top, 0px); bottom: auto; height: var(--workout-keyboard-height); }
     .workout-session-modal.is-keyboard-open .workout-session-panel { max-height: 100%; }
     .session-set-table-head { padding-inline: 5px; margin-top: 10px; }
     .session-set-table-head > span:first-child { font-size: 0; text-align: center; }
     .session-set-table-head > span:first-child::after { content: "#"; font-size: .68rem; }
     .session-set-row { padding: 6px; }
-    .session-set-row label > span { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+    .session-set-row label > span, .session-set-planned > span { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
     .session-set-row input { height: 44px; padding-inline: 7px; font-size: 16px; }
     .session-set-check { width: 44px; height: 44px; }
 }

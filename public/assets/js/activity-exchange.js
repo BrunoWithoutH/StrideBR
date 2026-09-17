@@ -247,6 +247,7 @@ const stridebrInitActivityExchange = () => {
             metricCard(t('activity.summary.distance', {}, 'Distance'), formatDistance(preview.distance_m)),
             metricCard(t('exchange.average_hr', {}, 'Avg. HR'), hasNumber(preview.avg_hr) && Number(preview.avg_hr) > 0 ? `${Math.round(Number(preview.avg_hr))} bpm` : '—')
         )
+        if (hasNumber(preview.elevation_gain_m) && Number(preview.elevation_gain_m) > 0) metrics.append(metricCard('Ganho de elevação', `+${Math.round(Number(preview.elevation_gain_m))} m`))
         return metrics
     }
     const makeMeta = preview => {

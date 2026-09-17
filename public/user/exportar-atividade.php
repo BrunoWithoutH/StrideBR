@@ -15,7 +15,7 @@ try {
     if ($id === '' || !in_array($format, ['gpx', 'tcx', 'json', 'original', 'fit'], true)) throw new InvalidArgumentException('Exportação inválida.');
     $data = atividadeArquivoExportData($pdo, $idUsuario, $id);
     $title = (string) ($data['record']['titulo'] ?: $data['record']['modalidade_nome']);
-    $asciiTitle = function_exists('iconv') ? (iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $title) ?: $title) : $title;
+    $asciiTitle = function_exists('stridebr_ascii_transliterate') ? stridebr_ascii_transliterate($title) : $title;
     $slug = preg_replace('/[^a-z0-9_-]+/i', '-', $asciiTitle);
     $slug = trim(strtolower((string) $slug), '-') ?: 'atividade';
 
@@ -59,8 +59,9 @@ try {
         $extension = 'json';
     }
 
+    $date = preg_match('/^\d{4}-\d{2}-\d{2}/', (string) ($data['record']['data_inicio'] ?? ''), $match) ? $match[0] : gmdate('Y-m-d');
     header('Content-Type: ' . $mime . '; charset=UTF-8');
-    header('Content-Disposition: attachment; filename="' . $slug . '.' . $extension . '"');
+    header('Content-Disposition: attachment; filename="stridebr-' . $slug . '-' . $date . '.' . $extension . '"');
     header('X-Content-Type-Options: nosniff');
     echo $content;
 } catch (InvalidArgumentException $e) {

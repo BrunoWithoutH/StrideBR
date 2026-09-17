@@ -180,6 +180,9 @@ function renderExtraInput(array $campo, mixed $valor, string $name): string
                         </tr>
                         </thead>
                         <tbody data-exercise-rows>
+                        <?php if ($exercicios === []): ?>
+                            <tr data-exercise-empty><td colspan="<?php echo 17 + count($camposExtras); ?>"><div class="exercise-empty-row"><div><strong>Nenhum exercício neste treino.</strong><span>Adicione o primeiro exercício para montar a prescrição.</span></div><button type="button" class="secondary-button" data-add-exercise-empty>Adicionar exercício</button></div></td></tr>
+                        <?php endif; ?>
                         <?php foreach ($exercicios as $index => $row): ?>
                             <tr data-exercise-row>
                                 <td data-row-number><?php echo $index + 1; ?></td>

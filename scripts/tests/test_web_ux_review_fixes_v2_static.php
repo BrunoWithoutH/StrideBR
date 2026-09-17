@@ -30,6 +30,9 @@ $assert(str_contains($page, 'data-detail-full-actions') && str_contains($page, '
 $assert(str_contains($page, 'data-detail-compare') && str_contains($page, 'data-detail-repeat') && str_contains($page, 'data-detail-stats') && str_contains($page, 'data-detail-delete'), 'Menu secundário precisa agrupar comparar, repetir, estatísticas e excluir.');
 $assert(str_contains($page, 'data-detail-delete') && str_contains($page, 'is-danger'), 'Excluir precisa permanecer danger no fim do menu.');
 $assert(str_contains($activitiesCss, 'top:calc(100% + 6px)!important') && str_contains($activitiesCss, 'right:0!important') && str_contains($activitiesCss, 'max-width:min(280px,calc(100vw - 24px))'), 'Menu ... precisa ancorar abaixo e permanecer dentro da viewport.');
+$assert(str_contains($page, 'class="activity-detail-stats-toggle" data-detail-stats') && !preg_match('/data-detail-stats[^>]*class="(?:[^" ]*metric|[^" ]*title)/', $page), 'Toggle de estatísticas precisa ter classe própria, sem herdar tipografia de métrica ou título.');
+$assert(str_contains($activitiesCss, 'min-width:230px') && str_contains($activitiesCss, 'flex-direction:column!important') && str_contains($activitiesCss, 'position:static!important') && str_contains($activitiesCss, 'font-size:.76rem!important') && str_contains($activitiesCss, 'font-weight:600!important'), 'Itens do menu precisam permanecer em fluxo normal com tipografia de menu e largura útil.');
+$assert(str_contains($activitiesCss, '.activity-detail-header-menu>div>.is-danger') && str_contains($activitiesCss, 'border-top:1px solid var(--ui-border-soft)!important'), 'Ação danger precisa permanecer no último bloco separado por divisor.');
 $assert(str_contains($activitiesJs, "document.querySelectorAll('[data-detail-actions-menu][open]')") && str_contains($activitiesJs, "event.key === 'Escape'"), 'Menu ... precisa fechar por click outside e Escape.');
 $assert(str_contains($activitiesCss, 'grid-template-columns:repeat(auto-fit,minmax(min(145px,100%),1fr))'), 'Métricas principais do header precisam usar grid fluido.');
 $assert(str_contains($detailCss, 'repeat(auto-fit,minmax(min(150px,100%),1fr))'), 'Grids internos de métricas precisam ser fluidos.');
@@ -39,8 +42,8 @@ foreach (['Elevação','Elevacao','Elevation','Altitude','Elevation gain','Eleva
     $normalized = strtolower(strtr($label, ['ç' => 'c', 'ã' => 'a', 'é' => 'e', 'í' => 'i']));
     $assert(!str_contains($normalized, 'dummy'), 'fixture de label de elevação precisa ser válida.');
 }
-$assert(str_contains($activitiesJs, 'eleva(?:ção|cao|tion)') && str_contains($activitiesJs, 'gain|loss') && str_contains($activitiesJs, 'ascent|descent') && str_contains($activitiesJs, 'inclina(?:ção|cao|tion)'), 'Filtro principal precisa reconhecer elevação PT e EN.');
-$assert(str_contains($detailJs, 'eleva(?:ção|cao|tion)') && str_contains($detailJs, 'terrain\\s+elevation'), 'Detail V3 precisa filtrar Elevation e terrain elevation.');
+$assert(!str_contains($activitiesJs, 'const isElevationPresentation') && str_contains($activitiesJs, 'const visible = Array.isArray(metrics) ? metrics : []'), 'Histórico precisa preservar métricas de elevação quando o payload as fornecer.');
+$assert(str_contains($detailJs, "label:'Elevação'") && str_contains($detailJs, 'const routeProfileHtml'), 'Detail V3 precisa renderizar elevação de stream ou perfil de rota válido.');
 $assert(str_contains($detailJs, 'activity-v3-unit-title') && str_contains($detailJs, 'activity-v3-unit-metrics') && !str_contains($detailJs, '${metricCards(unit.valores)}'), 'Trechos precisam usar rows compactas, sem painéis de métricas aninhados.');
 $assert(str_contains($detailJs, 'routeHtml(activity,{saveAction:true,contextRail})'), 'Salvar rota precisa continuar no bloco Percurso.');
 

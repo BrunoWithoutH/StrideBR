@@ -100,6 +100,7 @@ $navActive = static function (array $prefixes) use ($currentPath): string {
 <?php endif; ?>
 <?php if ($footerLoggedIn): ?>
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/quick-tools.js')); ?>"></script>
+<script src="<?php echo stridebr_e(stridebr_asset('/assets/js/workout-prescription.js')); ?>"></script>
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/workout-session.js')); ?>"></script>
 <?php endif; ?>
 

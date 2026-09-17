@@ -190,7 +190,9 @@ return function (PDO $pdo): void {
         $initialBackfill = stridebr_integrations_strava_backfill_state($pdo, $backfillUser, $backfillConnection, true);
         $initialCursor = (int) $initialBackfill['before'];
         $firstBackfill = stridebr_integrations_strava_backfill_step($pdo, $backfillUser, $backfillConnection);
-        AlphaTest::same(3, (int) $firstBackfill['created'], 'Backfill limits detail work per step');
+        $firstBackfillCreated = (int) $firstBackfill['created'];
+        AlphaTest::assert($firstBackfillCreated >= 1 && $firstBackfillCreated <= 3, 'Backfill limits detail work per step and still makes progress');
+        AlphaTest::same($firstBackfillCreated < 3 ? 'deadline' : 'detail_budget', (string) ($firstBackfill['backfill_deferred_reason'] ?? ''), 'Backfill explains whether a partial step stopped by deadline or detail budget');
         $afterFirst = stridebr_integrations_strava_backfill_state($pdo, $backfillUser, stridebr_integrations_get($pdo, $backfillUser, 'strava'), false);
         AlphaTest::same($initialCursor, (int) $afterFirst['before'], 'Partial batch does not advance temporal checkpoint');
         AlphaTest::assert(!empty($firstBackfill['backfill_deferred']), 'Partial batch is resumable');

@@ -73,8 +73,7 @@
         if (unit === 'km_h') return speed(value)
         return number(value, 2)
     }
-    const isElevationPresentation = value => /eleva(?:ção|cao|tion)|altitude|desn[ií]vel|desnivel|gain|loss|ganho|perda|ascent|descent|inclina(?:ção|cao|tion)|grade|relevo|terrain\s+elevation/i.test(String(value || ''))
-    const visibleMetrics = items => (Array.isArray(items) ? items : []).filter(item => item && !isElevationPresentation(`${item.rotulo || ''} ${item.slug || ''} ${item.chave || ''}`))
+    const visibleMetrics = items => (Array.isArray(items) ? items : []).filter(Boolean)
     const metricCards = items => {
         const clean = visibleMetrics(items).filter(item => String(item.rotulo || '').trim() && String(item.valor || '').trim())
         if (!clean.length) return ''
@@ -106,12 +105,24 @@
         const unitRoutes = collect((Array.isArray(activity?.unidades) ? activity.unidades : []).map(unit => unit?.rota))
         return unitRoutes.length ? unitRoutes : collect([activity?.rota])
     }
+    const routeProfileHtml = route => {
+        const profile=Array.isArray(route?.perfil)?route.perfil:[]
+        const points=profile.map(point=>({distance:Number(point?.distancia_m),elevation:Number(point?.elevacao_m)})).filter(point=>Number.isFinite(point.distance)&&Number.isFinite(point.elevation))
+        if(points.length<2)return ''
+        const width=800,height=132,left=10,right=790,top=10,bottom=108
+        const maxDistance=Math.max(...points.map(point=>point.distance),1)
+        const min=Math.min(...points.map(point=>point.elevation)),max=Math.max(...points.map(point=>point.elevation)),range=Math.max(max-min,1)
+        const line=points.map(point=>`${(left+Math.max(0,Math.min(1,point.distance/maxDistance))*(right-left)).toFixed(2)},${(bottom-(point.elevation-min)/range*(bottom-top)).toFixed(2)}`).join(' ')
+        return `<div class="activity-v3-elevation-profile" data-elevation-profile><div><span>Perfil de elevação</span><small>${escapeHtml(`${number(min,0)}–${number(max,0)} m`)}</small></div><svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="Perfil de elevação entre ${number(min,0)} e ${number(max,0)} metros"><polygon points="${left},${bottom} ${line} ${right},${bottom}"></polygon><polyline points="${line}"></polyline></svg></div>`
+    }
     const routeHtml = (activity, {saveAction = false, contextRail = false} = {}) => {
         const routes = routeCollections(activity)
         if (!routes.length) return ''
         const distanceValue = Number(activity?.rota?.distancia_m)
         const action = saveAction ? `<button type="button" class="activity-secondary-button activity-v3-route-save" data-save-activity-route="${escapeHtml(activity.id)}">Salvar rota</button>` : ''
-        return `<section class="activity-v3-route activity-map-frame${contextRail ? ' has-context-rail' : ''}" data-activity-v3-route><div class="activity-v3-section-head"><div><span>Percurso</span>${Number.isFinite(distanceValue) && distanceValue > 0 ? `<strong>${escapeHtml(distance(distanceValue))}</strong>` : ''}</div>${action}</div><div class="activity-v3-map" data-activity-v3-map aria-label="Mapa da rota"></div><small class="activity-v3-map-fallback" data-activity-v3-map-status>Carregando mapa…</small></section>`
+        const route=activity?.rota||{}
+        const elevation=[Number(route.ganho_m)>0?`Ganho +${number(route.ganho_m,0)} m`:'',Number(route.perda_m)>0?`Perda -${number(route.perda_m,0)} m`:''].filter(Boolean).join(' · ')
+        return `<section class="activity-v3-route activity-map-frame${contextRail ? ' has-context-rail' : ''}" data-activity-v3-route><div class="activity-v3-section-head"><div><span>Percurso</span>${Number.isFinite(distanceValue) && distanceValue > 0 ? `<strong>${escapeHtml(distance(distanceValue))}</strong>` : ''}${elevation?`<small>${escapeHtml(elevation)}</small>`:''}</div>${action}</div><div class="activity-v3-map" data-activity-v3-map aria-label="Mapa da rota"></div><small class="activity-v3-map-fallback" data-activity-v3-map-status>Carregando mapa…</small>${routeProfileHtml(route)}</section>`
     }
     const strengthHtml = activity => {
         const strength = activity?.forca
@@ -134,7 +145,7 @@
     const tabsFor = activity => {
         const caps = activity?.stream_capabilities || {}
         const available = new Set(caps.available_streams || [])
-        const graphable = ['pace','speed','heart_rate','cadence','power','temperature'].some(stream => available.has(stream))
+        const graphable = ['pace','speed','heart_rate','altitude','elevation','cadence','power','temperature'].some(stream => available.has(stream))
         const tabs = [{id:'summary',label:'Resumo'}]
         if (caps.has_streams && graphable) tabs.push({id:'charts',label:'Gráficos'})
         if (caps.has_streams && available.has('distance')) tabs.push({id:'splits',label:'Splits'})
@@ -210,6 +221,7 @@
         if (available.has('heart_rate')) definitions.push({id:'heart_rate',label:'Frequência cardíaca',unit:'bpm'})
         if (available.has('cadence')) definitions.push({id:'cadence',label:'Cadência',unit:data?.units?.cadence || 'spm'})
         if (available.has('power')) definitions.push({id:'power',label:'Potência',unit:'W'})
+        if (available.has('altitude') || available.has('elevation')) definitions.push({id:'altitude',label:'Elevação',unit:'m'})
         if (available.has('temperature')) definitions.push({id:'temperature',label:'Temperatura',unit:'celsius'})
         return definitions
     }
@@ -217,6 +229,7 @@
         const id = typeof metric === 'string' ? metric : metric?.id
         if (id === 'pace') return sample.pace
         if (id === 'speed') return Number.isFinite(Number(sample.speed)) ? Number(sample.speed) * 3.6 : null
+        if (id === 'altitude') return sample.altitude ?? sample.elevation
         return id ? sample[id] : null
     }
     const metricFormat = (value, definition) => {
@@ -226,6 +239,7 @@
         if (definition.id === 'heart_rate') return `${number(value,0)} bpm`
         if (definition.id === 'cadence') return `${number(value,0)} ${definition.unit}`
         if (definition.id === 'power') return `${number(value,0)} W`
+        if (definition.id === 'altitude') return `${number(value,0)} m`
         if (definition.id === 'temperature') return `${number(value,1)} °C`
         return number(value,2)
     }
@@ -353,7 +367,7 @@
         const cacheKey=`streams:${resolvedAxis}:medium`
         panel.innerHTML='<div class="activity-v3-lazy"><span></span><strong>Carregando gráficos…</strong></div>'
         try {
-            const streams=available.filter(value=>['pace','speed','heart_rate','cadence','power','temperature'].includes(value)).join(',')
+            const streams=available.filter(value=>['pace','speed','heart_rate','altitude','elevation','cadence','power','temperature'].includes(value)).join(',')
             const data=!force&&state.cache.has(cacheKey)?state.cache.get(cacheKey):await requestData(state,'charts',`/api/atividade-streams.php?id=${encodeURIComponent(state.activity.id)}&axis=${resolvedAxis}&resolution=medium&streams=${encodeURIComponent(streams)}`)
             state.cache.set(cacheKey,data)
             if(!metricDefinitions(data).length || !(data.samples||[]).some(sample=>metricDefinitions(data).some(def=>Number.isFinite(Number(metricValue(sample,def)))))) {

@@ -663,21 +663,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const unit={km_h:'km/h',bpm:'bpm',rpe_1_10:'RPE',m:'m'}[exercise.alvo_unidade]||exercise.alvo_unidade||''
         return `${value} ${unit}`.trim()
     };
-    const previewExerciseMeta = exercise => [
-        exercise.tipo_passo && exercise.tipo_passo!=='exercise' ? ({warmup:'Aquecimento',work:'Trabalho',recovery:'Recuperação',cooldown:'Desaquecimento',interval_group:'Intervalo'}[exercise.tipo_passo] || exercise.tipo_passo) : '',
-        exercise.repeticoes_bloco ? `${Number(exercise.repeticoes_bloco)} ×` : '',
-        exercise.duracao || '',
-        exercise.distancia || '',
-        structuredTarget(exercise),
-        exercise.recuperacao_duracao_s ? `Rec. ${compactSeconds(exercise.recuperacao_duracao_s)}` : '',
-        exercise.recuperacao_distancia_m ? `Rec. ${Number(exercise.recuperacao_distancia_m)} m` : '',
-        exercise.series !== null && exercise.series !== undefined ? `${Number(exercise.series)} ${tr('schedule.sets')}` : '',
-        exercise.repeticoes ? String(exercise.repeticoes).replace(/\s*(?:reps?|repetições?)\s*$/i, '') + ' reps' : '',
-        exercise.carga || '',
-        exercise.descanso ? `${tr('schedule.rest')} ${exercise.descanso}` : '',
-        exercise.bloco ? `${tr('schedule.block')} ${exercise.bloco}` : '',
-        exercise.cluster || '',
-    ].filter(Boolean);
+    const previewExerciseMeta = exercise => {
+        const prescription = window.StrideBRWorkoutPrescription?.resolve?.(exercise) || {summaryParts:[]}
+        return [
+            exercise.tipo_passo && exercise.tipo_passo!=='exercise' ? ({warmup:'Aquecimento',work:'Trabalho',recovery:'Recuperação',cooldown:'Desaquecimento',interval_group:'Intervalo'}[exercise.tipo_passo] || exercise.tipo_passo) : '',
+            exercise.repeticoes_bloco ? `${Number(exercise.repeticoes_bloco)} ×` : '',
+            exercise.series !== null && exercise.series !== undefined ? `${Number(exercise.series)} ${tr(Number(exercise.series) === 1 ? 'workout_session.set_unit.one' : 'workout_session.set_unit.other')}` : '',
+            ...prescription.summaryParts,
+            structuredTarget(exercise),
+            exercise.recuperacao_duracao_s ? `Rec. ${compactSeconds(exercise.recuperacao_duracao_s)}` : '',
+            exercise.recuperacao_distancia_m ? `Rec. ${Number(exercise.recuperacao_distancia_m)} m` : '',
+            exercise.descanso ? `${tr('schedule.rest')} ${exercise.descanso}` : '',
+            exercise.bloco ? `${tr('schedule.block')} ${exercise.bloco}` : '',
+            exercise.cluster || '',
+        ].filter(Boolean)
+    };
     const renderDynamicPreviewContent = data => {
         if (!previewModal || !data?.workout) return null;
         const workout = data.workout;
@@ -1072,18 +1072,22 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     rowsContainer?.querySelectorAll('[data-exercise-row]').forEach(wireExerciseRow);
-    addExercise?.addEventListener('click', () => {
-        if (!rowsContainer || !rowTemplate) return;
-        const html = rowTemplate.innerHTML.replaceAll('__INDEX__', String(nextIndex++));
-        const wrapper = document.createElement('tbody');
-        wrapper.innerHTML = html.trim();
-        const row = wrapper.firstElementChild;
-        if (!row) return;
-        rowsContainer.appendChild(row);
-        wireExerciseRow(row);
-        renumberRows();
-        row.querySelector('[data-exercise-name]')?.focus();
-    });
+    const appendExerciseRow = () => {
+        if (!rowsContainer || !rowTemplate) return null
+        rowsContainer.querySelector('[data-exercise-empty]')?.remove()
+        const html = rowTemplate.innerHTML.replaceAll('__INDEX__', String(nextIndex++))
+        const wrapper = document.createElement('tbody')
+        wrapper.innerHTML = html.trim()
+        const row = wrapper.firstElementChild
+        if (!row) return null
+        rowsContainer.appendChild(row)
+        wireExerciseRow(row)
+        renumberRows()
+        row.querySelector('[data-exercise-name]')?.focus()
+        return row
+    }
+    addExercise?.addEventListener('click', appendExerciseRow)
+    document.querySelector('[data-add-exercise-empty]')?.addEventListener('click', appendExerciseRow)
     document.querySelectorAll('[data-add-endurance-preset]').forEach(button=>button.addEventListener('click',()=>{
         addExercise?.click()
         const row=rowsContainer?.lastElementChild

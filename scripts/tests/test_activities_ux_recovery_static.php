@@ -36,13 +36,14 @@ $assert(str_contains($page, 'data-detail-badges') && preg_match("/(?:badges|item
 $assert(str_contains($page, 'data-detail-full-actions') && str_contains($page, 'data-share-activity') && str_contains($page, 'data-detail-edit') && str_contains($page, 'activity-detail-header-menu'), 'Detail precisa agrupar Share, Editar e menu secundário no header.');
 $assert(str_contains($page, 'data-detail-delete') && str_contains($page, 'is-danger'), 'Excluir precisa ficar como ação danger no menu secundário.');
 $assert(str_contains($detailJs, 'routeHtml(activity,{saveAction:true,contextRail})') && str_contains($detailJs, 'activity-v3-route-save'), 'Salvar rota precisa pertencer ao bloco Percurso.');
+$assert(str_contains($detailJs, 'const routeProfileHtml') && str_contains($detailJs, 'data-elevation-profile') && str_contains($detailCss, '.activity-v3-elevation-profile'), 'Rota com perfil válido precisa renderizar elevação contínua sem depender de bundle completo.');
 
 $assert(str_contains($detailCss, '.activity-map-frame') && str_contains($detailCss, 'isolation:isolate') && str_contains($detailCss, 'contain:paint'), 'Frame do mapa precisa criar stacking context local.');
 $assert(str_contains($mapJs, 'mountMany') && str_contains($mapJs, 'normalizedRoutes.forEach') && str_contains($mapJs, 'normalizedRoutes.flatMap'), 'Mapa precisa preservar múltiplas polylines e bounds agregados.');
 $assert(str_contains($detailJs, 'return unitRoutes.length ? unitRoutes : collect([activity?.rota])'), 'Rotas de trechos precisam evitar duplicação da rota top-level.');
 
-$assert(str_contains($detailJs, 'const metricDefinitions') && str_contains($detailJs, "['pace','speed','heart_rate','cadence','power','temperature']"), 'Charts devem usar somente séries esportivas graphable existentes.');
-$assert(!preg_match("/available\.has\('(altitude|elevation|grade)'\)/", $detailJs), 'Charts Web não podem habilitar altitude, elevação ou grade.');
+$assert(str_contains($detailJs, 'const metricDefinitions') && str_contains($detailJs, "['pace','speed','heart_rate','altitude','elevation','cadence','power','temperature']"), 'Charts devem usar streams esportivos e elevação quando existentes.');
+$assert(str_contains($detailJs, "available.has('altitude') || available.has('elevation')") && str_contains($detailJs, "label:'Elevação'"), 'Charts precisam habilitar elevação quando a stream estiver disponível.');
 $assert(str_contains($detailJs, 'activity-v3-chart-list') && str_contains($detailJs, 'is-primary') && str_contains($detailJs, 'primary?180:110'), 'Charts precisam usar small multiples com série principal maior.');
 $assert(str_contains($detailJs, "data-chart-axis=\"distance\"") && str_contains($detailJs, "data-chart-axis=\"time\"") && str_contains($detailJs, "if(axis==='distance' && !available.includes('distance')) resolvedAxis='time'"), 'Eixo deve alternar Distância/Tempo e cair para Tempo sem distância.');
 $assert(str_contains($detailJs, 'data-chart-cursor') && str_contains($detailJs, 'panel.querySelectorAll(\'[data-chart-cursor]\')') && str_contains($detailJs, 'setPointerCapture'), 'Crosshair precisa ser compartilhado e aceitar pointer/touch.');
@@ -72,6 +73,6 @@ $assert(str_contains($activitiesJs, 'SHARE_PRESET_COLORS_KEY') && str_contains($
 
 $assert(str_contains($detailJs, 'role="tablist"') && str_contains($detailJs, 'role="tab"') && str_contains($detailJs, 'role="tabpanel"') && str_contains($detailJs, 'aria-selected'), 'Tabs precisam manter semântica ARIA correta.');
 $assert(str_contains($detailJs, "['ArrowLeft','ArrowRight'].includes(event.key)") || str_contains($detailJs, "event.key!=='ArrowLeft'&&event.key!=='ArrowRight'"), 'Tabs devem aceitar setas esquerda/direita no teclado.');
-$assert(str_contains($detailJs, 'isElevationPresentation') && !preg_match('/(?:label\s*:\s*[\"\'](?:Altitude|Elevação|Perfil de elevação|Ganho de elevação|Perda de elevação)|<th>(?:Altitude|Elevação|Relevo)<\/th>)/iu', $detailJs), 'Detail V3 não pode renderizar labels visíveis de elevação.');
+$assert(str_contains($detailJs, "label:'Elevação'") && str_contains($detailJs, 'Ganho +') && str_contains($detailJs, 'Perda -'), 'Detail V3 precisa expor elevação apenas quando houver dados válidos.');
 
 printf("✓ Activities UX recovery static: %d assertions\n", $count);
