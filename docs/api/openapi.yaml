@@ -66,6 +66,78 @@ paths:
       responses:
         '200': { description: Usuário autenticado }
         '401': { $ref: '#/components/responses/Error' }
+  /institutional/context:
+    get:
+      security: [{ bearerAuth: [] }]
+      description: Contexto institucional athlete-safe do próprio usuário. A rota não existe quando STRIDEBR_TEAMS_ENABLED=false.
+      responses:
+        '200':
+          description: Contexto institucional; my_teams pode ser vazio para usuário sem vínculo.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/InstitutionalAthleteContext' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /institutional/teams/{team_ref}/roster:
+    parameters:
+      - { name: team_ref, in: path, required: true, description: Referência opaca da Team; o cliente deve URL-encodar e reenviar sem interpretar., schema: { type: string } }
+      - { name: season, in: query, required: true, description: Referência opaca da Season., schema: { type: string } }
+    get:
+      security: [{ bearerAuth: [] }]
+      description: Roster athlete-safe somente de uma Team/Season à qual o usuário autenticado pertence.
+      responses:
+        '200':
+          description: Athletes e staff em allowlist mínima.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/InstitutionalRoster' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /institutional/competitions:
+    get:
+      security: [{ bearerAuth: [] }]
+      description: Competitions institucionais relevantes ao próprio atleta. Não inclui participantes de terceiros.
+      responses:
+        '200':
+          description: Lista pequena, sem paginação artificial.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/InstitutionalCompetitionSummary' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /institutional/competitions/{competition_ref}:
+    parameters:
+      - { name: competition_ref, in: path, required: true, description: Referência opaca da Competition; o cliente deve URL-encodar e reenviar sem interpretar., schema: { type: string } }
+    get:
+      security: [{ bearerAuth: [] }]
+      description: Detalhe athlete-safe com somente a Competition, organização, período, delegação e entries/results do próprio atleta.
+      responses:
+        '200':
+          description: Competition institucional visível ao usuário autenticado.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/InstitutionalCompetitionDetail' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
   /workout-schedules:
     get:
       security: [{ bearerAuth: [] }]
@@ -1621,6 +1693,110 @@ components:
               nullable: true
             stream_capabilities:
               $ref: '#/components/schemas/ActivityStreamCapabilities'
+    InstitutionalNamedRef:
+      type: object
+      properties:
+        ref: { type: string, nullable: true }
+        name: { type: string, nullable: true }
+    InstitutionalSeasonRef:
+      type: object
+      properties:
+        ref: { type: string, nullable: true }
+        label: { type: string, nullable: true }
+    InstitutionalTeamRef:
+      allOf:
+        - { $ref: '#/components/schemas/InstitutionalNamedRef' }
+        - type: object
+          properties:
+            sport: { type: string, nullable: true }
+    InstitutionalTeamContext:
+      type: object
+      required: [organization, team, season, roles, group]
+      properties:
+        organization: { $ref: '#/components/schemas/InstitutionalNamedRef' }
+        team: { $ref: '#/components/schemas/InstitutionalTeamRef' }
+        season: { $ref: '#/components/schemas/InstitutionalSeasonRef' }
+        roles:
+          type: array
+          items: { type: string }
+        group: { type: string, nullable: true }
+    InstitutionalAthleteContext:
+      type: object
+      required: [season_ref, my_teams]
+      description: Projection do próprio usuário. Não expõe identity_ref, Membership, Workspace Grant, availability ou dados privados.
+      properties:
+        season_ref: { type: string, nullable: true, description: Referência opaca da Season predominante da projection. }
+        my_teams:
+          type: array
+          items: { $ref: '#/components/schemas/InstitutionalTeamContext' }
+    InstitutionalRosterMember:
+      type: object
+      required: [person_ref, display_name, roles]
+      properties:
+        person_ref: { type: string, description: Referência opaca da pessoa no domínio institucional. }
+        display_name: { type: string }
+        roles:
+          type: array
+          items: { type: string }
+        group: { type: string, nullable: true }
+    InstitutionalRoster:
+      type: object
+      required: [athletes, staff]
+      properties:
+        athletes:
+          type: array
+          items: { $ref: '#/components/schemas/InstitutionalRosterMember' }
+        staff:
+          type: array
+          items: { $ref: '#/components/schemas/InstitutionalRosterMember' }
+    InstitutionalCompetitionSummary:
+      type: object
+      required: [competition_ref, display_name, start_date, end_date, delegation_member, organization]
+      properties:
+        competition_ref: { type: string, description: Referência opaca da Competition. }
+        display_name: { type: string }
+        start_date: { type: string, format: date, nullable: true }
+        end_date: { type: string, format: date, nullable: true }
+        delegation_member: { type: boolean }
+        organization:
+          allOf: [{ $ref: '#/components/schemas/InstitutionalNamedRef' }]
+          nullable: true
+    InstitutionalResult:
+      type: object
+      properties:
+        phase: { type: string, nullable: true }
+        placement_scope: { type: string, nullable: true }
+        position: { type: integer, minimum: 1, nullable: true }
+        result: { type: string, nullable: true }
+        classification: { type: string, nullable: true }
+        medal: { type: string, nullable: true }
+        provenance:
+          nullable: true
+          oneOf:
+            - { type: string }
+            - type: object
+              properties:
+                source_role: { type: string }
+                status: { type: string }
+    InstitutionalEntry:
+      type: object
+      required: [entry_ref, program_item, phase, results]
+      properties:
+        entry_ref: { type: string }
+        program_item: { type: string }
+        phase: { type: string, nullable: true }
+        results:
+          type: array
+          items: { $ref: '#/components/schemas/InstitutionalResult' }
+    InstitutionalCompetitionDetail:
+      allOf:
+        - { $ref: '#/components/schemas/InstitutionalCompetitionSummary' }
+        - type: object
+          required: [entries]
+          properties:
+            entries:
+              type: array
+              items: { $ref: '#/components/schemas/InstitutionalEntry' }
     InstitutionalContext:
       type: object
       description: Contexto institucional athlete-safe. É uma projection opcional; não contém Membership internals nem dados privados de outros atletas.
@@ -2772,7 +2948,9 @@ components:
     PacerGuidanceRules:
       type: object
       properties:
-        rules_version: { type: integer, enum: [1] }
+        rules_version: { type: integer, enum: [1, 2], default: 2 }
+        goal_mode: { type: string, enum: [target_time, best_effort], default: target_time }
+        clock_mode: { type: string, enum: [auto, elapsed, moving], default: auto }
         persistence_s: { type: integer, minimum: 1, maximum: 120, default: 15 }
         hysteresis_s_per_km: { type: number, format: double, minimum: 0, maximum: 120, default: 3 }
         cooldown_s: { type: integer, minimum: 0, maximum: 300, default: 20 }
@@ -2783,6 +2961,16 @@ components:
             enabled: { type: boolean, default: false }
             remaining_distance_m: { type: number, format: double, exclusiveMinimum: 0, maximum: 10000, default: 1000 }
             max_behind_s: { type: number, format: double, minimum: -3600, maximum: 3600, default: 0 }
+        final_phase:
+          type: object
+          properties:
+            enabled: { type: boolean, default: true }
+            percent: { type: number, minimum: 1, maximum: 30, default: 10 }
+            min_distance_m: { type: number, minimum: 50, maximum: 5000, default: 150 }
+            max_distance_m: { type: number, minimum: 100, maximum: 10000, default: 1000 }
+            kick_distance_m: { type: number, minimum: 50, maximum: 500, default: 150 }
+        milestone_distance_m: { type: number, minimum: 100, maximum: 10000, default: 1000 }
+        max_opportunity_improvement_percent: { type: number, minimum: 1, maximum: 20, default: 7 }
     PacerSegmentInput:
       type: object
       required: [start_distance_m, end_distance_m, target_pace_s_per_km]
@@ -2811,6 +2999,8 @@ components:
         sport: { type: string, description: Modalidade com metrica_derivada=pace_km. }
         target_distance_m: { type: number, format: double, exclusiveMinimum: 0, maximum: 500000 }
         target_time_s: { type: number, format: double, exclusiveMinimum: 0, maximum: 604800 }
+        goal_mode: { type: string, enum: [target_time, best_effort] }
+        clock_mode: { type: string, enum: [auto, elapsed, moving] }
         strategy: { type: string, enum: [even, negative_split, positive_split, custom] }
         tolerance_s_per_km: { type: number, format: double, minimum: 0, maximum: 600, default: 10 }
         guidance_rules: { $ref: '#/components/schemas/PacerGuidanceRules' }
@@ -2841,6 +3031,8 @@ components:
         strategy: { type: string, enum: [even, negative_split, positive_split, custom] }
         target_distance_m: { type: number, format: double, exclusiveMinimum: 0, maximum: 500000 }
         target_time_s: { type: number, format: double, exclusiveMinimum: 0, maximum: 604800 }
+        goal_mode: { type: string, enum: [target_time, best_effort] }
+        clock_mode: { type: string, enum: [auto, elapsed, moving] }
         tolerance_s_per_km: { type: number, format: double, minimum: 0, maximum: 600 }
         guidance_rules: { $ref: '#/components/schemas/PacerGuidanceRules' }
         status: { type: string, enum: [active, archived] }
@@ -2860,6 +3052,8 @@ components:
         strategy: { type: string, enum: [even, negative_split, positive_split, custom] }
         target_distance_m: { type: number, format: double }
         target_time_s: { type: number, format: double }
+        goal_mode: { type: string, enum: [target_time, best_effort] }
+        clock_mode: { type: string, enum: [auto, elapsed, moving] }
         target_average_pace_s_per_km: { type: number, format: double }
         default_tolerance_s_per_km: { type: number, format: double }
         terrain_adjustment_mode: { type: string, enum: [none] }
@@ -2897,12 +3091,21 @@ components:
         recent_pace_s_per_km: { type: number, format: double, nullable: true }
         average_pace_s_per_km: { type: number, format: double, nullable: true }
         heart_rate_bpm: { type: integer, minimum: 20, maximum: 260, nullable: true }
+        gps_quality: { type: string, enum: [good, degraded, poor], default: good }
+        paused: { type: boolean, default: false }
         guidance_state: { $ref: '#/components/schemas/PacerGuidanceState' }
     PacerEvaluation:
       type: object
       required: [code, ahead_behind_s, target_elapsed_s, projected_finish, heart_rate_constraint, next_state]
       properties:
-        code: { type: string, enum: [on_target, speed_up, slow_down, ease, segment_change, final_push_available, finished] }
+        code: { type: string, enum: [paused, gps_unreliable, hr_limit, segment_change, speed_up, slow_down, recovering, on_target, final_phase_available, final_push, final_kick, milestone, finished] }
+        phase: { type: string, enum: [running, paused, final_phase, finished] }
+        severity: { type: string, enum: [info, correction, encouragement] }
+        progress: { type: object, additionalProperties: true }
+        timing: { type: object, additionalProperties: true }
+        gps: { type: object, properties: { quality: { type: string, enum: [good, degraded, poor] } } }
+        opportunity: { type: object, additionalProperties: true }
+        message: { type: object, additionalProperties: true }
         segment:
           type: object
           nullable: true

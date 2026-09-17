@@ -25,3 +25,11 @@ O Core possui agora um consumidor inicial do Athlete Surface Contract, documenta
 Isso não define o transporte final Core ↔ Teams e não autoriza acesso direto ao banco Teams. O modo implementado para desenvolvimento é fixture controlada; produção permanece com `STRIDEBR_TEAMS_ENABLED=false` por padrão.
 
 A existência do código não representa lançamento público do Teams. O rollout real continua dependente de provider real e elegibilidade futura.
+
+## Core Mobile API read surface
+
+Além da surface Web, o Core possui agora uma surface Mobile read-only para o atleta autenticado: contexto/minhas equipes, roster athlete-safe e competitions institucionais. O Core continua sendo o único backend consumido pelo App e aplica uma segunda allowlist antes de serializar a projection do provider.
+
+Treinos institucionais permanecem no contrato único de Workouts do Core (`/api/v1/workouts/*`, `source=teams`, `kind=institutional`). Não existe API Mobile de administração de workspace, memberships, convites, planning staff, organizer management ou edição de resultados.
+
+Esse acréscimo não implementa transporte Core ↔ Teams. `remote` continua reservado; fixture é somente development; produção continua escondida por padrão com `STRIDEBR_TEAMS_ENABLED=false` e `STRIDEBR_TEAMS_SURFACE_MODE=disabled`.

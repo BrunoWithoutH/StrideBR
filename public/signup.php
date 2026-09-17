@@ -37,7 +37,6 @@ $trackingChoices = [
     'frequencia' => [stridebr_t('onboarding.tracking.consistency'), stridebr_t('onboarding.tracking.consistency_help')],
     'duracao' => [stridebr_t('onboarding.tracking.time'), stridebr_t('onboarding.tracking.time_help')],
     'distancia' => [stridebr_t('onboarding.tracking.distance'), stridebr_t('onboarding.tracking.distance_help')],
-    'elevacao' => [stridebr_t('onboarding.tracking.elevation'), stridebr_t('onboarding.tracking.elevation_help')],
     'metas' => [stridebr_t('onboarding.tracking.goals'), stridebr_t('onboarding.tracking.goals_help')],
     'carga' => [stridebr_t('onboarding.tracking.strength'), stridebr_t('onboarding.tracking.strength_help')],
 ];

@@ -82,6 +82,7 @@ return [
     'nav.connections' => 'Connections',
     'nav.friends' => 'Friends',
     'nav.trainer' => 'Coach and athletes',
+    'nav.training_trainer_desc' => 'Coaching relationship and follow-up.',
     'nav.sign_out' => 'Sign out',
     'nav.sign_in' => 'Sign in',
     'nav.notifications' => 'Notifications',

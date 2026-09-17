@@ -28,7 +28,6 @@ $trackingChoices = [
     'frequencia' => [stridebr_t('onboarding.tracking.consistency'), stridebr_t('onboarding.tracking.consistency_help')],
     'duracao' => [stridebr_t('onboarding.tracking.time'), stridebr_t('onboarding.tracking.time_help')],
     'distancia' => [stridebr_t('onboarding.tracking.distance'), stridebr_t('onboarding.tracking.distance_help')],
-    'elevacao' => [stridebr_t('onboarding.tracking.elevation'), stridebr_t('onboarding.tracking.elevation_help')],
     'metas' => [stridebr_t('onboarding.tracking.goals'), stridebr_t('onboarding.tracking.goals_help')],
     'carga' => [stridebr_t('onboarding.tracking.strength'), stridebr_t('onboarding.tracking.strength_help')],
 ];
@@ -74,6 +73,7 @@ $values = [
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     stridebr_verify_csrf();
+    $hiddenTracking = in_array('elevacao', array_map('strval', $values['tracking']), true) ? ['elevacao'] : [];
     $action = (string) ($_POST['action'] ?? 'finish');
 
     if ($action === 'skip') {
@@ -90,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $values['goals'] = array_values(array_intersect($allowedGoals, is_array($_POST['goals'] ?? null) ? $_POST['goals'] : []));
     $values['experience'] = trim((string) ($_POST['experience'] ?? ''));
     $values['weekly_frequency'] = max(0, min(7, (int) ($_POST['weekly_frequency'] ?? 0)));
-    $values['tracking'] = array_values(array_intersect($allowedTracking, is_array($_POST['tracking'] ?? null) ? $_POST['tracking'] : []));
+    $values['tracking'] = array_values(array_unique(array_merge($hiddenTracking, array_intersect($allowedTracking, is_array($_POST['tracking'] ?? null) ? $_POST['tracking'] : []))));
     $values['activity_visibility'] = (string) ($_POST['activity_visibility'] ?? $values['activity_visibility']);
     $selectedSports = array_values(array_intersect($modalidadeIds, is_array($_POST['sports'] ?? null) ? $_POST['sports'] : []));
 

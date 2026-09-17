@@ -18,7 +18,6 @@ HTML = r'''<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"></head>
         <article><span>Atividades</span><strong data-summary-activities>2</strong><small data-summary-period>7 dias</small></article>
         <article><span>Tempo</span><strong data-summary-time>1h07</strong></article>
         <article><span>Distância</span><strong data-summary-distance>13 km</strong></article>
-        <article><span>Elevação</span><strong data-summary-elevation>80 m</strong></article>
       </section>
       <section class="activity-history" data-activity-history data-initial-state="ready" data-initial-cursor="" data-initial-total="2">
         <div class="activity-list" data-activity-list>
@@ -94,7 +93,7 @@ MOCK = r'''() => {
     if (parsed.pathname.endsWith('/api/atividades-historico.php')) {
       window.__state.fetches.history++;
       const ids=['1','2'].filter(id=>!window.__state.deleted.has(id));
-      return Promise.resolve(response({ok:true,items:ids.map(listItem),next_cursor:null,resumo:{atividades:ids.length,tempo:ids.length===2?'1h07':'42 min',distancia:ids.length===2?'13 km':'8 km',elevacao:ids.length===2?'80 m':'0 m',periodo:'Últimos 7 dias'}}));
+      return Promise.resolve(response({ok:true,items:ids.map(listItem),next_cursor:null,resumo:{atividades:ids.length,tempo:ids.length===2?'1h07':'42 min',distancia:ids.length===2?'13 km':'8 km',periodo:'Últimos 7 dias'}}));
     }
     return Promise.resolve(response({ok:true}));
   };
@@ -104,6 +103,12 @@ def boot(page):
     page.set_content(HTML, wait_until='domcontentloaded')
     page.add_style_tag(path=str(ROOT / 'public/assets/css/atividades.css'))
     page.evaluate(MOCK)
+    page.evaluate("""() => {
+      const replace = history.replaceState.bind(history);
+      history.pushState = (state, title, url) => { window.__historyPush = {state, url:String(url||'')}; replace(state, title, location.href); };
+      history.replaceState = (state, title, url) => { window.__historyReplace = {state, url:String(url||'')}; replace(state, title, location.href); };
+      history.back = () => { replace({}, '', location.href); window.dispatchEvent(new PopStateEvent('popstate', {state:{}})); };
+    }""")
     page.add_script_tag(path=str(ROOT / 'public/assets/js/atividades.js'))
     page.evaluate("document.dispatchEvent(new Event('DOMContentLoaded'))")
     page.wait_for_timeout(20)

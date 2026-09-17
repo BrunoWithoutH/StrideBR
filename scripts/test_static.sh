@@ -27,6 +27,7 @@ node scripts/tests/test_share_route_scale.js
 node scripts/tests/test_share_route_export_png.js
 node scripts/tests/test_share_metric_defaults.js
 node scripts/tests/test_activity_sport_context.js
+node scripts/tests/test_activity_multiroute.js
 else
   printf '%s\n' '○ JavaScript syntax: node não encontrado, verificação ignorada'
 fi
@@ -103,11 +104,18 @@ php scripts/tests/test_mobile_workout_session_v1_static.php
 php scripts/tests/test_mobile_training_platform_v1_static.php
 php scripts/tests/test_mobile_progress_platform_v1_static.php
 php scripts/tests/test_activity_streams_analysis_pacer_v1_static.php
+php scripts/tests/test_pacer_v2_static.php
 php scripts/tests/test_web_activity_detail_v3_static.php
+php scripts/tests/test_activities_ux_recovery_static.php
+php scripts/tests/test_web_ux_review_fixes_v2_static.php
+php scripts/tests/test_activity_detail_main_takeover_static.php
+php scripts/tests/test_pacer_activity_density_polish_static.php
 php scripts/tests/test_web_pacer_v1_static.php
 php scripts/tests/test_web_product_expansion_v1_static.php
 php scripts/tests/test_production_stabilization_web_static.php
+php scripts/tests/test_web_recovery_ux_static.php
 php scripts/tests/test_teams_surface_core_v1_static.php
+php scripts/tests/test_institutional_api_surface_v1_static.php
 php scripts/tests/test_core_stabilization_postgresql_gate_static.php
 php scripts/tests/test_notification_contract_static.php
 php scripts/tests/test_activity_tools_menu_static.php

@@ -20,7 +20,7 @@ $tests=[
  ['number stepper enhancer exists', str_contains($js,'const enhanceNumberInput = input =>') && str_contains($js,'stride-number-stepper-button') && str_contains($js,'stepNumberInput(input, 1)')],
  ['number stepper honors min max step', str_contains($js,"input.getAttribute('step')") && str_contains($js,'input.min') && str_contains($js,'input.max')],
  ['route and privacy share content inset', str_contains($css,'> .activity-route-builder[data-route-compact="1"]') && str_contains($css,'> .activity-route-privacy-fields') && str_contains($css,'margin: 0 18px')],
- ['route gain moved to header state', str_contains($route,'data-route-subview-summary') && str_contains($route,'data-route-subview-status') && str_contains($route,'data-route-elevation hidden')],
+ ['route elevation hidden from web', str_contains($route,'data-route-subview-summary') && str_contains($route,'data-route-subview-status') && !str_contains($route,'data-route-elevation') && !str_contains($route,'activity.elevation')],
  ['route child notifies parent', str_contains($bridge,'stridebr:activity-route-subview-open') && str_contains($bridge,'stridebr:activity-route-subview-close')],
  ['parent modal owns route state', str_contains($js,'setActivityEditRouteSubview') && str_contains($js,"classList.toggle('is-route-subview'") && str_contains($js,'stridebr:activity-route-parent-resized')],
  ['parent route modal uses workspace size', str_contains($css,'.activity-edit-modal.is-route-subview .activity-edit-modal-panel') && str_contains($css,'width: min(1560px,96vw)') && str_contains($css,'calc(100dvh - 24px)')],

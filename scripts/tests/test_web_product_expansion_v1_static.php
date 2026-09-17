@@ -105,12 +105,12 @@ $assert(str_contains($scheduleJs, 'syncEditorRoute') && str_contains($scheduleJs
 $assert(str_contains($cronograma, 'routeSavedValidateForWorkout(') && str_contains($cronograma, 'idrota_salva = :rota') && str_contains($cronograma, "\$payload['route_id'] = \$requestedRouteId"), 'cronograma precisa persistir/propagar Route pelo service compartilhado.');
 $assert(str_contains($header, '/user/rotas.php'), 'Minhas Rotas precisa estar acessível na navegação.');
 
-$assert(str_contains($home, 'Próximo treino') && str_contains($home, 'Próxima competição') && str_contains($home, 'Últimos 28 dias') && str_contains($home, 'Última atividade'), 'Home V2 precisa priorizar treino, competição, progresso e última atividade.');
-$assert(str_contains($home, 'Pacer pronto') && str_contains($home, 'Criar Pacer'), 'Home V2 precisa expor Pacer útil e quick action.');
-$assert(str_contains($home, 'Registrar atividade') && str_contains($home, 'Novo treino') && str_contains($home, 'Importar atividade') && str_contains($home, 'class="is-primary"'), 'Home V2 precisa manter toolbar de ações rápidas com prioridades visuais.');
-$assert(str_contains($home, 'data-home-last-map') && str_contains($home, '/assets/js/web-map.js') && str_contains($home, '/assets/js/dashboard-v2.js'), 'última Activity com rota precisa usar mini mapa OSM centralizado.');
-$assert(str_contains($homeJs, 'IntersectionObserver') && str_contains($homeJs, 'StrideBRWebMap'), 'mini mapa da Home precisa ser lazy.');
-$assert(str_contains($homeCss, '@media') && str_contains($homeCss, '.dashboard-v2-grid') && str_contains($homeCss, '.dashboard-v2-last-map'), 'Home V2 precisa ser responsiva e dimensionar mini mapa.');
-$assert(!str_contains($home, 'data-dashboard-module="upcoming"') && !str_contains($home, 'data-dashboard-module="recent"'), 'Home V2 não deve duplicar os módulos antigos de próximo treino/Activity recente.');
+$assert(str_contains($home, 'dashboard-tomorrow-context') && str_contains($home, 'Últimos 28 dias') && str_contains($home, 'data-dashboard-module="recent"') && !str_contains($home, '>Próximo treino<') && !str_contains($home, '>Última atividade<'), 'Home precisa concentrar Hoje/Amanhã, semana, faixa de 28 dias e atividades recentes sem cards redundantes.');
+$assert(str_contains($home, 'dashboard-home-rail') && str_contains($home, 'Próximas competições') && str_contains($home, 'count($nextCompetitions) >= 3'), 'Competições precisam ocupar rail compacto e limitar a três itens.');
+$assert(str_contains($home, 'dashboard-pacer-rail') && str_contains($home, 'Novo treino') && str_contains($home, 'Importar atividade') && !preg_match('/dashboard-secondary-actions[^\n]+Criar Pacer/', $home), 'Pacer deve viver no rail e ações secundárias precisam evitar CTA duplicada.');
+$assert(str_contains($home, 'dashboard-button-primary') && str_contains($home, 'home.log_activity') && str_contains($home, 'home.record_gps'), 'ações primárias de gravação e registro precisam permanecer no topo.');
+$assert(!str_contains($home, 'data-home-last-map') && !str_contains($home, 'dashboard-v2-last-map'), 'Home não deve carregar mapa da última atividade.');
+$assert(str_contains($homeCss, '.dashboard-home-layout') && str_contains($homeCss, 'minmax(280px,320px)') && str_contains($homeCss, '.dashboard-period-strip') && str_contains($homeCss, '@media(max-width:900px)'), 'Home precisa manter main + right rail e reflow responsivo.');
+$assert(!str_contains($home, 'data-dashboard-module="upcoming"') && str_contains($home, 'data-dashboard-module="recent"'), 'Home deve recuperar somente o módulo recente, sem reintroduzir o antigo próximo treino.');
 
 printf("✓ Web Product Expansion v1 static: %d assertions\n", $checks);

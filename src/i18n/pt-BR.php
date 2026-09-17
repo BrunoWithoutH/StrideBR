@@ -82,6 +82,7 @@ return [
     'nav.connections' => 'Conexões',
     'nav.friends' => 'Amigos',
     'nav.trainer' => 'Treinador e atletas',
+    'nav.training_trainer_desc' => 'Acompanhamento e vínculo com treinador.',
     'nav.sign_out' => 'Sair',
     'nav.sign_in' => 'Entrar',
     'nav.notifications' => 'Notificações',

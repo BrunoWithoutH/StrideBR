@@ -36,7 +36,7 @@ const runningBase = {
   ]
 }
 let metrics = api.availableShareMetrics({...runningBase, ganho_m:82})
-check(JSON.stringify(keys(metrics)) === JSON.stringify(['distance','duration','pace','elevation']), 'corrida com elevação deve priorizar distância/duração/ritmo/elevação')
+check(JSON.stringify(keys(metrics)) === JSON.stringify(['distance','duration','pace']), 'corrida não deve expor elevação no share composer')
 
 metrics = api.availableShareMetrics({...runningBase, ganho_m:null, metricas:[...runningBase.metricas,{key:'calories',rotulo:'Calorias',valor:'410 kcal'}]})
 check(JSON.stringify(keys(metrics)) === JSON.stringify(['distance','duration','pace','calories']), 'sem elevação deve usar calorias como quarta métrica quando disponível')

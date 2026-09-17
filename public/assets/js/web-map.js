@@ -71,11 +71,18 @@
         states.delete(element)
         element.replaceChildren()
     }
-    const mount = async (element, coordinates, options = {}) => {
+    const normalizeRoute = route => {
+        if (Array.isArray(route)) return {latLngs: normalizeCoordinates(route), breakIndices: []}
+        return {
+            latLngs: normalizeCoordinates(route?.coordinates),
+            breakIndices: Array.isArray(route?.breakIndices) ? route.breakIndices : []
+        }
+    }
+    const mountMany = async (element, routes, options = {}) => {
         if (!element) return null
         destroy(element)
-        const latLngs = normalizeCoordinates(coordinates)
-        if (latLngs.length < 2) return null
+        const normalizedRoutes = (Array.isArray(routes) ? routes : []).map(normalizeRoute).filter(route => route.latLngs.length >= 2)
+        if (!normalizedRoutes.length) return null
         const L = await ensureLeaflet()
         element.replaceChildren()
         const map = L.map(element, {
@@ -85,44 +92,58 @@
             keyboard: true
         })
         const basemap = window.StrideBRBasemaps?.attach?.(map, {initial: 'street', remember: true, controls: options.controls !== false}) || null
-        const state = {map, basemap, resizeObserver: null, latLngs, routeLayers: []}
+        const state = {map, basemap, resizeObserver: null, routes: normalizedRoutes, routeLayers: []}
         states.set(element, state)
-        const redraw = breakIndices => {
+        const redraw = overrideBreakIndices => {
             state.routeLayers.forEach(layer => layer.remove())
             state.routeLayers = []
-            splitSegments(latLngs, breakIndices).forEach(segment => {
-                const layer = L.polyline(segment, {
-                    color: routeColor(),
-                    weight: options.weight || 5,
-                    opacity: .96,
-                    lineCap: 'round',
-                    lineJoin: 'round'
-                }).addTo(map)
-                state.routeLayers.push(layer)
+            normalizedRoutes.forEach((route, routeIndex) => {
+                const breakIndices = overrideBreakIndices && normalizedRoutes.length === 1 ? overrideBreakIndices : route.breakIndices
+                splitSegments(route.latLngs, breakIndices).forEach(segment => {
+                    const layer = L.polyline(segment, {
+                        color: routeColor(),
+                        weight: options.weight || 5,
+                        opacity: .92,
+                        lineCap: 'round',
+                        lineJoin: 'round'
+                    }).addTo(map)
+                    layer._stridebrRouteIndex = routeIndex
+                    state.routeLayers.push(layer)
+                })
             })
         }
-        redraw(options.breakIndices || [])
-        const start = latLngs[0]
-        const finish = latLngs[latLngs.length - 1]
+        redraw(null)
+        const allLatLngs = normalizedRoutes.flatMap(route => route.latLngs)
+        const start = normalizedRoutes[0].latLngs[0]
+        const lastRoute = normalizedRoutes[normalizedRoutes.length - 1]
+        const finish = lastRoute.latLngs[lastRoute.latLngs.length - 1]
         L.circleMarker(start, {radius: 6, weight: 3, color: routeColor(), fillColor: '#ffffff', fillOpacity: 1}).bindTooltip('Início', {direction: 'top'}).addTo(map)
         L.circleMarker(finish, {radius: 6, weight: 3, color: '#111827', fillColor: '#ffffff', fillOpacity: 1}).bindTooltip('Fim', {direction: 'top'}).addTo(map)
-        const bounds = L.latLngBounds(latLngs)
+        const bounds = L.latLngBounds(allLatLngs)
+        let fitFrame = 0
         const fit = () => {
+            fitFrame = 0
+            if (!element.isConnected || element.clientWidth <= 0 || element.clientHeight <= 0) return
             map.invalidateSize({pan: false})
             map.fitBounds(bounds, {padding: options.padding || [24, 24], maxZoom: options.maxZoom || 16, animate: false})
         }
-        requestAnimationFrame(fit)
-        window.setTimeout(fit, 120)
+        const scheduleFit = () => {
+            if (fitFrame) cancelAnimationFrame(fitFrame)
+            fitFrame = requestAnimationFrame(fit)
+        }
+        scheduleFit()
+        window.setTimeout(scheduleFit, 120)
         if (window.ResizeObserver) {
-            state.resizeObserver = new ResizeObserver(() => map.invalidateSize({pan: false}))
+            state.resizeObserver = new ResizeObserver(scheduleFit)
             state.resizeObserver.observe(element)
         }
         return {
             map,
-            fit,
+            fit: scheduleFit,
             setBreakIndices: breakIndices => redraw(breakIndices),
             destroy: () => destroy(element)
         }
     }
-    window.StrideBRWebMap = Object.freeze({ensureLeaflet, mount, destroy})
+    const mount = (element, coordinates, options = {}) => mountMany(element, [{coordinates, breakIndices: options.breakIndices || []}], options)
+    window.StrideBRWebMap = Object.freeze({ensureLeaflet, mount, mountMany, destroy})
 })()

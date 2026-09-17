@@ -4,6 +4,7 @@
     const storageKey = 'stridebr.map.basemap'
     const states = new WeakMap()
     const validIds = new Set(['street', 'satellite', 'terrain'])
+    const visibleIds = new Set(['street', 'satellite'])
     const i18n = () => window.StrideBRI18n || null
     const t = (key, fallback) => i18n()?.t?.(key, {}, fallback) || fallback
     const definitions = () => ({
@@ -83,7 +84,7 @@
     const preferred = () => {
         try {
             const value = localStorage.getItem(storageKey)
-            return validIds.has(value) ? value : 'street'
+            return visibleIds.has(value) ? value : 'street'
         } catch (_) {
             return 'street'
         }
@@ -94,7 +95,7 @@
     const label = id => ({
         street: t('route.basemap.map', 'Mapa'),
         satellite: t('route.basemap.satellite', 'Satélite'),
-        terrain: t('route.basemap.terrain', 'Relevo')
+        terrain: t('route.basemap.map', 'Mapa')
     }[id] || id)
     const syncControl = state => {
         if (!state?.control) return
@@ -151,12 +152,12 @@
         state.activeId = targetId
         syncControl(state)
         if (options.persistChoice !== false && state.remember) persist(targetId)
-        if (requested !== targetId && options.announceFailure !== false) announce(state, t('route.basemap.arcgis_unavailable', 'Satélite e Relevo exigem a configuração de mapas.'))
+        if (requested !== targetId && options.announceFailure !== false) announce(state, t('route.basemap.arcgis_unavailable', 'Satélite exige a configuração de mapas.'))
         return true
     }
     const createControl = state => {
         if (!window.L?.Control) return null
-        const unavailable = t('route.basemap.arcgis_unavailable', 'Satélite e Relevo exigem a configuração de mapas.')
+        const unavailable = t('route.basemap.arcgis_unavailable', 'Satélite exige a configuração de mapas.')
         const control = window.L.control({position: 'topright'})
         control.onAdd = () => {
             const root = document.createElement('div')
@@ -172,7 +173,7 @@
             summary.innerHTML = `<span>${t('route.basemap.layers', 'Camadas')}</span><small data-stride-basemap-current>${label(state.activeId)}</small>`
             const menu = document.createElement('div')
             menu.className = 'stride-map-basemap-menu'
-            ;['street', 'satellite', 'terrain'].forEach(id => {
+            ;['street', 'satellite'].forEach(id => {
                 const definition = definitions()[id]
                 const makeButton = () => {
                     const button = document.createElement('button')

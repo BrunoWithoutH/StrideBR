@@ -62,13 +62,14 @@ $headerMenuLink = static function (string $href, string $label, string $icon, st
         <button class="nav-toggle" type="button" data-nav-toggle aria-expanded="false" aria-label="<?php echo stridebr_e(stridebr_t('nav.open_navigation')); ?>">☰</button>
         <nav class="main-nav" data-nav-menu aria-label="<?php echo stridebr_e(stridebr_t('nav.open_navigation')); ?>">
             <a class="<?php echo trim($headerActive(['/home.php'])); ?>" href="/home.php"><?php echo stridebr_e(stridebr_t('nav.home')); ?></a>
-            <details data-header-menu="hover-toggle" class="nav-menu-group<?php echo $headerActive(['/user/cronogramatreinos.php', '/user/agenda-mensal.php', '/user/biblioteca.php', '/user/pacer.php', '/user/exercicioscronograma.php', '/user/exerciciostreinomodelo.php']); ?>">
+            <details data-header-menu="hover-toggle" class="nav-menu-group<?php echo $headerActive(['/user/cronogramatreinos.php', '/user/agenda-mensal.php', '/user/biblioteca.php', '/user/pacer.php', '/user/treinador.php', '/user/exercicioscronograma.php', '/user/exerciciostreinomodelo.php']); ?>">
                 <summary><?php echo stridebr_e(stridebr_t('nav.training')); ?> <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 6 3.5 3.5L11.5 6"></path></svg></summary>
                 <div class="nav-dropdown">
                     <a href="/user/cronogramatreinos.php"><strong><?php echo stridebr_e(stridebr_t('nav.schedules')); ?></strong><span><?php echo stridebr_e(stridebr_t('nav.training_schedules_desc')); ?></span></a>
                     <a href="/user/agenda-mensal.php"><strong><?php echo stridebr_e(stridebr_t('nav.agenda')); ?></strong><span><?php echo stridebr_e(stridebr_t('nav.training_agenda_desc')); ?></span></a>
                     <a href="/user/biblioteca.php"><strong><?php echo stridebr_e(stridebr_t('nav.library')); ?></strong><span><?php echo stridebr_e(stridebr_t('nav.training_library_desc')); ?></span></a>
                     <a href="/user/pacer.php"><strong>Pacer</strong><span>Estratégias de pace para treinos e provas.</span></a>
+                    <a href="/user/treinador.php"><strong><?php echo stridebr_e(stridebr_t('nav.trainer')); ?></strong><span><?php echo stridebr_e(stridebr_t('nav.training_trainer_desc')); ?></span></a>
                 </div>
             </details>
             <a class="<?php echo trim($headerActive(['/user/atividades.php', '/user/editatividade.php', '/user/equipamentos.php', '/user/gravar-atividade.php'])); ?>" href="/user/atividades.php"><?php echo stridebr_e(stridebr_t('nav.activities')); ?></a>

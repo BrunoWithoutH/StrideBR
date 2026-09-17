@@ -63,7 +63,6 @@ $activityRouteBase = is_array($activityRouteBaseRaw) ? (json_encode($activityRou
             </div>
             <div><span><?php echo stridebr_e(stridebr_t('route.total')); ?></span><strong data-route-total></strong></div>
         </div>
-        <div class="activity-route-status" aria-live="polite"><span data-route-points><?php echo stridebr_e(stridebr_t('route.tap_points')); ?></span><span data-route-elevation hidden><?php echo stridebr_e(stridebr_t('route.estimated_elevation_after')); ?></span></div>
-        <small class="activity-route-attribution"><?php echo stridebr_e(stridebr_t('route.elevation_attribution')); ?></small>
+        <div class="activity-route-status" aria-live="polite"><span data-route-points><?php echo stridebr_e(stridebr_t('route.tap_points')); ?></span></div>
     </div>
 </section>

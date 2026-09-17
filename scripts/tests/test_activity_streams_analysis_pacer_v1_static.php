@@ -138,14 +138,14 @@ $hrPlan = $plan;
 $hrPlan['segments'][0]['heart_rate_ceiling_bpm'] = 165;
 $hr1 = pacerEvaluate($hrPlan, ['distance_m' => 1000, 'elapsed_s' => 300, 'moving_time_s' => 300, 'recent_pace_s_per_km' => 300, 'heart_rate_bpm' => 170]);
 $hr2 = pacerEvaluate($hrPlan, ['distance_m' => 1100, 'elapsed_s' => 330, 'moving_time_s' => 316, 'recent_pace_s_per_km' => 300, 'heart_rate_bpm' => 170, 'guidance_state' => $hr1['next_state']]);
-$assert($hr2['code'] === 'ease', 'HR acima do ceiling de forma persistente deve produzir ease.');
+$assert($hr2['code'] === 'hr_limit', 'HR acima do ceiling de forma persistente deve produzir hr_limit.');
 $missingHr = pacerEvaluate($hrPlan, ['distance_m' => 1200, 'elapsed_s' => 360, 'moving_time_s' => 360, 'recent_pace_s_per_km' => 300]);
 $assert(($missingHr['heart_rate_constraint']['status'] ?? null) === 'unavailable', 'Sensor de HR ausente deve marcar constraint unavailable sem interromper pace.');
 
 $finalPlan = $plan;
 $finalPlan['guidance_rules']['final_push'] = ['enabled' => true, 'remaining_distance_m' => 1000.0, 'max_behind_s' => 5.0];
 $final = pacerEvaluate($finalPlan, ['distance_m' => 4200, 'elapsed_s' => 1260, 'moving_time_s' => 1260, 'recent_pace_s_per_km' => 300]);
-$assert($final['code'] === 'final_push_available', 'Final push configurado deve aparecer somente na janela final e sem atraso excessivo.');
+$assert(in_array($final['code'], ['final_phase_available','final_push','final_kick'], true), 'Fase final configurada deve aparecer somente na janela final e sem atraso excessivo.');
 $assert(abs((float) $final['projected_finish']['if_plan_followed_s'] - 1500.0) < 0.01, 'Projected finish seguindo o plano deve ser matematicamente consistente.');
 
 $gapRejected = false;

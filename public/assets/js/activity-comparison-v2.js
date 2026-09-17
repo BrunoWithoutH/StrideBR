@@ -7,7 +7,7 @@
     try{payload=JSON.parse(dataNode.textContent||'{}')}catch{return}
     const samples=key=>Array.isArray(payload[key]?.streams?.samples)?payload[key].streams.samples:[]
     const available=[...new Set([...(payload.a?.streams?.available_streams||[]),...(payload.b?.streams?.available_streams||[])])]
-    const definitions={pace:{label:'Pace',key:'pace',invert:true},speed:{label:'Velocidade',key:'speed',invert:false},heart_rate:{label:'FC',key:'heart_rate',invert:false},altitude:{label:'Elevação',key:'altitude',invert:false},cadence:{label:'Cadência',key:'cadence',invert:false}}
+    const definitions={pace:{label:'Pace',key:'pace',invert:true},speed:{label:'Velocidade',key:'speed',invert:false},heart_rate:{label:'FC',key:'heart_rate',invert:false},cadence:{label:'Cadência',key:'cadence',invert:false}}
     const metrics=available.filter(item=>definitions[item])
     let active=metrics[0]||null
     const path=(rows,def,min,max,maxX)=>{

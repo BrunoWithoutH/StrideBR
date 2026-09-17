@@ -102,7 +102,6 @@ $autostart = isset($_GET['autostart']) && (string) $_GET['autostart'] !== '0';
                         <li><?php echo stridebr_e(stridebr_t('gps.saved_time_pauses')); ?></li>
                         <li><?php echo stridebr_e(stridebr_t('gps.saved_points')); ?></li>
                         <li><?php echo stridebr_e(stridebr_t('gps.saved_distance')); ?></li>
-                        <li><?php echo stridebr_e(stridebr_t('gps.saved_elevation')); ?></li>
                         <li><?php echo stridebr_e(stridebr_t('gps.saved_laps')); ?></li>
                     </ul>
                     <p><?php echo stridebr_e(stridebr_t('gps.offline_help')); ?></p>
@@ -123,7 +122,7 @@ $autostart = isset($_GET['autostart']) && (string) $_GET['autostart'] !== '0';
                     <article class="gps-primary-metric"><span><?php echo stridebr_e(stridebr_t('activity.summary.time')); ?></span><strong data-gps-time>00:00:00</strong></article>
                     <article><span><?php echo stridebr_e(stridebr_t('activity.summary.distance')); ?></span><strong data-gps-distance>0,00 km</strong></article>
                     <article><span data-gps-pace-label><?php echo stridebr_e(stridebr_t('gps.pace')); ?></span><strong data-gps-pace>— /km</strong></article>
-                    <article><span><?php echo stridebr_e(stridebr_t('activity.summary.elevation')); ?></span><strong data-gps-elevation>— m</strong></article>
+                    <span data-gps-elevation hidden>— m</span>
                     <article><span><?php echo stridebr_e(stridebr_t('gps.current_accuracy')); ?></span><strong data-gps-accuracy-large>—</strong></article>
                     <article data-gps-goal-card hidden><span><?php echo stridebr_e(stridebr_t('gps.goal')); ?></span><strong data-gps-goal-progress>—</strong></article>
                 </div>
@@ -159,7 +158,7 @@ $autostart = isset($_GET['autostart']) && (string) $_GET['autostart'] !== '0';
                         <label class="gps-field is-wide"><?php echo stridebr_e(stridebr_t('common.title')); ?><input type="text" maxlength="255" data-gps-review-title placeholder="<?php echo stridebr_e(stridebr_t('gps.title_placeholder')); ?>"></label>
                         <label class="gps-field"><?php echo stridebr_e(stridebr_t('gps.distance_km')); ?><input type="number" min="0" step="0.01" inputmode="decimal" data-gps-review-distance></label>
                         <label class="gps-field"><?php echo stridebr_e(stridebr_t('activity.summary.time')); ?><input type="text" inputmode="numeric" placeholder="00:45:20" data-gps-review-duration></label>
-                        <label class="gps-field"><?php echo stridebr_e(stridebr_t('gps.positive_elevation_m')); ?><input type="number" min="0" step="1" inputmode="decimal" data-gps-review-elevation></label>
+                        <input type="hidden" data-gps-review-elevation>
                         <label class="gps-field"><?php echo stridebr_e(stridebr_t('activity.who_can_see')); ?><select data-gps-review-visibility><option value="privado"<?php echo $defaults['visibility'] === 'privado' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('activity.only_me')); ?></option><option value="amigos"<?php echo $defaults['visibility'] === 'amigos' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('common.friends')); ?></option><option value="publico"<?php echo $defaults['visibility'] === 'publico' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('common.public')); ?></option></select></label>
                         <label class="gps-field"><?php echo stridebr_e(stridebr_t('gps.how_was_it')); ?><select data-gps-review-effort><option value=""><?php echo stridebr_e(stridebr_t('schedule.not_inform')); ?></option><option value="2"><?php echo stridebr_e(stridebr_t('gps.effort_very_light')); ?></option><option value="4"><?php echo stridebr_e(stridebr_t('schedule.light')); ?></option><option value="6"><?php echo stridebr_e(stridebr_t('schedule.moderate')); ?></option><option value="8"><?php echo stridebr_e(stridebr_t('gps.effort_hard')); ?></option><option value="10"><?php echo stridebr_e(stridebr_t('gps.effort_very_hard')); ?></option></select></label>
                         <label class="gps-field"><?php echo stridebr_e(stridebr_t('settings.hide_route_start')); ?><input type="number" min="0" max="10000" step="50" value="<?php echo (int) $defaults['hide_route_start_m']; ?>" data-gps-review-hide-start></label>

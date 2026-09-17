@@ -47,18 +47,256 @@ function stridebr_teams_surface_provider_reset_call_count(): void
     $GLOBALS['stridebr_teams_surface_provider_calls'] = 0;
 }
 
+function stridebr_teams_surface_fixture_identity_map(): array
+{
+    return ['brunowithouth' => 'fixture:bruno-evaristo'];
+}
+
 function stridebr_teams_surface_identity_for_core_user(PDO $pdo, string $userId): ?string
 {
     if (!stridebr_teams_enabled()) return null;
-    $stmt = $pdo->prepare("SELECT username, nomeusuario, COALESCE(NULLIF(nome_exibicao,''), nomeusuario) AS display_name FROM usuarios WHERE idusuario = :id AND statususuario = 'Ativo' LIMIT 1");
+    $stmt = $pdo->prepare("SELECT username FROM usuarios WHERE idusuario = :id AND statususuario = 'Ativo' LIMIT 1");
     $stmt->execute([':id' => $userId]);
-    $user = $stmt->fetch();
-    if (!$user) return null;
-    $candidates = [strtolower(trim((string) ($user['username'] ?? ''))), strtolower(trim((string) ($user['nomeusuario'] ?? ''))), strtolower(trim((string) ($user['display_name'] ?? '')))];
-    foreach ($candidates as $candidate) {
-        if (in_array($candidate, ['brunowithouth', 'bruno', 'bruno evaristo', 'bruno evaristo pinheiro'], true)) return 'fixture:bruno-evaristo';
+    $username = strtolower(trim((string) ($stmt->fetchColumn() ?: '')));
+    if ($username === '') return null;
+    return stridebr_teams_surface_fixture_identity_map()[$username] ?? null;
+}
+
+function stridebr_teams_surface_string_list(mixed $value): array
+{
+    if (!is_array($value)) return [];
+    $items = [];
+    foreach ($value as $item) {
+        $item = trim((string) $item);
+        if ($item !== '' && !in_array($item, $items, true)) $items[] = $item;
     }
-    return null;
+    return $items;
+}
+
+function stridebr_teams_surface_named_ref(mixed $value, string $nameKey = 'name'): ?array
+{
+    if (!is_array($value)) return null;
+    $ref = trim((string) ($value['ref'] ?? ''));
+    $name = trim((string) ($value[$nameKey] ?? ''));
+    if ($ref === '' && $name === '') return null;
+    return ['ref' => $ref !== '' ? $ref : null, $nameKey => $name !== '' ? $name : null];
+}
+
+function stridebr_teams_surface_team_projection(mixed $value): ?array
+{
+    if (!is_array($value)) return null;
+    $team = stridebr_teams_surface_named_ref($value);
+    if ($team === null) return null;
+    $sport = trim((string) ($value['sport'] ?? ''));
+    if ($sport !== '') $team['sport'] = $sport;
+    return $team;
+}
+
+function stridebr_teams_surface_season_projection(mixed $value): ?array
+{
+    if (!is_array($value)) return null;
+    $ref = trim((string) ($value['ref'] ?? ''));
+    $label = trim((string) ($value['label'] ?? ''));
+    if ($ref === '' && $label === '') return null;
+    return ['ref' => $ref !== '' ? $ref : null, 'label' => $label !== '' ? $label : null];
+}
+
+function stridebr_teams_surface_context_projection(mixed $value): ?array
+{
+    if (!is_array($value)) return null;
+    $organization = stridebr_teams_surface_named_ref($value['organization'] ?? null);
+    $team = stridebr_teams_surface_team_projection($value['team'] ?? null);
+    $season = stridebr_teams_surface_season_projection($value['season'] ?? null);
+    if ($organization === null || $team === null || $season === null) return null;
+    $group = trim((string) ($value['group'] ?? ''));
+    return [
+        'organization' => $organization,
+        'team' => $team,
+        'season' => $season,
+        'roles' => stridebr_teams_surface_string_list($value['roles'] ?? []),
+        'group' => $group !== '' ? $group : null,
+    ];
+}
+
+function stridebr_teams_surface_athlete_context_projection(mixed $value): ?array
+{
+    if (!is_array($value)) return null;
+    $teams = [];
+    foreach ((array) ($value['my_teams'] ?? []) as $team) {
+        $projected = stridebr_teams_surface_context_projection($team);
+        if ($projected !== null) $teams[] = $projected;
+    }
+    $personRef = trim((string) ($value['person_ref'] ?? ''));
+    $seasonRef = trim((string) ($value['season_ref'] ?? ''));
+    return ['person_ref' => $personRef !== '' ? $personRef : null, 'season_ref' => $seasonRef !== '' ? $seasonRef : null, 'my_teams' => $teams];
+}
+
+function stridebr_teams_surface_roster_member_projection(mixed $value, bool $includeGroup): ?array
+{
+    if (!is_array($value)) return null;
+    $personRef = trim((string) ($value['person_ref'] ?? ''));
+    $displayName = trim((string) ($value['display_name'] ?? ''));
+    if ($personRef === '' || $displayName === '') return null;
+    $result = ['person_ref' => $personRef, 'display_name' => $displayName, 'roles' => stridebr_teams_surface_string_list($value['roles'] ?? [])];
+    if ($includeGroup) {
+        $group = trim((string) ($value['group'] ?? ''));
+        $result['group'] = $group !== '' ? $group : null;
+    }
+    return $result;
+}
+
+function stridebr_teams_surface_roster_projection(mixed $value): ?array
+{
+    if (!is_array($value)) return null;
+    $athletes = [];
+    foreach ((array) ($value['athletes'] ?? []) as $member) {
+        $projected = stridebr_teams_surface_roster_member_projection($member, true);
+        if ($projected !== null) $athletes[] = $projected;
+    }
+    $staff = [];
+    foreach ((array) ($value['staff'] ?? []) as $member) {
+        $projected = stridebr_teams_surface_roster_member_projection($member, false);
+        if ($projected !== null) $staff[] = $projected;
+    }
+    return ['athletes' => $athletes, 'staff' => $staff];
+}
+
+function stridebr_teams_surface_target_projection(mixed $value): ?array
+{
+    if (!is_array($value)) return null;
+    $result = [];
+    foreach (['type', 'unit'] as $key) {
+        $text = trim((string) ($value[$key] ?? ''));
+        if ($text !== '') $result[$key] = $text;
+    }
+    foreach (['min', 'max', 'value'] as $key) if (isset($value[$key]) && is_numeric($value[$key])) $result[$key] = $value[$key] + 0;
+    return $result !== [] ? $result : null;
+}
+
+function stridebr_teams_surface_structure_projection(mixed $value): array
+{
+    $steps = [];
+    foreach ((array) $value as $index => $step) {
+        if (!is_array($step)) continue;
+        $name = trim((string) ($step['name'] ?? ''));
+        if ($name === '') continue;
+        $projected = ['step_type' => trim((string) ($step['step_type'] ?? 'work')) ?: 'work', 'name' => $name];
+        foreach (['duration_s', 'distance_m', 'sets', 'rest_s', 'repeat_count', 'order'] as $key) if (isset($step[$key]) && is_numeric($step[$key])) $projected[$key] = $step[$key] + 0;
+        if (isset($step['repetitions'])) $projected['repetitions'] = trim((string) $step['repetitions']);
+        $target = stridebr_teams_surface_target_projection($step['target'] ?? null);
+        if ($target !== null) $projected['target'] = $target;
+        if (!isset($projected['order'])) $projected['order'] = $index + 1;
+        $steps[] = $projected;
+    }
+    return $steps;
+}
+
+function stridebr_teams_surface_capabilities_projection(mixed $value): array
+{
+    $value = is_array($value) ? $value : [];
+    return [
+        'can_start_session' => !empty($value['can_start_session']),
+        'can_start_gps' => !empty($value['can_start_gps']),
+        'can_quick_register' => !empty($value['can_quick_register']),
+        'can_complete_manually' => !empty($value['can_complete_manually']),
+    ];
+}
+
+function stridebr_teams_surface_permissions_projection(mixed $value): array
+{
+    $value = is_array($value) ? $value : [];
+    return [
+        'can_edit' => !empty($value['can_edit']),
+        'can_reschedule' => !empty($value['can_reschedule']),
+        'can_cancel' => !empty($value['can_cancel']),
+        'can_delete' => !empty($value['can_delete']),
+    ];
+}
+
+function stridebr_teams_surface_training_projection(mixed $value): ?array
+{
+    if (!is_array($value)) return null;
+    $trainingRef = trim((string) ($value['training_ref'] ?? ''));
+    $recipientRef = trim((string) ($value['recipient_ref'] ?? ''));
+    $title = trim((string) ($value['title'] ?? ''));
+    $date = trim((string) ($value['date'] ?? ''));
+    if ($trainingRef === '' || $recipientRef === '' || $title === '' || $date === '') return null;
+    $planningBlock = stridebr_teams_surface_named_ref($value['planning_block'] ?? null);
+    $competition = stridebr_teams_surface_named_ref($value['competition'] ?? null);
+    return [
+        'training_ref' => $trainingRef,
+        'recipient_ref' => $recipientRef,
+        'title' => $title,
+        'date' => $date,
+        'time' => trim((string) ($value['time'] ?? '')) ?: null,
+        'status' => trim((string) ($value['status'] ?? '')),
+        'sport' => trim((string) ($value['sport'] ?? '')),
+        'planned_duration_s' => isset($value['planned_duration_s']) && is_numeric($value['planned_duration_s']) ? (int) $value['planned_duration_s'] : null,
+        'planned_distance_m' => isset($value['planned_distance_m']) && is_numeric($value['planned_distance_m']) ? (float) $value['planned_distance_m'] : null,
+        'organization' => stridebr_teams_surface_named_ref($value['organization'] ?? null),
+        'team' => stridebr_teams_surface_team_projection($value['team'] ?? null),
+        'season' => stridebr_teams_surface_season_projection($value['season'] ?? null),
+        'planning_block' => $planningBlock,
+        'competition' => $competition,
+        'structure' => stridebr_teams_surface_structure_projection($value['structure'] ?? []),
+        'permissions' => stridebr_teams_surface_permissions_projection($value['permissions'] ?? []),
+        'capabilities' => stridebr_teams_surface_capabilities_projection($value['capabilities'] ?? []),
+    ];
+}
+
+function stridebr_teams_surface_result_projection(mixed $value): ?array
+{
+    if (!is_array($value)) return null;
+    $result = [];
+    foreach (['phase', 'placement_scope', 'result', 'classification', 'medal'] as $key) {
+        $text = trim((string) ($value[$key] ?? ''));
+        if ($text !== '') $result[$key] = $text;
+    }
+    if (isset($value['position']) && is_numeric($value['position'])) $result['position'] = (int) $value['position'];
+    $provenance = $value['provenance'] ?? null;
+    if (is_array($provenance)) {
+        $safe = [];
+        foreach (['source_role', 'status'] as $key) {
+            $text = trim((string) ($provenance[$key] ?? ''));
+            if ($text !== '') $safe[$key] = $text;
+        }
+        if ($safe !== []) $result['provenance'] = $safe;
+    } else {
+        $text = trim((string) ($provenance ?? ''));
+        if ($text !== '') $result['provenance'] = $text;
+    }
+    return $result !== [] ? $result : null;
+}
+
+function stridebr_teams_surface_competition_projection(mixed $value): ?array
+{
+    if (!is_array($value)) return null;
+    $ref = trim((string) ($value['competition_ref'] ?? ''));
+    $name = trim((string) ($value['display_name'] ?? ''));
+    if ($ref === '' || $name === '') return null;
+    $entries = [];
+    foreach ((array) ($value['entries'] ?? []) as $entry) {
+        if (!is_array($entry)) continue;
+        $entryRef = trim((string) ($entry['entry_ref'] ?? ''));
+        $programItem = trim((string) ($entry['program_item'] ?? ''));
+        if ($entryRef === '' || $programItem === '') continue;
+        $results = [];
+        foreach ((array) ($entry['results'] ?? []) as $result) {
+            $projected = stridebr_teams_surface_result_projection($result);
+            if ($projected !== null) $results[] = $projected;
+        }
+        $phase = trim((string) ($entry['phase'] ?? ''));
+        $entries[] = ['entry_ref' => $entryRef, 'program_item' => $programItem, 'phase' => $phase !== '' ? $phase : null, 'results' => $results];
+    }
+    return [
+        'competition_ref' => $ref,
+        'display_name' => $name,
+        'start_date' => trim((string) ($value['start_date'] ?? '')),
+        'end_date' => trim((string) ($value['end_date'] ?? '')),
+        'delegation_member' => !empty($value['delegation_member']),
+        'organization' => stridebr_teams_surface_named_ref($value['organization'] ?? null),
+        'entries' => $entries,
+    ];
 }
 
 function stridebr_teams_surface_fixture(): array
@@ -189,39 +427,41 @@ function stridebr_teams_surface_provider_dispatch(string $operation, array $inpu
     $identity = $fixture['identities'][$identityRef] ?? null;
     if (!$identity) return null;
 
-    if ($operation === 'athlete_context') return ['person_ref' => $identity['person_ref'], 'season_ref' => $identity['season_ref'], 'my_teams' => $identity['my_teams']];
+    if ($operation === 'athlete_context') return stridebr_teams_surface_athlete_context_projection(['person_ref' => $identity['person_ref'], 'season_ref' => $identity['season_ref'], 'my_teams' => $identity['my_teams']]);
     if ($operation === 'team_roster') {
         $teamRef = (string) ($input['team_ref'] ?? '');
         $seasonRef = (string) ($input['season_ref'] ?? '');
         $allowed = false;
         foreach ($identity['my_teams'] as $team) if (($team['team']['ref'] ?? '') === $teamRef && ($team['season']['ref'] ?? '') === $seasonRef) $allowed = true;
         if (!$allowed) return null;
-        return $fixture['rosters'][$teamRef . '|' . $seasonRef] ?? null;
+        return stridebr_teams_surface_roster_projection($fixture['rosters'][$teamRef . '|' . $seasonRef] ?? null);
     }
     if ($operation === 'trainings') {
         $from = (string) ($input['from'] ?? '0000-00-00');
         $to = (string) ($input['to'] ?? '9999-12-31');
         $teamRef = (string) ($input['team_ref'] ?? '');
-        return array_values(array_filter($fixture['trainings'], static function (array $training) use ($identityRef, $from, $to, $teamRef): bool {
+        $matches = array_values(array_filter($fixture['trainings'], static function (array $training) use ($identityRef, $from, $to, $teamRef): bool {
             if (($training['recipient_identity_ref'] ?? '') !== $identityRef) return false;
             if (($training['status'] ?? '') !== 'publicado') return false;
             if ((string) $training['date'] < $from || (string) $training['date'] > $to) return false;
             if ($teamRef !== '' && ($training['team']['ref'] ?? '') !== $teamRef) return false;
             return true;
         }));
+        return array_values(array_filter(array_map('stridebr_teams_surface_training_projection', $matches)));
     }
     if ($operation === 'training_detail') {
         $ref = (string) ($input['training_ref'] ?? '');
-        foreach ($fixture['trainings'] as $training) if (($training['training_ref'] ?? '') === $ref && ($training['recipient_identity_ref'] ?? '') === $identityRef && ($training['status'] ?? '') === 'publicado') return $training;
+        foreach ($fixture['trainings'] as $training) if (($training['training_ref'] ?? '') === $ref && ($training['recipient_identity_ref'] ?? '') === $identityRef && ($training['status'] ?? '') === 'publicado') return stridebr_teams_surface_training_projection($training);
         return null;
     }
     if ($operation === 'competitions') {
-        return $identityRef === 'fixture:bruno-evaristo' ? $fixture['competitions'] : [];
+        if ($identityRef !== 'fixture:bruno-evaristo') return [];
+        return array_values(array_filter(array_map('stridebr_teams_surface_competition_projection', $fixture['competitions'])));
     }
     if ($operation === 'competition_detail') {
         if ($identityRef !== 'fixture:bruno-evaristo') return null;
         $ref = (string) ($input['competition_ref'] ?? '');
-        foreach ($fixture['competitions'] as $competition) if (($competition['competition_ref'] ?? '') === $ref) return $competition;
+        foreach ($fixture['competitions'] as $competition) if (($competition['competition_ref'] ?? '') === $ref) return stridebr_teams_surface_competition_projection($competition);
         return null;
     }
     return null;

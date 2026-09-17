@@ -466,3 +466,9 @@ Quando `can_start_session=true`, `POST /workouts/{id}/start` cria uma Workout Se
 Ao concluir uma sessão institucional, o Core consegue construir um acknowledgement lógico com `training_ref`, `recipient_ref`, `status`, timestamps e `activity_ref`. A v1 não envia esse payload para serviço externo. `activity_ref` é uma referência opaca e não concede permissão de leitura da Activity.
 
 A feature está desligada por padrão. Com `STRIDEBR_TEAMS_ENABLED=false`, calendário, detalhe e Workout Session mantêm o comportamento anterior e o provider institucional não é consultado.
+
+### Institutional Athlete read surface
+
+Minhas equipes, roster athlete-safe e competitions institucionais são lidos pelas rotas `/institutional/*` documentadas em `MOBILE_API.md`. Elas complementam o calendário de treino sem criar `/institutional/workouts`: prescriptions institucionais continuam usando `/workouts/schedule`, `/workouts/{id}` e `/workouts/{id}/start` com `source=teams`, `kind=institutional` e IDs opacos.
+
+O Mobile não envia `person_ref`, `identity_ref`, username ou ID de outro usuário para escolher viewer. A identidade vem exclusivamente do Bearer token Core.

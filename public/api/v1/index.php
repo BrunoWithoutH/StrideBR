@@ -20,6 +20,10 @@ if ($route === 'meta') {
     stridebr_api_response(200, ['data'=>['api_version'=>'v1', 'server_time'=>(new DateTimeImmutable('now'))->format(DateTimeInterface::ATOM), 'build'=>stridebr_api_build_identifier()]]);
 }
 
+if (($parts[0] ?? '') === 'institutional' && !stridebr_teams_enabled()) {
+    stridebr_api_error(404, 'not_found', 'Endpoint não encontrado.');
+}
+
 try {
     stridebr_api_set_stage('bootstrap.database');
     if (!defined('STRIDEBR_API_JSON')) define('STRIDEBR_API_JSON', true);
@@ -41,6 +45,30 @@ try {
     if ($route === 'me') {
         stridebr_api_require_method('GET');
         stridebr_api_response(200, ['data'=>stridebr_api_user_payload(stridebr_api_user($pdo))]);
+    }
+    if (($parts[0] ?? '') === 'institutional') {
+        stridebr_api_require_method('GET');
+        $user = stridebr_api_user($pdo);
+        $userId = (string) $user['idusuario'];
+        if ($route === 'institutional/context') {
+            stridebr_api_response(200, ['data' => stridebr_api_institutional_context($pdo, $userId)]);
+        }
+        if ($route === 'institutional/competitions') {
+            stridebr_api_response(200, ['data' => stridebr_api_institutional_competitions($pdo, $userId)]);
+        }
+        if (count($parts) === 3 && $parts[1] === 'competitions') {
+            $competition = stridebr_api_institutional_competition($pdo, $userId, rawurldecode($parts[2]));
+            if ($competition === null) stridebr_api_error(404, 'not_found', 'Competição institucional não encontrada.');
+            stridebr_api_response(200, ['data' => $competition]);
+        }
+        if (count($parts) === 4 && $parts[1] === 'teams' && $parts[3] === 'roster') {
+            $seasonRef = trim((string) ($_GET['season'] ?? ''));
+            if ($seasonRef === '') stridebr_api_error(422, 'validation_error', 'season é obrigatório.');
+            $roster = stridebr_api_institutional_roster($pdo, $userId, rawurldecode($parts[2]), $seasonRef);
+            if ($roster === null) stridebr_api_error(404, 'not_found', 'Equipe institucional não encontrada.');
+            stridebr_api_response(200, ['data' => $roster]);
+        }
+        stridebr_api_error(404, 'not_found', 'Endpoint não encontrado.');
     }
     if (str_starts_with($route, 'progress/')) {
         stridebr_api_require_method('GET');
@@ -395,6 +423,8 @@ try {
                     'strategy' => $input['strategy'] ?? $existing['strategy'],
                     'target_distance_m' => $input['target_distance_m'] ?? $existing['target_distance_m'],
                     'target_time_s' => $input['target_time_s'] ?? $existing['target_time_s'],
+                    'goal_mode' => $input['goal_mode'] ?? $existing['goal_mode'],
+                    'clock_mode' => $input['clock_mode'] ?? $existing['clock_mode'],
                     'tolerance_s_per_km' => $input['tolerance_s_per_km'] ?? $existing['default_tolerance_s_per_km'],
                     'guidance_rules' => $input['guidance_rules'] ?? $existing['guidance_rules'],
                     'status' => $input['status'] ?? $existing['status'],

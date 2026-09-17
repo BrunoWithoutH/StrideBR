@@ -182,7 +182,7 @@ $primarySport = trim((string) ($primaryUnit['idmodalidade'] ?? '')) ?: (string) 
 $primaryDerivedType = atividadeMetricaDerivadaModalidadeCatalogo($catalogo, $primarySport, (string) ($registro['metrica_derivada'] ?? 'nenhuma'));
 $optionalFields = [];
 foreach (array_merge($unitFields, $recordFields) as $field) {
-    if (atividadeCampoOpcional($field)) {
+    if (atividadeCampoOpcional($field) && !in_array(stridebr_lower((string) ($field['slug'] ?? '')), ['elevacao', 'desnivel'], true)) {
         $optionalFields[] = $field;
     }
 }

@@ -727,6 +727,7 @@ require_once __DIR__ . '/zone_profile_service.php';
 require_once __DIR__ . '/activity_analysis_service.php';
 require_once __DIR__ . '/pacer_service.php';
 require_once __DIR__ . '/api_workouts.php';
+require_once __DIR__ . '/api_institutional_surface.php';
 require_once __DIR__ . '/api_training_platform.php';
 require_once __DIR__ . '/api_workout_sessions.php';
 require_once __DIR__ . '/api_progress.php';

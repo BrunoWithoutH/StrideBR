@@ -245,7 +245,6 @@ const stridebrInitActivityExchange = () => {
         metrics.append(
             metricCard(t('activity.summary.duration', {}, 'Duration'), formatDuration(preview.duration_s)),
             metricCard(t('activity.summary.distance', {}, 'Distance'), formatDistance(preview.distance_m)),
-            metricCard(t('activity.summary.elevation', {}, 'Elevation'), hasNumber(preview.elevation_gain_m) ? `${Math.round(Number(preview.elevation_gain_m))} m` : '—'),
             metricCard(t('exchange.average_hr', {}, 'Avg. HR'), hasNumber(preview.avg_hr) && Number(preview.avg_hr) > 0 ? `${Math.round(Number(preview.avg_hr))} bpm` : '—')
         )
         return metrics

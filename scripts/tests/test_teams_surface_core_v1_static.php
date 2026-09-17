@@ -65,11 +65,49 @@ try {
     }
     $assert(stridebr_teams_surface_provider_dispatch('team_roster', ['identity_ref' => 'fixture:bruno-evaristo', 'team_ref' => 'team:voleibol-fw', 'season_ref' => 'season:2027']) === null, 'Bruno não pode abrir roster de outra Team.');
 
+    $syntheticRoster = stridebr_teams_surface_roster_projection([
+        'athletes' => [[
+            'person_ref' => 'person:test', 'display_name' => 'Pessoa Teste', 'roles' => ['Atleta'], 'group' => 'Fundo',
+            'availability' => 'Indisponível', 'membership_status' => 'Ativo', 'email' => 'private@example.invalid', 'private_notes' => 'secret',
+        ]],
+        'staff' => [[
+            'person_ref' => 'person:staff', 'display_name' => 'Staff Teste', 'roles' => ['Treinador'], 'phone' => 'hidden', 'group' => 'Privado',
+        ]],
+    ]);
+    $syntheticJson = json_encode($syntheticRoster) ?: '';
+    foreach (['availability', 'membership_status', 'email', 'private_notes', 'phone', 'Privado'] as $forbidden) {
+        $assert(!str_contains($syntheticJson, $forbidden), "normalizador de roster não pode transportar {$forbidden}.");
+    }
+    $syntheticTraining = stridebr_teams_surface_training_projection([
+        'training_ref' => 'training:test', 'recipient_ref' => 'recipient:test', 'recipient_identity_ref' => 'internal:identity',
+        'title' => 'Treino seguro', 'date' => '2027-03-20', 'status' => 'publicado', 'sport' => 'corrida',
+        'organization' => ['ref' => 'org:test', 'name' => 'Organização'], 'team' => ['ref' => 'team:test', 'name' => 'Equipe'],
+        'season' => ['ref' => 'season:test', 'label' => '2027'], 'structure' => [['name' => 'Bloco', 'step_type' => 'work', 'private_notes' => 'hidden']],
+        'permissions' => ['can_edit' => false, 'workspace_grant' => true], 'capabilities' => ['can_start_session' => true, 'can_start_gps' => true],
+        'health' => ['injury' => true],
+    ]);
+    $syntheticTrainingJson = json_encode($syntheticTraining) ?: '';
+    foreach (['recipient_identity_ref', 'workspace_grant', 'private_notes', 'health', 'injury'] as $forbidden) {
+        $assert(!str_contains($syntheticTrainingJson, $forbidden), "normalizador de training não pode transportar {$forbidden}.");
+    }
+    $syntheticCompetition = stridebr_teams_surface_competition_projection([
+        'competition_ref' => 'competition:test', 'display_name' => 'Competition Teste', 'start_date' => '2027-04-01', 'end_date' => '2027-04-02',
+        'organization' => ['ref' => 'org:test', 'name' => 'Organização', 'billing' => 'forbidden'],
+        'entries' => [[
+            'entry_ref' => 'entry:test', 'program_item' => '5000 m', 'phase' => 'Final', 'other_participants' => ['hidden'],
+            'results' => [['position' => 1, 'result' => '17:00', 'classification' => '1º', 'medal' => 'ouro', 'provenance' => 'official', 'private_notes' => 'hidden']],
+        ]],
+    ]);
+    $syntheticCompetitionJson = json_encode($syntheticCompetition) ?: '';
+    foreach (['billing', 'other_participants', 'private_notes'] as $forbidden) {
+        $assert(!str_contains($syntheticCompetitionJson, $forbidden), "normalizador de Competition não pode transportar {$forbidden}.");
+    }
+
     $trainings = stridebr_teams_surface_provider_dispatch('trainings', ['identity_ref' => 'fixture:bruno-evaristo', 'from' => '2027-03-01', 'to' => '2027-03-31']);
     $assert(count($trainings) === 2, 'projection deve retornar somente prescriptions publicadas destinadas ao Bruno no range.');
     foreach ($trainings as $training) {
         $assert(($training['status'] ?? '') === 'publicado', 'provider não pode projetar Draft.');
-        $assert(($training['recipient_identity_ref'] ?? '') === 'fixture:bruno-evaristo', 'training deve ser recipient-scoped.');
+        $assert(!array_key_exists('recipient_identity_ref', $training), 'projection pública de training não deve transportar identity ref interno do fixture.');
     }
     $assert(stridebr_teams_surface_provider_dispatch('training_detail', ['identity_ref' => 'fixture:bruno-evaristo', 'training_ref' => 'training:private:other-athlete']) === null, 'detail de training de outro atleta não pode vazar existência.');
     $competitions = stridebr_teams_surface_provider_dispatch('competitions', ['identity_ref' => 'fixture:bruno-evaristo']);
@@ -105,6 +143,13 @@ try {
     $assert($availability['available'] === false && $availability['state'] === 'unavailable', 'fixture precisa ser recusada em production.');
     $assert(stridebr_teams_surface_provider_dispatch('athlete_context', ['identity_ref' => 'fixture:bruno-evaristo']) === null, 'production não pode expor fixture.');
     $assert(stridebr_teams_surface_provider_call_count() === 0, 'fixture recusada em production não pode consultar adapter demonstrativo.');
+
+    putenv('STRIDEBR_APP_ENV=staging');
+    stridebr_teams_surface_provider_reset_call_count();
+    $availability = stridebr_teams_surface_availability();
+    $assert($availability['available'] === false && $availability['state'] === 'unavailable', 'fixture precisa ser recusada em staging.');
+    $assert(stridebr_teams_surface_provider_dispatch('athlete_context', ['identity_ref' => 'fixture:bruno-evaristo']) === null, 'staging não pode expor fixture.');
+    $assert(stridebr_teams_surface_provider_call_count() === 0, 'fixture recusada em staging não pode consultar adapter demonstrativo.');
 
     $envExample = $read('.env.example');
     $assert(str_contains($envExample, 'STRIDEBR_TEAMS_ENABLED=false') && str_contains($envExample, 'STRIDEBR_TEAMS_SURFACE_MODE=disabled'), 'env example deve nascer com integração escondida e disabled.');

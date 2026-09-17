@@ -790,3 +790,32 @@ Activities podem opcionalmente possuir timeline esportiva canônica para pace/ve
 O contrato de ingestão/leitura, downsampling, splits e manual laps está em [`MOBILE_ACTIVITY_STREAMS_API.md`](MOBILE_ACTIVITY_STREAMS_API.md). A análise determinística versionada está em [`ACTIVITY_ANALYSIS.md`](ACTIVITY_ANALYSIS.md), e a fundação offline do Stride Pacer está em [`PACER.md`](PACER.md).
 
 A Activity Detail expõe apenas `stream_capabilities`; gráficos usam `/activities/{id}/streams`, splits usam `/splits`, manual laps usam `/laps` e análise usa `/analysis`. Workouts podem referenciar `pacer_plan_id`. Streams continuam opcionais, portanto Activities antigas, Quick Register e Workout Session permanecem compatíveis.
+
+## Pacer v2 offline
+
+`/pacer-plans/{id}/evaluate` é referência determinística para paridade, debug e simulação; durante uma Activity o Mobile deve executar o mesmo algoritmo offline. O contrato completo, incluindo janela de `recent_pace_s_per_km`, curva de tempo acumulado, pause, GPS, FC, fase final e oportunidade, está em [PACER_RUNTIME_V2.md](PACER_RUNTIME_V2.md).
+
+## Institutional Athlete API Surface v1
+
+Com `STRIDEBR_TEAMS_ENABLED=true`, o Core expõe uma surface institucional read-only para o próprio usuário autenticado. O Mobile continua falando somente com o Core; não consome HTML, fixture Teams nem serviço Teams diretamente.
+
+Rotas:
+
+```text
+GET /institutional/context
+GET /institutional/teams/{team_ref}/roster?season={season_ref}
+GET /institutional/competitions
+GET /institutional/competitions/{competition_ref}
+```
+
+`team_ref`, `season_ref` e `competition_ref` são referências opacas. O cliente deve URL-encodar e reenviar o valor completo sem desmontar namespaces ou interpretar `:`.
+
+`GET /institutional/context` devolve apenas `season_ref` e `my_teams`. Cada vínculo permite organização, equipe/modalidade, temporada, papéis e grupo quando aplicável. Usuário autenticado sem identity mapping institucional recebe `200` com `my_teams=[]`.
+
+O roster usa allowlist mínima: athletes podem conter `person_ref`, `display_name`, `roles` e `group`; staff contém `person_ref`, `display_name` e `roles`. Membership internals, Workspace Grant, email, telefone, availability, health/readiness e notas privadas não fazem parte do contrato.
+
+Competitions retornam somente Competition relevante ao próprio atleta. O detalhe contém somente metadata athlete-safe, delegação, minhas entries e meus results. Participantes, entries/results e internals de terceiros não são transportados.
+
+Quando `STRIDEBR_TEAMS_ENABLED=false`, essas rotas respondem `404` e o provider institucional não é consultado. Fixture continua permitida somente em development; staging/production bloqueiam `STRIDEBR_TEAMS_SURFACE_MODE=fixture`. `remote` continua reservado e não implementado.
+
+Workouts institucionais não ganharam endpoint paralelo. Eles continuam no contrato único de `/workouts/*` com `source=teams`, `kind=institutional` e `institutional_context` quando aplicável.

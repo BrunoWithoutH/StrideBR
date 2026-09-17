@@ -144,7 +144,6 @@ $flashes = stridebr_take_flashes();
                     <div><strong><?php echo stridebr_e(stridebr_format_number((float) $detalheEquipamento['distancia_total_km'],1)); ?> km</strong><span>Distância</span></div>
                     <div><strong><?php echo (int) $detalheEquipamento['total_atividades']; ?></strong><span>Atividades</span></div>
                     <div><strong><?php echo stridebr_e(stridebr_format_number((float) $detalheEquipamento['duracao_total_s']/3600,1)); ?> h</strong><span>Duração</span></div>
-                    <div><strong><?php echo stridebr_e(stridebr_format_number((float) $detalheEquipamento['elevacao_total_m'],0)); ?> m</strong><span>Elevação</span></div>
                 </div>
                 <?php if (!empty($detalheEquipamento['limite_alerta_km'])): $ratio=min(100,max(0,(float)$detalheEquipamento['distancia_total_km']/(float)$detalheEquipamento['limite_alerta_km']*100)); ?>
                 <div class="equipment-usage"><div><span>Uso configurado</span><strong><?php echo stridebr_e(stridebr_format_number((float)$detalheEquipamento['distancia_total_km'],1)); ?> / <?php echo stridebr_e(stridebr_format_number((float)$detalheEquipamento['limite_alerta_km'],0)); ?> km</strong></div><progress max="100" value="<?php echo stridebr_e((string)$ratio); ?>"></progress></div>

@@ -30,9 +30,9 @@ $assert(!str_contains($app, '20260825-daily-use-polish'), 'Web não pode fingir 
 $assert(str_contains($footer, '$footerBuild !==') && str_contains($diagnostics, 'build não informado'), 'Footer/admin precisam lidar com build ausente sem mostrar identificador stale.');
 $assert(str_contains($env, 'STRIDEBR_BUILD_FILE_FALLBACK=false') && str_contains($deploy, 'Do not depend on `.stridebr-build` in Dokploy'), 'Deploy precisa documentar STRIDEBR_BUILD como fonte canônica.');
 
-$assert(str_contains($home, 'Última atividade') && str_contains($home, 'Importar atividade') && !str_contains($home, 'Última Activity'), 'Home PT-BR não deve misturar Activity onde atividade é suficiente.');
-$assert(str_contains($homeCss, 'grid-template-columns:repeat(3') && str_contains($homeCss, '.dashboard-v2-last{display:grid'), 'Home precisa usar composição 3 cards + última atividade horizontal.');
-$assert(substr_count($home, 'class="is-primary"') >= 2, 'Registrar atividade e Novo treino precisam liderar a toolbar.');
+$assert(str_contains($home, 'data-dashboard-module="recent"') && str_contains($home, 'Importar atividade') && !str_contains($home, '>Última atividade<'), 'Home PT-BR precisa usar lista de atividades recentes, não card isolado de última atividade.');
+$assert(str_contains($homeCss, '.dashboard-home-layout') && str_contains($homeCss, 'minmax(280px,320px)') && str_contains($homeCss, '.dashboard-period-strip'), 'Home precisa usar composição principal com rail e faixa compacta de 28 dias.');
+$assert(str_contains($home, 'dashboard-button-primary') && str_contains($home, 'home.log_activity') && str_contains($home, 'home.record_gps'), 'Gravar com GPS e registrar atividade precisam liderar o topo.');
 
 $assert(str_contains($competitions, '$all === [] && !$isFormOpen') && str_contains($competitions, "stridebr_t('competitions.empty')") && str_contains($competitions, "stridebr_t('competitions.empty_help')"), 'Competições vazias precisam de uma única superfície de empty state.');
 $assert(str_contains($competitions, "stridebr_t('competitions.upcoming')") && str_contains($competitions, "stridebr_t('competitions.history')"), 'Competições com dados precisam separar próximas e histórico.');

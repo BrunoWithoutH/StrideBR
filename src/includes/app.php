@@ -108,6 +108,31 @@ function stridebr_length(string $value): int
     return function_exists('mb_strlen') ? mb_strlen($value, 'UTF-8') : strlen($value);
 }
 
+/**
+ * Best-effort UTF-8 transliteration for identifiers and matching only.
+ * iconv is preferred when present; the fallback deliberately keeps Unicode
+ * intact except for common Latin diacritics so callers remain safe on lean PHP
+ * runtimes where ext-iconv is not installed.
+ */
+function stridebr_ascii_transliterate(string $value): string
+{
+    if (function_exists('iconv')) {
+        $transliterated = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
+        if (is_string($transliterated) && $transliterated !== '') return $transliterated;
+    }
+    if (class_exists('Normalizer')) {
+        $normalized = Normalizer::normalize($value, Normalizer::FORM_KD);
+        if (is_string($normalized)) return preg_replace('/\p{Mn}+/u', '', $normalized) ?? $normalized;
+    }
+    return strtr($value, [
+        'Á'=>'A','À'=>'A','Â'=>'A','Ã'=>'A','Ä'=>'A','á'=>'a','à'=>'a','â'=>'a','ã'=>'a','ä'=>'a',
+        'É'=>'E','È'=>'E','Ê'=>'E','Ë'=>'E','é'=>'e','è'=>'e','ê'=>'e','ë'=>'e',
+        'Í'=>'I','Ì'=>'I','Î'=>'I','Ï'=>'I','í'=>'i','ì'=>'i','î'=>'i','ï'=>'i',
+        'Ó'=>'O','Ò'=>'O','Ô'=>'O','Õ'=>'O','Ö'=>'O','ó'=>'o','ò'=>'o','ô'=>'o','õ'=>'o','ö'=>'o',
+        'Ú'=>'U','Ù'=>'U','Û'=>'U','Ü'=>'U','ú'=>'u','ù'=>'u','û'=>'u','ü'=>'u','Ç'=>'C','ç'=>'c','Ñ'=>'N','ñ'=>'n',
+    ]);
+}
+
 function stridebr_db_bool(mixed $value): bool
 {
     if (is_bool($value)) {
@@ -249,10 +274,7 @@ function stridebr_take_flashes(): array
 function stridebr_slug(string $value): string
 {
     $value = trim($value);
-    $transliterated = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
-    if (is_string($transliterated)) {
-        $value = $transliterated;
-    }
+    $value = stridebr_ascii_transliterate($value);
     $value = strtolower($value);
     $value = preg_replace('/[^a-z0-9]+/', '-', $value) ?? '';
     return trim($value, '-');

@@ -16,6 +16,7 @@ return function (PDO $pdo): void {
 
         $owner = alphaTestUser($pdo, 'teams-surface-bruno', ['nome' => 'Bruno Evaristo', 'username' => 'brunowithouth']);
         $other = alphaTestUser($pdo, 'teams-surface-other');
+        $spoofedName = alphaTestUser($pdo, 'teams-surface-spoofed-name', ['nome' => 'Bruno Evaristo', 'username' => 'not-brunowithouth']);
         AlphaTest::assert((bool) $pdo->query("SELECT to_regclass('stridebr.sessoes_treino')")->fetchColumn(), 'Workout Session table deve existir');
 
         $context = stridebr_teams_surface_context($pdo, $owner);
@@ -23,6 +24,33 @@ return function (PDO $pdo): void {
         AlphaTest::same(null, stridebr_teams_surface_roster($pdo, $owner, 'team:voleibol-fw', 'season:2027'), 'cross-team roster precisa falhar fechado');
         $roster = stridebr_teams_surface_roster($pdo, $owner, 'team:atletismo-fw', 'season:2027');
         AlphaTest::assert(is_array($roster) && count($roster['athletes'] ?? []) >= 1, 'roster athlete-safe da própria Team deve estar disponível');
+
+        $apiContext = stridebr_api_institutional_context($pdo, $owner);
+        AlphaTest::same(['season_ref', 'my_teams'], array_keys($apiContext), 'context API precisa usar allowlist própria sem person_ref/availability internos');
+        AlphaTest::same('season:2027', (string) ($apiContext['season_ref'] ?? ''), 'context API deve expor Season opaca do atleta');
+        AlphaTest::same('IF Farroupilha — Frederico Westphalen', (string) ($apiContext['my_teams'][0]['organization']['name'] ?? ''), 'context API deve expor organização athlete-safe');
+        AlphaTest::same('Atletismo', (string) ($apiContext['my_teams'][0]['team']['name'] ?? ''), 'context API deve expor Team athlete-safe');
+        AlphaTest::same('2027', (string) ($apiContext['my_teams'][0]['season']['label'] ?? ''), 'context API deve expor label da Season');
+        AlphaTest::assert(in_array('Atleta', $apiContext['my_teams'][0]['roles'] ?? [], true), 'context API deve expor papel Atleta');
+        AlphaTest::same('Fundo', (string) ($apiContext['my_teams'][0]['group'] ?? ''), 'context API deve expor grupo athlete-safe');
+
+        $apiRoster = stridebr_api_institutional_roster($pdo, $owner, 'team:atletismo-fw', 'season:2027');
+        AlphaTest::assert(is_array($apiRoster), 'roster API da própria Team deve estar disponível');
+        $lucas = array_values(array_filter($apiRoster['athletes'] ?? [], static fn(array $member): bool => ($member['display_name'] ?? '') === 'Lucas Ferreira'));
+        AlphaTest::assert(count($lucas) === 1, 'Lucas deve poder aparecer no roster athlete-safe');
+        AlphaTest::assert(!array_key_exists('availability', $lucas[0]), 'roster API não pode expor availability de colega');
+        AlphaTest::same(null, stridebr_api_institutional_roster($pdo, $owner, 'team:voleibol-fw', 'season:2027'), 'cross-Team na API precisa falhar fechado como 404 lógico');
+        AlphaTest::same(null, stridebr_api_institutional_roster($pdo, $owner, 'team:atletismo-fw', 'season:2026'), 'roster API não pode reutilizar Season diferente');
+
+        $apiCompetitions = stridebr_api_institutional_competitions($pdo, $owner);
+        $apiCompetitionNames = array_map(static fn(array $competition): string => (string) ($competition['display_name'] ?? ''), $apiCompetitions);
+        foreach (['JEIF 2027', 'JIFSul 2027', 'JIF Nacional 2027'] as $competitionName) AlphaTest::assert(in_array($competitionName, $apiCompetitionNames, true), "competitions API precisa incluir {$competitionName}");
+        foreach ($apiCompetitions as $competitionSummary) AlphaTest::assert(!array_key_exists('entries', $competitionSummary), 'lista de competitions não deve carregar entries/detail por acidente');
+        $apiCompetition = stridebr_api_institutional_competition($pdo, $owner, 'competition:jeif-2027');
+        AlphaTest::assert(is_array($apiCompetition) && count($apiCompetition['entries'] ?? []) >= 1, 'competition detail API precisa expor minhas entries');
+        $apiCompetitionJson = json_encode($apiCompetition, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '';
+        foreach (['Lívia Demo', 'Equipe externa', 'other_participants', 'organizer_internals'] as $forbidden) AlphaTest::assert(!str_contains($apiCompetitionJson, $forbidden), "competition detail API não pode expor {$forbidden}");
+        AlphaTest::same(null, stridebr_api_institutional_competition($pdo, $owner, 'competition:nao-visivel'), 'Competition não visível precisa falhar como 404 lógico');
 
         $personal = stridebr_api_workout_create($pdo, $owner, [
             'title' => 'Treino pessoal no mesmo calendário',
@@ -95,6 +123,31 @@ return function (PDO $pdo): void {
         putenv('STRIDEBR_TEAMS_SURFACE_MODE=fixture');
         $otherContext = stridebr_teams_surface_context($pdo, $other);
         AlphaTest::same([], $otherContext['my_teams'] ?? [], 'usuário sem identity mapping não deve receber vínculo institucional por inferência');
+        $otherApiContext = stridebr_api_institutional_context($pdo, $other);
+        AlphaTest::same([], $otherApiContext['my_teams'] ?? [], 'context API de usuário sem mapping precisa responder lista vazia');
+        AlphaTest::same([], stridebr_api_institutional_competitions($pdo, $other), 'competitions API de usuário sem mapping precisa responder lista vazia');
+        $spoofedContext = stridebr_teams_surface_context($pdo, $spoofedName);
+        AlphaTest::same([], $spoofedContext['my_teams'] ?? [], 'nome de exibição igual ao fixture não pode conceder identidade institucional sem mapping explícito.');
+
+        putenv('STRIDEBR_TEAMS_SURFACE_MODE=remote');
+        stridebr_teams_surface_provider_reset_call_count();
+        $unavailableContext = stridebr_api_institutional_context($pdo, $owner);
+        AlphaTest::same([], $unavailableContext['my_teams'] ?? [], 'provider indisponível precisa falhar fechado no context sem exception interna');
+        AlphaTest::same([], stridebr_api_institutional_competitions($pdo, $owner), 'provider indisponível precisa falhar fechado na lista de competitions');
+        AlphaTest::same(null, stridebr_api_institutional_roster($pdo, $owner, 'team:atletismo-fw', 'season:2027'), 'provider indisponível não pode retornar roster parcial');
+        AlphaTest::same(null, stridebr_api_institutional_competition($pdo, $owner, 'competition:jeif-2027'), 'provider indisponível não pode retornar Competition parcial');
+        AlphaTest::same(0, stridebr_teams_surface_provider_call_count(), 'remote reservado/não implementado não deve consultar adapter');
+
+        putenv('STRIDEBR_APP_ENV=production');
+        putenv('STRIDEBR_TEAMS_SURFACE_MODE=fixture');
+        $productionContext = stridebr_api_institutional_context($pdo, $owner);
+        AlphaTest::same([], $productionContext['my_teams'] ?? [], 'production + fixture não pode expor context demonstrativo pela API');
+        AlphaTest::same([], stridebr_api_institutional_competitions($pdo, $owner), 'production + fixture não pode expor competitions demonstrativas pela API');
+
+        putenv('STRIDEBR_APP_ENV=staging');
+        $stagingContext = stridebr_api_institutional_context($pdo, $owner);
+        AlphaTest::same([], $stagingContext['my_teams'] ?? [], 'staging + fixture não pode expor context demonstrativo pela API');
+        AlphaTest::same([], stridebr_api_institutional_competitions($pdo, $owner), 'staging + fixture não pode expor competitions demonstrativas pela API');
     } finally {
         putenv($oldEnv === false ? 'STRIDEBR_APP_ENV' : 'STRIDEBR_APP_ENV=' . $oldEnv);
         putenv($oldEnabled === false ? 'STRIDEBR_TEAMS_ENABLED' : 'STRIDEBR_TEAMS_ENABLED=' . $oldEnabled);

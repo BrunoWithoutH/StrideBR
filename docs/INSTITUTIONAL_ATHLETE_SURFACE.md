@@ -32,7 +32,7 @@ Fixture só é aceita em `development`. `production + fixture` e `staging + fixt
 
 ## Provider e identity_ref
 
-A interface trabalha com `identity_ref` conceitual. O fixture possui um mapeamento explícito de desenvolvimento para Bruno Evaristo, mas username, slug e `idusuario` Core não são declarados como chave cross-service definitiva.
+A interface trabalha com `identity_ref` conceitual. O fixture possui um mapeamento explícito e exato de desenvolvimento do username `brunowithouth` para a referência demonstrativa de Bruno Evaristo; nome de exibição não concede vínculo institucional. Username, slug e `idusuario` Core não são declarados como chave cross-service definitiva.
 
 Operations atuais:
 
@@ -47,6 +47,8 @@ Operations atuais:
 Falha do provider produz `[]`, `null` ou availability state. Ela não derruba Home, Agenda ou o restante do Core.
 
 ## Privacy allowlist
+
+O adapter do Core normaliza as respostas do provider por allowlist antes de entregá-las às views/API. Assim, mesmo um provider futuro que envie campos extras por engano não os propaga automaticamente.
 
 A projection de roster permite somente:
 
@@ -155,3 +157,34 @@ Fase 4: rollout mais amplo
 ```
 
 A flag global é a primeira barreira. Entitlements, pilot allowlist e elegibilidade poderão ser acrescentados no futuro.
+
+## Mobile API read surface
+
+A mesma projection athlete-safe também está disponível para clientes Mobile pela API v1 do Core:
+
+```text
+GET /api/v1/institutional/context
+GET /api/v1/institutional/teams/{team_ref}/roster?season={season_ref}
+GET /api/v1/institutional/competitions
+GET /api/v1/institutional/competitions/{competition_ref}
+```
+
+A fronteira continua em camadas:
+
+```text
+Teams source
+→ Teams Surface Provider
+→ Core projection normalizer
+→ API serializer allowlist
+→ Mobile
+```
+
+O serializer da API repete a allowlist de forma explícita. Arrays do provider nunca são devolvidos crus. O context não expõe `person_ref`, availability state, provider mode ou identity mapping interno; roster e competitions preservam somente os campos athlete-safe descritos neste documento.
+
+`STRIDEBR_TEAMS_ENABLED=false` torna essas rotas inexistentes (`404`) antes de consultar o provider. Com a feature ligada e usuário sem vínculo institucional, `GET /institutional/context` responde `200` com `my_teams=[]`. Team/Season ou Competition não visível ao viewer responde `404` para não revelar existência.
+
+A Season do roster é obrigatória e continua opaca. O cliente não deve inferir 2027, reutilizar roster de outra Season nem desmontar `team_ref`, `season_ref` ou `competition_ref`.
+
+Falha/indisponibilidade do provider com a feature ligada falha fechada: context/list podem permanecer vazios e roster/detail não retornam projection parcial. Nenhuma exception interna é exposta ao cliente.
+
+Same Team continua não equivalendo a acesso ao perfil Core completo, e membership de Organization não concede visibilidade cross-Team.

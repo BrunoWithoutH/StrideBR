@@ -295,8 +295,7 @@ function atividadeMesAbreviado(DateTimeInterface $data): string
 function atividadeHistoricoMetricaKind(string $label): string
 {
     $value = stridebr_lower(trim($label));
-    $normalized = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
-    if (is_string($normalized)) $value = strtolower($normalized);
+    $value = stridebr_lower(stridebr_ascii_transliterate($value));
     if (str_contains($value, 'codigo')) return 'code';
     if (str_contains($value, 'foco')) return 'focus';
     if (str_contains($value, 'duracao') || str_contains($value, 'tempo')) return 'duration';

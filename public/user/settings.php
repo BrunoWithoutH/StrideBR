@@ -59,7 +59,6 @@ $trainingTrackingChoices = [
     'frequencia' => [stridebr_t('settings.track_consistency'), stridebr_t('settings.track_consistency_help')],
     'duracao' => [stridebr_t('settings.track_duration'), stridebr_t('settings.track_duration_help')],
     'distancia' => [stridebr_t('settings.track_distance'), stridebr_t('settings.track_distance_help')],
-    'elevacao' => [stridebr_t('settings.track_elevation'), stridebr_t('settings.track_elevation_help')],
     'metas' => [stridebr_t('settings.track_goals'), stridebr_t('settings.track_goals_help')],
     'carga' => [stridebr_t('settings.track_strength'), stridebr_t('settings.track_strength_help')],
 ];
@@ -137,7 +136,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $trainingGoals = array_values(array_intersect($allowedTrainingGoals, is_array($_POST['training_goals'] ?? null) ? array_map('strval', $_POST['training_goals']) : []));
     $trainingExperience = trim((string) ($_POST['training_experience'] ?? ''));
     $trainingWeeklyFrequency = max(0, min(7, (int) ($_POST['training_weekly_frequency'] ?? 0)));
-    $trainingTracking = array_values(array_intersect($allowedTrainingTracking, is_array($_POST['training_tracking'] ?? null) ? array_map('strval', $_POST['training_tracking']) : []));
+    $hiddenTrainingTracking = in_array('elevacao', array_map('strval', is_array($currentPreferences['tracking'] ?? null) ? $currentPreferences['tracking'] : []), true) ? ['elevacao'] : [];
+    $trainingTracking = array_values(array_unique(array_merge($hiddenTrainingTracking, array_intersect($allowedTrainingTracking, is_array($_POST['training_tracking'] ?? null) ? array_map('strval', $_POST['training_tracking']) : []))));
     $bannerColor = strtolower(trim((string) ($_POST['profile_banner_color'] ?? $currentBannerColor)));
     $removeBanner = isset($_POST['remove_profile_banner']);
     $highlightTypesInput = array_values((array) ($_POST['profile_highlight_type'] ?? []));

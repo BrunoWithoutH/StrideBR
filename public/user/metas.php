@@ -49,8 +49,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $modalidades = $available ? dashboardListarModalidades($pdo, $idUsuario) : [];
 $exerciciosMeta = $available ? dashboardListarExerciciosMeta($pdo, $idUsuario) : [];
-$metas = $available ? dashboardListarMetas($pdo, $idUsuario, false) : [];
-$conclusoes = $available ? dashboardListarConclusoesMetas($pdo, $idUsuario, 40) : [];
+$metas = $available ? array_values(array_filter(dashboardListarMetas($pdo, $idUsuario, false), static fn(array $meta): bool => (string) ($meta['metrica'] ?? '') !== 'elevacao')) : [];
+$conclusoes = $available ? array_values(array_filter(dashboardListarConclusoesMetas($pdo, $idUsuario, 40), static fn(array $meta): bool => (string) ($meta['metrica'] ?? '') !== 'elevacao')) : [];
 $benchmarkRows = $available && benchmarkTableExists($pdo) ? benchmarkList($pdo, $idUsuario, ['limit' => 1000]) : [];
 $athleticsGoalModalities = $available ? athleticsModalityRows($pdo, $idUsuario) : [];
 $benchmarkClientRows = [];
@@ -173,7 +173,7 @@ $flashes = stridebr_take_flashes();
                                     <div class="goal-sport-field" data-goal-sport-field><span class="goal-field-label"><?php echo stridebr_e(stridebr_t('common.sport')); ?></span><?php echo sportPickerRenderSelect($modalidades, ['name'=>'idmodalidade','selected'=>$formSport,'empty_label'=>stridebr_t('goals.all_sports'),'placeholder'=>stridebr_t('goals.choose_sport'),'native_attributes'=>$editMeta && $formType === 'benchmark' ? ['data-goal-locked'=>'1'] : []]); ?></div>
 
                                     <div data-goal-practice-fields<?php echo $formType === 'metrica' ? '' : ' hidden'; ?>>
-                                        <label><?php echo stridebr_e(stridebr_t('home.metric')); ?><select name="metrica" data-goal-metric><option value="distancia"<?php echo $formMetric === 'distancia' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('common.distance')); ?></option><option value="duracao"<?php echo $formMetric === 'duracao' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('activity.summary.time')); ?></option><option value="atividades"<?php echo $formMetric === 'atividades' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('activity.page_title')); ?></option><option value="elevacao"<?php echo $formMetric === 'elevacao' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('common.elevation')); ?></option><option value="dias_ativos"<?php echo $formMetric === 'dias_ativos' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('home.active_days')); ?></option><option value="carga_maxima"<?php echo $formMetric === 'carga_maxima' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('goals.load_metric_label')); ?></option></select></label>
+                                        <label><?php echo stridebr_e(stridebr_t('home.metric')); ?><select name="metrica" data-goal-metric><option value="distancia"<?php echo $formMetric === 'distancia' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('common.distance')); ?></option><option value="duracao"<?php echo $formMetric === 'duracao' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('activity.summary.time')); ?></option><option value="atividades"<?php echo $formMetric === 'atividades' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('activity.page_title')); ?></option><option value="dias_ativos"<?php echo $formMetric === 'dias_ativos' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('home.active_days')); ?></option><option value="carga_maxima"<?php echo $formMetric === 'carga_maxima' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('goals.load_metric_label')); ?></option></select></label>
                                     </div>
 
                                     <div data-goal-benchmark-fields<?php echo $formType === 'benchmark' ? '' : ' hidden'; ?>>

@@ -21,7 +21,6 @@ document.addEventListener('DOMContentLoaded', () => {
         distancia: ['km', '20'],
         duracao: ['min', '180'],
         atividades: [t('goals.unit.activities', {}, 'activities'), '4'],
-        elevacao: ['m', '500'],
         dias_ativos: [t('goals.unit.days', {}, 'days'), '4'],
         carga_maxima: ['kg', '200']
     };

@@ -2725,8 +2725,6 @@ document.addEventListener('DOMContentLoaded', () => {
             let distanceCount = 0
             let duration = 0
             let durationCount = 0
-            let elevation = 0
-            let elevationCount = 0
             const derivedTypes = new Set()
             contexts.forEach(context => {
                 const distance = unitDistanceData(context, panel)
@@ -2738,23 +2736,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (seconds !== null) {
                     duration += seconds
                     durationCount++
-                }
-                const segmentElevationInput = context.querySelector('[data-segment-elevation]')
-                if (segmentElevationInput) {
-                    const elevationValue = Number.parseFloat(String(segmentElevationInput.value || '').replace(',', '.'))
-                    if (Number.isFinite(elevationValue)) {
-                        elevation += elevationValue
-                        elevationCount++
-                    }
-                } else {
-                    const elevationField = findUnitField(context, 'elevacao') || findUnitField(context, 'desnivel')
-                    const elevationInput = elevationField?.querySelector('input[type="number"], input[type="text"]')
-                    const elevationValue = Number.parseFloat(String(elevationInput?.value || '').replace(',', '.'))
-                    if (Number.isFinite(elevationValue)) {
-                        const symbol = elevationField?.querySelector('.field-unit')?.textContent?.trim() || 'm'
-                        elevation += symbol === 'km' ? elevationValue * 1000 : elevationValue
-                        elevationCount++
-                    }
                 }
                 const type = selectedUnitDerivedType(context, panel)
                 if (type && type !== 'nenhuma') derivedTypes.add(type)
@@ -2772,7 +2753,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (type === 'pace_100m' && distanceM > 0) parts.push(`${formatPace(duration / (distanceM / 100))} /100 m`)
                 if (type === 'split_500m' && distanceM > 0) parts.push(`${formatPace(duration / (distanceM / 500))} /500 m`)
             }
-            if (elevationCount) parts.push(`${i18n.number(Number(elevation.toFixed(1)), 1, true)} m`)
             const effort = document.querySelector('[data-effort-value]')?.value
             if (effort) parts.push(tr('activity.effort_inline', {value: effort}))
             const summaryWrap = summary.closest('[data-activity-summary]')
@@ -2795,13 +2775,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const speed = distanceKm / (duration / 3600)
             if (Number.isFinite(speed) && speed > 0) parts.push(`${i18n.number(speed, 1, true)} km/h`)
         }
-        const elevationField = findPrimaryField(panel, 'elevacao')
-        const elevationInput = elevationField?.querySelector('input[type="number"], input[type="text"]')
-        const elevation = Number.parseFloat(String(elevationInput?.value || '').replace(',', '.'))
-        if (Number.isFinite(elevation) && elevation !== 0 && !elevationField?.hidden) {
-            const elevationUnit = elevationField.querySelector('.field-unit')?.textContent?.trim() || 'm'
-            parts.push(`${i18n.number(Number(elevation.toFixed(1)), 1, true)} ${elevationUnit}`)
-        }
         const effort = document.querySelector('[data-effort-value]')?.value
         if (effort) parts.push(tr('activity.effort_inline', {value: effort}))
         const summaryWrap = summary.closest('[data-activity-summary]')
@@ -2821,7 +2794,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const mapElement = editor.querySelector('[data-route-map]')
         const distanceLabel = editor.querySelector('[data-route-distance]')
         const pointsLabel = editor.querySelector('[data-route-points]')
-        const elevationLabel = editor.querySelector('[data-route-elevation]')
         const toggle = editor.querySelector('[data-route-toggle]')
         const freeCloseButton = editor.querySelector('[data-route-close-free]')
         const closeButton = editor.querySelector('[data-route-close-circuit]')
@@ -2894,18 +2866,13 @@ document.addEventListener('DOMContentLoaded', () => {
             target.classList.toggle('has-route', valid)
             const summary = target.querySelector('[data-unit-route-summary]')
             const action = target.querySelector('[data-unit-route-open]')
-            if (summary) summary.textContent = valid ? `${formatMeters(distance)}${Number.isFinite(gain) && gain > 0 ? ` · +${i18n.number(Math.round(gain), 0)} m` : ''}` : tr('common.optional')
+            if (summary) summary.textContent = valid ? formatMeters(distance) : tr('common.optional')
             if (action) action.textContent = valid ? tr('route.edit') : tr('route.add')
         }
         const routeSubviewSummaryText = (distance) => {
             if (!Number.isFinite(distance) || distance <= 0) return tr('route.add_manual')
             const parts = [formatMeters(distance)]
-            const metricGain = activeUnitTarget
-                ? Number(activeUnitTarget.dataset.routeGainM || unitTargetMetric(activeUnitTarget, 'ganho_elevacao_m')?.value || 0)
-                : Number(metricInputs.find(input => input.dataset.routeMetric === 'ganho_elevacao_m')?.value || 0)
-            const gain = Number.isFinite(latestElevationGain) ? latestElevationGain : metricGain
-            if (Number.isFinite(gain) && gain > 0) parts.push(`+${i18n.number(Math.round(gain), 0)} m`)
-            else if (mode === 'circuit' && circuitClosed) parts.push(trn('route.lap.one', 'route.lap.other', laps))
+            if (mode === 'circuit' && circuitClosed) parts.push(trn('route.lap.one', 'route.lap.other', laps))
             return parts.join(' · ')
         }
         const useGeneralRouteTarget = () => {
@@ -3063,7 +3030,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const elevationPoints = mode === 'circuit' && circuitClosed ? points : finalPoints()
             const route = routeUtil.geojson(elevationPoints)
             if (!route) {
-                if (elevationLabel) elevationLabel.textContent = tr('route.estimated_elevation_after')
                 return
             }
             if (mode === 'circuit' && circuitClosed) clearElevationMetrics()
@@ -3073,7 +3039,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             elevationTimer = setTimeout(async () => {
                 const request = ++elevationRequest
-                if (elevationLabel) elevationLabel.textContent = tr('route.elevation_estimating')
                 try {
                     const body = new URLSearchParams({csrf_token: form?.querySelector('[name="csrf_token"]')?.value || '', coordenadas: JSON.stringify(route)})
                     const response = await fetchWithDeadline('/api/atividade-elevacao.php', {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8', 'Accept': 'application/json'}, body}, 12000)
@@ -3102,10 +3067,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         setMetric('elevacao_max_m', data.elevation?.elevacao_max_m ?? '')
                         setMetric('fonte_elevacao', data.elevation?.fonte_elevacao ?? '')
                     }
-                    if (elevationLabel) elevationLabel.textContent = Number.isFinite(gain) ? tr('route.elevation_gain', {value: i18n.number(Math.round(gain), 0)}) : tr('route.elevation_calculated')
                     if (Number.isFinite(gain)) syncCalculatedField(['elevacao', 'desnivel'], gain)
                 } catch (_) {
-                    if (request === elevationRequest && elevationLabel) elevationLabel.textContent = tr('route.elevation_unavailable')
                 }
             }, 900)
         }
@@ -3364,7 +3327,6 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         editor.querySelector('[data-route-clear]')?.addEventListener('click', () => {
             points = []; laps = 1; circuitClosed = false; freeClosed = false; circuitEditing = false; latestElevationGain = null; elevationRequest += 1; resetMetrics(); sync(false)
-            if (elevationLabel) elevationLabel.textContent = tr('route.estimated_elevation_after')
         })
         editor.querySelector('[data-route-locate]')?.addEventListener('click', () => {
             if (!navigator.geolocation) { if (routeStatus) routeStatus.hidden = false; if (pointsLabel) pointsLabel.textContent = tr('route.location_unavailable'); return }
@@ -3932,8 +3894,7 @@ document.addEventListener('DOMContentLoaded', () => {
         titulo: 'Corrida em Nova York',
         modalidade: 'Corrida',
         data: '',
-        ganho_m: 112,
-        metricas: [{rotulo: tr('activity.share.distance'), valor: i18n.locale === 'en' ? '12.8 km' : '12,8 km'}, {rotulo: tr('activity.share.duration'), valor: '01:04:12'}, {rotulo: tr('activity.share.pace'), valor: '5:01/km'}, {rotulo: tr('activity.share.elevation'), valor: '112 m'}],
+        metricas: [{rotulo: tr('activity.share.distance'), valor: i18n.locale === 'en' ? '12.8 km' : '12,8 km'}, {rotulo: tr('activity.share.duration'), valor: '01:04:12'}, {rotulo: tr('activity.share.pace'), valor: '5:01/km'}],
         geojson: {coordinates: [
             [-73.9549, 40.7851], [-73.9688, 40.7811], [-73.9817, 40.7748], [-73.9906, 40.7640],
             [-74.0056, 40.7517], [-74.0128, 40.7357], [-74.0105, 40.7198], [-73.9982, 40.7084],
@@ -3959,11 +3920,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const SHARE_BACKGROUND_COLORS = Object.freeze({
         deep: Object.freeze({id: 'deep', base: '#132243', stops: Object.freeze(['#101f3d', '#132243', '#0f1c35'])}),
         dark: Object.freeze({id: 'dark', base: '#0B1324', stops: Object.freeze(['#08101f', '#0B1324', '#070e1b'])}),
+        black: Object.freeze({id: 'black', base: '#000000', stops: Object.freeze(['#000000', '#000000', '#000000']), solid: true}),
+        white: Object.freeze({id: 'white', base: '#FFFFFF', stops: Object.freeze(['#FFFFFF', '#FFFFFF', '#FFFFFF']), solid: true}),
     })
     const normalizeShareBackgroundColor = value => {
-        const id = String(value || '')
-        if (id === 'dark' || id === 'black') return 'dark'
-        return 'deep'
+        const id = String(value || '').toLowerCase()
+        if (id === 'light') return 'white'
+        return Object.prototype.hasOwnProperty.call(SHARE_BACKGROUND_COLORS, id) ? id : 'deep'
     }
     const shareDefaultPresetColors = Object.freeze({stats: 'deep', map: 'deep', photo: 'deep', transparent: 'deep'})
     let sharePresetColors = {...shareDefaultPresetColors}
@@ -4277,7 +4240,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const activityDetailToShareData = activity => {
         const rawShareMetrics = activity?.metricas_compartilhamento || activity?.metricas || []
         const focusMetric = rawShareMetrics.find(metric => normalizeShareMetricLabel(metric?.rotulo) === 'foco')
-        const shareMetrics = rawShareMetrics.filter(metric => !isSharePrivateMetric(metric)).map(metric => ({...metric}))
+        const shareMetrics = rawShareMetrics.filter(metric => !isSharePrivateMetric(metric) && shareMetricType(metric) !== 'elevation').map(metric => ({...metric}))
         const hasType = type => shareMetrics.some(metric => shareMetricType(metric) === type)
         const kcal = Number(activity?.energia?.kcal)
         if (Number.isFinite(kcal) && kcal > 0 && !hasType('calories')) shareMetrics.push({key:'energy-calories', rotulo:tr('activity.share.calories', {}, 'Calorias'), valor:`${Math.round(kcal)} kcal`})
@@ -4312,15 +4275,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 duracao_segundos: unit.duracao_segundos ?? null,
                 elevacao_m: unit.elevacao_m ?? unit.rota?.ganho_m ?? null,
                 rota: unit.rota || null,
-                metricas: (unit.metricas_compartilhamento || unit.valores || []).filter(metric => !isSharePrivateMetric(metric)),
+                metricas: (unit.metricas_compartilhamento || unit.valores || []).filter(metric => !isSharePrivateMetric(metric) && shareMetricType(metric) !== 'elevation'),
                 ...(unit.rota || {})
             }))
         }
     }
     const availableShareMetrics = (data) => {
-        const metrics = Array.isArray(data?.metricas) ? data.metricas.map((item, index) => ({key: String(item.key || `metric-${index}-${normalizeShareMetricLabel(item.rotulo)}`), rotulo: String(item.rotulo || ''), valor: String(item.valor ?? ''), defaultSelected: item.defaultSelected !== false})) : []
-        const gain = Number(data?.ganho_m)
-        if (Number.isFinite(gain) && gain > 0 && !metrics.some((item) => /eleva|desnível|desnivel/i.test(item.rotulo))) metrics.push({key: 'route-elevation', rotulo: tr('activity.share.elevation'), valor: `${Math.round(gain)} m`, defaultSelected: true})
+        const metrics = Array.isArray(data?.metricas) ? data.metricas.map((item, index) => ({key: String(item.key || `metric-${index}-${normalizeShareMetricLabel(item.rotulo)}`), rotulo: String(item.rotulo || ''), valor: String(item.valor ?? ''), defaultSelected: item.defaultSelected !== false})).filter(item => shareMetricType(item) !== 'elevation') : []
         const unique = metrics.filter((item, index, all) => item.rotulo && shareMetricHasValue(item.valor) && !isSharePrivateMetric(item) && all.findIndex((candidate) => normalizeShareMetricLabel(candidate.rotulo) === normalizeShareMetricLabel(item.rotulo)) === index)
         return applyShareMetricDefaults(data, unique)
     }
@@ -4413,14 +4374,6 @@ document.addEventListener('DOMContentLoaded', () => {
             else if (type === 'split_500m') metrics.push({key: 'session-weighted-500m', rotulo: tr('activity.share.average_split'), valor: formatSharePace(totalDuration / (totalDistance / 500), '/500 m'), defaultSelected: true})
         }
         metrics.push({key: 'session-segments', rotulo: tr('activity.share.segments'), valor: String(selected.length), defaultSelected: !compatibleDerived})
-        if (elevationValues.length) metrics.push({key: 'session-elevation-total', rotulo: elevationValues.length === selected.length ? tr('activity.share.total_elevation') : tr('activity.share.logged_elevation'), valor: `${formatShareNumber(totalElevation, 0, 1)} m`, defaultSelected: true})
-        if (gainValues.length) {
-            const maxGain = Math.max(...gainValues)
-            const avgGain = gainValues.reduce((sum, value) => sum + value, 0) / gainValues.length
-            metrics.push({key: 'session-elevation-max-gain', rotulo: tr('activity.share.max_segment_gain'), valor: `${formatShareNumber(maxGain, 0, 1)} m`, defaultSelected: false})
-            metrics.push({key: 'session-elevation-average-gain', rotulo: tr('activity.share.average_gain'), valor: `${formatShareNumber(avgGain, 0, 1)} m`, defaultSelected: false})
-        }
-        if (maxAltitudeValues.length) metrics.push({key: 'session-elevation-max-altitude', rotulo: tr('activity.share.max_altitude'), valor: `${formatShareNumber(Math.max(...maxAltitudeValues), 0, 1)} m`, defaultSelected: false})
         if (compatibleDerived) {
             const type = Array.from(derivedTypes)[0]
             const perSegment = numbers.map((item, index) => ({...item, index})).filter(item => item.distance > 0 && item.duration > 0)
@@ -4434,8 +4387,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         const wanted = compatibleDerived
-            ? ['session-distance', 'session-duration', 'session-weighted-pace', 'session-weighted-speed', 'session-weighted-100m', 'session-weighted-500m', 'session-elevation-total']
-            : ['session-distance', 'session-duration', 'session-segments', 'session-elevation-total']
+            ? ['session-distance', 'session-duration', 'session-weighted-pace', 'session-weighted-speed', 'session-weighted-100m', 'session-weighted-500m']
+            : ['session-distance', 'session-duration', 'session-segments']
         let defaults = 0
         metrics.forEach(metric => {
             metric.defaultSelected = wanted.includes(metric.key) && defaults < 4
@@ -4445,7 +4398,7 @@ document.addEventListener('DOMContentLoaded', () => {
             for (const metric of metrics) {
                 if (defaults >= 4) break
                 if (metric.defaultSelected) continue
-                if (['session-segments', 'session-elevation-total'].includes(metric.key)) {
+                if (['session-segments'].includes(metric.key)) {
                     metric.defaultSelected = true
                     defaults += 1
                 }
@@ -5120,7 +5073,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const preset = override.preset || getSharePreset(override.presetId || activeSharePresetId)
         const metrics = canonicalizeShareMetrics(override.selectedMetrics || getSelectedShareMetrics(override.data || shareData)).slice(0, 4)
         const mode = override.mode || preset.mode
-        const color = override.color || getSharePresetColor(preset.id) || getShareColorValue()
+        const color = normalizeShareBackgroundColor(override.color || getSharePresetColor(preset.id) || getShareColorValue())
         const format = getShareFormat(override.format || getShareFormatValue())
         const story = format.id === 'story'
         const compact = String(override.composition || activeShareCompositionId) === 'compact'
@@ -6040,9 +5993,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const fillShareBackground = (context, width, height, color) => {
         const normalized = normalizeShareBackgroundColor(color)
-        const stops = shareBackgroundStops(normalized)
-        context.fillStyle = stops[1]
+        const definition = SHARE_BACKGROUND_COLORS[normalized]
+        const stops = definition.stops
+        context.fillStyle = definition.base
         context.fillRect(0, 0, width, height)
+        if (definition.solid) return
         const wash = context.createLinearGradient(0, 0, 0, height)
         wash.addColorStop(0, stops[0])
         wash.addColorStop(.48, 'rgba(0,0,0,0)')
@@ -6334,7 +6289,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const isTransparent = mode === 'transparent'
         const isPhoto = mode === 'photo'
         const isMapSurface = mode === 'map'
-        const isLightSurface = color === 'light' && !isPhoto && !isTransparent && !isMapSurface
+        const isLightSurface = color === 'white' && !isPhoto && !isTransparent && !isMapSurface
         const primaryText = isLightSurface ? '#17243a' : palette.text
         const secondaryText = isLightSurface ? '#66758d' : palette.muted
         const accent = '#5f82ff'
@@ -6512,7 +6467,7 @@ document.addEventListener('DOMContentLoaded', () => {
         context.clearRect(0, 0, width, height)
         const isTransparent = mode === 'transparent'
         const isMapSurface = mode === 'map'
-        const isLightSurface = color === 'light' && mode !== 'photo' && mode !== 'transparent' && !isMapSurface
+        const isLightSurface = color === 'white' && mode !== 'photo' && mode !== 'transparent' && !isMapSurface
 
         if (!isTransparent && mode !== 'photo' && !isMapSurface) fillShareBackground(context, width, height, color)
         if (mode === 'photo') {
@@ -6520,7 +6475,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (image) coverImage(context, image, width, height)
             else drawPhotoPlaceholder(context, width, height)
         }
-        if (thumbnail && mode === 'map') drawSharePreviewMapPattern(context, width, height, color === 'light')
+        if (thumbnail && mode === 'map') drawSharePreviewMapPattern(context, width, height, color === 'white')
 
         const outlinedText = isTransparent || isMapSurface
         const primaryText = isLightSurface ? '#223148' : palette.text
@@ -6871,7 +6826,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const geometryCount = segments.filter(item => shareHasRoute(item.data)).length
         const mapAllowed = definition.supportsMap && geometryCount > 0
         const mode = preset.mode === 'map' && mapAllowed ? 'map' : preset.mode === 'map' ? 'stats' : preset.mode
-        const light = color === 'light' && mode !== 'photo' && mode !== 'transparent' && mode !== 'map'
+        const light = color === 'white' && mode !== 'photo' && mode !== 'transparent' && mode !== 'map'
         const compactMetrics = getShareCompactMetricSelection()
         const comparisonMetricId = shareComparisonMetric?.value || defaultShareComparisonMetric(segments.map(item => item.data))
         const comparisonReferenceId = shareComparisonReference?.value || 'best'
@@ -7621,7 +7576,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const syncShareColorSwatches = () => {
         shareModal?.querySelectorAll('[data-share-color-swatch]').forEach(swatch => {
             const definition = SHARE_BACKGROUND_COLORS[normalizeShareBackgroundColor(swatch.dataset.shareColorSwatch)]
-            swatch.style.background = `linear-gradient(180deg, ${definition.stops[0]}, ${definition.stops[1]} 62%, ${definition.stops[2]})`
+            swatch.style.background = definition.solid ? definition.base : `linear-gradient(180deg, ${definition.stops[0]}, ${definition.stops[1]} 62%, ${definition.stops[2]})`
         })
     }
     const drawShareChoiceThumbnail = async (context, canvas, {kind, value}) => {
@@ -7878,6 +7833,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const drawer = button.closest('[data-activity-detail-drawer], [data-activity-detail]')
         const shareScript = drawer?.querySelector('[data-activity-share-data]')
         try { shareData = JSON.parse(shareScript?.textContent || '') } catch (_) { shareData = null }
+        if (!shareData && activeDetailActivity) shareData = activityDetailToShareData(activeDetailActivity)
         if (!shareData || !shareModal) return
         populateShareSegments()
         const segmented = shareSegments().length > 1
@@ -8255,7 +8211,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const summaryActivities = historySummary?.querySelector('[data-summary-activities]')
     const summaryTime = historySummary?.querySelector('[data-summary-time]')
     const summaryDistance = historySummary?.querySelector('[data-summary-distance]')
-    const summaryElevation = historySummary?.querySelector('[data-summary-elevation]')
     const summaryPeriod = historySummary?.querySelector('[data-summary-period]')
     const historySkeleton = historyRoot?.querySelector('[data-history-skeleton]')
     const historyEmpty = historyRoot?.querySelector('[data-history-empty]')
@@ -8268,13 +8223,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const historySport = historyRoot?.querySelector('[data-history-sport]')
     const historyFilters = Array.from(historyRoot?.querySelectorAll('[data-history-filter]') || [])
     const historyClearFilters = historyRoot?.querySelector('[data-history-clear-filters]')
+    const historyFilterMenu = historyRoot?.querySelector('[data-history-filter-menu]')
+    const historyFilterPanel = historyFilterMenu?.querySelector('.activity-history-filter-panel')
     const historyStatus = document.querySelector('[data-activity-history-status]')
+    const activitiesMain = document.querySelector('[data-activities-page]')
+    const activitiesHistoryView = document.querySelector('[data-activities-history-view]')
+    const detailWorkspace = document.querySelector('[data-activity-history-workspace]')
+    const detailPreviewHost = document.querySelector('[data-activity-detail-preview-host]')
+    const activityDetailView = document.querySelector('[data-activity-detail-view]')
     const detailDrawer = document.querySelector('[data-activity-detail-drawer]')
     const detailPanel = detailDrawer?.querySelector('[data-activity-detail-panel]')
     const detailContent = detailDrawer?.querySelector('[data-detail-content]')
     const detailLoading = detailDrawer?.querySelector('[data-detail-loading]')
     const detailExpandButton = detailDrawer?.querySelector('[data-expand-activity-detail]')
     const detailCloseButton = detailDrawer?.querySelector('.activity-detail-header-actions [data-close-activity-detail]')
+    const detailBackButton = detailDrawer?.querySelector('[data-back-activity-workspace]')
     const detailPlaceholder = document.querySelector('[data-detail-desktop-placeholder]')
     const bulkToggle = historyRoot?.querySelector('[data-bulk-toggle]')
     const bulkNormal = historyRoot?.querySelector('[data-history-toolbar-normal]')
@@ -8298,6 +8261,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let detailOpenSequence = 0
     let detailSkeletonTimer = 0
     let activeDetailId = ''
+    let activeDetailActivity = null
     let detailExpanded = false
     let historyReturnScrollY = 0
     const detailCache = new Map()
@@ -8314,13 +8278,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'}[char]))
     const usesDesktopActivityPanel = () => window.matchMedia('(min-width: 901px)').matches
+    const positionHistoryFilterPanel = () => {
+        if (!historyFilterMenu?.open || !historyFilterPanel || window.matchMedia('(max-width: 760px)').matches) {
+            historyFilterPanel?.style.removeProperty('left')
+            historyFilterPanel?.style.removeProperty('top')
+            historyFilterPanel?.style.removeProperty('width')
+            historyFilterPanel?.style.removeProperty('max-height')
+            return
+        }
+        const trigger = historyFilterMenu.querySelector('summary')
+        if (!trigger) return
+        const rect = trigger.getBoundingClientRect()
+        const margin = 16
+        const gap = 8
+        const width = Math.min(760, Math.max(280, window.innerWidth - margin * 2))
+        const left = Math.min(Math.max(margin, rect.right - width), Math.max(margin, window.innerWidth - width - margin))
+        let top = rect.bottom + gap
+        let maxHeight = window.innerHeight - top - margin
+        if (maxHeight < 260 && rect.top > window.innerHeight - rect.bottom) {
+            maxHeight = Math.min(historyFilterPanel.scrollHeight || 420, window.innerHeight - margin * 2)
+            top = Math.max(margin, rect.top - maxHeight - gap)
+        }
+        historyFilterPanel.style.left = `${Math.round(left)}px`
+        historyFilterPanel.style.top = `${Math.round(top)}px`
+        historyFilterPanel.style.width = `${Math.round(width)}px`
+        historyFilterPanel.style.maxHeight = `${Math.max(180, Math.round(maxHeight))}px`
+    }
+    historyFilterMenu?.addEventListener('toggle', () => requestAnimationFrame(positionHistoryFilterPanel))
+    window.addEventListener('resize', positionHistoryFilterPanel)
+    window.addEventListener('scroll', positionHistoryFilterPanel, {capture: true, passive: true})
     const syncDetailScrollOwnership = () => {
-        const detailVisible = Boolean(detailDrawer && !detailDrawer.hidden)
-        const desktopPreview = usesDesktopActivityPanel() && !detailExpanded
-        const shouldBeModal = detailVisible && !desktopPreview
-        const shouldLockPage = detailVisible && !usesDesktopActivityPanel() && !detailExpanded
-        detailPanel?.setAttribute('aria-modal', shouldBeModal ? 'true' : 'false')
-        document.documentElement.classList.toggle('activity-detail-open', shouldLockPage)
+        const targetHost = detailExpanded ? activityDetailView : detailPreviewHost
+        if (detailDrawer && targetHost && detailDrawer.parentElement !== targetHost) targetHost.appendChild(detailDrawer)
+        detailWorkspace?.classList.remove('is-detail-view')
+        detailDrawer?.classList.toggle('is-expanded-detail', detailExpanded)
+        activitiesMain?.classList.toggle('is-detail-mode', detailExpanded)
+        if (activitiesHistoryView) activitiesHistoryView.hidden = detailExpanded
+        if (activityDetailView) activityDetailView.hidden = !detailExpanded
+        document.documentElement.classList.remove('activity-detail-open','activity-detail-expanded')
+        if (detailBackButton) detailBackButton.hidden = !detailExpanded
+        if (detailCloseButton) detailCloseButton.hidden = detailExpanded
     }
     window.addEventListener('resize', syncDetailScrollOwnership)
     const updateHistorySummary = (summary) => {
@@ -8328,13 +8325,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (summaryActivities) summaryActivities.textContent = String(summary.atividades ?? 0)
         if (summaryTime) summaryTime.textContent = String(summary.tempo || '0min')
         if (summaryDistance) summaryDistance.textContent = String(summary.distancia || '0 m')
-        if (summaryElevation) summaryElevation.textContent = String(summary.elevacao || '0 m')
         if (summaryPeriod) summaryPeriod.textContent = String(summary.periodo || tr('activity.summary.last_7_days'))
     }
     const syncActiveDetailRow = () => {
         historyList?.querySelectorAll('[data-history-row]').forEach(row => row.classList.toggle('is-active-detail', String(row.dataset.activityId || '') === activeDetailId))
     }
 
+    const isElevationPresentation = value => /eleva(?:ção|cao|tion)|altitude|desn[ií]vel|desnivel|gain|loss|ganho|perda|ascent|descent|inclina(?:ção|cao|tion)|grade|relevo|terrain\s+elevation/i.test(String(value || ''))
     const activityMetricKind = (label) => {
         const value = String(label || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
         if (value.includes('codigo')) return 'code'
@@ -8346,8 +8343,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return 'metric'
     }
     const renderMetricas = (metrics) => {
-        if (!Array.isArray(metrics) || !metrics.length) return ''
-        return `<div class="activity-row-metrics">${metrics.map((metric) => `<span data-metric-kind="${activityMetricKind(metric.rotulo)}"><small>${escapeHtml(metric.rotulo)}</small><strong>${escapeHtml(metric.valor)}</strong></span>`).join('')}</div>`
+        const visible = (Array.isArray(metrics) ? metrics : []).filter(metric => !isElevationPresentation(`${metric?.rotulo || ''} ${metric?.key || ''}`))
+        if (!visible.length) return ''
+        return `<div class="activity-row-metrics">${visible.map((metric) => `<span data-metric-kind="${activityMetricKind(metric.rotulo)}"><small>${escapeHtml(metric.rotulo)}</small><strong>${escapeHtml(metric.valor)}</strong></span>`).join('')}</div>`
     }
 
     const renderStrengthPreview = (item) => {
@@ -8702,7 +8700,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('focus', passiveHistoryRefresh)
 
     const detailSection = (title, body, extraClass = '') => body ? `<div class="activity-detail-section${extraClass ? ` ${extraClass}` : ''}"><h3>${escapeHtml(title)}</h3>${body}</div>` : ''
-    const cleanDetailValues = (values) => (Array.isArray(values) ? values : []).filter((item) => String(item?.rotulo || '').trim() !== '' && String(item?.valor || '').trim() !== '')
+    const cleanDetailValues = (values) => (Array.isArray(values) ? values : []).filter((item) => String(item?.rotulo || '').trim() !== '' && String(item?.valor || '').trim() !== '' && !isElevationPresentation(`${item?.rotulo || ''} ${item?.slug || ''} ${item?.chave || ''}`))
     const detailPairKey = (item) => `${String(item?.rotulo || '').trim().toLocaleLowerCase('pt-BR')}::${String(item?.valor || '').trim().toLocaleLowerCase('pt-BR')}`
     const normalizedDetailLabel = (value) => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()
     const detailStats = (values, extraClass = '') => {
@@ -8811,7 +8809,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const title = detailDrawer.querySelector('[data-detail-title]')
         const sport = detailDrawer.querySelector('[data-detail-sport]')
         const date = detailDrawer.querySelector('[data-detail-date]')
-        const visibility = detailDrawer.querySelector('[data-detail-visibility]')
         const compareLink = detailDrawer.querySelector('[data-detail-compare]')
         const strength = ['musculacao', 'calistenia', 'crossfit'].includes(String(activity.modalidade_slug || ''))
         detailPanel?.classList.toggle('is-strength-detail', strength)
@@ -8821,16 +8818,50 @@ document.addEventListener('DOMContentLoaded', () => {
         const headerMetrics = detailDrawer.querySelector('[data-detail-header-metrics]')
         if (headerMetrics) {
             const compact = cleanDetailValues(activity.metricas || []).slice(0, 4)
-            headerMetrics.innerHTML = compact.map(item => `<span><b>${escapeHtml(item.rotulo)}</b><strong>${escapeHtml(item.valor)}</strong></span>`).join('')
+            headerMetrics.innerHTML = compact.map(item => `<span><strong>${escapeHtml(item.valor)}</strong><b>${escapeHtml(item.rotulo)}</b></span>`).join('')
             headerMetrics.hidden = compact.length === 0
         }
         if (compareLink) compareLink.href = `/user/comparar-atividades.php?a=${encodeURIComponent(activity.id)}`
-        if (visibility) {
-            const labels = {privado: tr('activity.only_me'), amigos: tr('common.friends'), publico: tr('common.public')}
-            visibility.textContent = labels[String(activity.visibilidade || '')] || ''
-            visibility.hidden = visibility.textContent === ''
+        const topbar = detailDrawer.querySelector('[data-detail-topbar]')
+        const fullActions = detailDrawer.querySelector('[data-detail-full-actions]')
+        const editLink = detailDrawer.querySelector('[data-detail-edit]')
+        const repeatLink = detailDrawer.querySelector('[data-detail-repeat]')
+        const statsButton = detailDrawer.querySelector('[data-detail-stats]')
+        const deleteButton = detailDrawer.querySelector('[data-detail-delete]')
+        if (topbar) topbar.hidden = !detailExpanded
+        if (fullActions) fullActions.hidden = !detailExpanded
+        if (editLink) editLink.href = `/user/editatividade.php?id=${encodeURIComponent(activity.id)}`
+        if (repeatLink) repeatLink.href = `/user/atividades.php?repetir=${encodeURIComponent(activity.id)}`
+        if (statsButton) {
+            statsButton.dataset.detailStats = String(activity.id || '')
+            statsButton.setAttribute('aria-pressed', activity.excluded_from_stats ? 'true' : 'false')
+            statsButton.textContent = activity.excluded_from_stats ? 'Incluir nas estatísticas' : 'Excluir das estatísticas'
         }
-        if (window.StrideBRActivityDetailV3?.render?.({content: detailContent, activity})) {
+        if (deleteButton) {
+            deleteButton.dataset.deleteActivity = String(activity.id || '')
+            deleteButton.dataset.activityTitle = String(activity.titulo || tr('common.activity'))
+        }
+        const badges = detailDrawer.querySelector('[data-detail-badges]')
+        if (badges) {
+            const items = []
+            const visibilityLabel = {privado: tr('activity.only_me'), amigos: tr('common.friends'), publico: tr('common.public')}[String(activity.visibilidade || '')]
+            if (visibilityLabel) items.push(visibilityLabel)
+            if (activity.rota?.geojson?.coordinates?.length >= 2 || (activity.unidades || []).some(unit => unit?.rota?.geojson?.coordinates?.length >= 2)) items.push('Rota')
+            const sourceKey = String(activity.origem || '').toLowerCase()
+            const sourceLabel = {gps:'GPS do app',stridebr_android:'GPS do app',gps_web:'GPS Web',strava:'Importação',import:'Importação',importacao:'Importação',manual:'Registro manual',web:'Web',quick_register:'Registro manual',workout_session:'Treino'}[sourceKey]
+            if (sourceLabel) items.push(sourceLabel)
+            if (activity.competicao) items.push('Competição')
+            else if (activity.treino) items.push('Treino')
+            badges.innerHTML = [...new Set(items)].map(item => `<span>${escapeHtml(item)}</span>`).join('')
+            badges.hidden = items.length === 0
+        }
+        activeDetailActivity = activity
+        if (window.StrideBRActivityDetailV3?.render?.({content: detailContent, activity, mode: detailExpanded ? 'detail' : 'preview'})) {
+            const sharePayload = document.createElement('script')
+            sharePayload.type = 'application/json'
+            sharePayload.dataset.activityShareData = ''
+            sharePayload.textContent = JSON.stringify(activityDetailToShareData(activity)).replace(/</g, '\u003c')
+            detailContent.appendChild(sharePayload)
             if (detailLoading) detailLoading.hidden = true
             return
         }
@@ -8890,9 +8921,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="activity-detail-route-preview" data-detail-route-preview aria-label="${escapeHtml(tr('activity.route_map_aria'))}">${shareRouteSilhouetteSvg(activity.rota)}</div>
                 <div class="activity-detail-route-metrics">
                     <span><small>${escapeHtml(tr('activity.route_distance'))}</small><strong>${escapeHtml(routeDistanceText)}</strong></span>
-                    ${activity.rota.ganho_m !== null ? `<span><small>${escapeHtml(tr('activity.route_gain'))}</small><strong>${Math.round(activity.rota.ganho_m)} m</strong></span>` : ''}
                 </div>
-                ${Array.isArray(activity.rota.perfil) && activity.rota.perfil.length ? `<div class="activity-elevation-profile"><span>${escapeHtml(tr('activity.elevation_profile'))}</span><svg data-elevation-profile role="img" aria-label="${escapeHtml(tr('activity.elevation_profile_aria'))}" viewBox="0 0 640 150" preserveAspectRatio="none"></svg></div>` : ''}
                 <small class="activity-route-attribution">${escapeHtml(tr('activity.route_attribution'))}</small>
             </div>`
         }
@@ -8907,41 +8936,80 @@ document.addEventListener('DOMContentLoaded', () => {
             </footer>`
         detailContent.hidden = false
         if (detailLoading) detailLoading.hidden = true
-        const elevationSvg = detailDrawer.querySelector('[data-elevation-profile]')
-        if (elevationSvg) drawElevationProfile(elevationSvg, activity.rota?.perfil)
     }
 
-    const setDetailExpanded = expanded => {
+    const detailViewUrl = id => {
+        const url = new URL(window.location.href)
+        if (id) {
+            url.searchParams.set('activity', id)
+            url.searchParams.set('view', 'detail')
+        } else {
+            url.searchParams.delete('activity')
+            url.searchParams.delete('view')
+        }
+        return `${url.pathname}${url.search}${url.hash}`
+    }
+    const setDetailExpanded = (expanded, rerender = true) => {
         detailExpanded = Boolean(expanded)
-        detailDrawer?.classList.toggle('is-expanded-detail', detailExpanded)
-        document.documentElement.classList.toggle('activity-detail-expanded', detailExpanded)
         syncDetailScrollOwnership()
-        if (detailExpandButton) {
-            detailExpandButton.hidden = detailExpanded
-            detailExpandButton.textContent = tr('activity.detail.expand')
+        if (detailExpandButton) detailExpandButton.hidden = true
+        if (rerender && activeDetailActivity) renderDetail(activeDetailActivity)
+        if (!detailExpanded && historyReturnScrollY > 0) window.requestAnimationFrame(() => window.scrollTo({top:historyReturnScrollY,behavior:'auto'}))
+    }
+    const enterFullActivityDetail = ({historyMode='push'} = {}) => {
+        if (!activeDetailId) return
+        if (!detailExpanded) historyReturnScrollY = window.scrollY
+        setDetailExpanded(true)
+        const state = {...(history.state || {}), stridebrActivityDetail:true, activityId:activeDetailId, historyScrollY:historyReturnScrollY}
+        const url = detailViewUrl(activeDetailId)
+        if (historyMode === 'replace') history.replaceState(state,'',url)
+        else if (historyMode === 'push') history.pushState(state,'',url)
+        window.requestAnimationFrame(() => activitiesMain?.scrollIntoView({block:'start',behavior:'auto'}))
+    }
+    const leaveFullActivityDetail = ({fromPopstate=false} = {}) => {
+        if (!detailExpanded) return
+        if (!fromPopstate && history.state?.stridebrActivityDetail) {
+            history.back()
+            return
         }
-        if (detailCloseButton) {
-            const label = tr(detailExpanded ? 'activity.detail.collapse' : 'activity.close_details')
-            detailCloseButton.setAttribute('aria-label', label)
-            detailCloseButton.title = label
-        }
+        if (!fromPopstate) history.replaceState({...history.state,stridebrActivityDetail:false},'',detailViewUrl(''))
+        setDetailExpanded(false)
     }
     const closeActivityDetails = () => {
+        if (detailExpanded) {
+            leaveFullActivityDetail()
+            return
+        }
         const restoreScroll = !usesDesktopActivityPanel() ? historyReturnScrollY : null
         detailOpenSequence += 1
         window.clearTimeout(detailSkeletonTimer)
         detailSkeletonTimer = 0
         detailRequest?.abort()
+        window.StrideBRActivityDetailV3?.destroy?.(detailContent)
         activeDetailId = ''
+        activeDetailActivity = null
         syncActiveDetailRow()
-        setDetailExpanded(false)
+        setDetailExpanded(false, false)
         if (detailDrawer) detailDrawer.hidden = true
         if (detailLoading) detailLoading.hidden = true
         if (detailPlaceholder) detailPlaceholder.hidden = false
         syncDetailScrollOwnership()
         if (restoreScroll !== null) window.requestAnimationFrame(() => window.scrollTo({top: restoreScroll, behavior: 'auto'}))
     }
-    detailExpandButton?.addEventListener('click', () => setDetailExpanded(!detailExpanded))
+    const syncActivityDetailFromLocation = async (state = history.state) => {
+        const params = new URLSearchParams(window.location.search)
+        const stateId = state?.stridebrActivityDetail ? String(state?.activityId || '') : ''
+        const id = String(params.get('activity') || stateId || '')
+        const wantsDetail = ((params.get('view') === 'detail') || state?.stridebrActivityDetail === true) && id !== ''
+        if (wantsDetail) {
+            if (activeDetailId !== id || !activeDetailActivity) await openActivityDetail(id)
+            if (activeDetailId === id) setDetailExpanded(true)
+            return
+        }
+        if (detailExpanded) setDetailExpanded(false)
+    }
+    detailBackButton?.addEventListener('click', () => leaveFullActivityDetail())
+    window.addEventListener('popstate', event => syncActivityDetailFromLocation(event.state))
 
     const activityContextMenu = document.querySelector('[data-activity-context-menu]')
     const activityContextEdit = activityContextMenu?.querySelector('[data-context-edit]')
@@ -9208,7 +9276,8 @@ document.addEventListener('DOMContentLoaded', () => {
         detailRequest = new AbortController()
         if (!usesDesktopActivityPanel() && detailDrawer.hidden) historyReturnScrollY = window.scrollY
         activeDetailId = key
-        if (!detailExpanded) setDetailExpanded(false)
+        activeDetailActivity = null
+        if (!detailExpanded) setDetailExpanded(false, false)
         syncActiveDetailRow()
         detailDrawer.hidden = false
         if (detailPlaceholder) detailPlaceholder.hidden = true
@@ -9224,7 +9293,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const title = detailDrawer.querySelector('[data-detail-title]')
         const sport = detailDrawer.querySelector('[data-detail-sport]')
         const date = detailDrawer.querySelector('[data-detail-date]')
-        const visibility = detailDrawer.querySelector('[data-detail-visibility]')
         const sourceRow = historyList?.querySelector(`[data-history-row][data-activity-id="${CSS.escape(key)}"]`)
         detailContent.hidden = true
         detailContent.replaceChildren()
@@ -9232,7 +9300,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (title) title.textContent = sourceRow?.dataset.activityTitle || tr('activity.loading')
         if (sport) sport.textContent = tr('common.activity')
         if (date) date.textContent = ''
-        if (visibility) { visibility.textContent = ''; visibility.hidden = true }
         detailSkeletonTimer = window.setTimeout(() => {
             if (sequence !== detailOpenSequence || activeDetailId !== key) return
             if (detailLoading) detailLoading.hidden = false
@@ -9308,6 +9375,26 @@ document.addEventListener('DOMContentLoaded', () => {
     })
 
     document.addEventListener('click', async (event) => {
+        const headerStats = event.target.closest('[data-detail-stats]')
+        if (headerStats) {
+            const id = String(headerStats.dataset.detailStats || activeDetailActivity?.id || '')
+            if (!id) return
+            const excluded = headerStats.getAttribute('aria-pressed') !== 'true'
+            headerStats.disabled = true
+            try {
+                const body = new URLSearchParams({id, excluded: excluded ? '1' : '0', csrf_token: page?.dataset.csrfToken || ''})
+                const response = await fetch('/api/atividade-estatisticas.php', {method:'POST', headers:{Accept:'application/json','Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'}, body, credentials:'same-origin'})
+                const payload = await response.json().catch(() => null)
+                if (!response.ok || !payload?.ok) throw new Error(payload?.error || 'Não foi possível atualizar as estatísticas.')
+                if (activeDetailActivity) activeDetailActivity.excluded_from_stats = excluded
+                headerStats.setAttribute('aria-pressed', excluded ? 'true' : 'false')
+                headerStats.textContent = excluded ? 'Incluir nas estatísticas' : 'Excluir das estatísticas'
+            } catch (error) {
+                window.StrideBRUI?.notify?.(error?.message || 'Não foi possível atualizar as estatísticas.', 'error')
+            } finally { headerStats.disabled = false }
+            return
+        }
+        document.querySelectorAll('[data-detail-actions-menu][open]').forEach(menu => { if (!menu.contains(event.target)) menu.removeAttribute('open') })
         if (bulkMode) {
             const bulkRow = event.target.closest('[data-history-row]')
             if (bulkRow && !event.target.closest('[data-bulk-row-select]')) {
@@ -9349,10 +9436,11 @@ document.addEventListener('DOMContentLoaded', () => {
             openActivityDetail(open.dataset.openActivityDetail || '')
             return
         }
-        if (event.target.closest('[data-close-activity-detail]')) {
-            if (detailExpanded && usesDesktopActivityPanel()) setDetailExpanded(false)
-            else closeActivityDetails()
+        if (event.target.closest('[data-open-full-activity-details]')) {
+            enterFullActivityDetail()
+            return
         }
+        if (event.target.closest('[data-close-activity-detail]')) closeActivityDetails()
         if (activityContextMenu && !event.target.closest('[data-activity-context-menu]')) closeActivityContextMenu()
     })
     bulkToggle?.addEventListener('click', () => { bulkMode = !bulkMode; if (!bulkMode) bulkSelected.clear(); updateBulkUi() })
@@ -9406,9 +9494,10 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('scroll', closeActivityContextMenu, true)
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') {
+            document.querySelectorAll('[data-detail-actions-menu][open]').forEach(menu => menu.removeAttribute('open'))
             closePostSaveShare()
             closeShareModal()
-            closeActivityDetails()
+            if (!detailExpanded) closeActivityDetails()
             closeActivityContextMenu()
             closeSportPopover()
         }
@@ -9465,6 +9554,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         consumePendingImportRefresh({notify: true})
     }
+    syncActivityDetailFromLocation()
     const initialToolUrl = new URL(window.location.href)
     const initialTool = initialToolUrl.searchParams.get('tool') || ''
     if (initialTool && activityTools[initialTool]) {
