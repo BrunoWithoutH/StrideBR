@@ -1,7 +1,16 @@
 <?php
-$pageTitle = 'Atualizações';
-$pageDescription = 'Principais mudanças do StrideBR em linguagem de produto.';
-$pageHtml = '<div class="changelog-list">
+require_once dirname(__DIR__, 3) . '/src/includes/app.php';
+$pageTitle = stridebr_t('news.september.title');
+$pageDescription = '';
+$newsText = static fn(string $key): string => stridebr_e(stridebr_t('news.september.' . $key));
+$september = '<section class="changelog-current"><h2><time datetime="2026-09">' . $newsText('month') . '</time></h2>';
+foreach (['new' => ['activity', 'exchange', 'shared', 'pacer'], 'improvements' => ['training', 'tools', 'routes', 'events'], 'fixes' => ['friends', 'pointer', 'detail', 'menu']] as $category => $entries) {
+    $september .= '<h3>' . $newsText($category) . '</h3><ul>';
+    foreach ($entries as $entry) $september .= '<li>' . $newsText($entry) . '</li>';
+    $september .= '</ul>';
+}
+$september .= '</section>';
+$pageHtml = '<div class="changelog-list">' . $september . '
 <section><time>30 de agosto de 2026</time><h2>Compartilhamento v2 e treinos intervalados</h2><ul><li>Atividades passam a ser compartilháveis mesmo sem rota.</li><li>Quando existe traçado, <strong>Exibir rota?</strong> permite escolher se ele entra no card sem alterar o registro original.</li><li>Cards podem ser copiados como imagem e o traçado pode ser exportado separadamente em PNG transparente.</li><li>Trechos, tiros, voltas e tentativas podem armazenar uma rota própria e ser compartilhados juntos ou em imagens separadas.</li><li>No mobile web, a personalização do compartilhamento usa um bottom sheet para manter a prévia em foco.</li></ul></section>
 <section><time>30 de agosto de 2026</time><h2>Preparação da Release Candidate</h2><ul><li>Home passa a priorizar o contexto de hoje e permite reorganizar módulos secundários.</li><li>Nova área de Progresso com consistência, tendências e marcas pessoais.</li><li>Comparação A/B de atividades com seleção padrão da última atividade do mesmo esporte e sugestões relacionadas.</li><li>Atividades ganham privacidade padrão, ocultação opcional do início/fim da rota em compartilhamentos e exclusão reversível com Desfazer.</li><li>Cronogramas sincronizados em modo leitura passam a acompanhar o original e avisar sobre alterações relevantes.</li><li>Central de notificações, painel de treinador ampliado e controles de analytics de produto.</li><li>Proteções contra envios duplicados são reforçadas no navegador e no servidor.</li><li>Landing, onboarding, páginas públicas e documentos legais foram revisados para a 1.0 RC.</li></ul></section>
 <section><time>26 de agosto de 2026</time><h2>Pré-release e hardening</h2><ul><li>Diagnóstico administrativo compara ambiente, banco, migrations, e-mail, uploads, extensões PHP e feature flags antes da publicação.</li><li>Formulários ganham proteção visual contra envios duplicados e aviso quando o navegador fica offline.</li><li>Erros internos em produção recebem uma referência curta para localizar o evento correspondente nos logs sem expor detalhes técnicos.</li><li>Imagens de eventos passam por otimização para WebP e redimensionamento quando o servidor possui suporte, economizando armazenamento.</li><li>Estados vazios de cronogramas, perfil e treinador ganharam próximos passos mais claros.</li><li>A verificação estática agora detecta formulários aninhados e confere proteções essenciais de Apache/uploads.</li></ul></section>

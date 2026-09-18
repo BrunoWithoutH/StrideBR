@@ -12,6 +12,10 @@
     const headingActions = [...document.querySelectorAll('[data-library-heading-actions]')];
     const tabHelp = [...document.querySelectorAll('[data-library-tab-help]')];
     const exerciseUndo = document.querySelector('[data-library-exercise-undo]');
+    const nameReviewDialog = document.querySelector('[data-name-review-dialog]');
+    document.querySelector('[data-open-name-review]')?.addEventListener('click', () => nameReviewDialog?.showModal());
+    nameReviewDialog?.querySelector('[data-close-name-review]')?.addEventListener('click', () => nameReviewDialog.close());
+    nameReviewDialog?.querySelectorAll('[data-name-review-keep]').forEach(button => button.addEventListener('click', () => button.closest('[data-name-review-item]')?.remove()));
     const setLibraryTab = (tab, {push = true} = {}) => {
         if (!page || !['treinos', 'exercicios'].includes(tab)) return;
         page.dataset.libraryActiveTab = tab;
@@ -163,6 +167,9 @@
         set('descricao', item?.descricao || '');
         set('imagem_url', item?.imagem_url || '');
         set('video_url', item?.video_url || '');
+        set('aliases', item?.aliases || '');
+        set('equipamento', item?.equipamento || '');
+        set('tipo_registro', item?.tipo_registro || 'load_reps');
 
         exerciseForm.querySelectorAll('[data-category-option]').forEach(input => {
             input.checked = Boolean(item?.categorias?.includes(String(input.value)));
@@ -222,31 +229,30 @@
 
     if (exerciseModal && !exerciseModal.hidden) openExerciseModal(exerciseModal.dataset.initialEdit || '');
 
-    const search = document.querySelector('[data-library-search]');
-    const filterButtons = [...document.querySelectorAll('[data-library-filter]')];
-    const cards = [...document.querySelectorAll('[data-library-card]')];
-    let activeFilter = 'all';
-    const applyFilters = () => {
-        const query = (search?.value || '').trim().toLocaleLowerCase('pt-BR');
-        let visible = 0;
-        cards.forEach(card => {
-            const typeMatches = activeFilter === 'all' || card.dataset.libraryType === activeFilter;
-            const textMatches = query === '' || String(card.dataset.libraryText || '').includes(query);
-            card.hidden = !(typeMatches && textMatches);
-            if (!card.hidden) visible++;
-        });
-        const counter = document.querySelector('[data-library-visible-count]');
-        if (counter) counter.textContent = String(visible);
-        const empty = document.querySelector('[data-library-filter-empty]');
-        if (empty) empty.hidden = visible !== 0;
+    const detailDialog = document.querySelector('[data-exercise-detail-dialog]');
+    const detailText = (selector, value) => {
+        const node = detailDialog?.querySelector(selector);
+        if (node) node.textContent = value || '—';
     };
-    filterButtons.forEach(button => button.addEventListener('click', () => {
-        activeFilter = button.dataset.libraryFilter || 'all';
-        filterButtons.forEach(item => item.classList.toggle('is-active', item === button));
-        applyFilters();
-    }));
-    search?.addEventListener('input', applyFilters);
-    if (cards.length) applyFilters();
+    const closeDetailDialog = () => {
+        if (detailDialog?.open) detailDialog.close();
+    };
+    document.addEventListener('click', event => {
+        const trigger = event.target.closest('[data-exercise-detail]');
+        if (trigger && detailDialog) {
+            detailText('[data-exercise-detail-name]', trigger.dataset.name || '');
+            detailText('[data-exercise-detail-primary]', trigger.dataset.primary || '—');
+            detailText('[data-exercise-detail-equipment]', trigger.dataset.equipment || '—');
+            detailText('[data-exercise-detail-tracking]', trigger.dataset.tracking || '—');
+            detailText('[data-exercise-detail-aliases]', trigger.dataset.aliases || '—');
+            detailText('[data-exercise-detail-origin]', trigger.dataset.origin === 'personal' ? t('library.personal_exercise', {}, 'Personal exercise') : t('library.stridebr_catalog', {}, 'StrideBR catalog'));
+            const aliasRow = detailDialog.querySelector('[data-exercise-detail-alias-row]');
+            if (aliasRow) aliasRow.hidden = !trigger.dataset.aliases;
+            detailDialog.showModal();
+            return;
+        }
+        if (event.target.closest('[data-close-exercise-detail]')) closeDetailDialog();
+    });
 
     const workoutSearch = document.querySelector('[data-workout-library-search]');
     if (workoutSearch) {
@@ -264,5 +270,6 @@
         if (workoutModal && !workoutModal.hidden) closeWorkoutModal();
         else if (exerciseModal && !exerciseModal.hidden) closeExerciseModal();
         else if (categoryModal && !categoryModal.hidden) closeCategoryModal();
+        else if (detailDialog?.open) closeDetailDialog();
     });
 })();

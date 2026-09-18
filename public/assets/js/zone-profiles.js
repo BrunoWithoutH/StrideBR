@@ -1,4 +1,11 @@
 (() => {
+    const helpButton=document.querySelector('[data-zones-page-help]')
+    const helpDialog=document.querySelector('[data-zones-help-dialog]')
+    helpButton?.addEventListener('click',()=>{
+        if(typeof helpDialog?.showModal==='function') helpDialog.showModal()
+        else helpDialog?.setAttribute('open','open')
+    })
+    helpDialog?.addEventListener('close',()=>helpButton?.focus())
     const form=document.querySelector('[data-zone-form]')
     if(!form)return
     const rows=form.querySelector('[data-zone-rows]')

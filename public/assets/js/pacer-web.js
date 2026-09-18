@@ -7,14 +7,21 @@
         const segments=(Array.isArray(rawSegments)?rawSegments:[]).map(segment=>({
             start:Number(segment?.start_distance_m),
             end:Number(segment?.end_distance_m),
-            pace:Number(segment?.target_pace_s_per_km)
+            pace:Number(segment?.target_pace_s_per_km),
+            tolerance:Math.max(0,Number(segment?.tolerance_s_per_km)||0)
         })).filter(segment=>Number.isFinite(segment.start)&&Number.isFinite(segment.end)&&Number.isFinite(segment.pace)&&segment.pace>0&&segment.end>=segment.start).sort((a,b)=>a.start-b.start)
         if(!segments.length)return null
         const plotWidth=chart.right-chart.left
         const plotHeight=chart.bottom-chart.top
-        const paces=segments.map(segment=>segment.pace)
-        const minPace=Math.min(...paces)
-        const maxPace=Math.max(...paces)
+        const paces=segments.flatMap(segment=>[segment.pace-segment.tolerance,segment.pace+segment.tolerance])
+        let minPace=Math.min(...paces)
+        let maxPace=Math.max(...paces)
+        const naturalRange=maxPace-minPace
+        const minimumSpan=Math.max(16,Math.max(...segments.map(segment=>segment.pace))*.055)
+        const padding=Math.max(5,naturalRange*.14)
+        if(naturalRange<minimumSpan){const center=(minPace+maxPace)/2;minPace=center-minimumSpan/2;maxPace=center+minimumSpan/2}
+        minPace-=padding
+        maxPace+=padding
         const paceRange=Math.max(1,maxPace-minPace)
         const xAt=distance=>clamp(chart.left+clamp(distance,0,totalDistance)/totalDistance*plotWidth,chart.left,chart.right)
         const yAt=pace=>clamp(chart.top+(pace-minPace)/paceRange*plotHeight,chart.top,chart.bottom)
@@ -43,9 +50,28 @@
             plot:{x:chart.left,y:chart.top,width:plotWidth,height:plotHeight,right:chart.right,bottom:chart.bottom},
             points:points.map(([x,y])=>`${x.toFixed(2)},${y.toFixed(2)}`).join(' '),
             finalBand:{x:finalStartX,y:chart.top,width:chart.right-finalStartX,height:plotHeight},
+            totalDistance,segments,minPace,maxPace,
         }
     }
-    if(typeof globalThis!=='undefined'&&globalThis.__stridebrPacerChartTest)globalThis.__stridebrPacerChartTest.geometry=pacerChartGeometry
+    const pacerPointerRatio=(svg,clientX,clientY,plot)=>{
+        const matrix=svg?.getScreenCTM?.()
+        if(!matrix)return null
+        try{
+            const point=svg.createSVGPoint()
+            point.x=clientX;point.y=clientY
+            const local=point.matrixTransform(matrix.inverse())
+            return Number.isFinite(local.x)?Math.max(0,Math.min(1,(local.x-plot.x)/plot.width)):null
+        }catch(_){return null}
+    }
+    const pacerChartInspector=(chart,distance)=>{
+        if(!chart)return null
+        const d=Math.max(0,Math.min(chart.totalDistance,Number(distance)||0))
+        const index=Math.max(0,chart.segments.findIndex((segment,index)=>d>=segment.start&&(d<segment.end||index===chart.segments.length-1)))
+        const segment=chart.segments[index]||chart.segments.at(-1)
+        const targetElapsed=chart.segments.reduce((total,item)=>total+Math.max(0,Math.min(d,item.end)-item.start)/1000*item.pace,0)
+        return {distance:d,targetElapsed,segment,index,finalPhase:d>=chart.totalDistance-(chart.finalBand.width/chart.plot.width*chart.totalDistance)}
+    }
+    if(typeof globalThis!=='undefined'&&globalThis.__stridebrPacerChartTest){globalThis.__stridebrPacerChartTest.pointerRatio=pacerPointerRatio;globalThis.__stridebrPacerChartTest.geometry=pacerChartGeometry;globalThis.__stridebrPacerChartTest.inspector=pacerChartInspector}
     const root=document.querySelector('[data-pacer-page]')
     const form=root?.querySelector('[data-pacer-form]')
     if(!root||!form)return
@@ -160,10 +186,12 @@
         if(!chart){preview.innerHTML='<div class="pacer-preview-error"><strong>Revise a estratégia.</strong><span>Não foi possível desenhar a curva de pace.</span></div>';return}
         const plot=chart.plot,band=chart.finalBand
         const maxDistance=Number(data.target_distance_m);simulationDistance=Number.isFinite(simulationDistance)?Math.max(0,Math.min(maxDistance,simulationDistance)):maxDistance*.5
-        preview.innerHTML=`<div class="pacer-preview-summary"><div><span>Distância</span><strong>${(Number(data.target_distance_m)/1000).toLocaleString('pt-BR',{maximumFractionDigits:2})} km</strong></div><div><span>${data.guidance_rules?.goal_mode==='best_effort'?'Referência':'Meta'}</span><strong>${clock(data.target_time_s)}</strong></div><div><span>Pace médio</span><strong>${pace(data.target_average_pace_s_per_km)}</strong></div></div><div class="pacer-preview-chart" aria-label="Curva de pace da estratégia"><div class="pacer-chart-label">PACE · mais rápido acima</div><div class="pacer-chart-frame"><svg class="pacer-plan-chart" viewBox="0 0 ${chart.chart.width} ${chart.chart.height}" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="pacer-chart-title pacer-chart-description" data-pacer-chart-width="${chart.chart.width}" data-pacer-chart-height="${chart.chart.height}" data-pacer-plot-x="${plot.x}" data-pacer-plot-y="${plot.y}" data-pacer-plot-width="${plot.width}" data-pacer-plot-height="${plot.height}"><title id="pacer-chart-title">Perfil de pace do plano</title><desc id="pacer-chart-description">Pace mais rápido aparece acima.</desc><defs><clipPath id="pacer-plan-plot-clip"><rect x="${plot.x}" y="${plot.y}" width="${plot.width}" height="${plot.height}"></rect></clipPath></defs><rect class="pacer-plot-outline" x="${plot.x}" y="${plot.y}" width="${plot.width}" height="${plot.height}"></rect><g clip-path="url(#pacer-plan-plot-clip)"><rect class="pacer-final-band" x="${band.x}" y="${band.y}" width="${band.width}" height="${band.height}"></rect><polyline class="pacer-plan-line" points="${chart.points}" fill="none" vector-effect="non-scaling-stroke"></polyline></g></svg></div><div class="pacer-chart-axis"><span>0</span><span>${(Number(data.target_distance_m)/2000).toLocaleString('pt-BR',{maximumFractionDigits:1})}</span><span>${(Number(data.target_distance_m)/1000).toLocaleString('pt-BR',{maximumFractionDigits:1})} km</span></div></div><div class="pacer-simulation"><label>Distância simulada <input type="range" min="0" max="${maxDistance}" step="100" value="${simulationDistance}" data-pacer-simulation></label><output data-pacer-simulation-output></output></div><div class="pacer-preview-table"><div class="pacer-preview-row is-head"><span>Trecho</span><span>Alvo</span><span>Faixa</span><span>Acumulado</span></div>${segments.map(segment=>{const segmentTime=(segment.end_distance_m-segment.start_distance_m)/1000*segment.target_pace_s_per_km;cumulative+=segmentTime;return `<div class="pacer-preview-row"><strong>${(segment.start_distance_m/1000).toLocaleString('pt-BR',{maximumFractionDigits:2})}–${(segment.end_distance_m/1000).toLocaleString('pt-BR',{maximumFractionDigits:2})} km</strong><span>${escape(pace(segment.target_pace_s_per_km))}</span><span>${escape(pace(segment.target_pace_s_per_km-segment.tolerance_s_per_km))}–${escape(pace(segment.target_pace_s_per_km+segment.tolerance_s_per_km))}</span><span>${escape(clock(cumulative))}</span></div>`}).join('')}</div>`
-        const slider=preview.querySelector('[data-pacer-simulation]'),output=preview.querySelector('[data-pacer-simulation-output]')
-        const updateSimulation=()=>{const d=Number(slider.value);simulationDistance=d;const segment=segments.find(s=>d>=s.start_distance_m&&d<=s.end_distance_m)||segments.at(-1),target=segments.reduce((total,s)=>total+Math.max(0,Math.min(d,s.end_distance_m)-s.start_distance_m)/1000*s.target_pace_s_per_km,0);output.textContent=`${(d/1000).toLocaleString('pt-BR',{maximumFractionDigits:1})} km / ${(maxDistance/1000).toLocaleString('pt-BR',{maximumFractionDigits:1})} km · tempo esperado ${clock(target)} · ritmo do trecho ${pace(segment.target_pace_s_per_km)} · faixa alvo ${pace(segment.target_pace_s_per_km-segment.tolerance_s_per_km)}–${pace(segment.target_pace_s_per_km+segment.tolerance_s_per_km)}`}
-        slider?.addEventListener('input',updateSimulation);updateSimulation()
+        preview.innerHTML=`<div class="pacer-preview-summary"><div><span>Distância</span><strong>${(Number(data.target_distance_m)/1000).toLocaleString('pt-BR',{maximumFractionDigits:2})} km</strong></div><div><span>${data.guidance_rules?.goal_mode==='best_effort'?'Referência':'Meta'}</span><strong>${clock(data.target_time_s)}</strong></div><div><span>Pace médio</span><strong>${pace(data.target_average_pace_s_per_km)}</strong></div></div><div class="pacer-preview-chart" aria-label="Curva de pace da estratégia"><div class="pacer-chart-label">PACE · mais rápido acima</div><div class="pacer-chart-frame" data-pacer-chart-frame><svg class="pacer-plan-chart" viewBox="0 0 ${chart.chart.width} ${chart.chart.height}" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="pacer-chart-title pacer-chart-description"><title id="pacer-chart-title">Perfil de pace do plano</title><desc id="pacer-chart-description">Passe ou arraste horizontalmente para consultar um ponto do plano. Pace mais rápido aparece acima.</desc><defs><clipPath id="pacer-plan-plot-clip"><rect x="${plot.x}" y="${plot.y}" width="${plot.width}" height="${plot.height}"></rect></clipPath></defs><rect class="pacer-plot-outline" x="${plot.x}" y="${plot.y}" width="${plot.width}" height="${plot.height}"></rect><g clip-path="url(#pacer-plan-plot-clip)"><rect class="pacer-final-band" x="${band.x}" y="${band.y}" width="${band.width}" height="${band.height}"></rect><polyline class="pacer-plan-line" points="${chart.points}" fill="none" vector-effect="non-scaling-stroke"></polyline><line class="pacer-chart-cursor" x1="${plot.x}" x2="${plot.x}" y1="${plot.y}" y2="${plot.bottom}" data-pacer-chart-cursor></line></g></svg></div><div class="pacer-chart-axis"><span>0</span><span>${(Number(data.target_distance_m)/2000).toLocaleString('pt-BR',{maximumFractionDigits:1})}</span><span>${(Number(data.target_distance_m)/1000).toLocaleString('pt-BR',{maximumFractionDigits:1})} km</span></div></div><div class="pacer-chart-inspector" data-pacer-chart-inspector aria-live="polite"></div><div class="pacer-preview-table"><div class="pacer-preview-row is-head"><span>Trecho</span><span>Alvo</span><span>Faixa</span><span>Acumulado</span></div>${segments.map(segment=>{const segmentTime=(segment.end_distance_m-segment.start_distance_m)/1000*segment.target_pace_s_per_km;cumulative+=segmentTime;return `<div class="pacer-preview-row"><strong>${(segment.start_distance_m/1000).toLocaleString('pt-BR',{maximumFractionDigits:2})}–${(segment.end_distance_m/1000).toLocaleString('pt-BR',{maximumFractionDigits:2})} km</strong><span>${escape(pace(segment.target_pace_s_per_km))}</span><span>${escape(pace(segment.target_pace_s_per_km-segment.tolerance_s_per_km))}–${escape(pace(segment.target_pace_s_per_km+segment.tolerance_s_per_km))}</span><span>${escape(clock(cumulative))}</span></div>`}).join('')}</div>`
+        const frame=preview.querySelector('[data-pacer-chart-frame]'),inspector=preview.querySelector('[data-pacer-chart-inspector]'),cursor=preview.querySelector('[data-pacer-chart-cursor]')
+        const updateInspector=(clientX,clientY)=>{const ratio=pacerPointerRatio(frame?.querySelector('svg'),clientX,clientY,plot);if(ratio===null)return;const item=pacerChartInspector(chart,ratio*maxDistance);if(!item)return;simulationDistance=item.distance;const x=plot.x+ratio*plot.width;cursor?.setAttribute('x1',String(x));cursor?.setAttribute('x2',String(x));const segment=item.segment;inspector.innerHTML=`<strong>${(item.distance/1000).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})} km · ${clock(item.targetElapsed)}</strong><div><span>Alvo <b>${pace(segment.pace)}</b></span><span>Faixa <b>${pace(segment.pace-segment.tolerance)}–${pace(segment.pace+segment.tolerance)}</b></span><span>Trecho <b>${item.index+1} de ${chart.segments.length}</b></span>${item.finalPhase?'<span>Fase <b>Final</b></span>':''}</div>`}
+        frame?.addEventListener('pointermove',event=>{if(event.pointerType==='mouse'||event.buttons)updateInspector(event.clientX,event.clientY)})
+        frame?.addEventListener('pointerdown',event=>{frame.setPointerCapture?.(event.pointerId);updateInspector(event.clientX,event.clientY)})
+        updateInspector((frame?.getBoundingClientRect().left||0)+(frame?.getBoundingClientRect().width||0)*simulationDistance/maxDistance)
     }
     const updatePreview=async()=>{
         const current=++request

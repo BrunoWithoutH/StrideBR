@@ -14,7 +14,7 @@ $assert = static function (bool $ok, string $message) use (&$checks): void {
     $checks++;
     if (!$ok) { fwrite(STDERR, "Activity tools menu failed: {$message}\n"); exit(1); }
 };
-$assert(str_contains($page, 'class="activity-toolbar-tools" data-ui-menu="toggle"'), 'Ferramentas deve usar o primitive compartilhado de dropdown.');
+$assert(!str_contains($page, 'class="activity-toolbar-tools"') && substr_count($read('src/layout/header.php'), "\$headerMenuLink('/user/equipamentos.php'") === 2, 'Equipamentos deve estar nos menus de conta, sem dropdown unitário em Activities.');
 $assert(str_contains($js, "document.querySelectorAll('[data-header-menu], [data-ui-menu]')"), 'Controller deve tratar menus globais e locais com uma única coleção.');
 $assert(str_contains($js, "[data-ui-menu=\"toggle\"]"), 'Ferramentas deve receber toggle controlado.');
 $assert(str_contains($js, 'event.preventDefault()') && str_contains($js, 'const shouldOpen = !details.open'), 'Segundo clique deve fechar sem depender do toggle nativo.');

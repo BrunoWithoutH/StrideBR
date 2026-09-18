@@ -134,6 +134,18 @@ function eventosValidarPayload(PDO $pdo, array $payload, ?string $eventId = null
     ];
 }
 
+function eventosExecutarPersistencia(PDOStatement $stmt, array $params): void
+{
+    foreach ($params as $name => $value) {
+        $type = PDO::PARAM_STR;
+        if ($value === null) $type = PDO::PARAM_NULL;
+        elseif (is_bool($value)) $type = PDO::PARAM_BOOL;
+        elseif (is_int($value)) $type = PDO::PARAM_INT;
+        $stmt->bindValue($name, $value, $type);
+    }
+    $stmt->execute();
+}
+
 function eventosSalvar(PDO $pdo, string $actorId, array $payload, ?string $eventId = null): string
 {
     $data = eventosValidarPayload($pdo, $payload, $eventId);
@@ -143,7 +155,7 @@ function eventosSalvar(PDO $pdo, string $actorId, array $payload, ?string $event
             'INSERT INTO eventos_esportivos (idevento, titulo, slug, idmodalidade, tipo, descricao, data_inicio, data_fim, cidade, estado, pais, local_nome, endereco, organizador, distancias, url_oficial, url_inscricao, inscricoes_ate, status, destaque, criado_por)
              VALUES (:id, :titulo, :slug, :modalidade, :tipo, :descricao, :inicio, :fim, :cidade, :estado, :pais, :local, :endereco, :organizador, CAST(:distancias AS jsonb), :oficial, :inscricao, :limite, :status, :destaque, :actor)'
         );
-        $stmt->execute([
+        eventosExecutarPersistencia($stmt, [
             ':id' => $eventId, ':actor' => $actorId,
             ':titulo' => $data['titulo'], ':slug' => $data['slug'], ':modalidade' => $data['idmodalidade'], ':tipo' => $data['tipo'], ':descricao' => $data['descricao'],
             ':inicio' => $data['data_inicio'], ':fim' => $data['data_fim'], ':cidade' => $data['cidade'], ':estado' => $data['estado'], ':pais' => $data['pais'], ':local' => $data['local_nome'], ':endereco' => $data['endereco'], ':organizador' => $data['organizador'],
@@ -153,11 +165,14 @@ function eventosSalvar(PDO $pdo, string $actorId, array $payload, ?string $event
         $stmt = $pdo->prepare(
             'UPDATE eventos_esportivos SET titulo=:titulo, slug=:slug, idmodalidade=:modalidade, tipo=:tipo, descricao=:descricao, data_inicio=:inicio, data_fim=:fim, cidade=:cidade, estado=:estado, pais=:pais, local_nome=:local, endereco=:endereco, organizador=:organizador, distancias=CAST(:distancias AS jsonb), url_oficial=:oficial, url_inscricao=:inscricao, inscricoes_ate=:limite, status=:status, destaque=:destaque, data_atualizacao=NOW() WHERE idevento=:id'
         );
-        $stmt->execute([
+        eventosExecutarPersistencia($stmt, [
             ':id' => $eventId, ':titulo' => $data['titulo'], ':slug' => $data['slug'], ':modalidade' => $data['idmodalidade'], ':tipo' => $data['tipo'], ':descricao' => $data['descricao'],
             ':inicio' => $data['data_inicio'], ':fim' => $data['data_fim'], ':cidade' => $data['cidade'], ':estado' => $data['estado'], ':pais' => $data['pais'], ':local' => $data['local_nome'], ':endereco' => $data['endereco'], ':organizador' => $data['organizador'],
             ':distancias' => json_encode($data['distancias'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), ':oficial' => $data['url_oficial'], ':inscricao' => $data['url_inscricao'], ':limite' => $data['inscricoes_ate'], ':status' => $data['status'], ':destaque' => $data['destaque'],
         ]);
+        if (stridebr_db_column_exists($pdo, 'eventos_esportivos', 'sincronizacao_bloqueada')) {
+            $pdo->prepare("UPDATE eventos_esportivos SET sincronizacao_bloqueada=TRUE,seo_indexavel=CASE WHEN status='publicado' THEN TRUE ELSE seo_indexavel END WHERE idevento=:id AND origem='externo'")->execute([':id' => $eventId]);
+        }
         if ($stmt->rowCount() === 0) {
             $check = $pdo->prepare('SELECT 1 FROM eventos_esportivos WHERE idevento = :id');
             $check->execute([':id' => $eventId]);
@@ -194,6 +209,9 @@ function eventosBuscarAdmin(PDO $pdo, string $eventId): ?array
     if (!$event) return null;
     $event['fontes'] = eventosFontes($pdo, $eventId);
     $event['imagens'] = eventosImagens($pdo, $eventId);
+    $event['modalidades'] = eventosModalidades($pdo, $eventId);
+    $event['provas'] = eventosProvas($pdo, $eventId);
+    $event['fontes_externas'] = eventosFontesExternas($pdo, $eventId);
     return $event;
 }
 
@@ -211,6 +229,30 @@ function eventosImagens(PDO $pdo, string $eventId): array
     return $stmt->fetchAll();
 }
 
+function eventosModalidades(PDO $pdo, string $eventId): array
+{
+    if (!stridebr_db_table_exists($pdo, 'eventos_modalidades')) return [];
+    $stmt = $pdo->prepare('SELECT em.*,m.nome,m.slug,m.categoria FROM eventos_modalidades em JOIN modalidades m ON m.idmodalidade=em.idmodalidade WHERE em.idevento=:evento ORDER BY em.principal DESC,em.ordem,m.nome');
+    $stmt->execute([':evento' => $eventId]);
+    return $stmt->fetchAll();
+}
+
+function eventosProvas(PDO $pdo, string $eventId): array
+{
+    if (!stridebr_db_table_exists($pdo, 'eventos_provas')) return [];
+    $stmt = $pdo->prepare('SELECT ep.*,m.nome AS modalidade_nome,m.slug AS modalidade_slug FROM eventos_provas ep LEFT JOIN modalidades m ON m.idmodalidade=ep.idmodalidade WHERE ep.idevento=:evento ORDER BY ep.ordem,ep.idprova');
+    $stmt->execute([':evento' => $eventId]);
+    return $stmt->fetchAll();
+}
+
+function eventosFontesExternas(PDO $pdo, string $eventId): array
+{
+    if (!stridebr_db_table_exists($pdo, 'eventos_fontes_externas')) return [];
+    $stmt = $pdo->prepare('SELECT provider,external_id,source_url,first_seen_at,last_seen_at,last_fetched_at,sync_misses,stale_since,metadados FROM eventos_fontes_externas WHERE idevento=:evento ORDER BY provider,source_url');
+    $stmt->execute([':evento' => $eventId]);
+    return $stmt->fetchAll();
+}
+
 function eventosListarPublicados(PDO $pdo, array $filters = [], ?string $userId = null, int $limit = 60): array
 {
     if (!eventosDisponiveis($pdo)) return [];
@@ -219,14 +261,22 @@ function eventosListarPublicados(PDO $pdo, array $filters = [], ?string $userId 
     $q = trim((string) ($filters['q'] ?? ''));
     $sport = trim((string) ($filters['modalidade'] ?? ''));
     $state = trim((string) ($filters['estado'] ?? ''));
+    $city = trim((string) ($filters['cidade'] ?? ''));
+    $type = trim((string) ($filters['tipo'] ?? ''));
     $month = trim((string) ($filters['mes'] ?? ''));
     $saved = !empty($filters['salvos']) && $userId !== null;
     if ($q !== '') {
-        $where[] = "(e.titulo ILIKE :q OR COALESCE(e.cidade,'') ILIKE :q OR COALESCE(e.organizador,'') ILIKE :q OR COALESCE(e.tipo,'') ILIKE :q)";
+        $programSearch = stridebr_db_table_exists($pdo, 'eventos_provas') ? " OR EXISTS (SELECT 1 FROM eventos_provas ep WHERE ep.idevento=e.idevento AND ep.nome ILIKE :q)" : '';
+        $where[] = "(e.titulo ILIKE :q OR COALESCE(e.cidade,'') ILIKE :q OR COALESCE(e.organizador,'') ILIKE :q OR COALESCE(e.tipo,'') ILIKE :q{$programSearch})";
         $params[':q'] = '%' . $q . '%';
     }
-    if ($sport !== '') { $where[] = 'e.idmodalidade = :modalidade'; $params[':modalidade'] = $sport; }
+    if ($sport !== '') {
+        $where[] = stridebr_db_table_exists($pdo, 'eventos_modalidades') ? '(e.idmodalidade = :modalidade OR EXISTS (SELECT 1 FROM eventos_modalidades em WHERE em.idevento=e.idevento AND em.idmodalidade=:modalidade))' : 'e.idmodalidade = :modalidade';
+        $params[':modalidade'] = $sport;
+    }
     if ($state !== '') { $where[] = 'lower(e.estado) = lower(:estado)'; $params[':estado'] = $state; }
+    if ($city !== '') { $where[] = 'lower(e.cidade) = lower(:cidade)'; $params[':cidade'] = $city; }
+    if ($type !== '') { $where[] = 'lower(e.tipo) = lower(:tipo)'; $params[':tipo'] = $type; }
     if (preg_match('/^\d{4}-\d{2}$/', $month)) {
         $start = new DateTimeImmutable($month . '-01 00:00:00', new DateTimeZone('America/Sao_Paulo'));
         $end = $start->modify('+1 month');
@@ -241,6 +291,7 @@ function eventosListarPublicados(PDO $pdo, array $filters = [], ?string $userId 
 
     $sql = "SELECT e.*, m.nome AS modalidade_nome, m.slug AS modalidade_slug,
                    (SELECT caminho FROM eventos_imagens i WHERE i.idevento=e.idevento ORDER BY i.principal DESC, i.ordem, i.idimagem LIMIT 1) AS imagem_principal";
+    if (stridebr_db_table_exists($pdo, 'eventos_fontes_externas')) $sql .= ", (SELECT CASE x.provider WHEN 'faergs' THEN 'FAERGS' WHEN 'cbat' THEN 'CBAt' WHEN 'cbc' THEN 'CBC' WHEN 'fgc' THEN 'FGC' WHEN 'cbtri' THEN 'CBTri' ELSE upper(x.provider) END FROM eventos_fontes_externas x WHERE x.idevento=e.idevento ORDER BY x.provider LIMIT 1) AS fonte_externa";
     if ($userId !== null) {
         $sql .= ', EXISTS (SELECT 1 FROM eventos_salvos s WHERE s.idevento=e.idevento AND s.idusuario=:viewer) AS salvo';
         $params[':viewer'] = $userId;
@@ -270,6 +321,9 @@ function eventosBuscarPublico(PDO $pdo, string $identifier, ?string $userId = nu
     if (!$event) return null;
     $event['fontes'] = eventosFontes($pdo, (string) $event['idevento']);
     $event['imagens'] = eventosImagens($pdo, (string) $event['idevento']);
+    $event['modalidades'] = eventosModalidades($pdo, (string) $event['idevento']);
+    $event['provas'] = eventosProvas($pdo, (string) $event['idevento']);
+    $event['fontes_externas'] = eventosFontesExternas($pdo, (string) $event['idevento']);
     return $event;
 }
 

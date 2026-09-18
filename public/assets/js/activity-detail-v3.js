@@ -1,5 +1,6 @@
 (() => {
     const states = new WeakMap()
+    const t = (key, fallback, values = {}) => window.StrideBRI18n?.t?.(key, values, fallback) ?? fallback
     const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char]))
     const number = (value, digits = 1) => Number.isFinite(Number(value)) ? Number(value).toLocaleString('pt-BR', {maximumFractionDigits: digits}) : '—'
     const duration = value => {
@@ -140,7 +141,12 @@
         const extraData = data.length ? `<section class="activity-v3-section"><div class="activity-v3-section-head"><div><span>Dados</span></div></div>${metricCards(data)}</section>` : ''
         const segments = units.length ? `<section class="activity-v3-section activity-v3-segments"><div class="activity-v3-section-head"><div><span>Trechos registrados</span></div></div><div class="activity-v3-unit-list">${units.map(unit => `<article><div class="activity-v3-unit-title"><strong>${escapeHtml(unit.rotulo || 'Trecho')}</strong>${unit.modalidade ? `<small> · ${escapeHtml(unit.modalidade)}</small>` : ''}</div><div class="activity-v3-unit-metrics">${visibleMetrics(unit.valores).filter(item=>String(item?.rotulo||'').trim()&&String(item?.valor||'').trim()).map(item=>`<span><b>${escapeHtml(item.valor)}</b><small>${escapeHtml(item.rotulo)}</small></span>`).join('')}</div></article>`).join('')}</div></section>` : ''
         const notes = activity.observacoes ? `<section class="activity-v3-section activity-v3-notes-section"><div class="activity-v3-section-head"><div><span>Observações</span></div></div><p class="activity-v3-notes">${escapeHtml(activity.observacoes).replace(/\n/g,'<br>')}</p></section>` : ''
-        return `${context}${extraData}${segments}${notes}`
+        const participantData=activity?.participants
+        const entries=Array.isArray(participantData?.participants)?participantData.participants:[]
+        const pending=participantData?.viewer_status==='pending'
+        const participantRows=entries.filter(item=>item.status==='accepted'||(participantData?.can_manage&&item.status==='pending')).map(item=>`<div><span>${escapeHtml(item.name)}</span><strong>${item.status==='pending'?'Convite pendente':'Participou'}${participantData?.can_manage?` <button type="button" class="activity-v3-participant-remove" data-shared-remove="${escapeHtml(item.user_id)}">Remover</button>`:''}</strong></div>`).join('')
+        const participants=participantData ? `<section class="activity-v3-section activity-v3-participants"><div class="activity-v3-section-head"><div><span>Participantes</span></div>${participantData.can_manage?'<button type="button" class="activity-secondary-button" data-shared-add>Adicionar participante</button>':''}</div><div class="activity-v3-info-list"><div><span>${escapeHtml(participantData.owner?.name||'—')}</span><strong>Registrou</strong></div>${participantRows}</div>${pending?`<div class="activity-v3-participant-invite"><strong>${escapeHtml(participantData.owner?.name||'Alguém')} adicionou você a esta atividade.</strong><span><button type="button" class="activity-primary-action" data-shared-respond="accept">Aceitar</button><button type="button" class="activity-secondary-button" data-shared-respond="decline">Recusar</button></span></div>`:''}${participantData?.viewer_status==='accepted'&&!participantData?.can_manage?'<button type="button" class="activity-secondary-button" data-shared-leave>Sair da participação</button>':''}</section>`:''
+        return `${context}${extraData}${segments}${participants}${notes}`
     }
     const tabsFor = activity => {
         const caps = activity?.stream_capabilities || {}
@@ -157,7 +163,7 @@
     const shellHtml = (activity, mode = 'preview') => {
         const previewMetrics = visibleMetrics(activity.metricas || []).slice(0, 4)
         if (mode === 'preview') {
-            return `<div class="activity-v3 is-preview" data-activity-v3>${metricCards(previewMetrics)}${routeHtml(activity)}<footer class="activity-detail-actions has-share activity-v3-preview-actions"><button type="button" class="activity-secondary-button" data-share-activity>Compartilhar</button><button type="button" class="activity-primary-action" data-open-full-activity-details>Abrir detalhes</button></footer></div>`
+            return `<div class="activity-v3 is-preview" data-activity-v3>${metricCards(previewMetrics)}${routeHtml(activity)}</div>`
         }
         const tabs = tabsFor(activity)
         const contextRail = infoRows(activity).length >= 2
@@ -247,11 +253,18 @@
         const valid = samples.map((sample,index) => ({sample,index,value:metricValue(sample,definition)})).filter(item => Number.isFinite(Number(item.value)) && Number.isFinite(Number(item.sample.x)))
         if (valid.length < 2) return {segments:[],min:null,max:null}
         const xs = valid.map(item => Number(item.sample.x))
-        const values = valid.map(item => Number(item.value))
+        const values = valid.map(item => Number(item.value)).sort((a,b)=>a-b)
         const minX = Math.min(...xs)
         const maxX = Math.max(...xs)
-        const min = Math.min(...values)
-        const max = Math.max(...values)
+        const percentile = ratio => values[Math.min(values.length-1,Math.max(0,Math.round((values.length-1)*ratio)))]
+        const rawMin = values[0], rawMax = values.at(-1)
+        let min = values.length >= 8 ? percentile(.03) : rawMin
+        let max = values.length >= 8 ? percentile(.97) : rawMax
+        const naturalSpan = Math.max(0,max-min)
+        const minimumSpan = definition.id === 'pace' ? (definition.unit === 's_per_100m' ? 20 : 90) : Math.max(1,Math.abs((min+max)/2)*.08)
+        if(naturalSpan < minimumSpan){const center=(min+max)/2;min=center-minimumSpan/2;max=center+minimumSpan/2}
+        const padding=Math.max(definition.id==='pace'?(definition.unit === 's_per_100m' ? 2 : 8):.5,(max-min)*.08)
+        min-=padding;max+=padding
         const rangeX = Math.max(maxX-minX,1)
         const rangeY = Math.max(max-min,0.000001)
         const padX = 8
@@ -263,7 +276,7 @@
                 groups.push(current)
                 current=[]
             }
-            const ratio = (Number(item.value)-min)/rangeY
+            const ratio = Math.max(0,Math.min(1,(Number(item.value)-min)/rangeY))
             const visual = definition.invert ? ratio : 1-ratio
             const x = padX + ((Number(item.sample.x)-minX)/rangeX)*(width-padX*2)
             const y = padY + visual*(height-padY*2)
@@ -287,16 +300,14 @@
     }
     const chartsMarkup = (state, data) => {
         const definitions = metricDefinitions(data)
-        const selected = selectedMetricIds(state, definitions)
+        const selected = definitions.map(def => def.id)
         state.chartMetrics = new Set(selected)
         if (!definitions.length) return '<div class="activity-v3-empty">Nenhum dado contínuo disponível para gráficos nesta atividade.</div>'
-        const enabled = new Set(selected)
-        const toggles = definitions.map(def => `<label><input type="checkbox" value="${def.id}" data-chart-toggle${enabled.has(def.id)?' checked':''}><span>${escapeHtml(def.label)}</span></label>`).join('')
-        const visible = definitions.filter(def => enabled.has(def.id))
+        const visible = definitions
         const charts = visible.map((def,index) => chartHtml(def,data.samples || [],index===0)).join('')
         const distanceAvailable = (data.available_streams || []).includes('distance')
         const axisControls = distanceAvailable ? `<div class="activity-v3-axis" role="group" aria-label="Eixo dos gráficos"><button type="button" data-chart-axis="distance" class="${data.axis==='distance'?'is-active':''}">Distância</button><button type="button" data-chart-axis="time" class="${data.axis==='time'?'is-active':''}">Tempo</button></div>` : `<div class="activity-v3-axis"><button type="button" data-chart-axis="time" class="is-active" disabled>Tempo</button></div>`
-        return `<div class="activity-v3-chart-tools">${axisControls}<div class="activity-v3-chart-toggles">${toggles}</div></div><div class="activity-v3-chart-tooltip" data-chart-tooltip><strong>Mova o cursor sobre um gráfico</strong><span>As séries usam o mesmo eixo.</span></div><div class="activity-v3-chart-list" data-chart-list>${charts || '<div class="activity-v3-empty">Nenhum dado contínuo disponível para gráficos nesta atividade.</div>'}</div>`
+        return `<div class="activity-v3-chart-tools">${axisControls}</div><div class="activity-v3-chart-tooltip" data-chart-tooltip><strong>Mova o cursor sobre um gráfico</strong><span>As séries usam o mesmo eixo.</span></div><div class="activity-v3-chart-list" data-chart-list>${charts || '<div class="activity-v3-empty">Nenhum dado contínuo disponível para gráficos nesta atividade.</div>'}</div>`
     }
     const nearestSample = (samples, ratio) => {
         if (!samples.length) return null
@@ -322,19 +333,12 @@
     const bindCharts = (state, panel, data) => {
         state.streamData=data
         const definitions=metricDefinitions(data)
-        const enabled=()=>new Set(Array.from(panel.querySelectorAll('[data-chart-toggle]:checked')).map(input=>input.value))
-        const rerender=()=>{
-            state.chartMetrics=enabled()
-            const active=state.chartMetrics
-            const list=panel.querySelector('[data-chart-list]')
-            if(list) list.innerHTML=definitions.filter(def=>active.has(def.id)).map((def,index)=>chartHtml(def,data.samples||[],index===0)).join('') || '<div class="activity-v3-empty">Selecione uma métrica.</div>'
-            bindSurfaces()
-        }
+        const enabled=()=>new Set(definitions.map(def=>def.id))
         const updateCursor=(event,surface)=>{
             const rect=surface.getBoundingClientRect()
             if(rect.width<=0)return
             const ratio=(event.clientX-rect.left)/rect.width
-            const sample=nearestSample(data.samples||[],ratio)
+            const sample=nearestSample(data.cursor_samples||data.samples||[],ratio)
             const active=definitions.filter(def=>enabled().has(def.id))
             const tooltip=panel.querySelector('[data-chart-tooltip]')
             if(tooltip) tooltip.innerHTML=tooltipHtml(sample,active,data.axis)
@@ -346,7 +350,6 @@
             surface.onpointermove=event=>updateCursor(event,surface)
             surface.onpointerleave=()=>panel.querySelectorAll('[data-chart-cursor]').forEach(line=>{line.hidden=true})
         })
-        panel.querySelectorAll('[data-chart-toggle]').forEach(input=>input.addEventListener('change',rerender))
         panel.querySelectorAll('[data-chart-axis]').forEach(button=>button.addEventListener('click',async()=>{
             const axis=button.dataset.chartAxis
             if(axis===data.axis||button.disabled)return
@@ -395,14 +398,15 @@
         panel.innerHTML='<div class="activity-v3-lazy"><span></span><strong>Calculando splits…</strong></div>'
         try {
             const data=await requestData(state,'splits',`/api/atividade-splits.php?id=${encodeURIComponent(state.activity.id)}&distance_m=${encodeURIComponent(distanceM)}`)
-            panel.innerHTML=`<div class="activity-v3-split-tools"><label>Distância do split<select data-split-distance><option value="500"${distanceM===500?' selected':''}>500 m</option><option value="1000"${distanceM===1000?' selected':''}>1 km</option><option value="5000"${distanceM===5000?' selected':''}>5 km</option><option value="custom"${![500,1000,5000].includes(distanceM)?' selected':''}>Personalizado</option></select></label><label data-split-custom${[500,1000,5000].includes(distanceM)?' hidden':''}>Metros<input type="number" min="100" max="100000" step="100" value="${escapeHtml(distanceM)}" data-split-custom-value></label><button type="button" class="activity-secondary-button" data-split-apply>Aplicar</button></div><div data-split-table>${splitTable(data)}</div>`
-            const select=panel.querySelector('[data-split-distance]')
-            const custom=panel.querySelector('[data-split-custom]')
-            select?.addEventListener('change',()=>{if(custom) custom.hidden=select.value!=='custom'})
-            panel.querySelector('[data-split-apply]')?.addEventListener('click',()=>{
-                const value=select?.value==='custom'?Number(panel.querySelector('[data-split-custom-value]')?.value):Number(select?.value)
-                if(Number.isFinite(value)) loadSplits(state,panel,Math.max(100,Math.min(100000,Math.round(value))))
-            })
+            panel.innerHTML=`<div class="activity-v3-split-tools"><label><span>${escapeHtml(t('activity.splits.distance','Distância do split'))}</span><span class="activity-v3-split-distance-field"><input type="number" min="100" max="100000" step="100" value="${escapeHtml(distanceM)}" data-split-distance-value><small>${escapeHtml(t('activity.splits.meters','m'))}</small></span></label><div class="activity-v3-split-presets" role="group" aria-label="${escapeHtml(t('activity.splits.quick','Distâncias rápidas'))}"><button type="button" data-split-preset="500">500 m</button><button type="button" data-split-preset="1000">1 km</button><button type="button" data-split-preset="5000">5 km</button></div><button type="button" class="activity-secondary-button" data-split-apply>${escapeHtml(t('common.apply','Aplicar'))}</button></div><div data-split-table>${splitTable(data)}</div>`
+            const input=panel.querySelector('[data-split-distance-value]')
+            const apply=value=>{
+                const clean=Math.max(100,Math.min(100000,Math.round(Number(value))))
+                if(Number.isFinite(clean)) loadSplits(state,panel,clean)
+            }
+            panel.querySelectorAll('[data-split-preset]').forEach(button=>button.addEventListener('click',()=>apply(button.dataset.splitPreset)))
+            panel.querySelector('[data-split-apply]')?.addEventListener('click',()=>apply(input?.value))
+            input?.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();apply(input.value)}})
             return 'loaded'
         } catch(error) {
             panel.innerHTML=`<div class="activity-v3-error"><strong>Não foi possível carregar os splits.</strong><span>${escapeHtml(error.message)}</span><button type="button" class="activity-secondary-button" data-retry-tab="splits">Tentar novamente</button></div>`
@@ -444,14 +448,29 @@
             const analysis=await getAnalysis(state)
             const hr=zoneBlock('Zonas de frequência cardíaca',analysis.heart_rate?.zones,'bpm')
             const paceZones=zoneBlock('Zonas de pace',analysis.pace_zones,'s/km')
-            panel.innerHTML=hr+paceZones || `<div class="activity-v3-empty"><strong>Nenhum perfil de zonas aplicável.</strong><span>Configure limites manuais para analisar a distribuição desta atividade.</span><a class="activity-primary-action" href="/user/zonas.php">Configurar zonas</a></div>`
+            panel.innerHTML=hr+paceZones ? `<div class="activity-v3-zone-actions"><button type="button" class="activity-secondary-button" data-zones-help>ⓘ ${escapeHtml(t('zones.help_title','Como funcionam as zonas?'))}</button><a class="activity-secondary-button" href="/user/zonas.php?return_to=${encodeURIComponent(location.pathname + location.search)}">${escapeHtml(t('zones.configure','Configurar zonas'))}</a></div>${hr}${paceZones}` : `<div class="activity-v3-empty"><strong>${escapeHtml(t('zones.no_profile','Nenhum perfil de zonas configurado.'))}</strong><span>${escapeHtml(t('zones.setup_help','Configure limites manuais para analisar a distribuição desta atividade.'))}</span><a class="activity-primary-action" href="/user/zonas.php?return_to=${encodeURIComponent(location.pathname + location.search)}">${escapeHtml(t('zones.configure','Configurar zonas'))}</a></div>`
+            panel.querySelector('[data-zones-help]')?.addEventListener('click',event=>{
+                const trigger=event.currentTarget
+                const dialog=document.createElement('dialog')
+                dialog.className='activity-v3-zones-help'
+                dialog.innerHTML=`<form method="dialog"><header><strong>${escapeHtml(t('zones.help_title','Como funcionam as zonas?'))}</strong><button aria-label="${escapeHtml(t('common.close','Fechar'))}">×</button></header><p>${escapeHtml(t('zones.help_one','Zonas agrupam intensidade em faixas configuradas.'))}</p><p>${escapeHtml(t('zones.help_two','Podem existir perfis de frequência cardíaca e pace conforme os dados disponíveis.'))}</p><p>${escapeHtml(t('zones.help_three','O StrideBR usa os limites configurados por você. Alterar o perfil pode mudar a distribuição exibida.'))}</p><button class="activity-primary-action">${escapeHtml(t('common.close','Fechar'))}</button></form>`
+                document.body.appendChild(dialog); dialog.addEventListener('close',()=>{dialog.remove();trigger.focus()}); dialog.showModal()
+            })
             return hr+paceZones ? 'loaded' : 'empty'
         } catch(error) {
             panel.innerHTML=`<div class="activity-v3-error"><strong>Não foi possível carregar as zonas.</strong><span>${escapeHtml(error.message)}</span><button type="button" class="activity-secondary-button" data-retry-tab="zones">Tentar novamente</button></div>`
             return 'error'
         }
     }
-    const findingText = finding => ({negative_split:'Você completou a segunda metade mais rápido que a primeira.',positive_split:'A segunda metade foi mais lenta que a primeira.',even:'As duas metades tiveram ritmo semelhante.',strong_finish:'Os últimos 10% foram mais rápidos que o trecho anterior.',pace_variability_high:'O ritmo variou bastante ao longo da atividade.',heart_rate_drift_detected:'A relação entre ritmo e frequência cardíaca mudou ao longo da atividade.'}[finding?.code] || String(finding?.code || '').replaceAll('_',' '))
+    const findingText = finding => ({negative_split:t('activity.analysis.negative_split','Você completou a segunda metade mais rápido que a primeira.'),positive_split:t('activity.analysis.positive_split','A segunda metade foi mais lenta que a primeira.'),even:t('activity.analysis.even','As duas metades tiveram ritmo semelhante.'),strong_finish:t('activity.analysis.strong_finish','Os últimos 10% foram mais rápidos que o trecho anterior.'),pace_variability_high:t('activity.analysis.pace_variability_high','O ritmo variou bastante ao longo da atividade.'),heart_rate_drift_detected:t('activity.analysis.heart_rate_drift_detected','A relação entre ritmo e frequência cardíaca mudou ao longo da atividade.')}[finding?.code] || '')
+    const findingDetail = finding => {
+        const values=finding?.supporting_values||{}
+        if(['negative_split','positive_split','even'].includes(finding?.code)) return t('activity.analysis.halves_context','Comparação por distância entre as duas metades.')
+        if(finding?.code==='strong_finish') return t('activity.analysis.finish_context','Compara os últimos 10% com os 20% anteriores.')
+        if(finding?.code==='pace_variability_high' && Number.isFinite(Number(values.variability_percent))) return t('activity.analysis.variability_context',`Variação do ritmo: ${percent(values.variability_percent)}.`,{value:percent(values.variability_percent)})
+        if(finding?.code==='heart_rate_drift_detected' && Number.isFinite(Number(values.decoupling_percent))) return t('activity.analysis.drift_context',`Mudança da relação ritmo/FC entre as metades: ${percent(values.decoupling_percent)}.`,{value:percent(values.decoupling_percent)})
+        return ''
+    }
     const analysisMetric = (label,value) => value && value!=='—' ? `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>` : ''
     const analysisHtml = analysis => {
         const p=analysis.pacing
@@ -462,7 +481,7 @@
         if(p){metrics.push(['Média',formatPerformance(p.average,performanceUnit)],['Mediana',formatPerformance(p.median,performanceUnit)],['Primeira metade',formatPerformance(p.first_half,performanceUnit)],['Segunda metade',formatPerformance(p.second_half,performanceUnit)],['Variação',percent(p.variability_percent)],['Últimos 10%',formatPerformance(p.finish?.last_10_percent,performanceUnit)])}
         if(hr){metrics.push(['FC média',`${number(hr.average_bpm,0)} bpm`],['FC máxima',`${number(hr.max_bpm,0)} bpm`],['Cobertura FC',percent(hr.coverage_percent)])}
         if(cadence){metrics.push(['Cadência média',`${number(cadence.average,0)} ${cadence.unit}`])}
-        const findings=(analysis.findings||[]).map(item=>`<article><strong>${escapeHtml(findingText(item))}</strong><small>${escapeHtml(item.formula || '')}</small></article>`).join('')
+        const findings=(analysis.findings||[]).map(item=>{const text=findingText(item);const detail=findingDetail(item);return text?`<article><strong>${escapeHtml(text)}</strong>${detail?`<small>${escapeHtml(detail)}</small>`:''}</article>`:''}).join('')
         const efforts=(analysis.best_efforts||[]).map(item=>`<div><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(duration(item.duration_s))}</strong><small>${escapeHtml(pace(item.pace_s_per_km))}</small></div>`).join('')
         const drift=hr?.decoupling ? `<section class="activity-v3-section"><div class="activity-v3-section-head"><div><span>Cardiac drift</span><strong>${escapeHtml(percent(hr.decoupling.decoupling_percent))}</strong></div></div><p class="activity-v3-notes">Mede a mudança da relação entre velocidade e frequência cardíaca entre as duas metades. É uma métrica esportiva, não médica.</p></section>` : ''
         return `${p ? `<section class="activity-v3-analysis-hero"><span>Padrão de ritmo</span><strong>${escapeHtml(({negative_split:'Negative split',positive_split:'Positive split',even:'Ritmo estável',insufficient_data:'Dados insuficientes'}[p.pattern]||p.pattern))}</strong>${Number.isFinite(Number(p.difference_percent))?`<small>${escapeHtml(percent(p.difference_percent))} entre as metades</small>`:''}</section>`:''}<section class="activity-v3-section"><div class="activity-v3-analysis-grid">${metrics.map(([label,value])=>analysisMetric(label,value)).join('')}</div></section>${findings?`<section class="activity-v3-section"><div class="activity-v3-section-head"><div><span>Leituras da atividade</span></div></div><div class="activity-v3-findings">${findings}</div></section>`:''}${efforts?`<section class="activity-v3-section"><div class="activity-v3-section-head"><div><span>Melhores trechos desta atividade</span></div></div><div class="activity-v3-best-efforts">${efforts}</div></section>`:''}${drift}`
@@ -489,14 +508,20 @@
         return 'loaded'
     }
     const activateTab = async (state,id,{force=false}={}) => {
+        const exists=state.root.querySelector(`[data-activity-v3-panel="${CSS.escape(id)}"]`)
+        if(!exists)return
         state.root.querySelectorAll('[data-activity-v3-tab]').forEach(button=>{
             const active=button.dataset.activityV3Tab===id
             button.setAttribute('aria-selected',active?'true':'false')
             button.tabIndex=active?0:-1
         })
         state.root.querySelectorAll('[data-activity-v3-panel]').forEach(panel=>{panel.hidden=panel.dataset.activityV3Panel!==id})
-        const panel=state.root.querySelector(`[data-activity-v3-panel="${CSS.escape(id)}"]`)
+        const panel=exists
         if(!panel)return
+        state.activeTab=id
+        const url=new URL(window.location.href)
+        if(id==='summary')url.searchParams.delete('tab');else url.searchParams.set('tab',id)
+        history.replaceState({...history.state,activityTab:id},'',`${url.pathname}${url.search}${url.hash}`)
         const status=state.tabStates.get(id)||'idle'
         if(!force && (status==='loading'||status==='loaded'||status==='empty'))return
         state.tabStates.set(id,'loading')
@@ -538,6 +563,39 @@
         }
         await mount()
     }
+    const bindParticipants = (content, activity, mode) => {
+        const section=content.querySelector('.activity-v3-participants')
+        if(!section||mode!=='detail')return
+        const page=document.querySelector('[data-activities-page]')
+        const request=async(action,userId='')=>{
+            const body=new URLSearchParams({id:String(activity.id||''),action,csrf_token:page?.dataset.csrfToken||''})
+            if(userId)body.set('user_id',userId)
+            const response=await fetch('/api/atividade-participantes.php',{method:'POST',headers:{Accept:'application/json','Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},credentials:'same-origin',body})
+            const data=await response.json().catch(()=>null)
+            if(!response.ok||!data?.ok)throw new Error(data?.error||t('activity.participants.update_failed', 'Não foi possível enviar o convite.'))
+            const latest=await fetchJson(`/api/atividade-participantes.php?id=${encodeURIComponent(activity.id)}`)
+            activity.participants=latest
+            render({content,activity,mode})
+        }
+        section.querySelector('[data-shared-add]')?.addEventListener('click',()=>{
+            const people=activity.participants?.eligible_friends||[]
+            const dialog=document.createElement('dialog')
+            dialog.className='activity-v3-participant-dialog'
+            dialog.innerHTML=`<form method="dialog"><header><strong>${escapeHtml(t('activity.participants.add', 'Adicionar participante'))}</strong><button aria-label="${escapeHtml(t('common.close', 'Fechar'))}">×</button></header><label>${escapeHtml(t('activity.participants.search', 'Buscar amigos'))}<input type="search" data-shared-search autofocus></label><div data-shared-people>${people.map(person=>`<button type="button" data-shared-invite="${escapeHtml(person.user_id)}"><span>${escapeHtml(person.name)}</span><small>@${escapeHtml(person.username)}</small><b>${escapeHtml(t('common.add', 'Adicionar'))}</b></button>`).join('')||`<p>${escapeHtml(t('activity.participants.no_friends', 'Nenhum amigo disponível.'))}</p>`}</div></form>`
+            document.body.appendChild(dialog);dialog.showModal()
+            const filter=dialog.querySelector('[data-shared-search]'),list=dialog.querySelector('[data-shared-people]')
+            filter?.addEventListener('input',()=>{const term=String(filter.value||'').toLocaleLowerCase('pt-BR');list.querySelectorAll('[data-shared-invite]').forEach(button=>{button.hidden=!button.textContent.toLocaleLowerCase('pt-BR').includes(term)})})
+            dialog.addEventListener('close',()=>dialog.remove())
+            dialog.querySelectorAll('[data-shared-invite]').forEach(button=>button.addEventListener('click',async()=>{button.disabled=true;try{await request('invite',button.dataset.sharedInvite||'');dialog.close()}catch(error){button.disabled=false;window.StrideBRUI?.notify?.(error.message,'error')}}))
+        })
+        section.querySelectorAll('[data-shared-respond]').forEach(button=>button.addEventListener('click',async()=>{button.disabled=true;try{await request(button.dataset.sharedRespond||'decline')}catch(error){button.disabled=false;window.StrideBRUI?.notify?.(error.message,'error')}}))
+        section.querySelector('[data-shared-leave]')?.addEventListener('click',async button=>{button.currentTarget.disabled=true;try{await request('remove')}catch(error){button.currentTarget.disabled=false;window.StrideBRUI?.notify?.(error.message,'error')}})
+        section.querySelectorAll('[data-shared-remove]').forEach(button=>button.addEventListener('click',async()=>{
+            button.disabled=true
+            try { await request('remove', String(button.dataset.sharedRemove || '')) }
+            catch(error) { button.disabled=false; window.StrideBRUI?.notify?.(error.message,'error') }
+        }))
+    }
     const destroy = content => {
         const state = states.get(content)
         if (!state) return
@@ -558,8 +616,9 @@
         if (mode === 'detail') {
             bindStatsToggle(content,activity)
             bindRouteSave(content,activity)
+            bindParticipants(content,activity,mode)
         }
-        const state = {root,activity,mode,tabStates:new Map(mode === 'detail' ? [['summary','loaded']] : []),controllers:new Map(),cache:new Map(),chartMetrics:new Set(),analysisPromise:null,plannedActualPromise:null,mapController:null,visibilityObserver:null,streamData:null,destroyed:false}
+        const state = {root,activity,mode,tabStates:new Map(mode === 'detail' ? [['summary','loaded']] : []),controllers:new Map(),cache:new Map(),chartMetrics:new Set(),analysisPromise:null,plannedActualPromise:null,mapController:null,visibilityObserver:null,streamData:null,destroyed:false,activeTab:'summary'}
         states.set(content,state)
         if (mode === 'detail') {
             root.querySelectorAll('[data-activity-v3-tab]').forEach(button => {
@@ -574,6 +633,8 @@
                     tabs[next]?.click()
                 })
             })
+            const requestedTab=new URL(window.location.href).searchParams.get('tab')||'summary'
+            if(requestedTab!=='summary'&&root.querySelector(`[data-activity-v3-panel="${CSS.escape(requestedTab)}"]`)) requestAnimationFrame(()=>activateTab(state,requestedTab))
         }
         requestAnimationFrame(() => mountMap(state))
         return true

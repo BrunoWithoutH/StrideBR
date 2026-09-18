@@ -25,6 +25,18 @@ function cronogramaNormalizarNome(string $value): string
     return preg_replace('/\s+/u', ' ', trim($value)) ?? trim($value);
 }
 
+/** Canonicalize only an unequivocal catalog identity; fuzzy matches remain user choices. */
+function cronogramaNomeExercicioCanonico(PDO $pdo, string $nome, ?array $catalog = null): string
+{
+    $nome = cronogramaNormalizarNome($nome);
+    if ($nome === '') return '';
+    $catalog = $catalog ?? stridebr_exercise_catalog_for_user($pdo, '');
+    $catalog = array_values(array_filter($catalog, static fn(array $item): bool => empty($item['idusuario'])));
+    $match = stridebr_exercise_resolve_catalog($catalog, ['nome' => $nome]);
+    if (($match['status'] ?? '') === 'matched' && in_array((string) ($match['reason'] ?? ''), ['normalized_name','slug','alias'], true)) return (string) ($match['match']['nome'] ?? $nome);
+    return $nome;
+}
+
 function cronogramaListar(PDO $pdo, string $idUsuario): array
 {
     $stmt = $pdo->prepare('SELECT * FROM cronogramas WHERE idusuario = :usuario AND ativo = TRUE ORDER BY data_atualizacao DESC, nome');
@@ -342,7 +354,9 @@ function cronogramaDuplicarTreino(PDO $pdo, string $idUsuario, string $idTreino)
         $exerciseStmt = $pdo->prepare('SELECT * FROM treinos_exercicios WHERE idtreino = :treino ORDER BY ordem');
         $exerciseStmt->execute([':treino' => $idTreino]);
         $insertExercise = $pdo->prepare('INSERT INTO treinos_exercicios (idtreino_exercicio, idtreino, idexercicio, nome_snapshot, series, repeticoes, carga, bloco, cluster, descanso, observacoes, duracao, distancia, intensidade, rpe, rir, tempo_execucao, cadencia, tipo_passo, repeticoes_bloco, alvo_tipo, alvo_min, alvo_max, alvo_unidade, recuperacao_duracao_s, recuperacao_distancia_m, ordem) VALUES (:id, :treino, :exercicio, :nome, :series, :repeticoes, :carga, :bloco, :cluster, :descanso, :observacoes, :duracao, :distancia, :intensidade, :rpe, :rir, :tempo_execucao, :cadencia, :tipo_passo, :repeticoes_bloco, :alvo_tipo, :alvo_min, :alvo_max, :alvo_unidade, :recuperacao_duracao_s, :recuperacao_distancia_m, :ordem)');
+        $catalog = stridebr_exercise_catalog_for_user($pdo, $idUsuario);
         foreach ($exerciseStmt->fetchAll() as $exercise) {
+            $exercise['nome_snapshot'] = cronogramaResolverExercicioBiblioteca($pdo, $catalog, (string) ($exercise['idexercicio'] ?? ''), (string) $exercise['nome_snapshot'])['nome'];
             $newExerciseId = cronogramaGerarId();
             $exerciseMap[(string) $exercise['idtreino_exercicio']] = $newExerciseId;
             $insertExercise->execute([
@@ -430,37 +444,47 @@ function cronogramaDuracaoMinutos(array $treino): int
 
 function cronogramaListarExerciciosBiblioteca(PDO $pdo, string $idUsuario): array
 {
+    $hasAliases = stridebr_db_table_exists($pdo, 'exercicios_aliases');
+    $aliasSelect = $hasAliases
+        ? "COALESCE(jsonb_agg(DISTINCT jsonb_build_object('alias', ea.alias, 'safe', ea.seguro, 'language', ea.idioma)) FILTER (WHERE ea.idalias IS NOT NULL), '[]'::jsonb) AS aliases_json,"
+        : "'[]'::jsonb AS aliases_json,";
+    $aliasJoin = $hasAliases ? 'LEFT JOIN exercicios_aliases ea ON ea.idexercicio = e.idexercicio' : '';
     $stmt = $pdo->prepare(
-        "SELECT e.idexercicio, e.nome, e.descricao, e.idusuario, e.imagem_url, e.video_url,
+        "SELECT e.idexercicio, e.nome, e.slug, e.descricao, e.idusuario, e.imagem_url, e.video_url,
+                e.equipamento, e.tipo_registro, e.grupos_musculares_primarios, e.grupos_musculares_secundarios,
+                {$aliasSelect}
                 COALESCE(string_agg(DISTINCT c.nome, ', ' ORDER BY c.nome), '') AS categorias,
                 COALESCE(string_agg(DISTINCT m.nome, ', ' ORDER BY m.nome), '') AS modalidades
          FROM exercicios e
+         {$aliasJoin}
          LEFT JOIN exercicios_categorias ec ON ec.idexercicio = e.idexercicio
          LEFT JOIN categorias_exercicio c ON c.idcategoria = ec.idcategoria AND c.ativo = TRUE
          LEFT JOIN exercicios_modalidades em ON em.idexercicio = e.idexercicio
          LEFT JOIN modalidades m ON m.idmodalidade = em.idmodalidade AND m.ativo = TRUE
          WHERE e.ativo = TRUE AND (e.idusuario IS NULL OR e.idusuario = :usuario)
          GROUP BY e.idexercicio
-         ORDER BY e.idusuario NULLS FIRST, e.nome"
+         ORDER BY e.idusuario NULLS LAST, e.nome"
     );
     $stmt->execute([':usuario' => $idUsuario]);
-    return $stmt->fetchAll();
+    return array_map('stridebr_exercise_row', $stmt->fetchAll());
 }
 
-function cronogramaResolverExercicioBiblioteca(array $biblioteca, string $idExercicio, string $nome): array
+function cronogramaResolverExercicioBiblioteca(PDO $pdo, array $biblioteca, string $idExercicio, string $nome): array
 {
     $idExercicio = trim($idExercicio);
     $nome = cronogramaNormalizarNome($nome);
-    $byId = array_column($biblioteca, null, 'idexercicio');
-    if ($idExercicio !== '' && isset($byId[$idExercicio])) {
-        return ['idexercicio' => $idExercicio, 'nome' => $nome !== '' ? $nome : (string) $byId[$idExercicio]['nome']];
-    }
-    if ($nome === '') return ['idexercicio' => '', 'nome' => ''];
-    $resolution = stridebr_exercise_resolve_catalog($biblioteca, ['nome' => $nome]);
+    $resolution = stridebr_exercise_resolve_entry($biblioteca, ['idexercicio'=>$idExercicio,'nome'=>$nome]);
     if (($resolution['status'] ?? '') === 'matched' && is_array($resolution['match'] ?? null)) {
-        return ['idexercicio' => (string) $resolution['match']['idexercicio'], 'nome' => $nome];
+        $reason = (string) ($resolution['reason'] ?? '');
+        $canonical = (string) ($resolution['match']['nome'] ?? $nome);
+        return [
+            'idexercicio'=>(string) $resolution['match']['idexercicio'],
+            'nome'=>in_array($reason,['id','normalized_name','slug','alias'],true) ? $canonical : $nome,
+            'resolution'=>$resolution,
+            'tipo_registro'=>(string) ($resolution['match']['tipo_registro'] ?? 'load_reps'),
+        ];
     }
-    return ['idexercicio' => '', 'nome' => $nome];
+    return ['idexercicio'=>'','nome'=>$nome,'resolution'=>$resolution,'tipo_registro'=>''];
 }
 
 function cronogramaListarCategorias(PDO $pdo, string $idUsuario): array
@@ -514,12 +538,45 @@ function cronogramaNormalizarUrlMidia(?string $url): ?string
     return $url;
 }
 
-function cronogramaCriarExercicio(PDO $pdo, string $idUsuario, string $nome, ?string $descricao = null, array $categorias = [], ?string $imagemUrl = null, ?string $videoUrl = null): string
+function cronogramaNormalizarTipoRegistroExercicio(string $value): string
 {
-    $nome = cronogramaNormalizarNome($nome);
+    return in_array($value, ['load_reps','reps','duration','distance','duration_distance'], true) ? $value : 'load_reps';
+}
+
+function cronogramaNormalizarEquipamentoExercicio(?string $value): ?string
+{
+    $value = trim((string) $value);
+    if ($value === '') return null;
+    if (strlen($value) > 40 || preg_match('/^[a-z0-9-]+$/', $value) !== 1) throw new InvalidArgumentException(stridebr_t('library.invalid_equipment'));
+    return $value;
+}
+
+function cronogramaSalvarAliasesExercicioPessoal(PDO $pdo, string $idUsuario, string $idExercicio, array $aliases): void
+{
+    if (!stridebr_db_table_exists($pdo, 'exercicios_aliases')) return;
+    $owner = $pdo->prepare('SELECT 1 FROM exercicios WHERE idexercicio=:id AND idusuario=:usuario');
+    $owner->execute([':id'=>$idExercicio,':usuario'=>$idUsuario]);
+    if (!$owner->fetchColumn()) return;
+    $pdo->prepare('DELETE FROM exercicios_aliases WHERE idexercicio=:id')->execute([':id'=>$idExercicio]);
+    $insert = $pdo->prepare('INSERT INTO exercicios_aliases(idexercicio,alias,alias_normalizado,idioma,seguro) VALUES(:id,:alias,:normalized,:language,TRUE) ON CONFLICT DO NOTHING');
+    $seen=[];
+    foreach ($aliases as $alias) {
+        $alias = trim((string) $alias);
+        $normalized = stridebr_normalize_exercise_name($alias);
+        if ($alias === '' || $normalized === '' || strlen($alias) > 160 || isset($seen[$normalized])) continue;
+        $seen[$normalized]=true;
+        $insert->execute([':id'=>$idExercicio,':alias'=>$alias,':normalized'=>$normalized,':language'=>'und']);
+    }
+}
+
+function cronogramaCriarExercicio(PDO $pdo, string $idUsuario, string $nome, ?string $descricao = null, array $categorias = [], ?string $imagemUrl = null, ?string $videoUrl = null, array $aliases = [], ?string $equipamento = null, string $tipoRegistro = 'load_reps'): string
+{
+    $nome = cronogramaNomeExercicioCanonico($pdo, $nome);
     $slug = stridebr_slug($nome);
     $imagemUrl = cronogramaNormalizarUrlMidia($imagemUrl);
     $videoUrl = cronogramaNormalizarUrlMidia($videoUrl);
+    $equipamento = cronogramaNormalizarEquipamentoExercicio($equipamento);
+    $tipoRegistro = cronogramaNormalizarTipoRegistroExercicio($tipoRegistro);
     if ($nome === '' || stridebr_length($nome) > 120 || $slug === '') {
         throw new InvalidArgumentException(stridebr_t('schedule.validation.exercise_name'));
     }
@@ -528,15 +585,17 @@ function cronogramaCriarExercicio(PDO $pdo, string $idUsuario, string $nome, ?st
     $existing = $stmt->fetch();
     if ($existing) {
         if (!stridebr_db_bool($existing['ativo'])) {
-            $pdo->prepare('UPDATE exercicios SET ativo = TRUE, nome = :nome, descricao = :descricao, imagem_url = :imagem, video_url = :video, data_atualizacao = NOW() WHERE idexercicio = :id AND idusuario = :usuario')->execute([
+            $pdo->prepare('UPDATE exercicios SET ativo = TRUE, nome = :nome, descricao = :descricao, imagem_url = :imagem, video_url = :video, equipamento=:equipamento, tipo_registro=:tipo_registro, data_atualizacao = NOW() WHERE idexercicio = :id AND idusuario = :usuario')->execute([
                 ':nome' => $nome,
                 ':descricao' => $descricao !== null && trim($descricao) !== '' ? trim($descricao) : null,
                 ':imagem' => $imagemUrl,
                 ':video' => $videoUrl,
+                ':equipamento'=>$equipamento, ':tipo_registro'=>$tipoRegistro,
                 ':id' => $existing['idexercicio'],
                 ':usuario' => $idUsuario,
             ]);
         }
+        cronogramaSalvarAliasesExercicioPessoal($pdo,$idUsuario,(string)$existing['idexercicio'],$aliases);
         return (string) $existing['idexercicio'];
     }
 
@@ -547,7 +606,7 @@ function cronogramaCriarExercicio(PDO $pdo, string $idUsuario, string $nome, ?st
     }
 
     try {
-        $pdo->prepare('INSERT INTO exercicios (idexercicio, idusuario, nome, slug, descricao, imagem_url, video_url) VALUES (:id, :usuario, :nome, :slug, :descricao, :imagem, :video)')->execute([
+        $pdo->prepare('INSERT INTO exercicios (idexercicio, idusuario, nome, slug, descricao, imagem_url, video_url, equipamento, tipo_registro) VALUES (:id, :usuario, :nome, :slug, :descricao, :imagem, :video, :equipamento, :tipo_registro)')->execute([
             ':id' => $id,
             ':usuario' => $idUsuario,
             ':nome' => $nome,
@@ -555,6 +614,7 @@ function cronogramaCriarExercicio(PDO $pdo, string $idUsuario, string $nome, ?st
             ':descricao' => $descricao !== null && trim($descricao) !== '' ? trim($descricao) : null,
             ':imagem' => $imagemUrl,
             ':video' => $videoUrl,
+            ':equipamento'=>$equipamento, ':tipo_registro'=>$tipoRegistro,
         ]);
         $catStmt = $pdo->prepare('SELECT idcategoria FROM categorias_exercicio WHERE idcategoria = :categoria AND (idusuario IS NULL OR idusuario = :usuario)');
         $insertCat = $pdo->prepare('INSERT INTO exercicios_categorias (idexercicio, idcategoria) VALUES (:exercicio, :categoria) ON CONFLICT DO NOTHING');
@@ -564,6 +624,7 @@ function cronogramaCriarExercicio(PDO $pdo, string $idUsuario, string $nome, ?st
                 $insertCat->execute([':exercicio' => $id, ':categoria' => $categoria]);
             }
         }
+        cronogramaSalvarAliasesExercicioPessoal($pdo,$idUsuario,$id,$aliases);
         if ($ownsTransaction) {
             $pdo->commit();
         }
@@ -583,7 +644,7 @@ function cronogramaListarTreinoExercicios(PDO $pdo, string $idTreino, string $id
     }
     $stmt = $pdo->prepare('SELECT * FROM treinos_exercicios WHERE idtreino = :treino ORDER BY ordem');
     $stmt->execute([':treino' => $idTreino]);
-    return $stmt->fetchAll();
+    return cronogramaHidratarExerciciosPlanejados($pdo, $idUsuario, $stmt->fetchAll());
 }
 
 function cronogramaListarExerciciosPorTreinos(PDO $pdo, string $idCronograma, string $idUsuario): array
@@ -598,7 +659,7 @@ function cronogramaListarExerciciosPorTreinos(PDO $pdo, string $idCronograma, st
     $stmt->execute([':cronograma' => $idCronograma]);
 
     $result = [];
-    foreach ($stmt->fetchAll() as $row) {
+    foreach (cronogramaHidratarExerciciosPlanejados($pdo, $idUsuario, $stmt->fetchAll()) as $row) {
         $result[$row['idtreino']][] = $row;
     }
     return $result;
@@ -692,9 +753,10 @@ function cronogramaSalvarExercicios(PDO $pdo, string $idTreino, string $idUsuari
             $name = cronogramaNormalizarNome((string) ($row['nome'] ?? $row['nome_snapshot'] ?? ''));
             $structured = cronogramaNormalizarPassoEstruturado($row);
             if ($structured['tipo_passo'] === 'exercise') {
-                $resolvedExercise = cronogramaResolverExercicioBiblioteca($biblioteca, $idExercise, $name);
+                $resolvedExercise = cronogramaResolverExercicioBiblioteca($pdo, $biblioteca, $idExercise, $name);
                 $idExercise = (string) $resolvedExercise['idexercicio'];
                 $name = (string) $resolvedExercise['nome'];
+                $row = stridebr_exercise_repair_legacy_metrics($row, $resolvedExercise['resolution']);
             } else {
                 $idExercise = '';
                 if ($name === '') $name = cronogramaPassoNomePadrao($structured['tipo_passo']);
@@ -1013,16 +1075,16 @@ function cronogramaAssociarExercicio(PDO $pdo, string $idExercicio, string $idUs
     }
 }
 
-function cronogramaCriarExercicioCompleto(PDO $pdo, string $idUsuario, string $nome, ?string $descricao, array $categorias, array $modalidades, ?string $imagemUrl = null, ?string $videoUrl = null): string
+function cronogramaCriarExercicioCompleto(PDO $pdo, string $idUsuario, string $nome, ?string $descricao, array $categorias, array $modalidades, ?string $imagemUrl = null, ?string $videoUrl = null, array $aliases = [], ?string $equipamento = null, string $tipoRegistro = 'load_reps'): string
 {
-    $id = cronogramaCriarExercicio($pdo, $idUsuario, $nome, $descricao, [], $imagemUrl, $videoUrl);
+    $id = cronogramaCriarExercicio($pdo, $idUsuario, $nome, $descricao, [], $imagemUrl, $videoUrl, $aliases, $equipamento, $tipoRegistro);
     cronogramaAssociarExercicio($pdo, $id, $idUsuario, $categorias, $modalidades);
     return $id;
 }
 
 function cronogramaDuplicarExercicioSistema(PDO $pdo, string $idUsuario, string $idExercicio): string
 {
-    $stmt = $pdo->prepare('SELECT idexercicio, nome, slug, descricao, imagem_url, video_url FROM exercicios WHERE idexercicio = :id AND idusuario IS NULL AND ativo = TRUE LIMIT 1');
+    $stmt = $pdo->prepare('SELECT idexercicio, nome, slug, descricao, imagem_url, video_url, equipamento, tipo_registro FROM exercicios WHERE idexercicio = :id AND idusuario IS NULL AND ativo = TRUE LIMIT 1');
     $stmt->execute([':id' => $idExercicio]);
     $source = $stmt->fetch();
     if (!$source) {
@@ -1055,7 +1117,10 @@ function cronogramaDuplicarExercicioSistema(PDO $pdo, string $idUsuario, string 
         array_column($categories->fetchAll(), 'idcategoria'),
         array_column($modalities->fetchAll(), 'idmodalidade'),
         $source['imagem_url'] ?? null,
-        $source['video_url'] ?? null
+        $source['video_url'] ?? null,
+        [],
+        $source['equipamento'] ?? null,
+        (string) ($source['tipo_registro'] ?? 'load_reps')
     );
 }
 
@@ -1075,12 +1140,14 @@ function cronogramaRestaurarExercicioPessoal(PDO $pdo, string $idUsuario, string
 }
 
 
-function cronogramaAtualizarExercicioPessoal(PDO $pdo, string $idUsuario, string $idExercicio, string $nome, ?string $descricao, array $categorias, array $modalidades, ?string $imagemUrl = null, ?string $videoUrl = null): bool
+function cronogramaAtualizarExercicioPessoal(PDO $pdo, string $idUsuario, string $idExercicio, string $nome, ?string $descricao, array $categorias, array $modalidades, ?string $imagemUrl = null, ?string $videoUrl = null, array $aliases = [], ?string $equipamento = null, string $tipoRegistro = 'load_reps'): bool
 {
-    $nome = cronogramaNormalizarNome($nome);
+    $nome = cronogramaNomeExercicioCanonico($pdo, $nome);
     $slug = stridebr_slug($nome);
     $imagemUrl = cronogramaNormalizarUrlMidia($imagemUrl);
     $videoUrl = cronogramaNormalizarUrlMidia($videoUrl);
+    $equipamento = cronogramaNormalizarEquipamentoExercicio($equipamento);
+    $tipoRegistro = cronogramaNormalizarTipoRegistroExercicio($tipoRegistro);
     if ($nome === '' || stridebr_length($nome) > 120 || $slug === '') {
         throw new InvalidArgumentException(stridebr_t('schedule.validation.exercise_name'));
     }
@@ -1091,13 +1158,14 @@ function cronogramaAtualizarExercicioPessoal(PDO $pdo, string $idUsuario, string
         throw new InvalidArgumentException(stridebr_t('schedule.validation.exercise_duplicate'));
     }
 
-    $stmt = $pdo->prepare('UPDATE exercicios SET nome = :nome, slug = :slug, descricao = :descricao, imagem_url = :imagem, video_url = :video, data_atualizacao = NOW() WHERE idexercicio = :id AND idusuario = :usuario');
+    $stmt = $pdo->prepare('UPDATE exercicios SET nome = :nome, slug = :slug, descricao = :descricao, imagem_url = :imagem, video_url = :video, equipamento=:equipamento, tipo_registro=:tipo_registro, data_atualizacao = NOW() WHERE idexercicio = :id AND idusuario = :usuario');
     $stmt->execute([
         ':nome' => $nome,
         ':slug' => $slug,
         ':descricao' => $descricao !== null && trim($descricao) !== '' ? trim($descricao) : null,
         ':imagem' => $imagemUrl,
         ':video' => $videoUrl,
+        ':equipamento'=>$equipamento, ':tipo_registro'=>$tipoRegistro,
         ':id' => $idExercicio,
         ':usuario' => $idUsuario,
     ]);
@@ -1109,7 +1177,68 @@ function cronogramaAtualizarExercicioPessoal(PDO $pdo, string $idUsuario, string
         }
     }
     cronogramaAssociarExercicio($pdo, $idExercicio, $idUsuario, $categorias, $modalidades);
+    cronogramaSalvarAliasesExercicioPessoal($pdo,$idUsuario,$idExercicio,$aliases);
     return true;
+}
+
+/** Rename a personal exercise without changing its existing associations or media. */
+function cronogramaRenomearExercicioPessoal(PDO $pdo, string $idUsuario, string $idExercicio, string $nome): bool
+{
+    $nome = cronogramaNomeExercicioCanonico($pdo, $nome);
+    $slug = stridebr_slug($nome);
+    if ($nome === '' || stridebr_length($nome) > 120 || $slug === '') {
+        throw new InvalidArgumentException(stridebr_t('schedule.validation.exercise_name'));
+    }
+    $check = $pdo->prepare('SELECT 1 FROM exercicios WHERE idusuario = :usuario AND lower(slug) = lower(:slug) AND idexercicio <> :id LIMIT 1');
+    $check->execute([':usuario' => $idUsuario, ':slug' => $slug, ':id' => $idExercicio]);
+    if ($check->fetchColumn()) {
+        throw new InvalidArgumentException(stridebr_t('schedule.validation.exercise_duplicate'));
+    }
+    $stmt = $pdo->prepare('UPDATE exercicios SET nome = :nome, slug = :slug, data_atualizacao = NOW() WHERE idexercicio = :id AND idusuario = :usuario');
+    $stmt->execute([':nome' => $nome, ':slug' => $slug, ':id' => $idExercicio, ':usuario' => $idUsuario]);
+    if ($stmt->rowCount() > 0) return true;
+    $owner = $pdo->prepare('SELECT 1 FROM exercicios WHERE idexercicio = :id AND idusuario = :usuario');
+    $owner->execute([':id' => $idExercicio, ':usuario' => $idUsuario]);
+    return (bool) $owner->fetchColumn();
+}
+
+function cronogramaRevisarNomesExercicios(PDO $pdo, string $idUsuario): array
+{
+    $all = cronogramaListarExerciciosBiblioteca($pdo, $idUsuario);
+    $catalog = array_values(array_filter($all, static fn(array $row): bool => $row['idusuario'] === null));
+    $out = [];
+    foreach ($all as $row) {
+        if ($row['idusuario'] === null) continue;
+        $name = (string) $row['nome'];
+        $resolved = stridebr_exercise_resolve_catalog($catalog, ['nome' => $name]);
+        $reason = (string) ($resolved['reason'] ?? '');
+        if (($resolved['status'] ?? '') === 'matched' && in_array($reason, ['normalized_name','slug','alias'], true) && (string) ($resolved['match']['nome'] ?? '') !== $name) {
+            $out[] = ['id'=>(string)$row['idexercicio'],'name'=>$name,'candidate'=>(string)$resolved['match']['nome'],'kind'=>'safe'];
+        } elseif ((($resolved['reason'] ?? '') === 'high_confidence' && !empty($resolved['match']['nome'])) || (!empty($resolved['suggestions'][0]['nome']))) {
+            $candidate = (string) (($resolved['match']['nome'] ?? '') ?: ($resolved['suggestions'][0]['nome'] ?? ''));
+            if ($candidate !== '') $out[] = ['id'=>(string)$row['idexercicio'],'name'=>$name,'candidate'=>$candidate,'kind'=>'suggestion'];
+        }
+    }
+    return $out;
+}
+
+/** Apply only unequivocal review candidates; collisions are left untouched. */
+function cronogramaAplicarRevisaoNomesExercicios(PDO $pdo, string $idUsuario): array
+{
+    $result = ['applied' => 0, 'skipped' => 0];
+    foreach (cronogramaRevisarNomesExercicios($pdo, $idUsuario) as $review) {
+        if (($review['kind'] ?? '') !== 'safe') continue;
+        try {
+            if (cronogramaRenomearExercicioPessoal($pdo, $idUsuario, (string) $review['id'], (string) $review['candidate'])) {
+                $result['applied']++;
+            } else {
+                $result['skipped']++;
+            }
+        } catch (InvalidArgumentException) {
+            $result['skipped']++;
+        }
+    }
+    return $result;
 }
 
 function cronogramaBibliotecaDisponivel(PDO $pdo): bool
@@ -1216,7 +1345,7 @@ function cronogramaBuscarTreinoModelo(PDO $pdo, string $idUsuario, string $idTre
     if (!$row) return [];
     $exerciseStmt = $pdo->prepare('SELECT * FROM treinos_modelo_exercicios WHERE idtreino_modelo = :id ORDER BY ordem');
     $exerciseStmt->execute([':id' => $idTreinoModelo]);
-    $row['exercicios'] = $exerciseStmt->fetchAll();
+    $row['exercicios'] = cronogramaHidratarExerciciosPlanejados($pdo, $idUsuario, $exerciseStmt->fetchAll());
     return $row;
 }
 
@@ -1328,7 +1457,7 @@ function cronogramaSalvarExerciciosTreinoModelo(PDO $pdo, string $idUsuario, str
             $nome = cronogramaNormalizarNome((string) ($row['nome'] ?? $row['nome_snapshot'] ?? ''));
             $structured = cronogramaNormalizarPassoEstruturado($row);
             if ($structured['tipo_passo'] === 'exercise') {
-                $resolvedExercise = cronogramaResolverExercicioBiblioteca($biblioteca, $idExercicio, $nome);
+                $resolvedExercise = cronogramaResolverExercicioBiblioteca($pdo, $biblioteca, $idExercicio, $nome);
                 $idExercicio = (string) $resolvedExercise['idexercicio'];
                 $nome = (string) $resolvedExercise['nome'];
             } else {
@@ -1416,7 +1545,9 @@ function cronogramaAdicionarTreinoModeloAoCronograma(PDO $pdo, string $idUsuario
              (idtreino_exercicio, idtreino, idexercicio, nome_snapshot, series, repeticoes, carga, bloco, cluster, descanso, observacoes, duracao, distancia, intensidade, rpe, rir, tempo_execucao, cadencia, tipo_passo, repeticoes_bloco, alvo_tipo, alvo_min, alvo_max, alvo_unidade, recuperacao_duracao_s, recuperacao_distancia_m, ordem)
              VALUES (:id, :treino, :exercicio, :nome, :series, :repeticoes, :carga, :bloco, :cluster, :descanso, :observacoes, :duracao, :distancia, :intensidade, :rpe, :rir, :tempo_execucao, :cadencia, :tipo_passo, :repeticoes_bloco, :alvo_tipo, :alvo_min, :alvo_max, :alvo_unidade, :recuperacao_duracao_s, :recuperacao_distancia_m, :ordem)'
         );
+        $catalog = stridebr_exercise_catalog_for_user($pdo, $idUsuario);
         foreach ($modelo['exercicios'] as $exercise) {
+            $exercise['nome_snapshot'] = cronogramaResolverExercicioBiblioteca($pdo, $catalog, (string) ($exercise['idexercicio'] ?? ''), (string) $exercise['nome_snapshot'])['nome'];
             $insert->execute([
                 ':id' => cronogramaGerarId(), ':treino' => $idTreino, ':exercicio' => $exercise['idexercicio'] ?: null,
                 ':nome' => $exercise['nome_snapshot'], ':series' => $exercise['series'], ':repeticoes' => $exercise['repeticoes'], ':carga' => $exercise['carga'],
@@ -2125,4 +2256,80 @@ function cronogramaListarOcorrenciasConciliadas(PDO $pdo, string $idUsuario, str
         $display = (string) ($item['data_treino'] ?? '');
         return $display >= $dataInicio && $display <= $dataFim;
     }));
+}
+
+/** One catalog per operation, shared by schedules, models and future import previews. */
+function cronogramaHidratarExerciciosPlanejados(PDO $pdo, string $userId, array $rows, ?array $catalog = null): array
+{
+    if (!$rows) return [];
+    $catalog ??= stridebr_exercise_catalog_for_user($pdo, $userId);
+    foreach ($rows as &$row) {
+        $original = (string) ($row['nome_snapshot'] ?? $row['nome'] ?? '');
+        $originalId = (string) ($row['idexercicio'] ?? '');
+        $resolution = stridebr_exercise_resolve_entry($catalog, ['idexercicio'=>$originalId,'nome'=>$original]);
+        $row = stridebr_exercise_repair_legacy_metrics($row, $resolution);
+        $row['nome_original'] = $original;
+        $reviewKey=(string) ($row['idtreino_exercicio'] ?? $row['idtreino_modelo_exercicio'] ?? '');
+        $reviewHash=hash('sha256', $originalId . ':' . $original);
+        $row['idexercicio_original'] = $originalId;
+        $row['nome_revisao'] = null;
+        $row['nome_resolucao'] = $resolution;
+        if ($resolution['status'] === 'matched') {
+            $row['idexercicio'] = $resolution['match']['idexercicio'];
+            $row['nome_snapshot'] = $resolution['match']['nome'];
+            if ($row['nome_snapshot'] !== $original || $row['idexercicio'] !== $originalId) $row['nome_revisao'] = 'safe';
+        } elseif ($resolution['status'] === 'suggest') $row['nome_revisao'] = 'fuzzy';
+        else {
+            $upper = function_exists('mb_strtoupper') ? mb_strtoupper($original, 'UTF-8') : strtoupper($original);
+            if (strlen($original) > 3 && $upper === $original && stridebr_lower($original) !== $original) $row['nome_revisao'] = 'unknown';
+        }
+        if (in_array($row['nome_revisao'], ['fuzzy','unknown'], true) && ($_SESSION['planned_name_kept'][$userId][$reviewKey] ?? '') === $reviewHash) $row['nome_revisao']=null;
+    }
+    unset($row);
+    return $rows;
+}
+
+/** Whitelisted plan surfaces and ownership; no history tables are writable here. */
+function cronogramaPlanoNomes(PDO $pdo, string $userId, string $kind, string $id, bool $lock = false): array
+{
+    if ($kind === 'workout') {
+        $sql = 'SELECT t.idtreino FROM treinos_cronograma t JOIN cronogramas c ON c.idcronograma=t.idcronograma WHERE t.idtreino=:id AND c.idusuario=:user';
+        $table='treinos_exercicios'; $parent='idtreino'; $key='idtreino_exercicio';
+        if ($lock) $sql .= ' FOR UPDATE OF t';
+    } elseif ($kind === 'template') {
+        $sql = 'SELECT idtreino_modelo FROM treinos_modelo WHERE idtreino_modelo=:id AND idusuario=:user AND ativo=TRUE';
+        $table='treinos_modelo_exercicios'; $parent='idtreino_modelo'; $key='idtreino_modelo_exercicio';
+        if ($lock) $sql .= ' FOR UPDATE';
+    } else throw new InvalidArgumentException(stridebr_t('schedule.names.invalid_plan'));
+    $owner = $pdo->prepare($sql); $owner->execute([':id'=>$id,':user'=>$userId]);
+    if (!$owner->fetchColumn()) throw new InvalidArgumentException(stridebr_t('schedule.names.invalid_plan'));
+    $query = $pdo->prepare("SELECT * FROM {$table} WHERE {$parent}=:id ORDER BY ordem" . ($lock ? ' FOR UPDATE' : '')); $query->execute([':id'=>$id]);
+    return ['table'=>$table,'parent'=>$parent,'key'=>$key,'rows'=>$query->fetchAll()];
+}
+
+function cronogramaRepararNomesPlano(PDO $pdo, string $userId, string $kind, string $planId, string $action = 'safe', string $rowId = '', string $exerciseId = ''): int
+{
+    if (!in_array($action, ['safe','map','keep'], true)) throw new InvalidArgumentException(stridebr_t('schedule.names.invalid_plan'));
+    $pdo->beginTransaction();
+    try {
+        $plan = cronogramaPlanoNomes($pdo, $userId, $kind, $planId, true);
+        $catalog = stridebr_exercise_catalog_for_user($pdo, $userId);
+        $rows = cronogramaHidratarExerciciosPlanejados($pdo, $userId, $plan['rows'], $catalog);
+        $update = $pdo->prepare("UPDATE {$plan['table']} SET idexercicio=:exercise, nome_snapshot=:name WHERE {$plan['key']}=:row AND {$plan['parent']}=:plan");
+        $count = 0; $found = false;
+        foreach ($rows as $row) {
+            if ($action === 'safe' && $row['nome_revisao'] !== 'safe') continue;
+            if ($action !== 'safe' && (string) $row[$plan['key']] !== $rowId) continue;
+            $found = true;
+            if ($action === 'keep') { $_SESSION['planned_name_kept'][$userId][$rowId]=hash('sha256', $row['idexercicio_original'] . ':' . $row['nome_original']); continue; }
+            if ($action === 'map') {
+                $match = stridebr_exercise_resolve_entry($catalog, ['idexercicio'=>$exerciseId]);
+                if ($match['reason'] !== 'id' || !$match['match']) throw new InvalidArgumentException(stridebr_t('schedule.names.choose_library'));
+                $row['idexercicio'] = $match['match']['idexercicio']; $row['nome_snapshot']=$match['match']['nome'];
+            }
+            $update->execute([':exercise'=>$row['idexercicio'],':name'=>$row['nome_snapshot'],':row'=>$row[$plan['key']],':plan'=>$planId]); ++$count;
+        }
+        if ($action !== 'safe' && !$found) throw new InvalidArgumentException(stridebr_t('schedule.names.invalid_plan'));
+        $pdo->commit(); return $count;
+    } catch (Throwable $error) { if ($pdo->inTransaction()) $pdo->rollBack(); throw $error; }
 }

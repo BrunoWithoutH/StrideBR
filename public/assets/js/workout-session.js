@@ -180,7 +180,7 @@
         if (!latest) return '';
         const details = [];
         if (Number(latest.series_total || 0) > 0) details.push(setCountText(Number(latest.series_concluidas || 0), Number(latest.series_total || 0)));
-        const previousPrescription = workoutPrescription?.resolve?.({repetitions: latest.repeticoes, load: latest.carga});
+        const previousPrescription = workoutPrescription?.resolve?.({repetitions: latest.repeticoes, load: latest.carga, duration_s: latest.duracao_s == null ? null : Number(latest.duracao_s), distance_m: latest.distancia_m == null ? null : Number(latest.distancia_m)});
         if (previousPrescription?.summaryParts?.length) details.push(...previousPrescription.summaryParts);
         const best = history.melhor_carga ? `<span><b>${escapeHtml(t('workout_session.best_recent_load', {}, 'Best recent load'))}</b>${escapeHtml(history.melhor_carga)}</span>` : '';
         return `<div class="session-exercise-history"><span><b>${escapeHtml(t('workout_session.last_time', {date: latest.data || ''}, `Last time · ${latest.data || ''}`))}</b>${escapeHtml(details.join(' · ') || t('workout_session.completed', {}, 'Workout completed'))}</span>${best}</div>`;
@@ -219,20 +219,22 @@
             const prescription = plannedPrescription(exercise);
             const meta = [exercise.series_planejadas ? `${exercise.series_planejadas} ${tn('workout_session.set_unit.one', 'workout_session.set_unit.other', Number(exercise.series_planejadas))}` : '', ...prescription.summaryParts].filter(Boolean).join(' · ');
             const previousSets = new Map(((exercise.historico || {}).ultima?.series || []).map(set => [Number(set.numero || 0), set]));
-            const fields = prescription.fields;
-            const header = [`<span>${escapeHtml(t('workout_session.series', {}, 'Set'))}</span>`, ...fields.map(field => `<span>${escapeHtml(prescription.labels[field] || field)}</span>`), `<span>${escapeHtml(t('workout_session.done', {}, 'Done'))}</span>`].join('');
+            const fields = workoutPrescription.loggingFields(prescription);
+            const header = [`<span>${escapeHtml(t('workout_session.series', {}, 'Set'))}</span>`, ...fields.map(field => `<span>${escapeHtml(t(field === 'reps' ? 'workout_session.repetitions' : `workout_session.${field}`, {}, prescription.labels[field] || field))}</span>`), `<span>${escapeHtml(t('workout_session.done', {}, 'Done'))}</span>`].join('');
             const sets = (exercise.series || []).map(set => {
                 const previous = previousSets.get(Number(set.numero || 0)) || {};
                 const cells = fields.map(field => {
                     if (field === 'load') {
                         const loadPlaceholder = previous.carga || exercise.carga_snapshot || 'kg';
-                        return `<label><span>${escapeHtml(t('workout_session.load', {}, 'Load'))}</span><input type="text" inputmode="decimal" pattern="[0-9]+([.,][0-9]{1,3})?" data-session-set-load="${escapeHtml(set.idserie)}" value="${escapeHtml(set.carga_realizada || '')}" placeholder="${escapeHtml(loadPlaceholder)}"></label>`;
+                        return `<label><span>${escapeHtml(t('workout_session.load', {}, 'Load'))}</span><input type="text" inputmode="decimal" pattern="[0-9]+([.,][0-9]{1,3})?" data-session-set-load="${escapeHtml(set.idserie)}" ${set.concluida ? 'disabled' : ''} value="${escapeHtml(set.carga_realizada ?? '')}" placeholder="${escapeHtml(loadPlaceholder)}"></label>`;
                     }
                     if (field === 'reps') {
-                        const repsPlaceholder = previous.repeticoes || String(exercise.repeticoes_snapshot || '').replace(/\D.*$/, '') || 'reps';
-                        return `<label><span>${escapeHtml(t('workout_session.repetitions', {}, 'Reps'))}</span><input type="number" min="0" max="999" step="1" inputmode="numeric" data-session-set-reps="${escapeHtml(set.idserie)}" value="${escapeHtml(set.repeticoes_realizadas || '')}" placeholder="${escapeHtml(repsPlaceholder)}"></label>`;
+                        const repsPlaceholder = previous.repeticoes || (/^\d{1,3}$/.test(String(prescription.raw?.reps || '').trim()) ? prescription.raw.reps : '') || 'reps';
+                        return `<label><span>${escapeHtml(t('workout_session.repetitions', {}, 'Reps'))}</span><input type="number" min="0" max="999" step="1" inputmode="numeric" data-session-set-reps="${escapeHtml(set.idserie)}" ${set.concluida ? 'disabled' : ''} value="${escapeHtml(set.repeticoes_realizadas ?? '')}" placeholder="${escapeHtml(repsPlaceholder)}"></label>`;
                     }
-                    return `<div class="session-set-planned"><span>${escapeHtml(prescription.labels[field] || field)}</span><strong>${escapeHtml(prescription.values[field] || '—')}</strong></div>`;
+                    const actual = field === 'duration' ? set.duracao_realizada_s : set.distancia_realizada_m;
+                    const actualText = actual === null || actual === undefined ? '' : (field === 'duration' ? `${Number(actual) % 60 === 0 ? Number(actual)/60 : Number(actual)} ${Number(actual) % 60 === 0 ? 'min' : 's'}` : `${Number(actual) >= 1000 ? Number(actual)/1000 : Number(actual)} ${Number(actual) >= 1000 ? 'km' : 'm'}`);
+                    return `<label><span>${escapeHtml(t(field === 'reps' ? 'workout_session.repetitions' : `workout_session.${field}`, {}, prescription.labels[field] || field))}</span><input type="text" data-session-set-${field}="${escapeHtml(set.idserie)}" ${set.concluida ? 'disabled' : ''} value="${escapeHtml(actualText)}" placeholder="${escapeHtml(prescription.values[field] || '')}"></label>`;
                 }).join('');
                 return `<div class="session-set-row${set.concluida ? ' is-done' : ''}" data-session-set-row="${escapeHtml(set.idserie)}" data-session-field-count="${fields.length}" style="--session-field-count:${fields.length}" data-prescription-mode="${escapeHtml(prescription.mode)}">
                     <span class="session-set-number">${set.numero}</span>
@@ -380,25 +382,32 @@
     });
 
     exercisesContainer?.addEventListener('input', event => {
-        if (event.target.matches('[data-session-set-load], [data-session-set-reps]')) event.target.dataset.pendingEdit = '1';
+        if (event.target.matches('[data-session-set-load], [data-session-set-reps], [data-session-set-duration], [data-session-set-distance]')) event.target.dataset.pendingEdit = '1';
     });
     exercisesContainer?.addEventListener('change', async event => {
-        const input = event.target.closest('[data-session-set-load], [data-session-set-reps]');
+        const input = event.target.closest('[data-session-set-load], [data-session-set-reps], [data-session-set-duration], [data-session-set-distance]');
         if (!input) return;
         const row = input.closest('[data-session-set-row]');
         const id = row?.dataset.sessionSetRow || '';
         if (!id) return;
         const load = row.querySelector('[data-session-set-load]')?.value || '';
         const reps = row.querySelector('[data-session-set-reps]')?.value || '';
+        const duration = row.querySelector('[data-session-set-duration]')?.value || '';
+        const distance = row.querySelector('[data-session-set-distance]')?.value || '';
+        const editedField = ['load','reps','duration','distance'].find(field => input.hasAttribute(`data-session-set-${field}`));
+        const savedValue = input.value;
         row.classList.add('is-saving');
         try {
-            const data = await post({action: 'update_set', idserie: id, carga: load, repeticoes: reps, propagate_load: input.hasAttribute('data-session-set-load') ? '1' : '0', edited_field: input.hasAttribute('data-session-set-load') ? 'load' : 'reps'});
+            const data = await post({action: 'update_set', idserie: id, carga: load, repeticoes: reps, duracao: duration, distancia: distance, propagate:'1', edited_field:editedField});
             session = preserveHistory(data.session);
-            delete input.dataset.pendingEdit;
+            if (input.value === savedValue) delete input.dataset.pendingEdit;
             for (const exercise of session?.exercicios || []) {
                 for (const set of exercise.series || []) {
-                    const field = exercisesContainer.querySelector(`[data-session-set-load="${CSS.escape(String(set.idserie))}"]`);
-                    if (field && field !== document.activeElement && !field.dataset.pendingEdit) field.value = set.carga_realizada ?? '';
+                    const actualValues = {load: set.carga_realizada ?? '', reps: set.repeticoes_realizadas ?? '', duration: set.duracao_realizada_s == null ? '' : `${Number(set.duracao_realizada_s)/60} min`, distance: set.distancia_realizada_m == null ? '' : `${Number(set.distancia_realizada_m)} m`};
+                    for (const [name,value] of Object.entries(actualValues)) {
+                        const field = exercisesContainer.querySelector(`[data-session-set-${name}="${CSS.escape(String(set.idserie))}"]`);
+                        if (field && field !== document.activeElement && !field.dataset.pendingEdit) field.value = value;
+                    }
                 }
             }
             row.classList.remove('has-save-error');

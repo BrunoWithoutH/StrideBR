@@ -103,6 +103,12 @@ function alphaTestCleanup(PDO $pdo): void
         }
     } catch (Throwable) {
     }
+    try {
+        if ($pdo->query("SELECT to_regclass('stridebr.eventos_provedores_sync') IS NOT NULL")->fetchColumn()) {
+            $pdo->exec("UPDATE eventos_provedores_sync SET enabled=FALSE,auto_publish=FALSE,compliance_status='pendente',last_attempt_at=NULL,last_success_at=NULL,last_error_code=NULL,consecutive_failures=0,etag=NULL,last_modified=NULL,next_sync_at=NULL,stats='{}'::jsonb");
+        }
+    } catch (Throwable) {
+    }
     $pdo->exec("DELETE FROM usuarios WHERE idusuario LIKE 'alpha_test_%'");
     $pdo->exec("DELETE FROM auth_rate_limits WHERE escopo LIKE 'alpha_test_%'");
 }

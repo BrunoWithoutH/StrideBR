@@ -99,21 +99,35 @@ const stridebrCommonT = (key, values = {}, fallback = key) => window.StrideBRI18
 })();
 
 (() => {
+    const toastCleanup = new WeakMap()
     const toastHost = () => {
-        const existing = document.querySelector('[data-ui-toast-host]')
-        if (existing) return existing
-        const host = document.createElement('div')
-        host.className = 'ui-toast-host'
-        host.dataset.uiToastHost = ''
-        host.setAttribute('aria-live', 'polite')
-        host.setAttribute('aria-relevant', 'additions removals')
-        document.body.appendChild(host)
+        let host = document.querySelector('[data-ui-toast-host]')
+        if (!host) {
+            host = document.createElement('div')
+            host.className = 'ui-toast-host'
+            host.dataset.uiToastHost = ''
+            host.setAttribute('aria-live', 'polite')
+            host.setAttribute('aria-relevant', 'additions removals')
+        }
+        const header = document.querySelector('.site-header')
+        if (header) host.style.setProperty('--site-header-height', `${Math.max(0, header.getBoundingClientRect().bottom)}px`)
+        const dialog = document.querySelector('dialog[open]')
+        const parent = dialog || document.body
+        if (host.parentElement !== parent) parent.appendChild(host)
+        if (dialog && !dialog.dataset.toastHostBound) {
+            dialog.dataset.toastHostBound = '1'
+            dialog.addEventListener('close', () => { if (host.parentElement === dialog) document.body.appendChild(host) })
+        }
         return host
     }
 
     const closeToast = toast => {
         if (!(toast instanceof HTMLElement) || toast.dataset.closing === '1') return
         toast.dataset.closing = '1'
+        toastCleanup.get(toast)?.()
+        toastCleanup.delete(toast)
+        toast.style.opacity = ''
+        toast.style.transform = ''
         toast.classList.add('is-leaving')
         window.setTimeout(() => toast.remove(), 180)
     }
@@ -158,6 +172,7 @@ const stridebrCommonT = (key, values = {}, fallback = key) => window.StrideBRI18
         toast.append(mark, copy, actions)
         close.addEventListener('click', () => closeToast(toast))
 
+        const pauses = new Set()
         let timer = 0
         let remaining = Math.max(0, Number(timeout) || 0)
         let startedAt = 0
@@ -166,7 +181,7 @@ const stridebrCommonT = (key, values = {}, fallback = key) => window.StrideBRI18
             timer = 0
         }
         const startTimer = () => {
-            if (remaining <= 0 || toast.dataset.closing === '1') return
+            if (remaining <= 0 || pauses.size || toast.dataset.closing === '1') return
             startedAt = performance.now()
             clearTimer()
             timer = window.setTimeout(() => closeToast(toast), remaining)
@@ -176,17 +191,57 @@ const stridebrCommonT = (key, values = {}, fallback = key) => window.StrideBRI18
             remaining = Math.max(0, remaining - (performance.now() - startedAt))
             clearTimer()
         }
-        toast.addEventListener('mouseenter', pauseTimer)
-        toast.addEventListener('mouseleave', startTimer)
-        toast.addEventListener('focusin', pauseTimer)
+        const pause = reason => { pauses.add(reason); pauseTimer() }
+        const resume = reason => { pauses.delete(reason); startTimer() }
+        toastCleanup.set(toast, clearTimer)
+        toast.addEventListener('mouseenter', () => pause('hover'))
+        toast.addEventListener('mouseleave', () => resume('hover'))
+        toast.addEventListener('focusin', () => pause('focus'))
         toast.addEventListener('focusout', event => {
-            if (!toast.contains(event.relatedTarget)) startTimer()
+            if (!toast.contains(event.relatedTarget)) resume('focus')
         })
+        let gesture = null
+        let suppressClick = false
+        toast.addEventListener('pointerdown', event => {
+            if (gesture || event.isPrimary === false || event.button !== 0 || event.target.closest('button, a, input')) return
+            gesture = {id: event.pointerId, x: event.clientX, y: event.clientY, dx: 0, dy: 0}
+            suppressClick = false
+            pause('drag')
+            toast.setPointerCapture(event.pointerId)
+            toast.classList.add('is-dragging')
+        })
+        toast.addEventListener('pointermove', event => {
+            if (!gesture || event.pointerId !== gesture.id) return
+            gesture.dx = event.clientX - gesture.x
+            gesture.dy = event.clientY - gesture.y
+            const distance = Math.hypot(gesture.dx, gesture.dy)
+            suppressClick = distance > 8
+            toast.style.transform = `translate(${gesture.dx}px, ${gesture.dy}px)`
+            toast.style.opacity = String(Math.max(.4, 1 - distance / toast.offsetWidth))
+        })
+        const finishGesture = event => {
+            if (!gesture || event.pointerId !== gesture.id) return
+            if (event.type !== 'pointerup') suppressClick = false
+            const dismiss = event.type === 'pointerup' && Math.hypot(gesture.dx, gesture.dy) >= Math.min(80, toast.offsetWidth * .25)
+            gesture = null
+            toast.classList.remove('is-dragging')
+            toast.style.transform = ''
+            toast.style.opacity = ''
+            if (toast.hasPointerCapture(event.pointerId)) toast.releasePointerCapture(event.pointerId)
+            if (dismiss) closeToast(toast)
+            resume('drag')
+        }
+        toast.addEventListener('pointerup', finishGesture)
+        toast.addEventListener('pointercancel', finishGesture)
+        toast.addEventListener('lostpointercapture', finishGesture)
+        toast.addEventListener('click', event => {
+            if (suppressClick) { event.preventDefault(); event.stopImmediatePropagation(); suppressClick = false }
+        }, true)
 
         if (actionButton) {
             actionButton.addEventListener('click', async () => {
                 if (actionButton.disabled) return
-                pauseTimer()
+                pause('action')
                 actionButton.disabled = true
                 const original = actionButton.textContent
                 actionButton.textContent = undo ? stridebrCommonT('common.undoing', {}, 'Undoing…') : stridebrCommonT('common.please_wait', {}, 'Please wait…')
@@ -196,13 +251,20 @@ const stridebrCommonT = (key, values = {}, fallback = key) => window.StrideBRI18
                 } catch (error) {
                     actionButton.disabled = false
                     actionButton.textContent = original
-                    startTimer()
+                    resume('action')
                     createToast({message: error?.message || stridebrCommonT('common.action_failed', {}, 'Could not complete the action.'), type: 'error', timeout: 6000})
                 }
             })
         }
 
-        toastHost().appendChild(toast)
+        const host = toastHost()
+        host.prepend(toast)
+        const visible = [...host.children].filter(item => item.dataset.closing !== '1')
+        while (visible.length > 4) {
+            const oldest = [...visible].reverse().find(item => !item.classList.contains('is-undo')) || visible.at(-1)
+            visible.splice(visible.indexOf(oldest), 1)
+            closeToast(oldest)
+        }
         startTimer()
         return {close: () => { clearTimer(); closeToast(toast) }, element: toast}
     }

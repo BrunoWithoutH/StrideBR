@@ -30,8 +30,8 @@ function sessaoMontarHistoricoExercicio(array $previous, array $setRows): array
         if ($reps === '' && trim((string) ($set['repeticoes_realizadas'] ?? '')) !== '') $reps = trim((string) $set['repeticoes_realizadas']);
         if ($load === '' && trim((string) ($set['carga_realizada'] ?? '')) !== '') $load = trim((string) $set['carga_realizada']);
     }
-    if ($reps === '') $reps = trim((string) ($latest['repeticoes_snapshot'] ?? ''));
-    if ($load === '') $load = trim((string) ($latest['carga_snapshot'] ?? ''));
+    $duration = null; $distance = null;
+    foreach ($latestSets as $set) { $duration ??= $set['duracao_realizada_s'] ?? null; $distance ??= $set['distancia_realizada_m'] ?? null; }
 
     $bestNumber = null;
     $bestLabel = '';
@@ -41,8 +41,7 @@ function sessaoMontarHistoricoExercicio(array $previous, array $setRows): array
             $candidate = trim((string) ($set['carga_realizada'] ?? ''));
             if ($candidate !== '') $candidateLabels[] = $candidate;
         }
-        $snapshot = trim((string) ($row['carga_snapshot'] ?? ''));
-        if ($snapshot !== '') $candidateLabels[] = $snapshot;
+
         foreach ($candidateLabels as $candidate) {
             $number = sessaoCargaNumero($candidate);
             if ($number !== null && ($bestNumber === null || $number > $bestNumber)) {
@@ -61,10 +60,14 @@ function sessaoMontarHistoricoExercicio(array $previous, array $setRows): array
             'series_total' => count($latestSets),
             'repeticoes' => $reps,
             'carga' => $load,
+            'duracao_s' => $duration,
+            'distancia_m' => $distance,
             'series' => array_map(static fn(array $set): array => [
                 'numero' => (int) ($set['numero'] ?? 0),
                 'repeticoes' => trim((string) ($set['repeticoes_realizadas'] ?? '')),
                 'carga' => trim((string) ($set['carga_realizada'] ?? '')),
+                'duracao_s' => $set['duracao_realizada_s'] ?? null,
+                'distancia_m' => $set['distancia_realizada_m'] ?? null,
                 'concluida' => stridebr_db_bool($set['concluida'] ?? false),
             ], $latestSets),
         ],
@@ -151,7 +154,7 @@ function sessaoHistoricoExercicios(PDO $pdo, string $idUsuario, string $idSessao
             $placeholders[] = $key;
             $setParams[$key] = $id;
         }
-        $setStmt = $pdo->prepare('SELECT idsessao_exercicio, numero, concluida, repeticoes_realizadas, carga_realizada FROM sessoes_treino_series WHERE idsessao_exercicio IN (' . implode(', ', $placeholders) . ') ORDER BY idsessao_exercicio, numero');
+        $setStmt = $pdo->prepare('SELECT idsessao_exercicio, numero, concluida, repeticoes_realizadas, carga_realizada, duracao_realizada_s, distancia_realizada_m FROM sessoes_treino_series WHERE idsessao_exercicio IN (' . implode(', ', $placeholders) . ') ORDER BY idsessao_exercicio, numero');
         $setStmt->execute($setParams);
         foreach ($setStmt->fetchAll() as $row) $setRows[(string) $row['idsessao_exercicio']][] = $row;
     }
@@ -182,6 +185,7 @@ function sessaoHidratar(PDO $pdo, string $idUsuario, array $session, bool $inclu
     $exerciseStmt = $pdo->prepare('SELECT * FROM sessoes_treino_exercicios WHERE idsessao = :sessao ORDER BY ordem');
     $exerciseStmt->execute([':sessao' => $session['idsessao']]);
     $session['exercicios'] = $exerciseStmt->fetchAll();
+    if (($session['status'] ?? '') === 'ativo') $session['exercicios'] = cronogramaHidratarExerciciosPlanejados($pdo, $idUsuario, $session['exercicios']);
     $seriesByExercise = [];
     if ($session['exercicios'] !== []) {
         $exerciseIds = array_values(array_map(static fn(array $row): string => (string) $row['idsessao_exercicio'], $session['exercicios']));
@@ -231,9 +235,9 @@ function sessaoSerieRepeticoes(mixed $value): ?string
 {
     $raw = trim((string) $value);
     if ($raw === '') return null;
-    if (preg_match('/^\d{1,3}$/', $raw) !== 1) throw new InvalidArgumentException('Informe as repetições com um número inteiro.');
+    if (preg_match('/^\d{1,3}$/', $raw) !== 1) throw new InvalidArgumentException(stridebr_t('workout_session.invalid_reps'));
     $number = (int) $raw;
-    if ($number < 0 || $number > 999) throw new InvalidArgumentException('Repetições fora do intervalo permitido.');
+    if ($number < 0 || $number > 999) throw new InvalidArgumentException(stridebr_t('workout_session.invalid_reps'));
     return (string) $number;
 }
 
@@ -241,11 +245,65 @@ function sessaoSerieCarga(mixed $value): ?string
 {
     $raw = trim((string) $value);
     if ($raw === '') return null;
-    if (preg_match('/^(\d{1,4}(?:[.,]\d{1,3})?)\s*(?:kg)?$/i', $raw, $match) !== 1) throw new InvalidArgumentException('Informe uma carga válida em kg.');
+    if (preg_match('/^(\d{1,4}(?:[.,]\d{1,3})?)\s*(?:kg)?$/i', $raw, $match) !== 1) throw new InvalidArgumentException(stridebr_t('workout_session.invalid_load'));
     $number = (float) str_replace(',', '.', $match[1]);
-    if ($number < 0 || $number > 9999.999) throw new InvalidArgumentException('Carga fora do intervalo permitido.');
+    if ($number < 0 || $number > 9999.999) throw new InvalidArgumentException(stridebr_t('workout_session.invalid_load'));
     $formatted = rtrim(rtrim(number_format($number, 3, '.', ''), '0'), '.');
     return $formatted . ' kg';
+}
+
+/** Same unit semantics as StrideBRWorkoutPrescription; storage is numeric. */
+function sessaoSerieMetrica(mixed $value, string $field): int|string|null
+{
+    if ($value === null || trim((string) $value) === '') return null;
+    $raw = stridebr_lower(trim((string) $value));
+    $raw = str_replace(',', '.', $raw);
+    $number = null;
+    if ($field === 'duration') {
+        if (preg_match('/^(\d{1,3}):([0-5]\d)(?::([0-5]\d))?$/', $raw, $m)) $number = isset($m[3]) ? (int) $m[1]*3600+(int) $m[2]*60+(int) $m[3] : (int) $m[1]*60+(int) $m[2];
+        elseif (preg_match('/^(\d+(?:\.\d+)?)\s*(h|hr|hrs|hora|horas|m|min|mins|minuto|minutos|mn|s|seg|segs|segundo|segundos)$/u', $raw, $m)) $number = (float) $m[1] * (in_array($m[2], ['h','hr','hrs','hora','horas'], true) ? 3600 : (in_array($m[2], ['m','min','mins','minuto','minutos','mn'], true) ? 60 : 1));
+        elseif (is_int($value) || is_float($value)) $number = (float) $value;
+        if ($number === null || !is_finite((float) $number) || $number < 0 || $number > 2147483647) throw new InvalidArgumentException(stridebr_t('workout_session.invalid_duration'));
+        return (int) round($number);
+    }
+    if ($field === 'distance') {
+        if (preg_match('/^(\d+(?:\.\d+)?)\s*(km|quil[oô]metros?|m|metros?)$/u', $raw, $m)) $number = (float) $m[1] * (in_array($m[2], ['km','quilometro','quilometros','quilômetro','quilômetros'], true) ? 1000 : 1);
+        elseif (is_int($value) || is_float($value)) $number = (float) $value;
+        if ($number === null || !is_finite((float) $number) || $number < 0 || $number > 999999999.999) throw new InvalidArgumentException(stridebr_t('workout_session.invalid_distance'));
+        return number_format($number, 3, '.', '');
+    }
+    throw new InvalidArgumentException(stridebr_t('workout_session.invalid_field'));
+}
+
+/** Resolve only unequivocal targets. Ranges and malformed prescriptions stay empty. */
+function sessaoDefaultsPlanejados(array $exercise): array
+{
+    $reps = trim((string) ($exercise['repeticoes_snapshot'] ?? ''));
+    $duration = $exercise['duracao_snapshot'] ?? null;
+    $distance = $exercise['distancia_snapshot'] ?? null;
+    if (!$duration && preg_match('/[a-z:]/i', $reps)) { try { $duration = sessaoSerieMetrica($reps, 'duration'); $reps = ''; } catch (InvalidArgumentException) {} }
+    if (!$distance && preg_match('/[a-z]/i', $reps)) { try { $distance = (float) sessaoSerieMetrica($reps, 'distance'); $reps = ''; } catch (InvalidArgumentException) {} }
+    $result = ['reps'=>null,'load'=>null,'duration'=>null,'distance'=>null];
+    if (preg_match('/^(\d{1,3})(?:\s*(?:rep|reps|repetições|repeticoes))?$/iu', $reps, $m)) $result['reps'] = (string) (int) $m[1];
+    foreach (['load'=>$exercise['carga_snapshot'] ?? null, 'duration'=>$duration, 'distance'=>$distance] as $field=>$value) {
+        try { $result[$field] = $field === 'load' ? sessaoSerieCarga($value) : sessaoSerieMetrica($value, $field); } catch (InvalidArgumentException) {}
+    }
+    return $result;
+}
+
+/** Caller owns the session lock and transaction. Never rewrite already completed sets. */
+function sessaoPreencherDefaults(PDO $pdo, string $sessionId, ?string $exerciseId = null, ?string $setId = null): void
+{
+    $sql = 'SELECT st.*, se.repeticoes_snapshot, se.carga_snapshot, se.duracao_snapshot, se.distancia_snapshot FROM sessoes_treino_series st JOIN sessoes_treino_exercicios se ON se.idsessao_exercicio=st.idsessao_exercicio WHERE se.idsessao=:session AND st.concluida=FALSE';
+    $params = [':session'=>$sessionId];
+    if ($exerciseId !== null) { $sql .= ' AND se.idsessao_exercicio=:exercise'; $params[':exercise']=$exerciseId; }
+    if ($setId !== null) { $sql .= ' AND st.idserie=:set'; $params[':set']=$setId; }
+    $query = $pdo->prepare($sql . ' FOR UPDATE OF st'); $query->execute($params);
+    $update = $pdo->prepare('UPDATE sessoes_treino_series SET repeticoes_realizadas=COALESCE(repeticoes_realizadas,:reps), carga_realizada=COALESCE(carga_realizada,:load), duracao_realizada_s=COALESCE(duracao_realizada_s,:duration), distancia_realizada_m=COALESCE(distancia_realizada_m,:distance) WHERE idserie=:set');
+    foreach ($query->fetchAll() as $row) {
+        $defaults = sessaoDefaultsPlanejados($row);
+        $update->execute([':reps'=>$defaults['reps'],':load'=>$defaults['load'],':duration'=>$defaults['duration'],':distance'=>$defaults['distance'],':set'=>$row['idserie']]);
+    }
 }
 
 function sessaoPersistirSeriesAtividade(PDO $pdo, string $idRegistro, array $session): void
@@ -253,8 +311,8 @@ function sessaoPersistirSeriesAtividade(PDO $pdo, string $idRegistro, array $ses
     $pdo->prepare('DELETE FROM series_exercicio_atividade WHERE idregistro = :registro')->execute([':registro' => $idRegistro]);
     $insert = $pdo->prepare(
         "INSERT INTO series_exercicio_atividade
-        (idserie, idregistro, idexercicio, nome_exercicio, ordem_exercicio, ordem_serie, tipo, carga_kg, repeticoes, rir, rpe, concluida)
-        VALUES (:id, :registro, :exercicio, :nome, :ordem_exercicio, :ordem_serie, 'trabalho', :carga, :reps, :rir, :rpe, :concluida)"
+        (idserie, idregistro, idexercicio, nome_exercicio, ordem_exercicio, ordem_serie, tipo, carga_kg, repeticoes, duracao_segundos, distancia_metros, rir, rpe, concluida)
+        VALUES (:id, :registro, :exercicio, :nome, :ordem_exercicio, :ordem_serie, 'trabalho', :carga, :reps, :duration, :distance, :rir, :rpe, :concluida)"
     );
     foreach ((array) ($session['exercicios'] ?? []) as $exercise) {
         $order = max(1, (int) ($exercise['ordem'] ?? 1));
@@ -273,6 +331,8 @@ function sessaoPersistirSeriesAtividade(PDO $pdo, string $idRegistro, array $ses
                 ':ordem_serie' => max(1, (int) ($set['numero'] ?? 1)),
                 ':carga' => $load,
                 ':reps' => $reps,
+                ':duration' => $set['duracao_realizada_s'] ?? null,
+                ':distance' => $set['distancia_realizada_m'] ?? null,
                 ':rir' => $rir,
                 ':rpe' => $rpe,
                 ':concluida' => stridebr_db_bool($set['concluida'] ?? false) ? 1 : 0,
@@ -591,7 +651,7 @@ function sessaoIniciarAgendado(PDO $pdo, string $idUsuario, string $idAgendament
     if (!$agendamento) throw new RuntimeException('Treino agendado não encontrado ou indisponível.');
     $exerciseStmt = $pdo->prepare('SELECT * FROM treinos_agendados_exercicios WHERE idagendamento = :id ORDER BY ordem');
     $exerciseStmt->execute([':id' => $idAgendamento]);
-    $exercicios = $exerciseStmt->fetchAll();
+    $exercicios = cronogramaHidratarExerciciosPlanejados($pdo, $idUsuario, $exerciseStmt->fetchAll());
     $idSessao = atividadeGerarId();
     $pdo->beginTransaction();
     try {
@@ -710,11 +770,19 @@ function sessaoIniciarInstitucional(PDO $pdo, string $idUsuario, array $training
     return sessaoCarregarPorId($pdo, $idUsuario, $idSession);
 }
 
-function sessaoAtualizarSerie(PDO $pdo, string $idUsuario, string $idSerie, mixed $repeticoes, mixed $carga, bool $propagateLoad = false, string $editedField = '', array $inherited = [], ?string $expectedSessionId = null): array
+function sessaoAtualizarSerie(PDO $pdo, string $idUsuario, string $idSerie, mixed $repeticoes, mixed $carga, bool $propagateLoad = false, string $editedField = '', array $inherited = [], ?string $expectedSessionId = null, mixed $duracao = null, mixed $distancia = null): array
 {
-    if (trim($idSerie) === '') throw new InvalidArgumentException('Série inválida.');
-    $reps = sessaoSerieRepeticoes($repeticoes);
-    $load = sessaoSerieCarga($carga);
+    if (trim($idSerie) === '') throw new InvalidArgumentException(stridebr_t('workout_session.invalid_field'));
+    $columns = ['load'=>'carga_realizada','reps'=>'repeticoes_realizadas','duration'=>'duracao_realizada_s','distance'=>'distancia_realizada_m'];
+    if ($editedField !== '' && !isset($columns[$editedField])) throw new InvalidArgumentException(stridebr_t('workout_session.invalid_field'));
+    $input = ['load'=>$carga,'reps'=>$repeticoes,'duration'=>$duracao,'distance'=>$distancia];
+    $values = [];
+    foreach ($input as $field=>$value) {
+        if ($editedField !== '' && $editedField !== $field) continue;
+        if ($editedField === '' && $value === null && in_array($field, ['duration','distance'], true)) continue;
+        $values[$field] = match ($field) { 'load'=>sessaoSerieCarga($value), 'reps'=>sessaoSerieRepeticoes($value), default=>sessaoSerieMetrica($value, $field) };
+    }
+    $fieldDefaults = isset($inherited['load']) && is_array($inherited['load']) || isset($inherited['reps']) && is_array($inherited['reps']) || isset($inherited['duration']) && is_array($inherited['duration']) || isset($inherited['distance']) && is_array($inherited['distance']) ? $inherited : ['load'=>$inherited];
     $pdo->beginTransaction();
     try {
         $lockSql = "SELECT s.idsessao FROM sessoes_treino s JOIN sessoes_treino_exercicios se ON se.idsessao = s.idsessao JOIN sessoes_treino_series st ON st.idsessao_exercicio = se.idsessao_exercicio WHERE st.idserie = :serie AND s.idusuario = :usuario AND s.status = 'ativo'";
@@ -733,28 +801,25 @@ function sessaoAtualizarSerie(PDO $pdo, string $idUsuario, string $idSerie, mixe
         $sets = $setsQuery->fetchAll();
         foreach ($sets as &$set) $set['concluida'] = stridebr_db_bool($set['concluida']);
         unset($set);
-        $targets = $propagateLoad ? stridebr_workout_load_targets($sets, $idSerie, $inherited) : [];
-        foreach ($sets as $set) {
-            if ((string) $set['idserie'] !== $idSerie) continue;
-            if ($editedField === 'load') $reps = $set['repeticoes_realizadas'];
-            if ($editedField === 'reps') $load = $set['carga_realizada'];
-        }
-        $stmt = $pdo->prepare('UPDATE sessoes_treino_series SET repeticoes_realizadas = :reps, carga_realizada = :carga WHERE idserie = :serie');
-        $stmt->execute([':reps' => $reps, ':carga' => $load, ':serie' => $idSerie]);
-        if ($propagateLoad) {
-            $inherited[$idSerie] = null;
-            $update = $pdo->prepare('UPDATE sessoes_treino_series SET carga_realizada = :carga WHERE idserie = :serie AND concluida = FALSE');
-            foreach ($targets as $target) {
-                $update->execute([':carga' => $load, ':serie' => $target]);
-                $inherited[$target] = (string) $load;
-            }
+        $source = array_values(array_filter($sets, static fn(array $set): bool => (string) $set['idserie'] === $idSerie))[0] ?? null;
+        if (!$source) throw new RuntimeException(stridebr_t('workout_session.invalid_field'));
+        if ($source['concluida']) throw new InvalidArgumentException(stridebr_t('workout_session.completed_set_locked'));
+        foreach ($values as $field=>$value) {
+            $column = $columns[$field]; // Whitelisted internal column, never request-controlled SQL.
+            $defaults = is_array($fieldDefaults[$field] ?? null) ? $fieldDefaults[$field] : [];
+            $targets = $propagateLoad && ($editedField === $field || $editedField === '' && $field === 'load') ? stridebr_workout_field_targets($sets, $idSerie, $defaults, $field) : [];
+            $update = $pdo->prepare("UPDATE sessoes_treino_series SET {$column}=:value WHERE idserie=:serie AND concluida=FALSE");
+            $update->execute([':value'=>$value, ':serie'=>$idSerie]);
+            $defaults[$idSerie] = null; // Explicit edit establishes this field's manual boundary.
+            foreach ($targets as $target) { $update->execute([':value'=>$value, ':serie'=>$target]); $defaults[$target]=(string) $value; }
+            $fieldDefaults[$field] = $defaults;
         }
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         throw $e;
     }
-    return ['session' => sessaoCarregarPorId($pdo, $idUsuario, (string) $sessionId, false), 'load_defaults' => $inherited];
+    return ['session'=>sessaoCarregarPorId($pdo,$idUsuario,(string) $sessionId,false), 'field_defaults'=>$fieldDefaults, 'load_defaults'=>$fieldDefaults['load'] ?? []];
 }
 
 function sessaoAlternarSerie(PDO $pdo, string $idUsuario, string $idSerie, bool $done, ?string $expectedSessionId = null): array
@@ -772,6 +837,7 @@ function sessaoAlternarSerie(PDO $pdo, string $idUsuario, string $idSerie, bool 
         $lock->execute($lockParams);
         $state = $lock->fetch();
         if (!$state) throw new RuntimeException('Série não encontrada.');
+        if ($done) sessaoPreencherDefaults($pdo, (string) $state['idsessao'], null, $idSerie);
         $stmt = $pdo->prepare('UPDATE sessoes_treino_series SET concluida = :done, data_conclusao = CASE WHEN :done2 THEN NOW() ELSE NULL END WHERE idserie = :serie');
         $stmt->bindValue(':done', $done, PDO::PARAM_BOOL);
         $stmt->bindValue(':done2', $done, PDO::PARAM_BOOL);
@@ -802,6 +868,7 @@ function sessaoAlternarExercicio(PDO $pdo, string $idUsuario, string $id, bool $
         $lock->execute($lockParams);
         $sessionId = $lock->fetchColumn();
         if (!$sessionId) throw new RuntimeException('Exercício não encontrado.');
+        if ($done) sessaoPreencherDefaults($pdo, (string) $sessionId, $id);
         $stmt = $pdo->prepare('UPDATE sessoes_treino_exercicios SET concluido = :done WHERE idsessao_exercicio = :id');
         $stmt->bindValue(':done', $done, PDO::PARAM_BOOL);
         $stmt->bindValue(':id', $id, PDO::PARAM_STR);
@@ -834,6 +901,7 @@ function sessaoMarcarTudo(PDO $pdo, string $idUsuario, bool $done, ?string $expe
         $lock->execute($params);
         $sessionId = $lock->fetchColumn();
         if (!$sessionId) throw new RuntimeException('Nenhum treino em andamento.');
+        if ($done) sessaoPreencherDefaults($pdo, (string) $sessionId);
         $exerciseStmt = $pdo->prepare('UPDATE sessoes_treino_exercicios SET concluido = :done WHERE idsessao = :sessao');
         $exerciseStmt->bindValue(':done', $done, PDO::PARAM_BOOL);
         $exerciseStmt->bindValue(':sessao', $sessionId, PDO::PARAM_STR);

@@ -25,8 +25,8 @@ $detailStart = strpos($detailJs, 'const tabs = tabsFor(activity)', $previewStart
 $preview = $previewStart !== false && $detailStart !== false ? substr($detailJs, $previewStart, $detailStart - $previewStart) : '';
 
 $assert($preview !== '' && str_contains($detailJs, 'visibleMetrics(activity.metricas || []).slice(0, 4)'), 'Preview precisa limitar as métricas essenciais.');
-$assert(str_contains($preview, 'data-share-activity') && str_contains($preview, 'data-open-full-activity-details'), 'Preview precisa expor Compartilhar e Abrir detalhes.');
-$assert(!str_contains($preview, 'data-delete-activity') && !str_contains($preview, 'activity-v3-tabs'), 'Preview não pode expor excluir ou tabs analíticas.');
+$assert(!str_contains($preview, 'data-share-activity') && !str_contains($preview, 'data-open-full-activity-details') && str_contains($page, 'data-share-activity') && str_contains($page, 'data-detail-open-full'), 'Preview precisa concentrar Compartilhar e Abrir detalhes no header, sem rodapé duplicado.');
+$assert(!str_contains($preview, 'data-delete-activity') && !str_contains($preview, 'activity-v3-tabs') && str_contains($page, 'data-detail-delete'), 'Preview não pode expor excluir no conteúdo nem tabs analíticas; excluir deve ficar no overflow do header.');
 $assert(str_contains($page, 'class="activity-detail-panel" role="region"') && !str_contains($page, 'class="activity-detail-panel" role="dialog"'), 'Activity Detail precisa ser região da página, não dialog modal.');
 $assert(str_contains($page, 'data-activities-history-view') && str_contains($page, 'data-activity-detail-view') && str_contains($activitiesJs, "targetHost = detailExpanded ? activityDetailView : detailPreviewHost") && str_contains($activitiesCss, '.activities-page.is-detail-mode'), 'Detail full-page precisa substituir toda a main específica de Activities sem overlay fixo.');
 $assert(str_contains($activitiesJs, 'detailViewUrl') && str_contains($activitiesJs, "history.pushState") && str_contains($activitiesJs, "window.addEventListener('popstate'"), 'Detail precisa integrar pushState e popstate.');

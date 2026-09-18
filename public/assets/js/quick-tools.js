@@ -2,6 +2,7 @@
     const t = (key, values = {}, fallback = key) => window.StrideBRI18n?.t?.(key, values, fallback) ?? fallback;
     const root = document.querySelector('[data-global-tools]');
     if (!root) return;
+    const standalone = document.querySelector('[data-quick-tools-standalone]');
 
     const modal = root.querySelector('[data-quick-tools-modal]');
     const tabs = [...root.querySelectorAll('[data-quick-tool-tab]')];
@@ -77,7 +78,7 @@
     };
 
     const renderPins = () => {
-        root.querySelectorAll('[data-pin-tool]').forEach(button => {
+        document.querySelectorAll('[data-pin-tool]').forEach(button => {
             const pinned = state.pins.includes(button.dataset.pinTool);
             button.textContent = pinned ? '★' : '☆';
             button.classList.toggle('is-pinned', pinned);
@@ -139,6 +140,13 @@
     };
 
     const open = (tool = activeTool) => {
+        if (standalone) {
+            activeTool = ['timer', 'stopwatch', 'sets'].includes(tool) ? tool : 'timer';
+            const view = views.find(item => item.dataset.quickToolView === activeTool);
+            view?.scrollIntoView({block: 'center', behavior: 'smooth'});
+            window.setTimeout(() => view?.querySelector('input, button:not([disabled])')?.focus(), 180);
+            return;
+        }
         activate(tool);
         if (modal) modal.hidden = false;
         document.documentElement.classList.add('quick-tools-open');
@@ -256,6 +264,19 @@
     document.addEventListener('visibilitychange', () => {
         if (state.timer.running || state.stopwatch.running) render();
     });
+    if (standalone) {
+        document.documentElement.classList.add('quick-tools-standalone');
+        const dock = root.querySelector('.floating-utility-dock');
+        if (dock) dock.hidden = true;
+        if (modal) modal.hidden = true;
+        views.forEach(view => {
+            const slot = standalone.querySelector(`[data-quick-tools-slot="${CSS.escape(view.dataset.quickToolView || '')}"]`);
+            if (!slot) return;
+            view.hidden = false;
+            view.classList.add('is-active', 'is-standalone');
+            slot.appendChild(view);
+        });
+    }
     renderPins();
     render();
 

@@ -50,7 +50,7 @@ $assert(str_contains($activitiesCss, '@media(max-width:760px)') && str_contains(
 $previewStart = strpos($detailJs, "if (mode === 'preview')");
 $detailStart = strpos($detailJs, 'const tabs = tabsFor(activity)', $previewStart ?: 0);
 $previewBlock = $previewStart !== false && $detailStart !== false ? substr($detailJs, $previewStart, $detailStart - $previewStart) : '';
-$assert($previewBlock !== '' && str_contains($detailJs, 'visibleMetrics(activity.metricas || []).slice(0, 4)') && str_contains($previewBlock, 'data-open-full-activity-details'), 'Preview precisa limitar métricas e ter CTA Abrir detalhes.');
+$assert($previewBlock !== '' && str_contains($detailJs, 'visibleMetrics(activity.metricas || []).slice(0, 4)') && !str_contains($previewBlock, 'data-open-full-activity-details') && str_contains($activitiesPage, 'data-detail-open-full'), 'Preview precisa limitar métricas e manter Abrir detalhes no header da superfície.');
 $assert(!str_contains($previewBlock, 'activity-v3-tabs') && !str_contains($previewBlock, 'data-activity-v3-lazy'), 'Preview lateral não pode conter tabs ou painéis analíticos.');
 $assert(str_contains($activitiesJs, "mode: detailExpanded ? 'detail' : 'preview'") && str_contains($activitiesJs, "event.target.closest('[data-open-full-activity-details]')"), 'Abrir detalhes precisa rerenderizar a atividade em modo completo.');
 $assert(str_contains($detailJs, "{id:'summary',label:'Resumo'}") && str_contains($detailJs, "id:'charts',label:'Gráficos'") && str_contains($detailJs, "id:'analysis',label:'Análise'"), 'Detalhe completo precisa preservar tabs condicionais.');

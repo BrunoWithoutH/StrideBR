@@ -146,7 +146,6 @@ $current = treinadorUsuario($pdo, $idUsuario);
 $trainerMode = stridebr_db_bool($current['modo_treinador'] ?? false);
 $trainerContext = (string) ($_GET['context'] ?? (trim((string) ($_GET['atleta'] ?? '')) !== '' ? 'coach' : 'athlete'));
 if (!in_array($trainerContext, ['athlete', 'coach'], true)) $trainerContext = 'athlete';
-if ($trainerContext === 'coach' && !$trainerMode) $trainerContext = 'athlete';
 $trainerSearch = trim((string) ($_GET['trainer_q'] ?? ''));
 $trainerSearchResults = $trainerContext === 'athlete' && $trainerSearch !== '' ? treinadorBuscarPessoas($pdo, $trainerSearch, $idUsuario, true, 8) : [];
 

@@ -33,17 +33,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $q = trim((string) ($_GET['q'] ?? ''));
 $sport = trim((string) ($_GET['modalidade'] ?? ''));
 $state = trim((string) ($_GET['estado'] ?? ''));
+$city = trim((string) ($_GET['cidade'] ?? ''));
+$type = trim((string) ($_GET['tipo'] ?? ''));
 $month = trim((string) ($_GET['mes'] ?? ''));
 $savedRequested = isset($_GET['salvos']);
 $savedOnly = $savedRequested && $userId !== null;
-$filters = ['q' => $q, 'modalidade' => $sport, 'estado' => $state, 'mes' => $month, 'salvos' => $savedOnly];
+$filters = ['q' => $q, 'modalidade' => $sport, 'estado' => $state, 'cidade' => $city, 'tipo' => $type, 'mes' => $month, 'salvos' => $savedOnly];
 $events = $available ? eventosListarPublicados($pdo, $filters, $userId, 100) : [];
 $modalidades = $available ? eventosListarModalidades($pdo) : [];
 $states = [];
+$cities = [];
+$types = [];
 if ($available) {
     try {
         $states = $pdo->query("SELECT DISTINCT estado FROM eventos_esportivos WHERE status IN ('publicado','cancelado') AND estado IS NOT NULL AND trim(estado) <> '' ORDER BY estado")->fetchAll(PDO::FETCH_COLUMN);
-    } catch (Throwable) { $states = []; }
+        $cities = $pdo->query("SELECT DISTINCT cidade FROM eventos_esportivos WHERE status IN ('publicado','cancelado') AND cidade IS NOT NULL AND trim(cidade) <> '' ORDER BY cidade LIMIT 300")->fetchAll(PDO::FETCH_COLUMN);
+        $types = $pdo->query("SELECT DISTINCT tipo FROM eventos_esportivos WHERE status IN ('publicado','cancelado') AND tipo IS NOT NULL AND trim(tipo) <> '' ORDER BY tipo LIMIT 100")->fetchAll(PDO::FETCH_COLUMN);
+    } catch (Throwable) { $states = []; $cities = []; $types = []; }
 }
 $flashes = stridebr_take_flashes();
 $currentQuery = $_SERVER['REQUEST_URI'] ?? '/calendario.php';
@@ -81,10 +87,12 @@ $currentQuery = $_SERVER['REQUEST_URI'] ?? '/calendario.php';
                     <label class="events-search"><?php echo stridebr_e(stridebr_t('common.search')); ?><input type="search" name="q" value="<?php echo stridebr_e($q); ?>" placeholder="<?php echo stridebr_e(stridebr_t('events.search_placeholder')); ?>"></label>
                     <div class="event-sport-filter"><span class="form-field-label"><?php echo stridebr_e(stridebr_t('common.sport')); ?></span><?php echo sportPickerRenderSelect($modalidades, ['name' => 'modalidade', 'selected' => $sport, 'empty_label' => stridebr_t('common.all')]); ?></div>
                     <label><?php echo stridebr_e(stridebr_t('events.state')); ?><select name="estado"><option value=""><?php echo stridebr_e(stridebr_t('common.all')); ?></option><?php foreach ($states as $uf): ?><option value="<?php echo stridebr_e((string) $uf); ?>"<?php echo $state === (string) $uf ? ' selected' : ''; ?>><?php echo stridebr_e((string) $uf); ?></option><?php endforeach; ?></select></label>
+                    <label><?php echo stridebr_e(stridebr_t('events.city')); ?><select name="cidade"><option value=""><?php echo stridebr_e(stridebr_t('common.all')); ?></option><?php foreach ($cities as $itemCity): ?><option value="<?php echo stridebr_e((string) $itemCity); ?>"<?php echo $city === (string) $itemCity ? ' selected' : ''; ?>><?php echo stridebr_e((string) $itemCity); ?></option><?php endforeach; ?></select></label>
+                    <label><?php echo stridebr_e(stridebr_t('events.type')); ?><select name="tipo"><option value=""><?php echo stridebr_e(stridebr_t('common.all')); ?></option><?php foreach ($types as $itemType): ?><option value="<?php echo stridebr_e((string) $itemType); ?>"<?php echo $type === (string) $itemType ? ' selected' : ''; ?>><?php echo stridebr_e((string) $itemType); ?></option><?php endforeach; ?></select></label>
                     <label><?php echo stridebr_e(stridebr_t('common.month')); ?><input type="month" name="mes" value="<?php echo stridebr_e($month); ?>"></label>
                     <?php if ($savedOnly): ?><input type="hidden" name="salvos" value="1"><?php endif; ?>
                     <button class="primary-button" type="submit"><?php echo stridebr_e(stridebr_t('events.filter')); ?></button>
-                    <?php if ($q !== '' || $sport !== '' || $state !== '' || $month !== '' || $savedOnly): ?><a class="events-clear" href="/calendario.php"><?php echo stridebr_e(stridebr_t('events.clear')); ?></a><?php endif; ?>
+                    <?php if ($q !== '' || $sport !== '' || $state !== '' || $city !== '' || $type !== '' || $month !== '' || $savedOnly): ?><a class="events-clear" href="/calendario.php"><?php echo stridebr_e(stridebr_t('events.clear')); ?></a><?php endif; ?>
                 </form>
 
                 <?php if ($events === []): ?>
@@ -101,9 +109,10 @@ $currentQuery = $_SERVER['REQUEST_URI'] ?? '/calendario.php';
                     <article class="event-card<?php echo stridebr_db_bool($event['destaque']) ? ' is-featured' : ''; ?><?php echo $event['status'] === 'cancelado' ? ' is-cancelled' : ''; ?>">
                         <a class="event-card-media" href="/evento.php?e=<?php echo rawurlencode((string) $event['slug']); ?>"><?php if ($event['imagem_principal']): ?><img src="<?php echo stridebr_e((string) $event['imagem_principal']); ?>" alt="<?php echo stridebr_e((string) $event['titulo']); ?>" loading="lazy" decoding="async"><?php else: ?><div class="event-card-placeholder"><img src="<?php echo stridebr_e(stridebr_asset('/assets/img/logos/stridebr-icon.svg')); ?>" alt=""></div><?php endif; ?><time datetime="<?php echo stridebr_e($date->format(DATE_ATOM)); ?>"><strong><?php echo stridebr_e($date->format('d')); ?></strong><span><?php echo stridebr_e(strtoupper(stridebr_month_short($date))); ?></span></time><?php if ($event['status'] === 'cancelado'): ?><b class="event-status-badge"><?php echo stridebr_e(stridebr_t('events.cancelled')); ?></b><?php elseif (stridebr_db_bool($event['destaque'])): ?><b class="event-status-badge"><?php echo stridebr_e(stridebr_t('events.featured')); ?></b><?php endif; ?></a>
                         <div class="event-card-body">
+                            <?php if (!empty($event['fonte_externa'])): ?><div class="event-card-source"><?php echo stridebr_e(stridebr_t('events.source_label', ['source' => (string) $event['fonte_externa']])); ?></div><?php endif; ?>
                             <div class="event-card-kind"><?php if (!empty($event['modalidade_slug'])): ?><span><?php echo stridebr_sport_icon_html((string) $event['modalidade_slug'], 'sport-icon'); ?></span><?php endif; ?><span><?php echo stridebr_e((string) ($event['tipo'] ?: stridebr_sport_name((string) ($event['modalidade_slug'] ?? ''), (string) ($event['modalidade_nome'] ?: stridebr_t('events.sport_event'))))); ?></span></div>
                             <h2><a href="/evento.php?e=<?php echo rawurlencode((string) $event['slug']); ?>"><?php echo stridebr_e((string) $event['titulo']); ?></a></h2>
-                            <p><?php echo stridebr_e($location); ?> · <?php echo stridebr_e($date->format('H:i')); ?></p>
+                            <p><?php echo stridebr_e($location); ?><?php if (!isset($event['horario_informado']) || stridebr_db_bool($event['horario_informado'])): ?> · <?php echo stridebr_e($date->format('H:i')); ?><?php endif; ?></p>
                             <?php if ($distances !== []): ?><div class="event-distance-chips"><?php foreach (array_slice($distances, 0, 5) as $distance): ?><span><?php echo stridebr_e((string) $distance); ?></span><?php endforeach; ?></div><?php endif; ?>
                             <footer><a href="/evento.php?e=<?php echo rawurlencode((string) $event['slug']); ?>"><?php echo stridebr_e(stridebr_t('events.view_details')); ?></a><?php if ($userId !== null): ?><form method="post"><?php echo stridebr_csrf_field(); ?><input type="hidden" name="idevento" value="<?php echo stridebr_e((string) $event['idevento']); ?>"><input type="hidden" name="return_to" value="<?php echo stridebr_e($currentQuery); ?>"><button type="submit" class="event-save-button<?php echo stridebr_db_bool($event['salvo']) ? ' is-saved' : ''; ?>"><?php echo stridebr_db_bool($event['salvo']) ? '★ Salvo' : '☆ Salvar'; ?></button></form><?php endif; ?></footer>
                         </div>

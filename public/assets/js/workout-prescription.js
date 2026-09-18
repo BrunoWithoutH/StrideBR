@@ -128,6 +128,12 @@
     }
     globalThis.StrideBRWorkoutPrescription = {
         resolve,
+        loggingFields: prescription => {
+            const fields = [...(prescription?.fields || [])]
+            if (!fields.length) return ['load','reps']
+            if (fields.includes('reps') && !fields.includes('load')) fields.unshift('load')
+            return fields
+        },
         formatDuration,
         formatDurationSeconds,
         formatDistance,

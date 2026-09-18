@@ -8803,6 +8803,11 @@ document.addEventListener('DOMContentLoaded', () => {
         return `<div class="activity-gps-notice" role="note"><div><strong>${escapeHtml(source)}</strong><span>${escapeHtml(estimate)}</span></div><p>${escapeHtml(precision + interruptions + filtered + adjusted)} ${escapeHtml(tr('activity.gps.review_if_needed'))}</p></div>`
     }
 
+    const renderDetailOpenAction = (container, expanded) => {
+        container.querySelector('[data-detail-open-full]')?.remove()
+        const template = container.querySelector('[data-detail-open-full-template]')
+        if (!expanded && template) template.after(template.content.cloneNode(true))
+    }
     const renderDetail = (activity) => {
         if (!detailContent || !detailDrawer) return
         const title = detailDrawer.querySelector('[data-detail-title]')
@@ -8823,18 +8828,29 @@ document.addEventListener('DOMContentLoaded', () => {
         if (compareLink) compareLink.href = `/user/comparar-atividades.php?a=${encodeURIComponent(activity.id)}`
         const topbar = detailDrawer.querySelector('[data-detail-topbar]')
         const fullActions = detailDrawer.querySelector('[data-detail-full-actions]')
+        renderDetailOpenAction(detailDrawer, detailExpanded)
         const editLink = detailDrawer.querySelector('[data-detail-edit]')
         const repeatLink = detailDrawer.querySelector('[data-detail-repeat]')
         const statsButton = detailDrawer.querySelector('[data-detail-stats]')
         const deleteButton = detailDrawer.querySelector('[data-detail-delete]')
         if (topbar) topbar.hidden = !detailExpanded
-        if (fullActions) fullActions.hidden = !detailExpanded
-        if (editLink) editLink.href = `/user/editatividade.php?id=${encodeURIComponent(activity.id)}`
+        if (fullActions) fullActions.hidden = false
+        if (editLink) {
+            editLink.hidden = !detailExpanded
+            editLink.href = `/user/editatividade.php?id=${encodeURIComponent(activity.id)}`
+        }
+        const exportBase = `/user/exportar-atividade.php?id=${encodeURIComponent(activity.id)}`
+        const exportJson = detailDrawer.querySelector('[data-detail-export-json]')
+        const exportTcx = detailDrawer.querySelector('[data-detail-export-tcx]')
+        const exportGpx = detailDrawer.querySelector('[data-detail-export-gpx]')
+        if (exportJson) exportJson.href = `${exportBase}&format=json`
+        if (exportTcx) exportTcx.href = `${exportBase}&format=tcx`
+        if (exportGpx) { exportGpx.href = `${exportBase}&format=gpx`; exportGpx.hidden = !(activity.rota?.geojson?.coordinates?.length >= 2) }
         if (repeatLink) repeatLink.href = `/user/atividades.php?repetir=${encodeURIComponent(activity.id)}`
         if (statsButton) {
             statsButton.dataset.detailStats = String(activity.id || '')
             statsButton.setAttribute('aria-pressed', activity.excluded_from_stats ? 'true' : 'false')
-            statsButton.textContent = activity.excluded_from_stats ? 'Incluir nas estatísticas' : 'Excluir das estatísticas'
+            statsButton.textContent = activity.excluded_from_stats ? tr('activity.stats_include') : tr('activity.stats_exclude')
         }
         if (deleteButton) {
             deleteButton.dataset.deleteActivity = String(activity.id || '')

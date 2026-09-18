@@ -125,7 +125,7 @@ $assert(str_contains($progressJs, 'AbortController') && str_contains($progressJs
 
 $assert(!str_contains($home, 'home.active_goals_help'), 'Ajuda redundante das metas ativas deve sair da Home.');
 $assert(str_contains($events, "stridebr_t('events.subtitle')"), 'Subtitle de Eventos deve permanecer porque explica escopo e links oficiais.');
-$assert(str_contains($friends, "stridebr_t('friends.subtitle')"), 'Subtitle de Amigos deve permanecer porque explica a ação principal.');
+$assert(str_contains($friends, "stridebr_t('friends.search_people')") && str_contains($friends, 'href="#friend-q"'), 'Amigos deve oferecer busca no header sem subtitle redundante.');
 $assert(str_contains($agenda, "stridebr_t('agenda.subtitle_self')"), 'Subtitle da Agenda deve permanecer porque explica recorrências e datas específicas.');
 $assert(str_contains($events, "stridebr_t('common.events')") && !preg_match('/<h1[^>]*>\s*Calend[aá]rio\s*<\/h1>/ui', $events), 'Rota /calendario.php deve exibir Eventos, não o filename interno.');
 

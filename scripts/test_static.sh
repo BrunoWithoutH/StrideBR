@@ -21,6 +21,7 @@ printf '%s\n' '✓ canonical env is shell-compatible'
 if command -v node >/dev/null 2>&1; then
   find public/assets/js -type f -name '*.js' -print0 | xargs -0 -n1 node --check >/dev/null
   printf '%s\n' '✓ JavaScript syntax'
+node scripts/tests/test_web_ux_polish_v3.js
 node scripts/tests/test_ui_boot.js
 node scripts/tests/test_activity_route_circuit.js
 node scripts/tests/test_share_route_scale.js
@@ -56,6 +57,7 @@ for migration in src/database/migrations/*.sql; do
 done
 printf '%s\n' '✓ migration search_path'
 
+php scripts/tests/test_web_ux_polish_v3_static.php
 php scripts/tests/test_unit.php
 php scripts/tests/test_activity_exchange_parser.php
 php scripts/tests/test_activity_sport_context.php
@@ -95,6 +97,7 @@ php scripts/tests/test_i18n_theme_google_static.php
 php scripts/tests/test_production_theme_migrations_static.php
 php scripts/tests/test_integrations_foundation_static.php
 php scripts/tests/test_integrations_external_rc4.php
+php scripts/tests/test_external_events_v1_static.php
 php scripts/tests/test_strava_webhooks.php
 php scripts/tests/test_core_nav_strava_backfill_static.php
 php scripts/tests/test_api_v1_static.php
@@ -149,3 +152,8 @@ php scripts/tests/test_templates.php
 php scripts/tests/test_planning_week.php
 php scripts/tests/test_i18n_coverage.php
 php scripts/tests/test_transactional_email_i18n.php
+node scripts/tests/test_web_ux_fixes_v4.js
+php scripts/tests/test_web_ux_fixes_v4_static.php
+php scripts/tests/test_exercise_library_v2_static.php
+php scripts/tests/test_workout_execution_v2_static.php
+node scripts/tests/test_workout_execution_v2.js

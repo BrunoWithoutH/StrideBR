@@ -1820,18 +1820,33 @@ function atividadeValorLinha(array $row): mixed
     return null;
 }
 
+function atividadeSharedParticipantsAvailable(PDO $pdo): bool
+{
+    try {
+        $stmt = $pdo->query("SELECT to_regclass('stridebr.activity_participants') IS NOT NULL");
+        return stridebr_db_bool($stmt->fetchColumn());
+    } catch (Throwable) {
+        return false;
+    }
+}
+
 function atividadeCarregarRegistro(PDO $pdo, string $idRegistro, string $idUsuario): array
 {
+    $activityAccess = 'ra.idusuario = :usuario';
+    if (atividadeSharedParticipantsAvailable($pdo)) {
+        $activityAccess = "(ra.idusuario = :usuario OR EXISTS (SELECT 1 FROM activity_participants ap WHERE ap.idregistro=ra.idregistro AND ap.idusuario=:usuario AND ap.status IN ('pending','accepted')))";
+    }
     $stmt = $pdo->prepare(
         "SELECT ra.*, m.nome AS modalidade_nome, m.slug AS modalidade_slug, m.icone AS modalidade_icone, m.metrica_derivada, m.familia_hub AS modalidade_familia_hub, m.permite_rota,
                 mm.nome AS modelo_nome, mm.slug AS modelo_slug, mm.tipo_unidade_padrao, mm.rotulo_unidade, mm.permite_multiplas_unidades,
-                tc.codigo AS treino_codigo, tc.foco AS treino_foco, tc.titulo AS treino_titulo, c.nome AS competicao_nome
+                tc.codigo AS treino_codigo, tc.foco AS treino_foco, tc.titulo AS treino_titulo, c.nome AS competicao_nome,
+                (ra.idusuario <> :usuario) AS is_shared_participant
          FROM registros_atividade ra
          JOIN modalidades m ON m.idmodalidade = ra.idmodalidade
          JOIN modelos_modalidade mm ON mm.idmodelo = ra.idmodelo
          LEFT JOIN treinos_cronograma tc ON tc.idtreino = ra.idtreino_cronograma
          LEFT JOIN competicoes_usuario c ON c.idcompeticao = ra.idcompeticao
-         WHERE ra.idregistro = :id AND ra.idusuario = :usuario AND ra.excluido_em IS NULL LIMIT 1"
+         WHERE ra.idregistro = :id AND ra.excluido_em IS NULL AND {$activityAccess} LIMIT 1"
     );
     $stmt->execute([':id' => $idRegistro, ':usuario' => $idUsuario]);
     $registro = $stmt->fetch();
@@ -1852,6 +1867,12 @@ function atividadeCarregarRegistro(PDO $pdo, string $idRegistro, string $idUsuar
     $valueStmt->execute([':registro' => $idRegistro]);
     foreach ($valueStmt->fetchAll() as $row) {
         $registro['record_values'][$row['idcampo']] = atividadeValorLinha($row);
+    }
+    if (stridebr_db_bool($registro['is_shared_participant'] ?? false)) {
+        $personal = ['frequencia_cardiaca','heart_rate','fc','calorias','kcal','potencia','power','cadencia','cadence','rpe','esforco','training_load','carga_treino','equipamento'];
+        $personalIds = [];
+        foreach ($registro['campos'] as $field) if (in_array(stridebr_lower((string) ($field['slug'] ?? '')), $personal, true)) $personalIds[(string) $field['idcampo']] = true;
+        foreach (array_keys($registro['record_values']) as $fieldId) if (isset($personalIds[(string) $fieldId])) unset($registro['record_values'][$fieldId]);
     }
 
     $unitStmt = $pdo->prepare('SELECT ua.*, um.nome AS modalidade_nome, um.slug AS modalidade_slug, um.familia_hub AS modalidade_familia_hub, um.metrica_derivada AS modalidade_metrica_derivada, um.permite_rota AS modalidade_permite_rota FROM unidades_atividade ua LEFT JOIN modalidades um ON um.idmodalidade = ua.idmodalidade WHERE ua.idregistro = :registro ORDER BY ua.ordem');
@@ -1884,6 +1905,9 @@ function atividadeCarregarRegistro(PDO $pdo, string $idRegistro, string $idUsuar
         $unit['modalidade_metrica_derivada'] = trim((string) ($unit['modalidade_metrica_derivada'] ?? '')) ?: (string) $registro['metrica_derivada'];
         $unit['modalidade_permite_rota'] = $unit['modalidade_permite_rota'] === null ? $registro['permite_rota'] : stridebr_db_bool($unit['modalidade_permite_rota']);
         $unit['values'] = $valuesByUnit[$unitId] ?? [];
+        if (stridebr_db_bool($registro['is_shared_participant'] ?? false)) {
+            foreach ($registro['campos'] as $field) if (in_array(stridebr_lower((string) ($field['slug'] ?? '')), ['frequencia_cardiaca','heart_rate','fc','calorias','kcal','potencia','power','cadencia','cadence','rpe','esforco','training_load','carga_treino'], true)) unset($unit['values'][(string) $field['idcampo']]);
+        }
         $unit['rota'] = $routesByUnit[$unitId] ?? null;
         $registro['unidades'][] = $unit;
     }

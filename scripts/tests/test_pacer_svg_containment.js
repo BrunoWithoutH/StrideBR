@@ -12,7 +12,9 @@ const sandbox={__stridebrPacerChartTest:{},document:{querySelector:()=>null}}
 sandbox.globalThis=sandbox
 vm.runInNewContext(source,sandbox,{filename:'pacer-web.js'})
 const geometry=sandbox.__stridebrPacerChartTest.geometry
+const inspector=sandbox.__stridebrPacerChartTest.inspector
 assert.equal(typeof geometry,'function','Pacer chart geometry test hook must be available')
+assert.equal(typeof inspector,'function','Pacer chart inspector test hook must be available')
 
 const fixtures=[
     {distance:1500,paces:[310,310],rules:{final_phase:{percent:10,min_distance_m:150,max_distance_m:1000}}},
@@ -38,6 +40,7 @@ for(const fixture of fixtures){
     assert.ok(chart.finalBand.x>=chart.plot.x&&chart.finalBand.x<=chart.plot.right,'final phase must start inside the plot')
     assert.ok(chart.finalBand.x+chart.finalBand.width<=chart.plot.right+.000001,'final phase must end inside the plot')
     assert.ok(!chart.points.includes('NaN')&&!chart.points.includes('Infinity'),'path data must remain finite')
+    assert.ok(chart.maxPace>chart.minPace,'chart must keep a non-zero useful Y domain')
     for(const pair of chart.points.split(' ')){
         const [x,y]=pair.split(',').map(Number)
         assert.ok(x>=chart.plot.x&&x<=chart.plot.right,`x coordinate must remain local for ${fixture.distance} m`)
@@ -50,5 +53,26 @@ for(const fixture of fixtures){
     }
 }
 
+const interactive=geometry([{start_distance_m:0,end_distance_m:5000,target_pace_s_per_km:300,tolerance_s_per_km:10}],5000,{final_phase:{percent:10,min_distance_m:150,max_distance_m:1000}})
+const point=inspector(interactive,2500)
+assert.equal(point.segment.pace,300,'pointer lookup must use the plan segment')
+assert.equal(point.targetElapsed,750,'pointer lookup must calculate target elapsed locally')
+assert.equal(inspector(interactive,5000).finalPhase,true,'final phase must be exposed to the inspector')
+
 assert.equal(geometry([],10000,{}),null,'missing segments must not create an invalid SVG')
 console.log('✓ Pacer SVG containment: 5 fixtures')
+
+const pointerRatio=sandbox.__stridebrPacerChartTest.pointerRatio
+assert.equal(typeof pointerRatio,'function')
+// The screen transform includes CSS scale, viewBox letterboxing and translation.
+for(const [scale,offset] of [[1,80],[1.5,200],[.65,30]]){
+    const svg={getScreenCTM:()=>({inverse:()=>({scale,offset})}),createSVGPoint:()=>({x:0,y:0,matrixTransform(matrix){return {x:(this.x-matrix.offset)/matrix.scale}}})}
+    for(const ratio of [0,.5,1]){
+        const screenX=offset+(interactive.plot.x+ratio*interactive.plot.width)*scale
+        assert.ok(Math.abs(pointerRatio(svg,screenX,120,interactive.plot)-ratio)<1e-10,'screen pointer must map to the same logical plot position')
+    }
+    assert.equal(pointerRatio(svg,offset,120,interactive.plot),0,'left padding clamps to plot edge')
+    assert.equal(pointerRatio(svg,offset+900*scale,120,interactive.plot),1,'right padding clamps to plot edge')
+}
+assert.equal(pointerRatio({getScreenCTM:()=>null},0,0,interactive.plot),null,'detached SVG must not move the cursor')
+console.log('✓ Pacer pointer transform: left/center/right at three CSS scales')

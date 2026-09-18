@@ -1,0 +1,33 @@
+{
+  "labels": [
+    {"input":"AERÓBICO","status":"matched","canonical":"Aeróbico"},
+    {"input":"PUXADOR FRENT PR","status":"suggest","canonical":"Puxada frontal pronada"},
+    {"input":"PUXA FRENT CORDA","status":"matched","canonical":"Puxada frontal com corda"},
+    {"input":"REMADA BAIX NEU","status":"suggest","canonical":"Remada baixa pegada neutra"},
+    {"input":"REMADA CUR SUPIN","status":"suggest","canonical":"Remada curvada supinada com barra"},
+    {"input":"ROSCA DIRETA HALTERES","status":"matched","canonical":"Rosca direta com halteres"},
+    {"input":"ROSCA SCOOT DUMB","status":"matched","canonical":"Rosca Scott com halteres"},
+    {"input":"ABDOMINAL INFRA","status":"matched","canonical":"Abdominal infra"},
+    {"input":"VOADOR DIRETO PEITORAL","status":"matched","canonical":"Voador peitoral"},
+    {"input":"SUPINO INCLINADO","status":"matched","canonical":"Supino inclinado"},
+    {"input":"SUPINO RETO","status":"matched","canonical":"Supino reto"},
+    {"input":"TRICEPS CORDA","status":"matched","canonical":"Tríceps na polia corda"},
+    {"input":"TRICEPS TESTA HALT","status":"matched","canonical":"Tríceps testa com halteres"},
+    {"input":"ELEV LATERAL","status":"matched","canonical":"Elevação lateral"},
+    {"input":"DESENV ANTERIOR","status":"matched","canonical":"Desenvolvimento frontal com halteres"},
+    {"input":"TRICEPS COICE CR","status":"unknown","canonical":null},
+    {"input":"ABDOMINAL RETO","status":"matched","canonical":"Abdominal reto"},
+    {"input":"AGACH HACK SQUAT","status":"matched","canonical":"Hack squat"},
+    {"input":"CAD ADUTORA","status":"matched","canonical":"Cadeira adutora"},
+    {"input":"CAD ABDUTORA","status":"matched","canonical":"Cadeira abdutora"},
+    {"input":"LEG 45","status":"matched","canonical":"Leg press 45°"},
+    {"input":"CAD. FLEX","status":"matched","canonical":"Cadeira flexora"},
+    {"input":"CAD. EXTENSORA","status":"matched","canonical":"Cadeira extensora"},
+    {"input":"PANTURRI EM PE","status":"matched","canonical":"Panturrilha em pé"},
+    {"input":"PRANCHA ISOMÉTRICA","status":"matched","canonical":"Prancha"}
+  ],
+  "duration_cases": [
+    {"exercise":"AERÓBICO","repeticoes":"20mn","seconds":1200},
+    {"exercise":"PRANCHA ISOMÉTRICA","repeticoes":"45SG","seconds":45}
+  ]
+}

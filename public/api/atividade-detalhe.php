@@ -9,6 +9,7 @@ require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
 require_once dirname(__DIR__, 2) . '/src/function/atividade_modelo.php';
 require_once dirname(__DIR__, 2) . '/src/function/atividade_presenter.php';
 require_once dirname(__DIR__, 2) . '/src/function/activity_stream_service.php';
+require_once dirname(__DIR__, 2) . '/src/function/shared_activity_service.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: private, no-store');

@@ -48,6 +48,7 @@ $biblioteca = cronogramaListarExerciciosBiblioteca($pdo, $idUsuario);
 <div class="container-fluid">
     <?php require dirname(__DIR__, 2) . '/src/layout/header.php'; ?>
     <main class="main-content model-exercise-page">
+        <?php $plannedReviewRows=$exercicios; $plannedReviewKind='template'; $plannedReviewId=$idModelo; $plannedReviewReturn='/user/exerciciostreinomodelo.php?idtreino_modelo='.rawurlencode($idModelo); require dirname(__DIR__,2).'/src/layout/planned_name_review.php'; ?>
         <div class="draft-exercise-heading"><div><span class="eyebrow"><?php echo stridebr_e(stridebr_t('exercise_model.my_workouts')); ?></span><h1><?php echo stridebr_e((string) $modelo['titulo']); ?></h1><p><?php echo stridebr_e(stridebr_t('exercise_model.subtitle')); ?></p></div><div class="draft-exercise-heading-actions"><a class="secondary-button" href="/user/biblioteca.php?tab=treinos&edit=<?php echo rawurlencode($idModelo); ?>#editar-treino"><?php echo stridebr_e(stridebr_t('exercise_model.edit_general')); ?></a><a class="secondary-button" href="<?php echo stridebr_e($returnTo); ?>"><?php echo stridebr_e(stridebr_t('common.back')); ?></a></div></div>
         <?php if ($errors !== []): ?><div class="alert error"><?php echo stridebr_e(implode(' ', $errors)); ?></div><?php endif; ?>
         <form method="POST" class="model-exercise-editor" data-model-exercise-editor>
@@ -59,7 +60,7 @@ $biblioteca = cronogramaListarExerciciosBiblioteca($pdo, $idUsuario);
                     <article class="draft-exercise-card" data-model-exercise-row>
                         <div class="draft-exercise-card-heading"><strong data-model-number><?php echo stridebr_e(stridebr_t('home.exercise')); ?> <?php echo $index + 1; ?></strong><button type="button" class="danger-link" data-remove-model-exercise><?php echo stridebr_e(stridebr_t('common.remove')); ?></button></div>
                         <div class="draft-exercise-core">
-                            <label><?php echo stridebr_e(stridebr_t('library.page_title')); ?><select name="rows[<?php echo $index; ?>][idexercicio]" data-library-select><option value=""><?php echo stridebr_e(stridebr_t('common.manual')); ?></option><?php foreach ($biblioteca as $item): ?><option value="<?php echo stridebr_e((string) $item['idexercicio']); ?>" data-name="<?php echo stridebr_e((string) $item['nome']); ?>"<?php echo (string) ($row['idexercicio'] ?? '') === (string) $item['idexercicio'] ? ' selected' : ''; ?>><?php echo stridebr_e((string) $item['nome']); ?></option><?php endforeach; ?></select></label>
+                            <input type="hidden" name="rows[<?php echo $index; ?>][idexercicio]" value="<?php echo stridebr_e((string) ($row['idexercicio'] ?? '')); ?>" data-exercise-id>
                             <label class="draft-exercise-name"><?php echo stridebr_e(stridebr_t('home.exercise')); ?><input type="text" name="rows[<?php echo $index; ?>][nome]" value="<?php echo stridebr_e((string) ($row['nome_snapshot'] ?? '')); ?>" data-exercise-name maxlength="120" required></label>
                             <label><?php echo stridebr_e(stridebr_t('common.series')); ?><input type="number" name="rows[<?php echo $index; ?>][series]" value="<?php echo stridebr_e((string) ($row['series'] ?? '')); ?>" min="1" max="99"></label>
                             <label><?php echo stridebr_e(stridebr_t('common.repetitions')); ?><input type="text" name="rows[<?php echo $index; ?>][repeticoes]" value="<?php echo stridebr_e((string) ($row['repeticoes'] ?? '')); ?>" maxlength="40"></label>
@@ -85,7 +86,7 @@ $biblioteca = cronogramaListarExerciciosBiblioteca($pdo, $idUsuario);
                 <article class="draft-exercise-card" data-model-exercise-row>
                     <div class="draft-exercise-card-heading"><strong data-model-number></strong><button type="button" class="danger-link" data-remove-model-exercise><?php echo stridebr_e(stridebr_t('common.remove')); ?></button></div>
                     <div class="draft-exercise-core">
-                        <label><?php echo stridebr_e(stridebr_t('library.page_title')); ?><select name="rows[__INDEX__][idexercicio]" data-library-select><option value=""><?php echo stridebr_e(stridebr_t('common.manual')); ?></option><?php foreach ($biblioteca as $item): ?><option value="<?php echo stridebr_e((string) $item['idexercicio']); ?>" data-name="<?php echo stridebr_e((string) $item['nome']); ?>"><?php echo stridebr_e((string) $item['nome']); ?></option><?php endforeach; ?></select></label>
+                        <input type="hidden" name="rows[__INDEX__][idexercicio]" value="" data-exercise-id>
                         <label class="draft-exercise-name"><?php echo stridebr_e(stridebr_t('home.exercise')); ?><input type="text" name="rows[__INDEX__][nome]" data-exercise-name maxlength="120"></label>
                         <label><?php echo stridebr_e(stridebr_t('common.series')); ?><input type="number" name="rows[__INDEX__][series]" min="1" max="99"></label>
                         <label><?php echo stridebr_e(stridebr_t('common.repetitions')); ?><input type="text" name="rows[__INDEX__][repeticoes]" maxlength="40"></label>

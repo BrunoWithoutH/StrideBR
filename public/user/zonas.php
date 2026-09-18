@@ -12,6 +12,7 @@ require_once dirname(__DIR__, 2) . '/src/function/zone_profile_service.php';
 
 date_default_timezone_set('America/Sao_Paulo');
 $errors = [];
+$returnTo = zoneProfileReturnTo((string) ($_REQUEST['return_to'] ?? ''));
 
 function stridebr_zone_pace_seconds(string $value): ?float
 {
@@ -36,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($action === 'delete') {
             zoneProfileDelete($pdo, $idUsuario, trim((string) ($_POST['idprofile'] ?? '')));
             stridebr_flash('success', 'Perfil de zonas excluído.');
-            header('Location: /user/zonas.php');
+            header('Location: /user/zonas.php' . ($returnTo !== '' ? '?return_to=' . rawurlencode($returnTo) : ''));
             exit;
         }
         $type = zoneProfileNormalizeType((string) ($_POST['profile_type'] ?? ''));
@@ -58,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'zones' => $zones,
         ], trim((string) ($_POST['idprofile'] ?? '')) ?: null);
         stridebr_flash('success', 'Perfil de zonas salvo.');
-        header('Location: /user/zonas.php');
+        header('Location: ' . ($returnTo !== '' ? $returnTo : '/user/zonas.php'));
         exit;
     } catch (Throwable $e) {
         $errors[] = $e instanceof InvalidArgumentException ? $e->getMessage() : 'Não foi possível salvar o perfil de zonas.';
@@ -68,6 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $profiles = zoneProfileList($pdo, $idUsuario);
 $catalog = atividadeListarCatalogo($pdo, $idUsuario);
 $editId = trim((string) ($_GET['edit'] ?? ''));
+$returnQuery = $returnTo !== '' ? '&return_to=' . rawurlencode($returnTo) : '';
 $editing = $editId !== '' ? zoneProfileGet($pdo, $idUsuario, $editId) : [];
 $type = (string) ($editing['profile_type'] ?? ($_POST['profile_type'] ?? 'heart_rate'));
 $name = (string) ($editing['name'] ?? ($_POST['name'] ?? ''));
@@ -97,12 +99,21 @@ if ($zones === []) {
     <main class="main-content zones-page" data-zone-page>
         <header class="zones-page-head">
             <div><span>Configuração esportiva</span><h1>Zonas</h1><p>Defina seus próprios limites de frequência cardíaca e pace. O StrideBR não calcula zonas por idade.</p></div>
-            <a class="activity-secondary-button" href="/user/atividades.php">Atividades</a>
+            <div class="zones-page-actions"><button type="button" class="activity-secondary-button" data-zones-page-help>ⓘ <?php echo stridebr_e(stridebr_t('zones.help_title')); ?></button><a class="activity-secondary-button" href="/user/atividades.php">Atividades</a></div>
         </header>
+        <dialog class="zones-help-dialog" data-zones-help-dialog aria-labelledby="zones-help-title">
+            <form method="dialog">
+                <header><strong id="zones-help-title"><?php echo stridebr_e(stridebr_t('zones.help_title')); ?></strong><button type="submit" value="cancel" aria-label="<?php echo stridebr_e(stridebr_t('common.close')); ?>">×</button></header>
+                <p><?php echo stridebr_e(stridebr_t('zones.help_one')); ?></p>
+                <p><?php echo stridebr_e(stridebr_t('zones.help_two')); ?></p>
+                <p><?php echo stridebr_e(stridebr_t('zones.help_three')); ?></p>
+                <div><button type="submit" class="activity-primary-action"><?php echo stridebr_e(stridebr_t('common.close')); ?></button></div>
+            </form>
+        </dialog>
         <?php foreach ($errors as $error): ?><div class="zones-error" role="alert"><?php echo stridebr_e($error); ?></div><?php endforeach; ?>
         <div class="zones-layout">
             <section class="zones-list">
-                <div class="zones-section-head"><div><span>Perfis</span><strong><?php echo count($profiles); ?> configurado<?php echo count($profiles) === 1 ? '' : 's'; ?></strong></div><a href="/user/zonas.php" class="activity-primary-action">Novo perfil</a></div>
+                <div class="zones-section-head"><div><span>Perfis</span><strong><?php echo count($profiles); ?> configurado<?php echo count($profiles) === 1 ? '' : 's'; ?></strong></div><a href="/user/zonas.php?return_to=<?php echo rawurlencode($returnTo); ?>" class="activity-primary-action">Novo perfil</a></div>
                 <?php if ($profiles === []): ?>
                     <div class="zones-empty"><strong>Nenhum perfil ainda.</strong><span>Crie um perfil manual para habilitar distribuição por zonas nas Activities.</span></div>
                 <?php else: ?>
@@ -110,7 +121,7 @@ if ($zones === []) {
                         <?php foreach ($profiles as $profile): ?>
                             <article class="zones-profile-card<?php echo $editId === (string) $profile['id'] ? ' is-active' : ''; ?>">
                                 <div><span><?php echo stridebr_e($profile['profile_type'] === 'heart_rate' ? 'Frequência cardíaca' : 'Pace'); ?></span><strong><?php echo stridebr_e((string) $profile['name']); ?></strong><small><?php echo stridebr_e((string) ($profile['sport']['name'] ?? 'Todas as modalidades compatíveis')); ?><?php echo !empty($profile['is_default']) ? ' · Padrão' : ''; ?></small></div>
-                                <div class="zones-profile-actions"><a href="/user/zonas.php?edit=<?php echo rawurlencode((string) $profile['id']); ?>">Editar</a><form method="post" onsubmit="return confirm('Excluir este perfil de zonas?')"><?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="delete"><input type="hidden" name="idprofile" value="<?php echo stridebr_e((string) $profile['id']); ?>"><button type="submit">Excluir</button></form></div>
+                                <div class="zones-profile-actions"><a href="/user/zonas.php?edit=<?php echo rawurlencode((string) $profile['id']); ?><?php echo $returnQuery; ?>">Editar</a><form method="post" onsubmit="return confirm('Excluir este perfil de zonas?')"><?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="delete"><input type="hidden" name="return_to" value="<?php echo stridebr_e($returnTo); ?>"><input type="hidden" name="idprofile" value="<?php echo stridebr_e((string) $profile['id']); ?>"><button type="submit">Excluir</button></form></div>
                             </article>
                         <?php endforeach; ?>
                     </div>
@@ -122,6 +133,7 @@ if ($zones === []) {
                     <?php echo stridebr_csrf_field(); ?>
                     <input type="hidden" name="action" value="save">
                     <input type="hidden" name="idprofile" value="<?php echo stridebr_e((string) ($editing['id'] ?? '')); ?>">
+                    <input type="hidden" name="return_to" value="<?php echo stridebr_e($returnTo); ?>">
                     <div class="zones-fields">
                         <label><span>Tipo</span><select name="profile_type" data-zone-type><option value="heart_rate"<?php echo $type === 'heart_rate' ? ' selected' : ''; ?>>Frequência cardíaca</option><option value="pace"<?php echo $type === 'pace' ? ' selected' : ''; ?>>Pace</option></select></label>
                         <label><span>Nome</span><input type="text" name="name" maxlength="80" required value="<?php echo stridebr_e($name); ?>" placeholder="Ex.: Zonas corrida"></label>
@@ -142,7 +154,7 @@ if ($zones === []) {
                         <?php endforeach; ?>
                     </div>
                     <p class="zones-help">As faixas precisam ser contínuas. Somente a primeira pode ficar sem limite inferior e somente a última sem limite superior.</p>
-                    <div class="zones-form-actions"><a class="activity-secondary-button" href="/user/zonas.php">Cancelar</a><button class="activity-primary-action" type="submit">Salvar</button></div>
+                    <div class="zones-form-actions"><a class="activity-secondary-button" href="<?php echo stridebr_e($returnTo !== '' ? $returnTo : '/user/zonas.php'); ?>">Cancelar</a><button class="activity-primary-action" type="submit">Salvar</button></div>
                 </form>
             </section>
         </div>

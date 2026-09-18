@@ -38,8 +38,8 @@ $assert(str_contains($competitions, '$all === [] && !$isFormOpen') && str_contai
 $assert(str_contains($competitions, "stridebr_t('competitions.upcoming')") && str_contains($competitions, "stridebr_t('competitions.history')"), 'Competições com dados precisam separar próximas e histórico.');
 $assert(!str_contains($competitions, "stridebr_t('competitions.recent')"), 'Título genérico Recentes não deve comandar a lista pessoal.');
 
-$assert(str_contains($routes, 'if ($routes === [] && $detail === null)') && str_contains($routes, 'Nenhuma rota salva.'), 'Rotas vazias precisam evitar split pane sem conteúdo.');
-$assert(str_contains($routes, 'Ver atividades com rota') && str_contains($routes, 'data-route-detail-map'), 'Rotas precisa manter CTA útil e detail com mapa quando houver dados.');
+$assert(str_contains($routes, 'if ($routeTotal === 0 && $detail === null)') && str_contains($routes, "stridebr_t('routes.empty')"), 'Rotas vazias precisam evitar split pane sem conteúdo.');
+$assert(str_contains($routes, "stridebr_t('routes.new')") && str_contains($routes, 'data-route-detail-map'), 'Rotas precisa manter CTA útil e detail com mapa quando houver dados.');
 
 $assert(str_contains($pacer, '$hasAnyPlans') && str_contains($pacer, 'is-first-use'), 'Pacer zero-state precisa priorizar o editor real.');
 $assert(str_contains($pacer, 'Estratégias de ritmo para treinos e provas.') && str_contains($pacerCss, '.pacer-layout.is-first-use'), 'Pacer precisa ter descoberta e layout de primeiro uso próprios.');

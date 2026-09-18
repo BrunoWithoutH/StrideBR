@@ -95,6 +95,7 @@ function renderExtraInput(array $campo, mixed $valor, string $name): string
 <div class="container-fluid">
     <?php require dirname(__DIR__, 2) . '/src/layout/header.php'; ?>
     <main class="main-content exercicios-page">
+        <?php $plannedReviewRows=$exercicios; $plannedReviewKind='workout'; $plannedReviewId=$idTreino; $plannedReviewReturn='/user/exercicioscronograma.php?idtreino='.rawurlencode($idTreino); require dirname(__DIR__,2).'/src/layout/planned_name_review.php'; ?>
         <div class="exercise-shell">
             <div class="exercise-heading">
                 <div>
@@ -189,12 +190,8 @@ function renderExtraInput(array $campo, mixed $valor, string $name): string
                                 <td><select name="rows[<?php echo $index; ?>][tipo_passo]"><option value="exercise"<?php echo ($row['tipo_passo'] ?? 'exercise') === 'exercise' ? ' selected' : ''; ?>>Exercício</option><option value="warmup"<?php echo ($row['tipo_passo'] ?? '') === 'warmup' ? ' selected' : ''; ?>>Aquecimento</option><option value="work"<?php echo ($row['tipo_passo'] ?? '') === 'work' ? ' selected' : ''; ?>>Trabalho</option><option value="recovery"<?php echo ($row['tipo_passo'] ?? '') === 'recovery' ? ' selected' : ''; ?>>Recuperação</option><option value="cooldown"<?php echo ($row['tipo_passo'] ?? '') === 'cooldown' ? ' selected' : ''; ?>>Desaquecimento</option><option value="interval_group"<?php echo ($row['tipo_passo'] ?? '') === 'interval_group' ? ' selected' : ''; ?>>Intervalo</option></select></td>
                                 <td>
                                     <input type="hidden" name="rows[<?php echo $index; ?>][idtreino_exercicio]" value="<?php echo stridebr_e($row['idtreino_exercicio']); ?>">
-                                    <select name="rows[<?php echo $index; ?>][idexercicio]" data-library-select>
-                                        <option value=""><?php echo stridebr_e(stridebr_t('common.manual')); ?></option>
-                                        <?php foreach ($biblioteca as $item): ?>
-                                            <option value="<?php echo stridebr_e($item['idexercicio']); ?>" data-name="<?php echo stridebr_e($item['nome']); ?>"<?php echo $row['idexercicio'] === $item['idexercicio'] ? ' selected' : ''; ?>><?php echo stridebr_e($item['nome']); ?><?php echo $item['categorias'] ? ' · ' . stridebr_e($item['categorias']) : ''; ?><?php echo $item['idusuario'] === null ? ' · StrideBR' : ''; ?></option>
-                                        <?php endforeach; ?>
-                                    </select>
+                                    <input type="hidden" name="rows[<?php echo $index; ?>][idexercicio]" value="<?php echo stridebr_e((string) ($row['idexercicio'] ?? '')); ?>" data-exercise-id>
+                                    <span class="exercise-picker-hint"><?php echo stridebr_e(stridebr_t('library.search_exercise_alias')); ?></span>
                                 </td>
                                 <td><input type="text" name="rows[<?php echo $index; ?>][nome]" value="<?php echo stridebr_e($row['nome_snapshot']); ?>" data-exercise-name maxlength="120" required></td>
                                 <td><input type="number" min="1" step="1" name="rows[<?php echo $index; ?>][series]" value="<?php echo stridebr_e($row['series'] ?? ''); ?>"></td>
@@ -224,12 +221,8 @@ function renderExtraInput(array $campo, mixed $valor, string $name): string
                         <td><select name="rows[__INDEX__][tipo_passo]"><option value="exercise">Exercício</option><option value="warmup">Aquecimento</option><option value="work">Trabalho</option><option value="recovery">Recuperação</option><option value="cooldown">Desaquecimento</option><option value="interval_group">Intervalo</option></select></td>
                         <td>
                             <input type="hidden" name="rows[__INDEX__][idtreino_exercicio]" value="">
-                            <select name="rows[__INDEX__][idexercicio]" data-library-select>
-                                <option value=""><?php echo stridebr_e(stridebr_t('common.manual')); ?></option>
-                                <?php foreach ($biblioteca as $item): ?>
-                                    <option value="<?php echo stridebr_e($item['idexercicio']); ?>" data-name="<?php echo stridebr_e($item['nome']); ?>"><?php echo stridebr_e($item['nome']); ?><?php echo $item['categorias'] ? ' · ' . stridebr_e($item['categorias']) : ''; ?><?php echo $item['idusuario'] === null ? ' · StrideBR' : ''; ?></option>
-                                <?php endforeach; ?>
-                            </select>
+                            <input type="hidden" name="rows[__INDEX__][idexercicio]" value="" data-exercise-id>
+                            <span class="exercise-picker-hint"><?php echo stridebr_e(stridebr_t('library.search_exercise_alias')); ?></span>
                         </td>
                         <td><input type="text" name="rows[__INDEX__][nome]" value="" data-exercise-name maxlength="120"></td>
                         <td><input type="number" min="1" step="1" name="rows[__INDEX__][series]"></td>

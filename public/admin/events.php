@@ -9,6 +9,7 @@ stridebr_require_role('admin');
 require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
 require_once dirname(__DIR__, 2) . '/src/includes/admin.php';
 require_once dirname(__DIR__, 2) . '/src/function/eventos.php';
+require_once dirname(__DIR__, 2) . '/src/function/external_events.php';
 require_once dirname(__DIR__, 2) . '/src/layout/sport_picker.php';
 
 $errors = [];
@@ -221,13 +222,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $importPreview = is_array($_SESSION['event_import_preview'] ?? null) ? $_SESSION['event_import_preview'] : [];
+$externalProviderStates = $available && externalEventsSchemaAvailable($pdo) ? externalEventsProviderStates($pdo) : [];
+$externalSyncHasDiagnostics = false;
+foreach ($externalProviderStates as $providerState) {
+    if (!empty($providerState['last_success_at']) || !empty($providerState['next_sync_at']) || !empty($providerState['last_error_code']) || stridebr_db_bool($providerState['enabled'] ?? false) || stridebr_db_bool($providerState['auto_publish'] ?? false) || ($providerState['compliance_status'] ?? 'pendente') !== 'pendente') $externalSyncHasDiagnostics = true;
+}
 $editId = trim((string) ($_GET['edit'] ?? ''));
 $editEvent = $available && $editId !== '' ? eventosBuscarAdmin($pdo, $editId) : null;
 if ($editId !== '' && !$editEvent && $errors === []) $errors[] = 'Evento não encontrado.';
 $q = trim((string) ($_GET['q'] ?? ''));
 $events = [];
 if ($available) {
-    $sql = "SELECT e.idevento,e.titulo,e.slug,e.data_inicio,e.cidade,e.estado,e.status,e.destaque,m.nome modalidade_nome,(SELECT caminho FROM eventos_imagens i WHERE i.idevento=e.idevento ORDER BY i.principal DESC,i.ordem LIMIT 1) imagem FROM eventos_esportivos e LEFT JOIN modalidades m ON m.idmodalidade=e.idmodalidade";
+    $extraSelect = stridebr_db_column_exists($pdo, 'eventos_esportivos', 'origem') ? ",e.origem,e.sincronizacao_bloqueada" : ",'manual' AS origem,FALSE AS sincronizacao_bloqueada";
+    $sourceSelect = stridebr_db_table_exists($pdo, 'eventos_fontes_externas') ? ",(SELECT x.provider FROM eventos_fontes_externas x WHERE x.idevento=e.idevento ORDER BY x.provider LIMIT 1) AS provider_externo" : ",NULL AS provider_externo";
+    $sql = "SELECT e.idevento,e.titulo,e.slug,e.data_inicio,e.cidade,e.estado,e.status,e.destaque,m.nome modalidade_nome,(SELECT caminho FROM eventos_imagens i WHERE i.idevento=e.idevento ORDER BY i.principal DESC,i.ordem LIMIT 1) imagem" . $extraSelect . $sourceSelect . " FROM eventos_esportivos e LEFT JOIN modalidades m ON m.idmodalidade=e.idmodalidade";
     $params = [];
     if ($q !== '') { $sql .= " WHERE e.titulo ILIKE :q OR COALESCE(e.cidade,'') ILIKE :q OR COALESCE(e.organizador,'') ILIKE :q"; $params[':q'] = '%' . $q . '%'; }
     $sql .= ' ORDER BY e.data_inicio DESC LIMIT 100';
@@ -261,11 +269,12 @@ $flashes = stridebr_take_flashes();
 <?php require dirname(__DIR__, 2) . '/src/layout/header.php'; ?>
 <main class="main-content"><div class="admin-shell">
     <?php echo stridebr_admin_nav('events'); ?>
-    <div class="admin-heading"><div><span class="eyebrow">Administração</span><h1>Eventos</h1><p>Cadastre corridas e outros eventos, mantenha as fontes e publique imagens sem depender de integração externa.</p></div><a class="primary-action" href="/admin/events.php?new=1#event-editor">+ Novo evento</a></div>
+    <div class="admin-heading"><div><span class="eyebrow">Administração</span><h1>Eventos</h1><p>Cadastre eventos, revise fontes e acompanhe sincronizações externas.</p></div><a class="primary-action" href="/admin/events.php?new=1#event-editor">+ Novo evento</a></div>
     <?php foreach ($flashes as $f): ?><div class="alert alert-<?php echo stridebr_e((string) $f['type']); ?>"><?php echo stridebr_e((string) $f['message']); ?></div><?php endforeach; ?>
     <?php foreach ($errors as $e): ?><div class="alert alert-danger"><?php echo stridebr_e($e); ?></div><?php endforeach; ?>
 
     <?php if (!$available): ?><section class="admin-card"><h2>Migration pendente</h2><p>Aplique <code>20260903_v1_rc.sql</code> para habilitar eventos.</p></section><?php else: ?>
+    <?php if ($externalProviderStates !== []): ?><section class="admin-card event-external-sync"><div class="admin-card-heading"><div><h2><?php echo stridebr_e(stridebr_t('admin.external_sync.title')); ?></h2><p><?php echo stridebr_e(stridebr_t('admin.external_sync.help')); ?></p></div></div><?php if ($externalSyncHasDiagnostics): ?><div class="admin-table-wrap"><table><thead><tr><th><?php echo stridebr_e(stridebr_t('admin.external_sync.provider')); ?></th><th><?php echo stridebr_e(stridebr_t('admin.external_sync.state')); ?></th><th><?php echo stridebr_e(stridebr_t('admin.external_sync.success')); ?></th><th><?php echo stridebr_e(stridebr_t('admin.external_sync.next')); ?></th><th><?php echo stridebr_e(stridebr_t('admin.external_sync.error')); ?></th></tr></thead><tbody><?php foreach ($externalProviderStates as $providerKey => $providerState): ?><?php $providerLabel = ['faergs'=>'FAERGS','cbat'=>'CBAt','cbc'=>'CBC','fgc'=>'FGC','cbtri'=>'CBTri'][$providerKey] ?? strtoupper($providerKey); ?><tr><td><strong><?php echo stridebr_e($providerLabel); ?></strong></td><td><?php echo stridebr_db_bool($providerState['enabled'] ?? false) ? stridebr_t('admin.external_sync.active') : stridebr_t('admin.external_sync.disabled'); ?> · <?php echo stridebr_e(($providerState['compliance_status'] ?? 'pendente') === 'pendente' ? stridebr_t('admin.external_sync.pending') : (string) $providerState['compliance_status']); ?><?php echo stridebr_db_bool($providerState['auto_publish'] ?? false) ? ' · ' . stridebr_t('admin.external_sync.auto_publish') : ''; ?></td><td><?php echo !empty($providerState['last_success_at']) ? stridebr_e((new DateTimeImmutable((string) $providerState['last_success_at']))->format('d/m/Y H:i')) : '—'; ?></td><td><?php echo !empty($providerState['next_sync_at']) ? stridebr_e(stridebr_format_datetime_short((string) $providerState['next_sync_at'])) : '—'; ?></td><td><?php echo !empty($providerState['last_error_code']) ? stridebr_e((string) $providerState['last_error_code']) : '—'; ?></td></tr><?php endforeach; ?></tbody></table></div><?php else: ?><ul class="external-provider-list" aria-label="<?php echo stridebr_e(stridebr_t('admin.external_sync.title')); ?>"><?php foreach ($externalProviderStates as $providerKey => $providerState): ?><li><strong><?php echo stridebr_e(['faergs'=>'FAERGS','cbat'=>'CBAt','cbc'=>'CBC','fgc'=>'FGC','cbtri'=>'CBTri'][$providerKey] ?? strtoupper($providerKey)); ?></strong><span><?php echo stridebr_e(stridebr_t('admin.external_sync.disabled')); ?> · <?php echo stridebr_e(stridebr_t('admin.external_sync.pending')); ?></span></li><?php endforeach; ?></ul><?php endif; ?></section><?php endif; ?>
     <details class="admin-card event-import-card" id="importar-eventos"<?php echo $importPreview !== [] ? ' open' : ''; ?>>
         <summary><div><strong>Importar eventos</strong><span>JSON ou CSV · sempre entra como rascunho para revisão</span></div><span>⌄</span></summary>
         <div class="event-import-body">
@@ -294,6 +303,7 @@ $flashes = stridebr_take_flashes();
     <?php if (isset($_GET['new']) || $editEvent): ?>
     <section class="admin-card event-admin-editor" id="event-editor">
         <div class="admin-card-heading"><div><h2><?php echo $editEvent ? 'Editar evento' : 'Novo evento'; ?></h2><p>Use as fontes para registrar de onde vieram as informações. O evento só aparece ao público quando estiver como publicado.</p></div><a class="secondary-action compact" href="/admin/events.php">Fechar</a></div>
+        <?php if ($editEvent && (($editEvent['origem'] ?? 'manual') === 'externo')): ?><div class="alert alert-info">Evento sincronizado de fonte externa. Salvar uma edição manual bloqueia atualizações automáticas deste evento.</div><?php endif; ?>
         <form method="post" enctype="multipart/form-data" class="event-admin-form">
             <?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="save"><?php if ($editEvent): ?><input type="hidden" name="idevento" value="<?php echo stridebr_e((string) $editEvent['idevento']); ?>"><?php endif; ?>
             <label class="event-form-wide">Título<input name="titulo" maxlength="160" required value="<?php echo stridebr_e((string) ($editEvent['titulo'] ?? '')); ?>" placeholder="Ex.: 10ª Rústica Municipal"></label>
@@ -328,7 +338,7 @@ $flashes = stridebr_take_flashes();
     <section class="admin-card admin-table-card">
         <div class="admin-card-heading"><div><h2>Eventos cadastrados</h2><p><?php echo count($events); ?> resultado(s) carregados.</p></div></div>
         <form method="get" class="admin-filter"><input name="q" value="<?php echo stridebr_e($q); ?>" placeholder="Evento, cidade ou organizador"><button class="secondary-action">Buscar</button></form>
-        <?php if ($events === []): ?><div class="event-admin-empty">Nenhum evento cadastrado. <a href="/admin/events.php?new=1#event-editor">Criar o primeiro</a>.</div><?php else: ?><div class="admin-table-wrap"><table><thead><tr><th>Evento</th><th>Data</th><th>Local</th><th>Status</th><th></th></tr></thead><tbody><?php foreach ($events as $event): ?><tr><td><div class="event-admin-cell"><?php if ($event['imagem']): ?><img src="<?php echo stridebr_e((string) $event['imagem']); ?>" alt=""><?php endif; ?><div><strong><?php echo stridebr_e((string) $event['titulo']); ?></strong><small><?php echo stridebr_e((string) ($event['modalidade_nome'] ?: 'Sem modalidade')); ?><?php echo stridebr_db_bool($event['destaque']) ? ' · destaque' : ''; ?></small></div></div></td><td><?php echo stridebr_e((new DateTimeImmutable((string) $event['data_inicio']))->format('d/m/Y H:i')); ?></td><td><?php echo stridebr_e(trim((string) (($event['cidade'] ?? '') . (($event['cidade'] && $event['estado']) ? ' · ' : '') . ($event['estado'] ?? ''))) ?: '—'); ?></td><td><span class="status-pill <?php echo $event['status'] === 'publicado' ? 'is-ok' : ''; ?>"><?php echo stridebr_e((string) $event['status']); ?></span></td><td><a class="secondary-action compact" href="/admin/events.php?edit=<?php echo rawurlencode((string) $event['idevento']); ?>#event-editor">Editar</a></td></tr><?php endforeach; ?></tbody></table></div><?php endif; ?>
+        <?php if ($events === []): ?><div class="event-admin-empty">Nenhum evento cadastrado. <a href="/admin/events.php?new=1#event-editor">Criar o primeiro</a>.</div><?php else: ?><div class="admin-table-wrap"><table><thead><tr><th>Evento</th><th>Data</th><th>Local</th><th>Status</th><th></th></tr></thead><tbody><?php foreach ($events as $event): ?><tr><td><div class="event-admin-cell"><?php if ($event['imagem']): ?><img src="<?php echo stridebr_e((string) $event['imagem']); ?>" alt=""><?php endif; ?><div><strong><?php echo stridebr_e((string) $event['titulo']); ?></strong><small><?php echo stridebr_e((string) ($event['modalidade_nome'] ?: 'Sem modalidade')); ?><?php echo stridebr_db_bool($event['destaque']) ? ' · destaque' : ''; ?><?php if (($event['origem'] ?? 'manual') === 'externo'): ?> · externo<?php if (!empty($event['provider_externo'])): ?> · <?php echo stridebr_e(strtoupper((string) $event['provider_externo'])); ?><?php endif; ?><?php echo stridebr_db_bool($event['sincronizacao_bloqueada'] ?? false) ? ' · edição manual' : ''; ?><?php endif; ?></small></div></div></td><td><?php echo stridebr_e((new DateTimeImmutable((string) $event['data_inicio']))->format('d/m/Y H:i')); ?></td><td><?php echo stridebr_e(trim((string) (($event['cidade'] ?? '') . (($event['cidade'] && $event['estado']) ? ' · ' : '') . ($event['estado'] ?? ''))) ?: '—'); ?></td><td><span class="status-pill <?php echo $event['status'] === 'publicado' ? 'is-ok' : ''; ?>"><?php echo stridebr_e((string) $event['status']); ?></span></td><td><a class="secondary-action compact" href="/admin/events.php?edit=<?php echo rawurlencode((string) $event['idevento']); ?>#event-editor">Editar</a></td></tr><?php endforeach; ?></tbody></table></div><?php endif; ?>
     </section>
     <?php endif; ?>
 </div></main>

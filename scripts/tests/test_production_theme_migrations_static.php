@@ -37,7 +37,9 @@ $appliedSimulation = array_values(array_unique(array_merge($current, $consolidat
 $unknownSimulation = array_values(array_diff($appliedSimulation, $current));
 $consolidatedSimulation = array_values(array_intersect($unknownSimulation, $consolidated));
 $orphanSimulation = array_values(array_diff($unknownSimulation, $consolidated));
-$assert(count($current) === 25, 'deploy atual deve possuir vinte e cinco migrations, incluindo o repair P0 de publicação mobile.');
+$assert(count($current) === 29, 'deploy atual deve possuir vinte e nove migrations, incluindo Exercise Library V2.');
+$assert(in_array('20260917_shared_activity_v1.sql', $current, true), 'deploy atual precisa incluir a migration Shared Activity V1.');
+$assert(in_array('20260918_external_sports_events_v1.sql', $current, true), 'deploy atual precisa incluir a migration External Sports Events V1.');
 $assert(in_array('20260914_progress_b5_combat.sql', $current, true), 'migration B5 deve integrar o registry atual.');
 $assert(in_array('20260914_mobile_workouts_v1.sql', $current, true), 'migration Mobile Workouts v1 deve integrar o registry atual.');
 $assert(in_array('20260914_mobile_workouts_v1_exercise_snapshot.sql', $current, true), 'migration de snapshot de exercícios do Mobile Workouts v1 deve integrar o registry atual.');
@@ -47,7 +49,7 @@ $assert(in_array('20260915_activity_streams_analysis_pacer_v1.sql', $current, tr
 $assert(in_array('20260915_web_product_expansion_v1.sql', $current, true), 'migration Web Product Expansion v1 deve integrar o registry atual.');
 $assert(in_array('20260915_institutional_athlete_surface_v1.sql', $current, true), 'migration Institutional Athlete Surface v1 deve integrar o registry atual.');
 $assert(in_array('20260915_z_mobile_activity_publish_p0.sql', $current, true), 'repair P0 de publicação mobile deve integrar o registry atual.');
-$assert(count($appliedSimulation) === 61, 'histórico após as migrations aditivas deve totalizar 61 registros.');
+$assert(count($appliedSimulation) === 65, 'histórico após as migrations aditivas deve totalizar 65 registros.');
 $assert(count($consolidatedSimulation) === 36, 'os 36 registros sem arquivo devem ser reconhecidos como consolidados.');
 $assert($orphanSimulation === [], 'o histórico consolidado mais a migration aditiva não deve produzir registros órfãos.');
 

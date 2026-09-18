@@ -35,7 +35,7 @@ $checks = [
     'progress stale navigation protected' => str_contains($progressJs, 'AbortController') && str_contains($progressJs, 'navigationId'),
     'progress no invented training score' => !preg_match('/Fitness|Fatigue|Readiness|Training Load|Stride Score/i', $progress),
 
-    'activities primary actions reprioritized' => str_contains($activities, 'activity-toolbar-essential') && str_contains($activities, 'activity-toolbar-tools'),
+    'activities primary actions reprioritized' => str_contains($activities, 'activity-toolbar-essential') && !str_contains($activities, 'class="activity-toolbar-tools"'),
     'activities global progress removed' => !str_contains($activities, 'activity-toolbar-progress'),
     'activities compare is action in detail header' => str_contains($activities, 'activity-detail-header-actions') && str_contains($activities, 'activity-detail-compare'),
     'activities detail uses structural skeleton' => str_contains($activities, 'activity-detail-skeleton-metrics') && str_contains($activitiesCss, 'activity-detail-skeleton-block') && str_contains($activitiesCss, '.activity-detail-skeleton-metrics i{width:auto;height:58px;flex:auto;border:0'),

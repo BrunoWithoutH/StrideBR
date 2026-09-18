@@ -1116,6 +1116,7 @@ $initialView = in_array($requestedInitialView, $allowedInitialViews, true)
                                     <h2 id="workout-preview-title"><?php echo stridebr_e($item['titulo']); ?></h2>
                                     <?php if (!empty($item['descricao'])): ?><p><?php echo stridebr_e($item['descricao']); ?></p><?php endif; ?>
                                 </div>
+                                <?php $plannedReviewRows=$previewExercises; $plannedReviewKind='workout'; $plannedReviewId=(string) $item['idtreino']; $plannedReviewReturn='/user/cronogramatreinos.php?id='.rawurlencode($idSelecionado); require dirname(__DIR__,2).'/src/layout/planned_name_review.php'; ?>
                                 <div class="workout-preview-exercises">
                                     <?php if ($previewExercises === []): ?>
                                         <p class="preview-empty"><?php echo stridebr_e(stridebr_t('schedule.no_exercises')); ?></p>

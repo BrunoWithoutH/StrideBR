@@ -2,6 +2,12 @@
 
 declare(strict_types=1);
 
+/** Return only a local, header-safe destination for the contextual Zones flow. */
+function zoneProfileReturnTo(string $value): string
+{
+    return stridebr_safe_redirect(trim($value), '');
+}
+
 function zoneProfileNormalizeType(string $type): string
 {
     $type = strtolower(trim($type));

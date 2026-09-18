@@ -365,7 +365,7 @@ function stridebr_present_activity_title(string $title, string $sportSlug, ?stri
 function stridebr_js_i18n_dictionary(?string $locale = null): array
 {
     $dictionary = stridebr_locale_dictionary($locale ?? stridebr_locale());
-    $allowedPrefixes = ['workout_session.', 'planning.', 'common.', 'nav.', 'activity.', 'route.', 'schedule.', 'agenda.', 'library.', 'sport.', 'notifications.', 'onboarding.', 'auth.', 'trainer.', 'friends.', 'events.', 'event.', 'profile.', 'settings.', 'account.', 'progress.', 'goals.', 'home.', 'js.'];
+    $allowedPrefixes = ['exercise.entry.', 'workout_session.', 'planning.', 'common.', 'nav.', 'activity.', 'route.', 'schedule.', 'agenda.', 'library.', 'sport.', 'notifications.', 'onboarding.', 'auth.', 'trainer.', 'friends.', 'events.', 'event.', 'profile.', 'settings.', 'account.', 'progress.', 'goals.', 'home.', 'js.'];
     return array_filter($dictionary, static function (mixed $value, string $key) use ($allowedPrefixes): bool {
         if (!is_string($value) || $value === '') return false;
         foreach ($allowedPrefixes as $prefix) if (str_starts_with($key, $prefix)) return true;

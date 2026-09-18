@@ -61,20 +61,24 @@ try {
     }
 
     if ($action === 'update_set') {
-        $defaults = is_array($_SESSION['workout_load_defaults'] ?? null) ? $_SESSION['workout_load_defaults'] : [];
+        $defaults = is_array($_SESSION['workout_field_defaults'] ?? null) ? $_SESSION['workout_field_defaults'] : [];
+        $legacy = is_array($_SESSION['workout_load_defaults'] ?? null) ? $_SESSION['workout_load_defaults'] : [];
         $current = sessaoCarregar($pdo, $idUsuario, false);
-        $sessionDefaults = $current !== [] ? ($defaults[(string) $current['idsessao']] ?? []) : [];
+        $sessionDefaults = $current !== [] ? ($defaults[(string) $current['idsessao']] ?? ['load'=>$legacy[(string) $current['idsessao']] ?? []]) : [];
         $result = sessaoAtualizarSerie(
             $pdo,
             $idUsuario,
             trim((string) ($_POST['idserie'] ?? '')),
             $_POST['repeticoes'] ?? '',
             $_POST['carga'] ?? '',
-            ($_POST['propagate_load'] ?? '0') === '1',
+            ($_POST['propagate'] ?? $_POST['propagate_load'] ?? '0') === '1',
             trim((string) ($_POST['edited_field'] ?? '')),
-            is_array($sessionDefaults) ? $sessionDefaults : []
+            is_array($sessionDefaults) ? $sessionDefaults : [],
+            $current !== [] ? (string) $current['idsessao'] : null,
+            $_POST['duracao'] ?? null,
+            $_POST['distancia'] ?? null
         );
-        if ($current !== []) $_SESSION['workout_load_defaults'] = [(string) $current['idsessao'] => $result['load_defaults']];
+        if ($current !== []) $_SESSION['workout_field_defaults'] = [(string) $current['idsessao'] => $result['field_defaults']];
         sessaoJson(['ok' => true, 'session' => $result['session']]);
     }
 

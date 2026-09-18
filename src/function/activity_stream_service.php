@@ -72,6 +72,14 @@ function activityStreamFinite(mixed $value): ?float
     return is_finite($number) ? $number : null;
 }
 
+/** Optional integer fields keep absence distinct from an invalid supplied value. */
+function activityStreamOptionalInt(mixed $value): ?int
+{
+    if ($value === null || (is_string($value) && trim($value) === '')) return null;
+    $integer = filter_var($value, FILTER_VALIDATE_INT);
+    return $integer === false ? null : (int) $integer;
+}
+
 function activityStreamMedian(array $values): ?float
 {
     $values = array_values(array_filter($values, static fn(mixed $value): bool => is_numeric($value) && is_finite((float) $value)));
@@ -80,6 +88,36 @@ function activityStreamMedian(array $values): ?float
     $count = count($values);
     $middle = intdiv($count, 2);
     return $count % 2 === 1 ? (float) $values[$middle] : ((float) $values[$middle - 1] + (float) $values[$middle]) / 2.0;
+}
+
+/**
+ * Keeps raw altitude intact and derives a deterministic presentation series.
+ * A median window removes isolated GPS vertical noise; gain/loss use a
+ * directional deadband so a flat track does not accumulate every tiny swing.
+ */
+function activityStreamElevationPresentation(array $samples): array
+{
+    $raw = array_map(static fn(array $sample): ?float => is_numeric($sample['altitude_m'] ?? null) ? (float) $sample['altitude_m'] : null, $samples);
+    $filtered = [];
+    foreach ($raw as $index => $value) {
+        if ($value === null) { $filtered[$index] = null; continue; }
+        $window = [];
+        for ($i = max(0, $index - 3); $i <= min(count($raw) - 1, $index + 3); $i++) if ($raw[$i] !== null) $window[] = $raw[$i];
+        $filtered[$index] = activityStreamMedian($window);
+    }
+    $accuracies = array_values(array_filter(array_map(static fn(array $sample): mixed => $sample['vertical_accuracy_m'] ?? null, $samples), 'is_numeric'));
+    $deadband = max(2.5, min(8.0, (activityStreamMedian($accuracies) ?? 5.0) * .5));
+    $gain = 0.0; $loss = 0.0; $anchor = null;
+    foreach ($filtered as $index => $value) {
+        if ($value === null || (($samples[$index]['gap_before_ms'] ?? null) !== null && (int) $samples[$index]['gap_before_ms'] > 0)) { $anchor = $value; continue; }
+        if ($anchor === null) { $anchor = $value; continue; }
+        $delta = $value - $anchor;
+        if (abs($delta) < $deadband) continue;
+        if ($delta > 0) $gain += $delta; else $loss += abs($delta);
+        $anchor = $value;
+    }
+    $values = array_values(array_filter($filtered, 'is_numeric'));
+    return ['samples' => $filtered, 'gain_m' => $gain, 'loss_m' => $loss, 'min_m' => $values === [] ? null : min($values), 'max_m' => $values === [] ? null : max($values), 'deadband_m' => $deadband];
 }
 
 function activityStreamNormalizeSamples(array $samples): array
@@ -104,8 +142,11 @@ function activityStreamNormalizeSamples(array $samples): array
         if ($distance !== null && $previousDistance >= 0 && $distance + 0.5 < $previousDistance) throw new InvalidArgumentException('samples.distance_m precisa ser monotônico.');
         $speed = activityStreamFinite($sample['speed_mps'] ?? $sample['speed'] ?? null);
         if ($speed !== null && ($speed < 0 || $speed > 60)) throw new InvalidArgumentException('samples.speed_mps está fora do intervalo aceito.');
-        $hr = array_key_exists('heart_rate_bpm', $sample) ? filter_var($sample['heart_rate_bpm'], FILTER_VALIDATE_INT) : (array_key_exists('heart_rate', $sample) ? filter_var($sample['heart_rate'], FILTER_VALIDATE_INT) : null);
-        if ($hr === false || ($hr !== null && ($hr < 20 || $hr > 260))) throw new InvalidArgumentException('samples.heart_rate_bpm precisa ficar entre 20 e 260 bpm.');
+        $hrProvided = array_key_exists('heart_rate_bpm', $sample) || array_key_exists('heart_rate', $sample);
+        $hrRaw = array_key_exists('heart_rate_bpm', $sample) ? $sample['heart_rate_bpm'] : ($sample['heart_rate'] ?? null);
+        $hr = activityStreamOptionalInt($hrRaw);
+        if ($hrProvided && $hrRaw !== null && !(is_string($hrRaw) && trim($hrRaw) === '') && $hr === null) throw new InvalidArgumentException('samples.heart_rate_bpm precisa ser um inteiro entre 20 e 260 bpm.');
+        if ($hr !== null && ($hr < 20 || $hr > 260)) throw new InvalidArgumentException('samples.heart_rate_bpm precisa ficar entre 20 e 260 bpm.');
         $cadence = activityStreamFinite($sample['cadence'] ?? null);
         if ($cadence !== null && ($cadence < 0 || $cadence > 400)) throw new InvalidArgumentException('samples.cadence está fora do intervalo aceito.');
         $power = activityStreamFinite($sample['power_w'] ?? $sample['power'] ?? null);
@@ -181,17 +222,10 @@ function activityStreamDeriveCanonicalMetrics(array &$samples): void
             $samples[$index]['speed_mps'] = $distanceDelta / $timeDelta;
         }
     }
-    $altitudes = array_map(static fn(array $sample): ?float => $sample['altitude_m'], $samples);
-    $smooth = [];
-    foreach ($altitudes as $index => $value) {
-        if ($value === null) {
-            $smooth[$index] = null;
-            continue;
-        }
-        $window = [];
-        for ($i = max(0, $index - 2); $i <= min(count($altitudes) - 1, $index + 2); $i++) if ($altitudes[$i] !== null) $window[] = $altitudes[$i];
-        $smooth[$index] = activityStreamMedian($window);
-    }
+    $elevation = activityStreamElevationPresentation($samples);
+    $smooth = $elevation['samples'];
+    foreach ($samples as $index => &$sample) $sample['elevation_m'] = $smooth[$index] ?? null;
+    unset($sample);
     foreach ($samples as $index => &$sample) {
         if ($sample['distance_m'] === null || $smooth[$index] === null) continue;
         $left = $index;
@@ -319,6 +353,7 @@ function activityStreamRows(PDO $pdo, string $userId, string $activityId): array
             'source' => $row['sample_source'] !== null ? (string) $row['sample_source'] : null,
         ];
     }
+    if ($samples !== []) activityStreamDeriveCanonicalMetrics($samples);
     return ['bundle' => ['id' => (string) $first['idbundle'], 'schema_version' => (int) $first['schema_version'], 'source' => $first['source'] !== null ? (string) $first['source'] : null, 'source_metadata' => is_array($metadata) ? $metadata : [], 'available_streams' => is_array($available) ? array_values($available) : [], 'sample_count' => (int) $first['sample_count'], 'updated_at' => activityStreamIso((string) $first['data_atualizacao'])], 'samples' => $samples];
 }
 
@@ -442,6 +477,10 @@ function activityStreamRead(PDO $pdo, string $userId, string $activityId, array 
     }
     $samples = $stored['samples'];
     if ($axis === 'distance') $samples = array_values(array_filter($samples, static fn(array $sample): bool => $sample['distance_m'] !== null));
+    // Rendering may be compact; the inspector receives a denser canonical index
+    // with original elapsed/distance coordinates and never uses screen points.
+    $cursorSamples = $samples;
+    if (count($cursorSamples) > ACTIVITY_STREAM_MAX_READ_POINTS) $cursorSamples = activityStreamDownsample($cursorSamples, ACTIVITY_STREAM_MAX_READ_POINTS, $axis, $requested);
     $returnedRaw = $resolution === 'raw' && !isset($query['max_points']);
     if (!$returnedRaw && count($samples) > $maxPoints) $samples = activityStreamDownsample($samples, $maxPoints, $axis, $requested);
     $data = [];
@@ -452,13 +491,26 @@ function activityStreamRead(PDO $pdo, string $userId, string $activityId, array 
             $item[$stream] = match ($stream) {
                 'elapsed_time' => $sample['elapsed_ms'], 'moving_time' => $sample['moving_ms'], 'distance' => $sample['distance_m'], 'speed' => $sample['speed_mps'],
                 'pace' => $sample['speed_mps'] !== null && $sample['speed_mps'] > 0 ? 1000.0 / $sample['speed_mps'] : null,
-                'heart_rate' => $sample['heart_rate_bpm'], 'altitude', 'elevation' => $sample['altitude_m'], 'grade' => $sample['grade_pct'],
+                'heart_rate' => $sample['heart_rate_bpm'], 'altitude', 'elevation' => $sample['elevation_m'] ?? $sample['altitude_m'], 'grade' => $sample['grade_pct'],
                 'cadence' => $sample['cadence'], 'power' => $sample['power_w'], 'temperature' => $sample['temperature_c'], default => null,
             };
         }
         if (in_array('pace', $requested, true)) $item['pace_s_per_km'] = $item['pace'];
         if ($sample['gap_before_ms'] !== null && $sample['gap_before_ms'] > 0) $gaps[] = ['at_elapsed_ms' => $sample['elapsed_ms'], 'gap_ms' => $sample['gap_before_ms']];
         $data[] = $item;
+    }
+    $cursorData = [];
+    foreach ($cursorSamples as $sample) {
+        $item = ['x' => $axis === 'distance' ? $sample['distance_m'] : $sample['elapsed_ms'], 'elapsed_ms' => $sample['elapsed_ms'], 'moving_ms' => $sample['moving_ms'], 'distance_m' => $sample['distance_m'], 'gap_before_ms' => $sample['gap_before_ms'], 'route_point_index' => $sample['route_point_index']];
+        foreach ($requested as $stream) {
+            $item[$stream] = match ($stream) {
+                'elapsed_time' => $sample['elapsed_ms'], 'moving_time' => $sample['moving_ms'], 'distance' => $sample['distance_m'], 'speed' => $sample['speed_mps'],
+                'pace' => $sample['speed_mps'] !== null && $sample['speed_mps'] > 0 ? 1000.0 / $sample['speed_mps'] : null,
+                'heart_rate' => $sample['heart_rate_bpm'], 'altitude', 'elevation' => $sample['elevation_m'] ?? $sample['altitude_m'], 'grade' => $sample['grade_pct'],
+                'cadence' => $sample['cadence'], 'power' => $sample['power_w'], 'temperature' => $sample['temperature_c'], default => null,
+            };
+        }
+        $cursorData[] = $item;
     }
     return [
         'activity_id' => $activityId,
@@ -474,6 +526,7 @@ function activityStreamRead(PDO $pdo, string $userId, string $activityId, array 
         'sample_count_returned' => count($data),
         'gaps' => $gaps,
         'samples' => $data,
+        'cursor_samples' => $cursorData,
         'units' => ['elapsed_time' => 'ms', 'moving_time' => 'ms', 'distance' => 'm', 'speed' => 'm_s', 'pace' => 's_per_km', 'heart_rate' => 'bpm', 'altitude' => 'm', 'elevation' => 'm', 'grade' => 'percent', 'cadence' => activityStreamCadenceUnit((string) ($owner['modalidade_slug'] ?? ''), (string) ($owner['familia_hub'] ?? '')), 'power' => 'W', 'temperature' => 'celsius'],
     ];
 }
@@ -521,25 +574,14 @@ function activityStreamSegmentMetrics(array $samples, float $startDistance, floa
     $hrValues = array_values(array_filter(array_map(static fn(array $sample): mixed => $sample['heart_rate_bpm'], $inside), 'is_numeric'));
     $cadenceValues = array_values(array_filter(array_map(static fn(array $sample): mixed => $sample['cadence'], $inside), 'is_numeric'));
     $powerValues = array_values(array_filter(array_map(static fn(array $sample): mixed => $sample['power_w'], $inside), 'is_numeric'));
-    $gain = 0.0;
-    $loss = 0.0;
-    $previousAltitude = null;
-    foreach ($inside as $sample) {
-        if (!is_numeric($sample['altitude_m'] ?? null)) continue;
-        $altitude = (float) $sample['altitude_m'];
-        if ($previousAltitude !== null) {
-            $delta = $altitude - $previousAltitude;
-            if (abs($delta) >= 0.8) {
-                if ($delta > 0) $gain += $delta; else $loss += abs($delta);
-            }
-        }
-        $previousAltitude = $altitude;
-    }
+    $elevation = activityStreamElevationPresentation($inside);
+    $gain = $elevation['gain_m'];
+    $loss = $elevation['loss_m'];
     return [
         'start_distance_m' => $startDistance, 'end_distance_m' => $endDistance, 'distance_m' => $distance, 'elapsed_duration_s' => $duration, 'moving_duration_s' => $moving,
         'pace_s_per_km' => $distance > 0 && $moving > 0 ? $moving / ($distance / 1000.0) : null, 'speed_kmh' => $moving > 0 ? ($distance / 1000.0) / ($moving / 3600.0) : null,
         'heart_rate_avg_bpm' => $hrValues !== [] ? array_sum($hrValues) / count($hrValues) : null, 'heart_rate_max_bpm' => $hrValues !== [] ? max($hrValues) : null,
-        'elevation_gain_m' => $previousAltitude !== null ? $gain : null, 'elevation_loss_m' => $previousAltitude !== null ? $loss : null,
+        'elevation_gain_m' => $elevation['min_m'] !== null ? $gain : null, 'elevation_loss_m' => $elevation['min_m'] !== null ? $loss : null,
         'cadence_avg' => $cadenceValues !== [] ? array_sum($cadenceValues) / count($cadenceValues) : null, 'power_avg_w' => $powerValues !== [] ? array_sum($powerValues) / count($powerValues) : null,
     ];
 }
@@ -680,7 +722,7 @@ function activityStreamBundleFromImportSeries(array $series, int $activityStarte
             'moving_ms' => $elapsed,
             'distance_m' => $distance > 0 || $index > 0 ? $distance : (is_numeric($point['distance_m'] ?? null) ? (float) $point['distance_m'] : null),
             'speed_mps' => activityStreamFinite($point['speed_mps'] ?? null),
-            'heart_rate_bpm' => isset($point['heart_rate']) && is_numeric($point['heart_rate']) ? (int) $point['heart_rate'] : null,
+            'heart_rate_bpm' => isset($point['heart_rate_bpm']) && is_numeric($point['heart_rate_bpm']) ? (int) $point['heart_rate_bpm'] : (isset($point['heart_rate']) && is_numeric($point['heart_rate']) ? (int) $point['heart_rate'] : null),
             'altitude_m' => activityStreamFinite($point['altitude_m'] ?? null),
             'cadence' => activityStreamFinite($point['cadence'] ?? null),
             'power_w' => activityStreamFinite($point['power'] ?? null),

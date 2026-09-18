@@ -44,6 +44,24 @@ try { activityStreamMetadataObject(['invalid-list'], 'metadata'); } catch (Inval
 $assert($metadataRejected, 'Metadata de streams/laps precisa respeitar contrato JSON object.');
 $assert(activityStreamCadenceUnit('corrida', 'cardio') === 'spm', 'Corrida deve usar spm.');
 $assert(activityStreamCadenceUnit('ciclismo', 'cardio') === 'rpm', 'Ciclismo deve usar rpm.');
+$optionalMetrics = activityStreamNormalizeSamples([
+    ['elapsed_ms' => 0, 'distance_m' => 0, 'heart_rate_bpm' => null],
+    ['elapsed_ms' => 1000, 'distance_m' => 4, 'heart_rate_bpm' => ''],
+    ['elapsed_ms' => 2000, 'distance_m' => 8, 'heart_rate_bpm' => 143],
+    ['elapsed_ms' => 3000, 'distance_m' => 12],
+]);
+$assert($optionalMetrics[0]['heart_rate_bpm'] === null && $optionalMetrics[1]['heart_rate_bpm'] === null && $optionalMetrics[2]['heart_rate_bpm'] === 143 && $optionalMetrics[3]['heart_rate_bpm'] === null, 'FC ausente, null ou parcial precisa permanecer opcional sem virar zero.');
+$invalidHrRejected = false;
+try { activityStreamNormalizeSamples([['elapsed_ms' => 0, 'heart_rate_bpm' => 5]]); } catch (InvalidArgumentException) { $invalidHrRejected = true; }
+$assert($invalidHrRejected, 'FC explicitamente inválida precisa continuar rejeitada.');
+$flat = [];
+for ($i = 0; $i <= 80; $i++) $flat[] = ['elapsed_ms' => $i * 1000, 'distance_m' => $i * 50, 'altitude_m' => 100 + sin($i * 1.7) * 1.6];
+$flatElevation = activityStreamElevationPresentation(activityStreamNormalizeSamples($flat));
+$assert($flatElevation['gain_m'] < 16 && $flatElevation['loss_m'] < 16, 'Pista plana com ruído não pode acumular dezenas de metros fantasma.');
+$climb = [];
+for ($i = 0; $i <= 50; $i++) $climb[] = ['elapsed_ms' => $i * 1000, 'distance_m' => $i * 20, 'altitude_m' => 100 + $i];
+$climbElevation = activityStreamElevationPresentation(activityStreamNormalizeSamples($climb));
+$assert($climbElevation['gain_m'] > 40, 'Subida sustentada precisa sobreviver ao filtro de elevação.');
 
 
 $intervalSampling31 = activityAnalysisIntervals([

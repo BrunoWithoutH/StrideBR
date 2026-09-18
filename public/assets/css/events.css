@@ -644,3 +644,56 @@
     .event-admin-gallery > div { grid-template-columns: 1fr; }
     .event-public-gallery { grid-template-columns: 1fr; }
 }
+
+.event-card-source {
+    margin-bottom: 6px;
+    color: var(--ui-muted);
+    font-size: .67rem;
+    font-weight: 700;
+}
+
+.event-program {
+    margin-top: 12px;
+}
+
+.event-program-groups {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+}
+
+.event-program-group {
+    border: 1px solid var(--ui-border-soft);
+    border-radius: var(--radius-detail);
+    background: var(--ui-panel-soft);
+    padding: 12px;
+}
+
+.event-program-group h3 {
+    margin: 0 0 8px;
+    font-size: .82rem;
+}
+
+.event-program-group ul {
+    display: grid;
+    gap: 7px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.event-program-group li {
+    display: grid;
+    gap: 2px;
+    color: var(--ui-text-secondary);
+    font-size: .75rem;
+}
+
+.event-program-group li strong {
+    color: var(--ui-text-strong);
+}
+
+.event-program-group li span {
+    color: var(--ui-muted);
+    font-size: .68rem;
+}

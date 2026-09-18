@@ -40,9 +40,9 @@ foreach (['LOAD_REPS', 'REPS', 'DURATION', 'DISTANCE', 'LOAD_DURATION', 'DURATIO
 }
 $assert(str_contains($prescription, 'looksLikeDuration(reps)') && str_contains($prescription, 'reps = null'), 'resolver precisa corrigir dado legado de duração salvo como reps sem renderizar reps falsas.');
 $assert(str_contains($scheduleJs, 'StrideBRWorkoutPrescription?.resolve?.(exercise)') && str_contains($scheduleJs, '...prescription.summaryParts'), 'preview de cronograma precisa reutilizar resolver central.');
-$assert(str_contains($sessionJs, 'plannedPrescription(exercise)') && str_contains($sessionJs, 'const fields = prescription.fields'), 'execução Web precisa resolver campos dinamicamente.');
+$assert(str_contains($sessionJs, 'plannedPrescription(exercise)') && str_contains($sessionJs, 'const fields = workoutPrescription.loggingFields(prescription)'), 'execução Web precisa resolver campos dinamicamente.');
 $assert(str_contains($sessionJs, 'prescription.labels[field]') && str_contains($sessionJs, 'data-session-field-count') && str_contains($sessionJs, '--session-field-count:${fields.length}'), 'headers e grid da execução precisam seguir campos realmente presentes.');
-$assert(str_contains($sessionJs, "if (field === 'load')") && str_contains($sessionJs, "if (field === 'reps')") && str_contains($sessionJs, 'session-set-planned'), 'carga/reps editáveis e duração/distância planejadas precisam permanecer semanticamente distintas.');
+$assert(str_contains($sessionJs, "if (field === 'load')") && str_contains($sessionJs, "if (field === 'reps')") && str_contains($sessionJs, 'data-session-set-${field}'), 'Todos os campos de execução precisam ser editáveis, com metas planejadas separadas.');
 $assert(!str_contains($sessionJs, '<span>Load</span><span>Reps</span>'), 'execução não pode manter header fixo Carga/Reps.');
 
 $assert(str_contains($exercisePage, 'data-exercise-empty') && str_contains($exercisePage, 'Nenhum exercício neste treino.') && str_contains($exercisePage, 'data-add-exercise-empty'), 'treino vazio precisa de empty state e ação de adicionar exercício.');

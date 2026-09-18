@@ -101,7 +101,7 @@ function atividadeTotaisCanonicosUnidades(array $detalhes): array
         $derivedType = trim((string) ($unit['modalidade_metrica_derivada'] ?? $detalhes['metrica_derivada'] ?? 'nenhuma'));
         if ($derivedType !== '' && $derivedType !== 'nenhuma') $derivedTypes[$derivedType] = true;
     }
-    return [
+    $result = [
         'distancia_m' => $distanceCount > 0 ? $distanceM : null,
         'duracao_s' => $durationCount > 0 ? $durationS : null,
         'elevacao_m' => $elevationCount > 0 ? $elevationM : null,
@@ -112,6 +112,7 @@ function atividadeTotaisCanonicosUnidades(array $detalhes): array
         'derived_types' => array_keys($derivedTypes),
         'fields' => $canonicalFields,
     ];
+    return $result;
 }
 
 function atividadeCardTotaisUnidades(array $detalhes): array
@@ -453,7 +454,11 @@ function atividadeListarRegistrosPagina(PDO $pdo, string $idUsuario, int $limite
 {
     $limite = max(5, min(50, $limite));
     $params = [':usuario' => $idUsuario];
-    $where = ['ra.idusuario = :usuario', 'ra.excluido_em IS NULL'];
+    $activityAccess = 'ra.idusuario = :usuario';
+    if (atividadeSharedParticipantsAvailable($pdo)) {
+        $activityAccess = "(ra.idusuario = :usuario OR EXISTS (SELECT 1 FROM activity_participants ap WHERE ap.idregistro=ra.idregistro AND ap.idusuario=:usuario AND ap.status='accepted'))";
+    }
+    $where = [$activityAccess, 'ra.excluido_em IS NULL'];
     if ($cursor !== null && $cursor !== '') {
         $parts = explode('|', $cursor, 2);
         if (count($parts) === 2 && preg_match('/^\d{4}-\d{2}-\d{2}T/', $parts[0])) {
@@ -520,7 +525,8 @@ function atividadeListarRegistrosPagina(PDO $pdo, string $idUsuario, int $limite
     elseif ($stats === 'excluded') $where[] = 'COALESCE(ra.excluir_estatisticas,FALSE)=TRUE';
 
     $sql = "SELECT ra.idregistro, ra.idmodelo, ra.titulo, ra.data_inicio, ra.data_fim, ra.esforco_percebido,
-                   ra.origem,ra.origem_provedor,ra.idtreino_cronograma,ra.idcompeticao,COALESCE(ra.excluir_estatisticas,FALSE) AS excluir_estatisticas,
+                   ra.origem,ra.origem_provedor,ra.idtreino_cronograma,ra.idcompeticao,COALESCE(ra.excluir_estatisticas,FALSE) AS excluir_estatisticas, (ra.idusuario<>:usuario) AS is_shared_participant,
+                   COALESCE(NULLIF(owner.nome_exibicao,''),owner.nomeusuario) AS recorder_name,
                    m.nome AS modalidade_nome, m.slug AS modalidade_slug, m.metrica_derivada,
                    tc.codigo AS treino_codigo, tc.foco AS treino_foco,
                    EXISTS(SELECT 1 FROM rotas_atividade r WHERE r.idregistro=ra.idregistro) AS has_route,
@@ -529,6 +535,7 @@ function atividadeListarRegistrosPagina(PDO $pdo, string $idUsuario, int $limite
                    (ra.idtreino_cronograma IS NOT NULL OR EXISTS (SELECT 1 FROM sessoes_treino st WHERE st.idregistro_atividade=ra.idregistro AND (st.idtreino_origem IS NOT NULL OR st.idagendamento_origem IS NOT NULL))) AS has_workout
             FROM registros_atividade ra
             JOIN modalidades m ON m.idmodalidade = ra.idmodalidade
+            JOIN usuarios owner ON owner.idusuario=ra.idusuario
             LEFT JOIN treinos_cronograma tc ON tc.idtreino = ra.idtreino_cronograma
             WHERE " . implode(' AND ', $where) . "
             ORDER BY ra.data_inicio DESC, ra.idregistro DESC
@@ -571,6 +578,7 @@ function atividadeListarRegistrosPagina(PDO $pdo, string $idUsuario, int $limite
             'esforco' => $row['esforco_percebido'] !== null ? (int) $row['esforco_percebido'] : null,
             'origin' => $origin, 'has_route' => stridebr_db_bool($row['has_route'] ?? false), 'has_hr' => stridebr_db_bool($row['has_hr'] ?? false), 'has_analysis' => stridebr_db_bool($row['has_analysis'] ?? false),
             'workout_linked' => stridebr_db_bool($row['has_workout'] ?? false), 'competition_linked' => trim((string) ($row['idcompeticao'] ?? '')) !== '', 'excluded_from_stats' => stridebr_db_bool($row['excluir_estatisticas'] ?? false),
+            'is_shared_participant' => stridebr_db_bool($row['is_shared_participant'] ?? false), 'recorded_by' => stridebr_db_bool($row['is_shared_participant'] ?? false) ? (string) ($row['recorder_name'] ?? '') : null,
         ];
     }
     $last = end($rows);
@@ -697,6 +705,7 @@ function atividadeDetalheApi(PDO $pdo, string $idRegistro, string $idUsuario): a
 {
     $registro = atividadeCarregarRegistro($pdo, $idRegistro, $idUsuario);
     if ($registro === []) return [];
+    $isSharedParticipant = stridebr_db_bool($registro['is_shared_participant'] ?? false);
     $camposPorId = [];
     foreach ($registro['campos'] ?? [] as $campo) $camposPorId[(string) $campo['idcampo']] = $campo;
     $mainSportContext = atividadeContextoEsportivo((string) ($registro['modalidade_slug'] ?? ''), (string) ($registro['modalidade_familia_hub'] ?? ''));
@@ -836,7 +845,7 @@ function atividadeDetalheApi(PDO $pdo, string $idRegistro, string $idUsuario): a
 
     $strength = null;
     if (stridebr_db_table_exists($pdo, 'series_exercicio_atividade')) {
-        $strengthStmt = $pdo->prepare('SELECT idexercicio, nome_exercicio, ordem_exercicio, ordem_serie, tipo, carga_kg, repeticoes, rir, rpe, concluida FROM series_exercicio_atividade WHERE idregistro = :registro ORDER BY ordem_exercicio, ordem_serie, idserie');
+        $strengthStmt = $pdo->prepare('SELECT idexercicio, nome_exercicio, ordem_exercicio, ordem_serie, tipo, carga_kg, repeticoes, duracao_segundos, distancia_metros, rir, rpe, concluida FROM series_exercicio_atividade WHERE idregistro = :registro ORDER BY ordem_exercicio, ordem_serie, idserie');
         $strengthStmt->execute([':registro' => $idRegistro]);
         $strengthRows = $strengthStmt->fetchAll();
         if ($strengthRows !== []) {
@@ -869,6 +878,8 @@ function atividadeDetalheApi(PDO $pdo, string $idRegistro, string $idUsuario): a
                     'tipo' => (string) $row['tipo'],
                     'carga_kg' => $load,
                     'repeticoes' => $reps,
+                    'duracao_segundos' => $row['duracao_segundos'] !== null ? (float) $row['duracao_segundos'] : null,
+                    'distancia_metros' => $row['distancia_metros'] !== null ? (float) $row['distancia_metros'] : null,
                     'rir' => $row['rir'] !== null ? (float) $row['rir'] : null,
                     'rpe' => $row['rpe'] !== null ? (float) $row['rpe'] : null,
                     'concluida' => $completed,
@@ -925,7 +936,7 @@ function atividadeDetalheApi(PDO $pdo, string $idRegistro, string $idUsuario): a
         ];
     }
     $streamCapabilities = null;
-    if (function_exists('activityStreamCapabilities') && stridebr_db_table_exists($pdo, 'activity_stream_bundles')) {
+    if (!$isSharedParticipant && function_exists('activityStreamCapabilities') && stridebr_db_table_exists($pdo, 'activity_stream_bundles')) {
         try {
             activityStreamEnsureMaterialized($pdo, $idUsuario, $idRegistro);
             $streamCapabilities = activityStreamCapabilities($pdo, $idUsuario, $idRegistro);
@@ -933,9 +944,9 @@ function atividadeDetalheApi(PDO $pdo, string $idRegistro, string $idUsuario): a
             error_log('StrideBR activity detail capabilities: ' . $streamError->getMessage());
         }
     }
-    return [
+    $result = [
         'id' => $idRegistro, 'titulo' => stridebr_present_activity_title((string) ($registro['titulo'] ?: $registro['modalidade_nome']), (string) $registro['modalidade_slug']), 'modalidade' => stridebr_sport_name((string) $registro['modalidade_slug'], (string) $registro['modalidade_nome']), 'modalidade_slug' => (string) $registro['modalidade_slug'], 'modalidade_familia_hub' => (string) ($registro['modalidade_familia_hub'] ?? ''), 'metrica_derivada' => (string) ($registro['metrica_derivada'] ?? 'nenhuma'), 'modalidade_icone' => function_exists('stridebr_sport_icon_id') ? stridebr_sport_icon_id((string) $registro['modalidade_slug']) : 'track_and_field', 'origem' => (string) ($registro['origem'] ?? ''),
-        'data' => stridebr_format_date($date), 'hora' => $date->format('H:i'), 'visibilidade' => (string) $registro['visibilidade'], 'esforco' => $registro['esforco_percebido'] !== null ? (int) $registro['esforco_percebido'] : null, 'excluded_from_stats' => stridebr_db_bool($registro['excluir_estatisticas'] ?? false),
+        'data' => stridebr_format_date($date), 'hora' => $date->format('H:i'), 'visibilidade' => (string) $registro['visibilidade'], 'esforco' => !$isSharedParticipant && $registro['esforco_percebido'] !== null ? (int) $registro['esforco_percebido'] : null, 'excluded_from_stats' => stridebr_db_bool($registro['excluir_estatisticas'] ?? false),
         'observacoes' => (string) ($registro['observacoes'] ?? ''), 'competicao' => trim((string) ($registro['competicao_nome'] ?? '')), 'idcompeticao' => trim((string) ($registro['idcompeticao'] ?? '')), 'usa_trechos' => !empty($registro['usa_trechos']), 'metricas' => atividadeCardMetricas($registro), 'metricas_compartilhamento' => $shareMetrics, 'energia' => $energy,
         'dados' => $formatValues($registro['record_values'] ?? [], $mainSportContext), 'unidades' => $units, 'serie_equivalente' => $seriesEquivalent, 'equipamentos' => array_map(static fn(array $e): array => ['id' => (string) $e['idequipamento'], 'nome' => (string) $e['nome']], $registro['equipamentos'] ?? []),
         'treino' => (!empty($registro['treino_codigo']) || !empty($registro['treino_foco']) || !empty($registro['treino_titulo'])) ? [
@@ -948,4 +959,16 @@ function atividadeDetalheApi(PDO $pdo, string $idRegistro, string $idUsuario): a
         'forca' => $strength,
         'stream_capabilities' => $streamCapabilities,
     ];
+    if (function_exists('sharedActivityParticipants') && atividadeSharedParticipantsAvailable($pdo)) {
+        try { $result['participants'] = sharedActivityParticipants($pdo, $idUsuario, $idRegistro); } catch (Throwable) { $result['participants'] = null; }
+    }
+    $result['is_shared_participant'] = $isSharedParticipant;
+    if ($isSharedParticipant) {
+        $result['energia'] = null;
+        $result['stream_capabilities'] = null;
+        $result['equipamentos'] = [];
+        $result['forca'] = null;
+        $result['metricas_compartilhamento'] = array_values(array_filter($result['metricas_compartilhamento'], static fn(array $metric): bool => !str_contains(stridebr_lower((string) ($metric['rotulo'] ?? '')), 'esfor')));
+    }
+    return $result;
 }

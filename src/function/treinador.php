@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/includes/app.php';
 require_once __DIR__ . '/atividade_modelo.php';
 require_once __DIR__ . '/atividade_presenter.php';
+require_once __DIR__ . '/cronograma.php';
 
 function treinadorUsuario(PDO $pdo, string $idUsuario): array
 {
@@ -253,12 +254,13 @@ function treinadorCriarPrescricao(PDO $pdo, string $idTreinador, string $idAtlet
         throw new InvalidArgumentException(stridebr_t('planning.message.invalid_status'));
     }
 
+    $catalog = stridebr_exercise_catalog_for_user($pdo, $idTreinador);
     $rows = [];
     foreach (array_slice($exercicios, 0, 100) as $row) {
         if (!is_array($row)) {
             continue;
         }
-        $nome = trim((string) ($row['nome'] ?? ''));
+        $nome = cronogramaResolverExercicioBiblioteca($pdo, $catalog, '', (string) ($row['nome'] ?? ''))['nome'];
         if ($nome === '') {
             continue;
         }
@@ -418,10 +420,11 @@ function treinadorEditarPrescricao(PDO $pdo, string $idTreinador, string $idAgen
     if (!in_array($requestedStatus, ['rascunho', 'publicado'], true)) throw new InvalidArgumentException(stridebr_t('planning.message.invalid_status'));
     $status = (string) $current['status'] === 'publicado' ? 'publicado' : $requestedStatus;
 
+    $catalog = stridebr_exercise_catalog_for_user($pdo, $idTreinador);
     $rows = [];
     foreach (array_slice($exercicios, 0, 100) as $row) {
         if (!is_array($row)) continue;
-        $nome = trim((string) ($row['nome'] ?? ''));
+        $nome = cronogramaResolverExercicioBiblioteca($pdo, $catalog, '', (string) ($row['nome'] ?? ''))['nome'];
         if ($nome === '') continue;
         if (stridebr_length($nome) > 120) throw new InvalidArgumentException(stridebr_t('planning.message.exercise_long'));
         $seriesRaw = trim((string) ($row['series'] ?? ''));

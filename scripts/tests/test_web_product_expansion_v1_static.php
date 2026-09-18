@@ -96,8 +96,8 @@ $assert(str_contains($competitionsPage, "stridebr_t('competitions.empty')") && s
 
 $assert(str_contains($routes, 'function routeSavedCreateFromActivity') && str_contains($routes, 'function routeSavedValidateForWorkout') && str_contains($routes, 'function routeSavedLinkActivityFromWorkout'), 'Routes precisa salvar de Activity, validar Workout e registrar reuso.');
 $assert(str_contains($routes, 'p.idplan=r.idpacerplan') && str_contains($routes, 'WHERE idplan=:id'), 'Routes precisa usar idplan do Pacer real.');
-$assert(str_contains($routesPage, 'Minhas Rotas') && str_contains($routesPage, 'Usar em treino') && str_contains($routesPage, 'data-route-detail-map'), 'Routes Web precisa ter lista/detail/map/reuse.');
-$assert(str_contains($routesPage, 'if ($routes === [] && $detail === null)') && str_contains($routesPage, 'Nenhuma rota salva.') && str_contains($routesPage, 'Ver atividades com rota'), 'Zero rotas precisa usar empty state único antes do split pane.');
+$assert(str_contains($routesPage, "stridebr_t('routes.title')") && str_contains($routesPage, "stridebr_t('routes.use')") && str_contains($routesPage, 'data-route-detail-map'), 'Routes Web precisa ter lista/detail/map/reuse.');
+$assert(str_contains($routesPage, 'if ($routeTotal === 0 && $detail === null)') && str_contains($routesPage, "stridebr_t('routes.empty')") && str_contains($routesPage, "stridebr_t('routes.new')"), 'Zero rotas precisa usar empty state único antes do split pane.');
 $assert(str_contains($routesJs, 'IntersectionObserver') && str_contains($routesJs, 'StrideBRWebMap'), 'mini mapas de Routes precisam ser lazy e reutilizar mapa centralizado.');
 $assert(str_contains($activityDetailJs, '/api/rota-salvar.php') && str_contains($activityDetailJs, 'Salvar rota'), 'Activity Detail precisa permitir salvar rota sem duplicar Activity.');
 $assert(str_contains($schedulePage, 'name="route_id"') && str_contains($schedulePage, 'data-editor-route') && str_contains($schedulePage, 'data-quick-route'), 'Workout Web precisa aceitar Route no editor e Quick Create.');

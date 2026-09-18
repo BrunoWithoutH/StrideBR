@@ -114,7 +114,8 @@ function stridebr_seo_sitemap_urls(?PDO $pdo = null): array
     if ($pdo !== null) {
         require_once dirname(__DIR__) . '/function/eventos.php';
         if (eventosDisponiveis($pdo) && stridebr_feature_enabled($pdo, 'events.enabled', true)) {
-            $stmt = $pdo->query("SELECT slug FROM stridebr.eventos_esportivos WHERE status IN ('publicado','cancelado') ORDER BY data_inicio, idevento LIMIT 45000");
+            $seoWhere = stridebr_db_column_exists($pdo, 'eventos_esportivos', 'seo_indexavel') ? " AND seo_indexavel=TRUE" : '';
+            $stmt = $pdo->query("SELECT slug FROM stridebr.eventos_esportivos WHERE status IN ('publicado','cancelado')" . $seoWhere . " ORDER BY data_inicio, idevento LIMIT 45000");
             foreach ($stmt as $row) {
                 if (trim((string) $row['slug']) !== '') $urls[] = stridebr_seo_canonical('/evento.php', (string) $row['slug']);
             }
