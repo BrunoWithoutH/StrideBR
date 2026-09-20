@@ -14,7 +14,7 @@ require_once dirname(__DIR__, 2) . '/src/function/sport_catalog.php';
 require_once dirname(__DIR__, 2) . '/src/includes/sport_icons.php';
 $errors = [];
 $allowedGoals = ['organizar', 'condicionamento', 'prova', 'evolucao', 'rotina', 'lazer'];
-$allowedExperience = ['', 'comecando', 'pratico', 'regular'];
+$allowedExperience = ['', 'comecando', 'retornando', 'pratico', 'regular'];
 $allowedTracking = ['frequencia', 'duracao', 'distancia', 'elevacao', 'metas', 'carga'];
 $goalLabels = [
     'organizar' => stridebr_t('onboarding.goal.organize'),
@@ -204,6 +204,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <select name="experience">
                             <option value=""<?php echo $values['experience'] === '' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('onboarding.prefer_not_say')); ?></option>
                             <option value="comecando"<?php echo $values['experience'] === 'comecando' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('onboarding.experience_starting')); ?></option>
+                            <option value="retornando"<?php echo $values['experience'] === 'retornando' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('onboarding.experience_returning')); ?></option>
                             <option value="pratico"<?php echo $values['experience'] === 'pratico' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('onboarding.experience_practice')); ?></option>
                             <option value="regular"<?php echo $values['experience'] === 'regular' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('onboarding.experience_regular')); ?></option>
                         </select>

@@ -21,8 +21,19 @@
         ensureIndicator().hidden = false;
     };
 
-    const scheduleShow = () => {
+    const cancelPending = () => {
         window.clearTimeout(pendingTimer);
+        pendingTimer = 0;
+    };
+
+    const hide = () => {
+        cancelPending();
+        shown = false;
+        if (indicator) indicator.hidden = true;
+    };
+
+    const scheduleShow = () => {
+        cancelPending();
         pendingTimer = window.setTimeout(show, 140);
     };
 
@@ -51,12 +62,10 @@
         if (event.defaultPrevented) return;
         const form = event.target;
         if (!(form instanceof HTMLFormElement) || (form.target || '').toLowerCase() === '_blank' || form.hasAttribute('data-no-page-loading')) return;
-        scheduleShow();
+        window.setTimeout(() => {
+            if (!event.defaultPrevented) scheduleShow();
+        }, 0);
     });
 
-    window.addEventListener('pageshow', () => {
-        window.clearTimeout(pendingTimer);
-        shown = false;
-        if (indicator) indicator.hidden = true;
-    });
+    window.addEventListener('pageshow', hide);
 })();

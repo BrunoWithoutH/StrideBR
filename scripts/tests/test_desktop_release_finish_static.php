@@ -14,6 +14,10 @@ $cronograma = $read('src/function/cronograma.php');
 $exchange = $read('src/function/activity_file_exchange.php');
 $accountData = $read('src/function/account_data.php');
 $trainer = $read('public/user/treinador.php');
+$trainerCoachAthlete = $read('src/layout/trainer/coach_athlete_workspace.php');
+$trainerCoachOverview = $read('src/layout/trainer/coach_overview.php');
+$trainerCoachLibrary = $read('src/layout/trainer/coach_library.php');
+$trainerAsAthlete = $read('src/layout/trainer_as_athlete.php');
 $settings = $read('public/user/settings.php');
 $activitiesPage = $read('public/user/atividades.php');
 $exchangePage = $read('public/user/importar-exportar.php');
@@ -67,7 +71,7 @@ $checks = [
     'progresso fica na navegação e comparar é contextual' => str_contains($activitiesPage, 'data-detail-compare') && str_contains($activitiesPage, '/user/comparar-atividades.php') && str_contains($activitiesJs, '/user/comparar-atividades.php?a=') && str_contains($footer, "stridebr_t('nav.progress')") && str_contains($footer, '/user/comparar-atividades.php') && str_contains($header, '/user/progresso.php') && !str_contains($activitiesPage, 'activity-toolbar-progress'),
     'notificações de cronograma sincronizado existem' => str_contains($notifications, 'function notificacaoCronogramaSincronizadoAlterado') && str_contains($notifications, "tipo = 'sincronizado'") && str_contains($notifications, "status = 'aceito'"),
     'mudanças principais de cronograma notificam sincronizados' => substr_count($cronogramasPage, 'notificacaoCronogramaSincronizadoAlterado') >= 7 && str_contains($exerciseSchedule, 'notificacaoCronogramaSincronizadoAlterado') && str_contains($occurrenceApi, 'notificacaoCronogramaSincronizadoAlterado') && str_contains($quickCreateApi, 'notificacaoCronogramaSincronizadoAlterado'),
-    'painel do treinador respeita permissões' => str_contains($trainer, "pode_ver_atividades") && str_contains($trainer, "pode_ver_cronograma") && str_contains($trainer, "stridebr_t('trainer.no_activity_permission')") && str_contains($trainer, "if (stridebr_db_bool(\$selectedLink['pode_ver_atividades'] ?? false))"),
+    'painel do treinador respeita permissões' => str_contains($trainer, "pode_ver_atividades") && str_contains($trainer, "pode_ver_cronograma") && str_contains($trainerCoachAthlete, "stridebr_db_bool(\$selectedLink['pode_ver_atividades'] ?? false)") && str_contains($trainerCoachAthlete, "stridebr_db_bool(\$selectedLink['pode_ver_cronograma'] ?? false)") && str_contains($trainerCoachAthlete, "stridebr_t('trainer.workspace.no_access')") && str_contains($trainerAsAthlete, "name=\"pode_ver_atividades\"") && str_contains($trainerAsAthlete, "name=\"pode_ver_cronograma\""),
     'analytics tem opt-out e allowlist' => str_contains($settings, 'name="product_analytics"') && str_contains($settings, "stridebr_t('settings.product_analytics_help')") && str_contains($analytics, "'activity_compared'") && str_contains($analytics, "'dashboard_customized'") && str_contains($analytics, 'if (!in_array($nome, $allowedNames, true)) return;'),
     'wrapper de POST injeta chave idempotente' => str_contains($scriptsJs, 'const ensureIdempotency') && str_contains($scriptsJs, "body instanceof FormData || body instanceof URLSearchParams") && str_contains($scriptsJs, "body.set('_idempotency_key', requestKey())"),
     'formulários POST dinâmicos recebem chave idempotente' => str_contains($scriptsJs, "input.name = '_idempotency_key'") && str_contains($scriptsJs, "String(form.method || 'get').toLowerCase() !== 'post'"),
@@ -81,7 +85,7 @@ $checks = [
     'legais atualizadas para a RC' => str_contains($terms, '30 de agosto de 2026') && str_contains($privacy, '9 de setembro de 2026') && str_contains($privacy, 'Analytics de produto') && str_contains($privacy, 'Aquisição e campanhas') && str_contains($privacy, 'trechos privados') && str_contains($cookies, 'Atribuição de campanhas') && str_contains($cookies, 'desligada por padrão'),
     'páginas públicas refletem estado atual' => str_contains($faq, 'cronograma sincronizado') && str_contains($roadmap, 'GPS') && str_contains($changelog, 'Release Candidate') && str_contains($about, 'gamificado'),
     'versões legais do ambiente estão alinhadas' => str_contains($env, 'STRIDEBR_TERMS_VERSION=2026-08-30-1') && str_contains($env, 'STRIDEBR_PRIVACY_VERSION=2026-09-01-1'),
-    'empty states úteis existem nas áreas novas' => str_contains($progress, "stridebr_t('progress.no_sport_in_period'") && str_contains($progress, "stridebr_t('progress.no_sport_data_yet'") && str_contains($progress, "stridebr_t('progress.view_all_history')") && str_contains($progress, "stridebr_t('progress.log_activity')") && str_contains($activitiesPage, 'activity-empty-actions') && str_contains($activitiesPage, '/user/gravar-atividade.php') && str_contains($exchangePage, "stridebr_t('progress.log_activity')") && str_contains($trainer, "stridebr_t('trainer.no_active_schedules')"),
+    'empty states úteis existem nas áreas novas' => str_contains($progress, "stridebr_t('progress.no_sport_in_period'") && str_contains($progress, "stridebr_t('progress.no_sport_data_yet'") && str_contains($progress, "stridebr_t('progress.view_all_history')") && str_contains($progress, "stridebr_t('progress.log_activity')") && str_contains($activitiesPage, 'activity-empty-actions') && str_contains($activitiesPage, '/user/gravar-atividade.php') && str_contains($exchangePage, "stridebr_t('progress.log_activity')") && str_contains($trainerCoachAthlete, "stridebr_t('trainer.no_active_schedules')") && str_contains($trainerCoachOverview, "stridebr_t('trainer.workspace.no_attention')") && str_contains($trainerCoachLibrary, "stridebr_t('trainer.workspace.library_workouts_empty')"),
 ];
 
 $failed = [];

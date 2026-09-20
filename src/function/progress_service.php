@@ -772,6 +772,10 @@ function progressStrength(PDO $pdo, string $userId, array $filters): array
 function progressExerciseList(PDO $pdo, string $userId, array $filters): array
 {
     $range = progressResolveRange($filters);
+    $sport = progressResolveSport($pdo, $filters['sport'] ?? null);
+    if ($sport !== null && $sport['family'] !== 'strength') {
+        return ['range' => progressRangePayload($range), 'sport' => $sport, 'data' => [], 'meta' => ['page' => 1, 'limit' => max(1, min(100, (int) ($filters['limit'] ?? 30))), 'has_more' => false]];
+    }
     $page = max(1, (int) ($filters['page'] ?? 1));
     $limit = max(1, min(100, (int) ($filters['limit'] ?? 30)));
     $query = trim((string) ($filters['q'] ?? ''));
@@ -781,6 +785,11 @@ function progressExerciseList(PDO $pdo, string $userId, array $filters): array
         ':start' => $range['start']->format('Y-m-d H:i:sP'),
         ':end' => $range['end']->format('Y-m-d H:i:sP'),
     ];
+    $sportClause = '';
+    if ($sport !== null) {
+        $sportClause = ' AND ra.idmodalidade = :sport_id';
+        $params[':sport_id'] = $sport['id'];
+    }
     if ($query !== '') {
         $whereSearch = ' AND lower(COALESCE(e.nome,sea.nome_exercicio)) LIKE :search';
         $params[':search'] = '%' . stridebr_lower($query) . '%';
@@ -792,7 +801,7 @@ function progressExerciseList(PDO $pdo, string $userId, array $filters): array
         LEFT JOIN exercicios e ON e.idexercicio=sea.idexercicio
         WHERE ra.idusuario=:user AND ra.excluido_em IS NULL AND ra.status='concluido' AND COALESCE(ra.excluir_estatisticas,FALSE)=FALSE
           AND sea.concluida=TRUE AND sea.idexercicio IS NOT NULL
-          AND ra.data_inicio>=:start AND ra.data_inicio<:end{$whereSearch}
+          AND ra.data_inicio>=:start AND ra.data_inicio<:end{$sportClause}{$whereSearch}
     ), latest AS (
         SELECT DISTINCT ON (idexercicio) idexercicio,idregistro,data_inicio
         FROM scoped ORDER BY idexercicio,data_inicio DESC,idregistro DESC
@@ -831,30 +840,37 @@ function progressExerciseList(PDO $pdo, string $userId, array $filters): array
             'recent_volume_load_kg' => $row['recent_volume_load_kg'] !== null ? (float) $row['recent_volume_load_kg'] : null,
         ];
     }
-    return ['range' => progressRangePayload($range), 'data' => $data, 'meta' => ['page' => $page, 'limit' => $limit, 'has_more' => $hasMore]];
+    return ['range' => progressRangePayload($range), 'sport' => $sport, 'data' => $data, 'meta' => ['page' => $page, 'limit' => $limit, 'has_more' => $hasMore]];
 }
 
 function progressExerciseDetail(PDO $pdo, string $userId, string $exerciseId, array $filters): array
 {
     $exerciseId = trim($exerciseId);
     if ($exerciseId === '') throw new InvalidArgumentException('Exercício não encontrado.');
+    $sport = progressResolveSport($pdo, $filters['sport'] ?? null);
+    if ($sport !== null && $sport['family'] !== 'strength') throw new InvalidArgumentException('Exercício não encontrado.');
     $range = progressResolveRange($filters);
+    $sportClause = $sport !== null ? ' AND ra.idmodalidade=:sport_id' : '';
     $owner = $pdo->prepare("SELECT COALESCE(e.nome,MAX(sea.nome_exercicio)) AS name
         FROM series_exercicio_atividade sea
         JOIN registros_atividade ra ON ra.idregistro=sea.idregistro
         LEFT JOIN exercicios e ON e.idexercicio=sea.idexercicio
-        WHERE ra.idusuario=:user AND ra.excluido_em IS NULL AND ra.status='concluido' AND COALESCE(ra.excluir_estatisticas,FALSE)=FALSE AND sea.idexercicio=:exercise
+        WHERE ra.idusuario=:user AND ra.excluido_em IS NULL AND ra.status='concluido' AND COALESCE(ra.excluir_estatisticas,FALSE)=FALSE AND sea.idexercicio=:exercise{$sportClause}
         GROUP BY e.nome LIMIT 1");
-    $owner->execute([':user' => $userId, ':exercise' => $exerciseId]);
+    $ownerParams = [':user' => $userId, ':exercise' => $exerciseId];
+    if ($sport !== null) $ownerParams[':sport_id'] = $sport['id'];
+    $owner->execute($ownerParams);
     $name = $owner->fetchColumn();
     if ($name === false) throw new InvalidArgumentException('Exercício não encontrado.');
     $stmt = $pdo->prepare("SELECT ra.idregistro,ra.data_inicio,ra.titulo,sea.ordem_serie,sea.repeticoes,sea.carga_kg,sea.rir,sea.rpe,sea.concluida
         FROM series_exercicio_atividade sea
         JOIN registros_atividade ra ON ra.idregistro=sea.idregistro
-        WHERE ra.idusuario=:user AND ra.excluido_em IS NULL AND ra.status='concluido' AND COALESCE(ra.excluir_estatisticas,FALSE)=FALSE AND sea.idexercicio=:exercise
+        WHERE ra.idusuario=:user AND ra.excluido_em IS NULL AND ra.status='concluido' AND COALESCE(ra.excluir_estatisticas,FALSE)=FALSE AND sea.idexercicio=:exercise{$sportClause}
           AND ra.data_inicio>=:start AND ra.data_inicio<:end
         ORDER BY ra.data_inicio,ra.idregistro,sea.ordem_serie");
-    $stmt->execute([':user' => $userId, ':exercise' => $exerciseId, ':start' => $range['start']->format('Y-m-d H:i:sP'), ':end' => $range['end']->format('Y-m-d H:i:sP')]);
+    $detailParams = [':user' => $userId, ':exercise' => $exerciseId, ':start' => $range['start']->format('Y-m-d H:i:sP'), ':end' => $range['end']->format('Y-m-d H:i:sP')];
+    if ($sport !== null) $detailParams[':sport_id'] = $sport['id'];
+    $stmt->execute($detailParams);
     $sessions = [];
     foreach ($stmt->fetchAll() as $row) {
         $id = (string) $row['idregistro'];

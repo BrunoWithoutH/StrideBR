@@ -819,3 +819,23 @@ Competitions retornam somente Competition relevante ao próprio atleta. O detalh
 Quando `STRIDEBR_TEAMS_ENABLED=false`, essas rotas respondem `404` e o provider institucional não é consultado. Fixture continua permitida somente em development; staging/production bloqueiam `STRIDEBR_TEAMS_SURFACE_MODE=fixture`. `remote` continua reservado e não implementado.
 
 Workouts institucionais não ganharam endpoint paralelo. Eles continuam no contrato único de `/workouts/*` com `source=teams`, `kind=institutional` e `institutional_context` quando aplicável.
+
+---
+
+## Core Mobile API Completion V1
+
+Os gaps de autonomia Android fechados nesta rodada estão documentados operacionalmente em [`MOBILE_API_COMPLETION_V1.md`](MOBILE_API_COMPLETION_V1.md).
+
+Contratos adicionados/expandidos:
+
+- Workout Session set PATCH: `duration_s`, `distance_m`, history/actuals V2;
+- Progress com `sport=<slug>` em dashboard/cardio/strength/exercises;
+- `POST /activities/manual` com idempotência;
+- `PATCH` e `DELETE /activities/{id}` com version/capabilities e soft delete;
+- `PATCH /me` para os campos simples do perfil Web;
+- `POST /workout-sessions/{sessionId}/exercises/{exerciseId}/sets` retry-safe;
+- `GET /workout-sessions/by-workout/{workoutId}` para execução concluída;
+- `GET/PATCH /me/privacy`;
+- CRUD owner-scoped de `/equipment`.
+
+Continuam fora deste contrato: trim de rota, troca de e-mail/senha/exclusão de conta, Goals/Marks novos e redesign OAuth/integrations.

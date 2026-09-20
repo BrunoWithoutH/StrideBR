@@ -10,6 +10,8 @@ $suites = [
     'schedules' => 'test_schedule.php', 'workout sessions' => 'test_workout_session.php',
     'Workout Execution V2' => 'test_workout_execution_v2.php',
     'Exercise Library V2' => 'test_exercise_library_v2.php',
+    'Core Mobile API Completion V1' => 'test_core_mobile_api_completion_v1.php',
+    'Coach Workspace V1' => 'test_coach_workspace_v1.php',
     'friends' => 'test_friends.php', 'schedule sharing' => 'test_schedule_sharing.php',
     'trainer' => 'test_trainer.php', 'permissions' => 'test_permissions.php',
     'integration synchronization' => 'test_integration_sync.php',

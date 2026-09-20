@@ -297,6 +297,21 @@ $flashes = stridebr_take_flashes();
                     <input type="hidden" name="month" value="<?php echo stridebr_e($monthKey); ?>">
                     <label><span><?php echo stridebr_e(stridebr_t('nav.schedule')); ?></span><select name="cronograma"><option value=""><?php echo stridebr_e(stridebr_t('agenda.all')); ?></option><?php foreach ($schedules as $schedule): ?><option value="<?php echo stridebr_e($schedule['idcronograma']); ?>"<?php echo $scheduleFilter === $schedule['idcronograma'] ? ' selected' : ''; ?>><?php echo stridebr_e($schedule['nome']); ?></option><?php endforeach; ?></select></label>
                 </form>
+<?php if ($isSelf): ?>
+                    <details class="monthly-add monthly-add-toolbar" data-monthly-add>
+                    <summary class="secondary-button"><span>+</span> <?php echo stridebr_e(stridebr_t('agenda.add_workout_short')); ?></summary>
+                    <form method="POST" class="monthly-add-form">
+                        <?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="create_personal"><input type="hidden" name="month" value="<?php echo stridebr_e($monthKey); ?>">
+                        <label><?php echo stridebr_e(stridebr_t('agenda.copy_weekly')); ?><select name="idtreino_origem"><option value=""><?php echo stridebr_e(stridebr_t('agenda.do_not_copy')); ?></option><?php foreach ($recurringWorkouts as $workout): ?><option value="<?php echo stridebr_e($workout['idtreino']); ?>"><?php echo stridebr_e($workout['cronograma_nome'] . ' · ' . $workout['titulo']); ?></option><?php endforeach; ?></select></label>
+                        <label><?php echo stridebr_e(stridebr_t('common.title')); ?><input type="text" name="titulo" maxlength="120" placeholder="<?php echo stridebr_e(stridebr_t('agenda.copy_optional')); ?>"></label>
+                        <label><?php echo stridebr_e(stridebr_t('common.date')); ?><input type="date" name="data_treino" value="<?php echo stridebr_e(max($today, $monthStart->format('Y-m-d'))); ?>" required></label>
+                        <label class="time24-field-label"><?php echo stridebr_e(stridebr_t('common.time')); ?><div class="time24-control" data-time24><div class="time24-input-row"><input type="text" inputmode="numeric" maxlength="2" data-time24-hours><span class="time24-separator">:</span><input type="text" inputmode="numeric" maxlength="2" data-time24-minutes><button type="button" class="time24-toggle" data-time24-toggle aria-label="<?php echo stridebr_e(stridebr_t('agenda.choose_time')); ?>">⌄</button></div><div class="time24-menu" data-time24-menu hidden><div class="time24-menu-head"><span><?php echo stridebr_e(stridebr_t('schedule.time_24h')); ?></span><button type="button" data-time24-now><?php echo stridebr_e(stridebr_t('common.now')); ?></button></div><div class="time24-hours-grid" data-time24-hours-grid></div><div class="time24-minutes-grid" data-time24-minutes-grid></div></div><input type="hidden" name="hora_inicio" value="" data-time24-value></div></label>
+                        <label><?php echo stridebr_e(stridebr_t('agenda.expected_duration')); ?><input type="number" name="duracao_prevista_min" min="1" max="1440" inputmode="numeric"></label>
+                        <label class="monthly-add-wide"><?php echo stridebr_e(stridebr_t('common.description')); ?><textarea name="descricao" maxlength="5000" rows="2"></textarea></label>
+                        <button type="submit" class="primary-button"><?php echo stridebr_e(stridebr_t('agenda.add')); ?></button>
+                    </form>
+                    </details>
+                <?php endif; ?>
             </section>
 
             <div class="monthly-meta-row">
@@ -312,21 +327,7 @@ $flashes = stridebr_take_flashes();
                 </div>
             </div>
 
-            <?php if ($isSelf): ?>
-                <details class="monthly-add content-card">
-                    <summary><span><?php echo stridebr_e(stridebr_t('agenda.add_specific')); ?></span><small><?php echo stridebr_e(stridebr_t('agenda.add_specific_help')); ?></small></summary>
-                    <form method="POST" class="monthly-add-form">
-                        <?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="create_personal"><input type="hidden" name="month" value="<?php echo stridebr_e($monthKey); ?>">
-                        <label><?php echo stridebr_e(stridebr_t('agenda.copy_weekly')); ?><select name="idtreino_origem"><option value=""><?php echo stridebr_e(stridebr_t('agenda.do_not_copy')); ?></option><?php foreach ($recurringWorkouts as $workout): ?><option value="<?php echo stridebr_e($workout['idtreino']); ?>"><?php echo stridebr_e($workout['cronograma_nome'] . ' · ' . $workout['titulo']); ?></option><?php endforeach; ?></select></label>
-                        <label><?php echo stridebr_e(stridebr_t('common.title')); ?><input type="text" name="titulo" maxlength="120" placeholder="<?php echo stridebr_e(stridebr_t('agenda.copy_optional')); ?>"></label>
-                        <label><?php echo stridebr_e(stridebr_t('common.date')); ?><input type="date" name="data_treino" value="<?php echo stridebr_e(max($today, $monthStart->format('Y-m-d'))); ?>" required></label>
-                        <label class="time24-field-label"><?php echo stridebr_e(stridebr_t('common.time')); ?><div class="time24-control" data-time24><div class="time24-input-row"><input type="text" inputmode="numeric" maxlength="2" data-time24-hours><span class="time24-separator">:</span><input type="text" inputmode="numeric" maxlength="2" data-time24-minutes><button type="button" class="time24-toggle" data-time24-toggle aria-label="<?php echo stridebr_e(stridebr_t('agenda.choose_time')); ?>">⌄</button></div><div class="time24-menu" data-time24-menu hidden><div class="time24-menu-head"><span><?php echo stridebr_e(stridebr_t('schedule.time_24h')); ?></span><button type="button" data-time24-now><?php echo stridebr_e(stridebr_t('common.now')); ?></button></div><div class="time24-hours-grid" data-time24-hours-grid></div><div class="time24-minutes-grid" data-time24-minutes-grid></div></div><input type="hidden" name="hora_inicio" value="" data-time24-value></div></label>
-                        <label><?php echo stridebr_e(stridebr_t('agenda.expected_duration')); ?><input type="number" name="duracao_prevista_min" min="1" max="1440" inputmode="numeric"></label>
-                        <label class="monthly-add-wide"><?php echo stridebr_e(stridebr_t('common.description')); ?><textarea name="descricao" maxlength="5000" rows="2"></textarea></label>
-                        <button type="submit" class="primary-button"><?php echo stridebr_e(stridebr_t('agenda.add')); ?></button>
-                    </form>
-                </details>
-            <?php endif; ?>
+
 
             <p class="monthly-scroll-hint"><?php echo stridebr_e(stridebr_t('agenda.scroll_days')); ?></p>
             <div class="monthly-calendar-scroll" tabindex="0" role="region" aria-label="<?php echo stridebr_e(stridebr_t('agenda.calendar')); ?>">
@@ -382,7 +383,40 @@ $flashes = stridebr_take_flashes();
                     </article>
                 <?php endfor; ?>
                 <?php for ($blank = 0; $blank < $trailing; $blank++): ?><div class="monthly-day is-outside" aria-hidden="true"></div><?php endfor; ?>
-            </section>            </div>
+            </section>
+            </div>
+
+            <section class="monthly-mobile-agenda" aria-label="<?php echo stridebr_e(stridebr_t('agenda.calendar')); ?>">
+                <?php for ($day = 1; $day <= $totalDays; $day++): ?>
+                    <?php
+                    $mobileDate = $monthStart->setDate((int) $monthStart->format('Y'), (int) $monthStart->format('m'), $day);
+                    $mobileDateKey = $mobileDate->format('Y-m-d');
+                    $mobileRecurring = $recurringOccurrencesByDate[$mobileDateKey] ?? [];
+                    $mobileScheduled = $scheduledByDate[$mobileDateKey] ?? [];
+                    $mobileInstitutional = $institutionalByDate[$mobileDateKey] ?? [];
+                    if ($mobileRecurring === [] && $mobileScheduled === [] && $mobileInstitutional === [] && $mobileDateKey !== $today) continue;
+                    ?>
+                    <article class="monthly-mobile-day<?php echo $mobileDateKey === $today ? ' is-today' : ''; ?>">
+                        <header><time datetime="<?php echo stridebr_e($mobileDateKey); ?>"><strong><?php echo $day; ?></strong><span><?php echo stridebr_e(stridebr_weekday_short_names()[(int) $mobileDate->format('w')]); ?></span></time><?php if ($mobileDateKey === $today): ?><em><?php echo stridebr_e(stridebr_t('common.today')); ?></em><?php endif; ?></header>
+                        <div class="monthly-mobile-events">
+                            <?php foreach ($mobileScheduled as $item): ?>
+                                <div class="monthly-mobile-event is-scheduled<?php echo $item['origem'] === 'treinador' ? ' is-trainer' : ''; ?><?php echo (string) ($item['status'] ?? '') === 'concluido' ? ' is-completed' : ''; ?>">
+                                    <span><?php echo $item['hora_inicio'] ? stridebr_e(substr((string) $item['hora_inicio'], 0, 5)) : stridebr_e(stridebr_t('schedule.by_date')); ?></span>
+                                    <strong><?php echo stridebr_e((string) $item['titulo']); ?></strong>
+                                    <small><?php echo stridebr_e($item['origem'] === 'treinador' ? stridebr_t('agenda.trainer') : stridebr_t('agenda.specific')); ?></small>
+                                </div>
+                            <?php endforeach; ?>
+                            <?php foreach ($mobileInstitutional as $item): ?>
+                                <a class="monthly-mobile-event is-institutional" href="/user/treino-institucional.php?id=<?php echo rawurlencode((string) $item['training_ref']); ?>"><span><?php echo stridebr_e((string) ($item['time'] ?? '')); ?></span><strong><?php echo stridebr_e((string) $item['title']); ?></strong><small><?php echo stridebr_e(stridebr_t('teams.institutional')); ?></small></a>
+                            <?php endforeach; ?>
+                            <?php foreach ($mobileRecurring as $workout): ?>
+                                <a class="monthly-mobile-event is-recurring<?php echo !empty($workout['concluido']) ? ' is-completed' : ''; ?>" href="/user/cronogramatreinos.php?id=<?php echo rawurlencode((string) $workout['idcronograma']); ?>&amp;treino=<?php echo rawurlencode((string) $workout['idtreino']); ?>"><span><?php echo stridebr_e(substr((string) $workout['hora_inicio'], 0, 5)); ?></span><strong><?php echo !empty($workout['codigo']) ? stridebr_e((string) $workout['codigo']) . ' · ' : ''; ?><?php echo stridebr_e((string) $workout['titulo']); ?></strong><small><?php echo $canViewActivityFacts ? stridebr_e(stridebr_t('planning.status.' . planejamentoEstado($workout))) : stridebr_e((string) $workout['cronograma_nome']); ?></small></a>
+                            <?php endforeach; ?>
+                            <?php if ($mobileRecurring === [] && $mobileScheduled === [] && $mobileInstitutional === []): ?><span class="monthly-mobile-empty">—</span><?php endif; ?>
+                        </div>
+                    </article>
+                <?php endfor; ?>
+            </section>
 
             </div>
 

@@ -1,0 +1,23 @@
+<?php
+$root=dirname(__DIR__,2);
+$read=static fn(string $p): string => file_get_contents($root.'/'.$p);
+$fail=static function(string $m): never {fwrite(STDERR,$m."\n");exit(1);};
+$page=$read('public/assets/js/page-loading.js');
+str_contains($page,"window.setTimeout(() => {\n            if (!event.defaultPrevented) scheduleShow();")||$fail('submit must defer its defaultPrevented decision');
+$cron=$read('public/assets/js/cronogramas.js');
+str_contains($cron,'editorWorkoutMap.set(String(workout.idtreino), workout)')||$fail('dynamic preview must hydrate editor map');
+str_contains($cron,"uiNotify(tr('schedule.edit_unavailable'))")||$fail('missing backing data must not fail silently');
+str_contains($cron,'if (pendingWorkoutSubmit) pendingWorkoutSubmit.disabled = false;')||$fail('successful AJAX edit must re-enable submit before reopening');
+$ui=$read('public/assets/css/ui-refresh.css');
+str_contains($ui,'.user-menu-content.is-height-compact')&&str_contains($read('public/assets/js/scripts.js'),'visualViewport?.height')||$fail('user menu needs measured compact fit');
+str_contains($ui,'.schedule-file-drop:hover,.schedule-file-drop:focus-within{border-color:var(--ui-border-strong);background:var(--ui-surface-hover)}')||$fail('schedule dropzone must use theme tokens');
+$activities=$read('public/user/atividades.php');
+$panel=strpos($activities,'data-activity-detail-panel');$header=strpos($activities,'<header>',$panel);$close=strpos($activities,'data-close-activity-detail',$panel);
+($close!==false&&$close<$header)||$fail('preview close must be a sibling before activity header actions');
+$review=$read('public/user/revisar-exercicios-plano.php');
+(strpos($review,'cronogramas.css')<strpos($review,'ui-refresh.css'))||$fail('review CSS source order');
+str_contains($review,'data-open-name-mapping')&&str_contains($review,'data-exercise-id')||$fail('review progressive typeahead mapping');
+!str_contains($review,'data-library-select')||$fail('review must not render catalog select');
+$style=$read('public/assets/css/style.css');
+str_contains($style,'.profile-overview-grid {')&&str_contains($style,'align-items: start;')||$fail('profile overview must not stretch cards');
+echo "✓ Web Visual Integrity V5 static contracts\n";

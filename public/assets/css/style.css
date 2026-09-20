@@ -3106,6 +3106,7 @@ body {
     grid-template-columns: minmax(0,1.2fr) minmax(280px,.8fr);
     gap: 14px;
     margin-top: 14px;
+    align-items: start;
 }
 
 .profile-overview-grid > .content-card {
@@ -3217,7 +3218,7 @@ body {
 }
 
 .profile-schedule-card {
-    min-height: 132px;
+    min-height: 0;
     box-shadow: 0 6px 20px rgba(15,23,42,.035);
 }
 
@@ -3729,3 +3730,10 @@ body {
 .monthly-shell .monthly-calendar-scroll:focus-visible{outline:2px solid var(--ui-accent);outline-offset:3px}
 .monthly-shell .monthly-scroll-hint{display:none}
 @media(max-width:720px){.monthly-shell .monthly-scroll-hint{display:block;margin:8px 0;color:var(--ui-muted);font-size:.78rem}}
+.profile-action-menu{position:relative}
+.profile-action-menu>summary{display:grid;place-items:center;min-width:var(--control-default);list-style:none;cursor:pointer}
+.profile-action-menu>summary::-webkit-details-marker{display:none}
+.profile-action-menu>div{position:absolute;z-index:var(--z-dropdown);right:0;top:calc(100% + 5px);display:grid;min-width:160px;padding:4px;border:1px solid var(--ui-border);border-radius:var(--radius-menu);background:var(--ui-panel);box-shadow:var(--shadow-sm)}
+.profile-action-menu>div a{padding:8px;border-radius:var(--radius-control);color:var(--ui-text-secondary);font-size:.76rem;text-decoration:none}
+.profile-action-menu>div a:hover,.profile-action-menu>div a:focus-visible{background:var(--ui-surface-hover)}
+.profile-sports-more{corner-shape:round;padding:7px 10px;border:1px solid var(--ui-border);border-radius:var(--radius-full);background:var(--ui-panel-soft);color:var(--ui-accent);font:inherit;font-size:.78rem;font-weight:800;cursor:pointer}

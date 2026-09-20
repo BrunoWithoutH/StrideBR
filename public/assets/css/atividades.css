@@ -3774,6 +3774,11 @@ html.activity-detail-expanded,html.activity-detail-expanded body,html.activity-d
 .activity-detail-preview-host .activity-detail-panel>header{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;align-items:start}
 .activity-detail-preview-host .activity-detail-header-actions{width:100%;justify-content:space-between;align-items:center}
 .activity-detail-preview-host .activity-detail-full-actions{flex:1 1 auto;justify-content:flex-start}
+.activity-detail-preview-host .activity-detail-panel{position:relative;overflow:hidden;border-radius:var(--radius-card);corner-shape:var(--corner-shape)}
+.activity-detail-close{position:absolute;z-index:5;top:8px;right:8px;display:grid;place-items:center;width:var(--control-touch);height:var(--control-touch);padding:0;border:1px solid var(--ui-border);border-radius:var(--radius-control);background:var(--ui-panel);color:var(--ui-text-secondary);font:inherit;font-size:1.1rem;cursor:pointer}
+.activity-detail-close:hover,.activity-detail-close:focus-visible{border-color:var(--ui-border-strong);background:var(--ui-surface-hover)}
+.activity-detail-preview-host .activity-detail-panel>header{padding-right:56px}
+.activity-detail-drawer.is-expanded-detail>.activity-detail-panel>.activity-detail-close,.activity-detail-page .activity-detail-close{display:none}
 @media(min-width:901px){
   .activity-detail-preview-host .activity-detail-drawer{position:relative;top:auto;max-height:none}
   .activity-detail-preview-host .activity-detail-panel{max-height:none;overflow:visible;overscroll-behavior-y:auto}
@@ -3783,3 +3788,4 @@ html.activity-detail-expanded,html.activity-detail-expanded body,html.activity-d
   .activity-detail-preview-host .activity-detail-full-actions{gap:5px}
   .activity-detail-preview-host .activity-detail-full-actions>.activity-secondary-button,.activity-detail-preview-host .activity-detail-full-actions>.activity-primary-action{padding-inline:8px;font-size:.68rem}
 }
+@media(min-width:901px){.activity-detail-preview-host .activity-detail-panel{overflow:hidden}.activity-detail-preview-host .activity-detail-panel>[data-detail-content]{overflow:visible}}

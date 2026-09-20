@@ -23,7 +23,7 @@ $emailVerificationRequired = stridebr_auth_email_verification_required($pdo);
 stridebr_marketing_signup_start($pdo, $_GET);
 $errors = [];
 $allowedGoals = ['organizar', 'condicionamento', 'prova', 'evolucao', 'rotina', 'lazer'];
-$allowedExperience = ['', 'comecando', 'pratico', 'regular'];
+$allowedExperience = ['', 'comecando', 'retornando', 'pratico', 'regular'];
 $allowedTracking = ['frequencia', 'duracao', 'distancia', 'elevacao', 'metas', 'carga'];
 $goalLabels = [
     'organizar' => stridebr_t('onboarding.goal.organize'),
@@ -257,7 +257,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="onboarding-step-heading"><h1><?php echo stridebr_e(stridebr_t('onboarding.experience_question')); ?></h1></div>
                 <div class="onboarding-grid signup-training-grid">
                     <label><?php echo stridebr_e(stridebr_t('settings.experience')); ?>
-                        <select name="experience"><option value=""<?php echo $values['experience'] === '' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('settings.prefer_not')); ?></option><option value="comecando"<?php echo $values['experience'] === 'comecando' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('settings.beginner')); ?></option><option value="pratico"<?php echo $values['experience'] === 'pratico' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('settings.active')); ?></option><option value="regular"<?php echo $values['experience'] === 'regular' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('settings.regular')); ?></option></select>
+                        <select name="experience"><option value=""<?php echo $values['experience'] === '' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('settings.prefer_not')); ?></option><option value="comecando"<?php echo $values['experience'] === 'comecando' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('settings.beginner')); ?></option><option value="retornando"<?php echo $values['experience'] === 'retornando' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('settings.returning')); ?></option><option value="pratico"<?php echo $values['experience'] === 'pratico' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('settings.active')); ?></option><option value="regular"<?php echo $values['experience'] === 'regular' ? ' selected' : ''; ?>><?php echo stridebr_e(stridebr_t('settings.regular')); ?></option></select>
                     </label>
                     <label><?php echo stridebr_e(stridebr_t('settings.weekly_frequency')); ?>
                         <select name="weekly_frequency"><option value="0"><?php echo stridebr_e(stridebr_t('settings.prefer_not_define')); ?></option><?php for ($i=1;$i<=7;$i++): ?><option value="<?php echo $i; ?>"<?php echo $values['weekly_frequency'] === $i ? ' selected' : ''; ?>><?php echo $i; ?> <?php echo stridebr_e(stridebr_t('settings.day')); ?><?php echo $i===1?'':'s'; ?></option><?php endfor; ?></select>

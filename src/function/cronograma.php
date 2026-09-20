@@ -94,6 +94,31 @@ function cronogramaListarTreinos(PDO $pdo, string $idCronograma, string $idUsuar
     return $stmt->fetchAll();
 }
 
+function cronogramaTreinoVigenteEmData(array $treino, string $dataReferencia): bool
+{
+    $referencia = DateTimeImmutable::createFromFormat('!Y-m-d', $dataReferencia);
+    if (!$referencia || $referencia->format('Y-m-d') !== $dataReferencia) {
+        throw new InvalidArgumentException('Data de referência inválida.');
+    }
+
+    $inicioRaw = trim((string) ($treino['vigencia_inicio'] ?? ''));
+    $fimRaw = trim((string) ($treino['vigencia_fim'] ?? ''));
+    if ($inicioRaw !== '') {
+        $inicio = DateTimeImmutable::createFromFormat('!Y-m-d', $inicioRaw);
+        if (!$inicio || $inicio > $referencia) return false;
+    }
+    if ($fimRaw !== '') {
+        $fim = DateTimeImmutable::createFromFormat('!Y-m-d', $fimRaw);
+        if (!$fim || $fim < $referencia) return false;
+    }
+    return true;
+}
+
+function cronogramaFiltrarTreinosVigentes(array $treinos, string $dataReferencia): array
+{
+    return array_values(array_filter($treinos, static fn(array $treino): bool => cronogramaTreinoVigenteEmData($treino, $dataReferencia)));
+}
+
 function cronogramaBuscarTreino(PDO $pdo, string $idTreino, string $idUsuario): array
 {
     $stmt = $pdo->prepare(

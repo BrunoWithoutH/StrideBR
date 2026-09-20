@@ -144,6 +144,22 @@ const agendaT = (key, values = {}, fallback = key) => window.StrideBRI18n?.t?.(k
         }
     });
 
+    document.addEventListener('keydown', event => {
+        if (event.key !== 'Escape') return;
+        const monthlyAdd = document.querySelector('[data-monthly-add][open]');
+        if (monthlyAdd) {
+            monthlyAdd.open = false;
+            monthlyAdd.querySelector('summary')?.focus();
+            return;
+        }
+        const modal = document.querySelector('[data-planned-date-modal]:not([hidden])');
+        if (modal) {
+            modal.hidden = true;
+            document.documentElement.style.overflow = '';
+            document.querySelector('[data-edit-schedule-history]')?.focus();
+        }
+    });
+
     document.addEventListener('change', event => {
         const select = event.target.closest('.monthly-filter select[name="cronograma"]');
         if (!select) return;

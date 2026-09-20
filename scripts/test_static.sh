@@ -22,6 +22,7 @@ if command -v node >/dev/null 2>&1; then
   find public/assets/js -type f -name '*.js' -print0 | xargs -0 -n1 node --check >/dev/null
   printf '%s\n' '✓ JavaScript syntax'
 node scripts/tests/test_web_ux_polish_v3.js
+node scripts/tests/test_web_visual_integrity_v5.js
 node scripts/tests/test_ui_boot.js
 node scripts/tests/test_activity_route_circuit.js
 node scripts/tests/test_share_route_scale.js
@@ -58,6 +59,7 @@ done
 printf '%s\n' '✓ migration search_path'
 
 php scripts/tests/test_web_ux_polish_v3_static.php
+php scripts/tests/test_web_visual_integrity_v5_static.php
 php scripts/tests/test_unit.php
 php scripts/tests/test_activity_exchange_parser.php
 php scripts/tests/test_activity_sport_context.php
@@ -156,4 +158,8 @@ node scripts/tests/test_web_ux_fixes_v4.js
 php scripts/tests/test_web_ux_fixes_v4_static.php
 php scripts/tests/test_exercise_library_v2_static.php
 php scripts/tests/test_workout_execution_v2_static.php
+php scripts/tests/test_core_mobile_api_completion_v1_static.php
+php scripts/tests/test_coach_workspace_v1_static.php
+php scripts/tests/test_training_planning_ux_polish_v6_static.php
+node scripts/tests/test_coach_workspace_v1.js
 node scripts/tests/test_workout_execution_v2.js

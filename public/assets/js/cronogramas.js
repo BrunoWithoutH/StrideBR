@@ -38,6 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const importError = document.querySelector('[data-schedule-import-error]');
     const importSubmit = document.querySelector('[data-schedule-import-submit]');
     const importFileName = document.querySelector('[data-schedule-file-name]');
+    const importDrop = importFile?.closest('.schedule-file-drop');
 
     const resetImportPreview = () => {
         if (importPreview) importPreview.hidden = true;
@@ -47,6 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (importSubmit) importSubmit.disabled = true;
         if (importFileName) importFileName.textContent = tr('schedule.no_file');
+        importDrop?.classList.remove('is-selected', 'is-dragging');
     };
 
     const showCreateMode = mode => {
@@ -121,6 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
         resetImportPreview();
         const file = importFile.files?.[0];
         if (!file) return;
+        importDrop?.classList.add('is-selected');
         if (importFileName) importFileName.textContent = file.name;
 
         if (file.size <= 0 || file.size > 2 * 1024 * 1024) {
@@ -168,6 +171,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     });
+    ['dragenter', 'dragover'].forEach(name => importDrop?.addEventListener(name, event => {
+        event.preventDefault();
+        importDrop.classList.add('is-dragging');
+    }));
+    ['dragleave', 'drop'].forEach(name => importDrop?.addEventListener(name, () => importDrop.classList.remove('is-dragging')));
 
     const views = document.querySelectorAll('[data-calendar-view]');
     const viewButtons = document.querySelectorAll('[data-view]');
@@ -496,7 +504,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const openWorkoutEditor = (id, source = null) => {
         if (!editor || !editorForm) return;
         const item = editorWorkoutMap.get(String(id || ''));
-        if (!item) return;
+        if (!item) {
+            console.warn('StrideBR workout editor: backing data unavailable', {id});
+            uiNotify(tr('schedule.edit_unavailable'));
+            return;
+        }
         if (previewModal && !previewModal.hidden) closePreview();
         const set = (name, value) => {
             const field = editorForm.elements.namedItem(name);
@@ -572,6 +584,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
             if (!response.ok || !data.ok) throw new Error(data.error || tr('schedule.save_error'));
             if (saveScopeModal) saveScopeModal.hidden = true;
+            if (pendingWorkoutSubmit) pendingWorkoutSubmit.disabled = false;
             pendingWorkoutPayload = null;
             pendingWorkoutSubmit = null;
             closeWorkoutEditor();
@@ -681,6 +694,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const renderDynamicPreviewContent = data => {
         if (!previewModal || !data?.workout) return null;
         const workout = data.workout;
+        if (workout.idtreino) editorWorkoutMap.set(String(workout.idtreino), workout);
         const content = document.createElement('div');
         content.className = 'workout-preview-content';
         content.dataset.workoutPreviewContent = String(workout.idtreino || '');

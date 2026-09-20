@@ -268,8 +268,7 @@ $weekSummary = implode(' · ', $weekSummaryParts);
                         <?php if ($completedToday && !empty($completedToday['idregistro'])): ?><a class="dashboard-button dashboard-button-primary" href="/user/atividades.php?highlight=<?php echo rawurlencode((string) $completedToday['idregistro']); ?>"><?php echo stridebr_e(stridebr_t('home.view_activity')); ?></a><?php endif; ?>
                         <a class="dashboard-button dashboard-button-secondary" href="/user/atividades.php?new=1"><?php echo stridebr_e(stridebr_t('home.log_another')); ?></a>
                     <?php elseif ($contextoHoje['state'] === 'rest'): ?>
-                        <a class="dashboard-button dashboard-button-secondary" href="/user/cronogramatreinos.php"><?php echo stridebr_e(stridebr_t('home.view_next_workout')); ?></a>
-                        <a class="dashboard-button dashboard-button-secondary" href="/user/atividades.php?new=1"><?php echo stridebr_e(stridebr_t('progress.log_activity')); ?></a>
+                        <a class="dashboard-button dashboard-button-primary" href="/user/cronogramatreinos.php"><?php echo stridebr_e(stridebr_t('home.next_workout')); ?></a>
                     <?php else: ?>
                         <a class="dashboard-button dashboard-button-primary" href="/user/atividades.php?new=1"><?php echo stridebr_e(stridebr_t('home.log_activity')); ?></a>
                         <a class="dashboard-button dashboard-button-secondary" href="/user/gravar-atividade.php"><?php echo stridebr_e(stridebr_t('home.record_gps')); ?></a>

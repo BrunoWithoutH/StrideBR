@@ -66,6 +66,72 @@ paths:
       responses:
         '200': { description: Usuário autenticado }
         '401': { $ref: '#/components/responses/Error' }
+    patch:
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProfilePatchRequest' }
+      responses:
+        '200': { description: Perfil atualizado }
+        '401': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /me/privacy:
+    get:
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Preferências de privacidade do usuário }
+        '401': { $ref: '#/components/responses/Error' }
+    patch:
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PrivacyPatchRequest' }
+      responses:
+        '200': { description: Preferências atualizadas }
+        '401': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /equipment:
+    get:
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Equipamentos do próprio usuário }
+        '401': { $ref: '#/components/responses/Error' }
+    post:
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EquipmentMutationRequest' }
+      responses:
+        '201': { description: Equipamento criado }
+        '401': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /equipment/{id}:
+    patch:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EquipmentMutationRequest' }
+      responses:
+        '200': { description: Equipamento atualizado }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    delete:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Equipamento arquivado; replay é seguro }
+        '404': { $ref: '#/components/responses/Error' }
   /institutional/context:
     get:
       security: [{ bearerAuth: [] }]
@@ -531,6 +597,27 @@ paths:
         '200': { description: Estado da série alterado. }
         '401': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
+  /workout-sessions/{session_id}/exercises/{exercise_id}/sets:
+    post:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: session_id, in: path, required: true, schema: { type: string } }
+        - { name: exercise_id, in: path, required: true, schema: { type: string } }
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 8, maxLength: 128 } }
+      responses:
+        '201': { description: Série extra criada; retorna a sessão canônica atualizada. }
+        '200': { description: Retry idempotente da mesma série extra. }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /workout-sessions/by-workout/{workout_id}:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: workout_id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Execução concluída do workout, somente com valores realizados; quick register pode retornar available=false. }
+        '401': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   /workout-sessions/{session_id}/exercises/{exercise_id}/toggle:
     post:
       security: [{ bearerAuth: [] }]
@@ -585,6 +672,22 @@ paths:
         '200': { description: Sessão em andamento cancelada sem apagar histórico. }
         '401': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
+  /activities/manual:
+    post:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 8, maxLength: 128 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ManualActivityCreateRequest' }
+      responses:
+        '201': { description: Activity manual criada; retorna ActivityDetail canônico. }
+        '200': { description: Retry idempotente; retorna a mesma Activity. }
+        '401': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   /activities:
     get:
       security: [{ bearerAuth: [] }]
@@ -636,6 +739,27 @@ paths:
                 properties:
                   data: { $ref: '#/components/schemas/ActivityDetail' }
         '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ActivityPatchRequest' }
+      responses:
+        '200': { description: ActivityDetail canônico atualizado. }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    delete:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Soft delete; replay para Activity já excluída do mesmo owner é seguro. }
         '404': { $ref: '#/components/responses/Error' }
   /progress/overview:
     get:
@@ -1570,6 +1694,102 @@ components:
         name: { type: string }
         family: { type: string, nullable: true }
         route_capable: { type: boolean }
+    ProfilePatchRequest:
+      type: object
+      properties:
+        name: { type: string, maxLength: 60 }
+        username: { type: string, nullable: true }
+        bio: { type: string, maxLength: 1000, nullable: true }
+        phone: { type: string, maxLength: 20, nullable: true }
+        birth_date: { type: string, format: date, nullable: true }
+    PrivacyPatchRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        default_activity_visibility: { type: string, enum: [privado, amigos, publico] }
+        hide_route_start_m: { type: integer, minimum: 0, maximum: 10000 }
+        hide_route_end_m: { type: integer, minimum: 0, maximum: 10000 }
+        profile_visibility: { type: string, enum: [privado, amigos, publico] }
+        discoverable: { type: boolean }
+    EquipmentMutationRequest:
+      type: object
+      properties:
+        name: { type: string, maxLength: 120 }
+        category: { type: string, maxLength: 40 }
+        brand: { type: string, maxLength: 80, nullable: true }
+        model: { type: string, maxLength: 100, nullable: true }
+        started_on: { type: string, format: date, nullable: true }
+        retired_on: { type: string, format: date, nullable: true }
+        initial_distance_km: { type: number, minimum: 0 }
+        distance_alert_km: { type: number, exclusiveMinimum: 0, nullable: true }
+        notes: { type: string, nullable: true }
+        active: { type: boolean }
+    ManualStrengthSet:
+      type: object
+      properties:
+        type: { type: string, enum: [aquecimento, trabalho, drop, falha, outro] }
+        repetitions: { type: integer, minimum: 0, maximum: 999, nullable: true }
+        load_kg: { type: number, minimum: 0, nullable: true }
+        duration_s: { type: integer, minimum: 0, nullable: true }
+        distance_m: { type: number, minimum: 0, nullable: true }
+        rir: { type: number, minimum: 0, maximum: 10, nullable: true }
+        rpe: { type: number, minimum: 1, maximum: 10, nullable: true }
+        completed: { type: boolean, default: true }
+        notes: { type: string, nullable: true }
+    ManualStrengthExercise:
+      type: object
+      properties:
+        exercise_id: { type: string, nullable: true }
+        name: { type: string, nullable: true }
+        sets:
+          type: array
+          items: { $ref: '#/components/schemas/ManualStrengthSet' }
+    ManualActivityCreateRequest:
+      type: object
+      required: [sport, started_at]
+      properties:
+        sport: { type: string, description: ID ou slug de modalidade. }
+        title: { type: string, maxLength: 255 }
+        notes: { type: string, nullable: true }
+        started_at: { type: string, format: date-time, description: ISO 8601 com offset obrigatório. }
+        ended_at: { type: string, format: date-time, nullable: true }
+        duration_s: { type: number, minimum: 0, nullable: true }
+        distance_m: { type: number, minimum: 0, nullable: true }
+        visibility: { type: string, enum: [privado, amigos, publico] }
+        perceived_effort: { type: integer, minimum: 1, maximum: 10, nullable: true }
+        equipment_ids: { type: array, items: { type: string } }
+        workout_id: { type: string, nullable: true }
+        strength_exercises:
+          type: array
+          items: { $ref: '#/components/schemas/ManualStrengthExercise' }
+    ActivityPatchRequest:
+      type: object
+      properties:
+        if_version: { type: string, description: version retornada pelo ActivityDetail. }
+        title: { type: string, maxLength: 255 }
+        notes: { type: string, nullable: true }
+        perceived_effort: { type: integer, minimum: 1, maximum: 10, nullable: true }
+        visibility: { type: string, enum: [privado, amigos, publico] }
+        started_at: { type: string, format: date-time }
+        ended_at: { type: string, format: date-time, nullable: true }
+        duration_s: { type: number, minimum: 0, nullable: true }
+        equipment_ids: { type: array, items: { type: string } }
+    ActivityMutationCapabilities:
+      type: object
+      required: [can_edit, can_delete, can_edit_title, can_edit_notes, can_edit_effort, can_edit_visibility, can_edit_datetime, can_edit_sport, can_edit_equipment, can_edit_metrics, can_edit_strength, can_trim_route]
+      properties:
+        can_edit: { type: boolean }
+        can_delete: { type: boolean }
+        can_edit_title: { type: boolean }
+        can_edit_notes: { type: boolean }
+        can_edit_effort: { type: boolean }
+        can_edit_visibility: { type: boolean }
+        can_edit_datetime: { type: boolean }
+        can_edit_sport: { type: boolean }
+        can_edit_equipment: { type: boolean }
+        can_edit_metrics: { type: boolean }
+        can_edit_strength: { type: boolean }
+        can_trim_route: { type: boolean }
     ActivitySummary:
       type: object
       required: [id, title, sport, started_at, status, visibility, origin]
@@ -1693,6 +1913,12 @@ components:
               nullable: true
             stream_capabilities:
               $ref: '#/components/schemas/ActivityStreamCapabilities'
+            updated_at: { type: string, format: date-time, nullable: true }
+            version: { type: string, nullable: true, description: Token opaco usado em if_version para optimistic concurrency. }
+            capabilities: { $ref: '#/components/schemas/ActivityMutationCapabilities' }
+            strength_exercises:
+              type: array
+              items: { $ref: '#/components/schemas/ManualStrengthExercise' }
     InstitutionalNamedRef:
       type: object
       properties:
@@ -1908,6 +2134,8 @@ components:
         planned_load: { type: string, nullable: true }
         actual_repetitions: { type: string, nullable: true }
         actual_load: { type: string, nullable: true }
+        actual_duration_s: { type: integer, minimum: 0, nullable: true }
+        actual_distance_m: { type: number, format: double, minimum: 0, nullable: true }
         repetitions: { type: string, nullable: true }
         load: { type: string, nullable: true }
         rest: { type: string, nullable: true }
@@ -2045,6 +2273,8 @@ components:
         completed: { type: boolean }
         repetitions: { type: string, nullable: true }
         load: { type: string, nullable: true }
+        duration_s: { type: integer, minimum: 0, nullable: true }
+        distance_m: { type: number, format: double, minimum: 0, nullable: true }
     WorkoutExerciseHistory:
       type: object
       nullable: true
@@ -2058,6 +2288,8 @@ components:
             sets_total: { type: integer }
             repetitions: { type: string, nullable: true }
             load: { type: string, nullable: true }
+            duration_s: { type: integer, minimum: 0, nullable: true }
+            distance_m: { type: number, format: double, minimum: 0, nullable: true }
             sets:
               type: array
               items: { $ref: '#/components/schemas/WorkoutHistorySet' }
@@ -2083,7 +2315,9 @@ components:
             rest_s: { type: integer, minimum: 0, nullable: true }
             notes: { type: string, nullable: true }
             duration: { type: string, nullable: true }
+            duration_s: { type: integer, minimum: 0, nullable: true }
             distance: { type: string, nullable: true }
+            distance_m: { type: number, format: double, minimum: 0, nullable: true }
             intensity: { type: string, nullable: true }
             rpe: { type: number, nullable: true }
             rir: { type: number, nullable: true }
@@ -2201,8 +2435,10 @@ components:
       properties:
         repetitions: { type: string, nullable: true }
         load: { type: string, nullable: true }
-        propagate_load: { type: boolean, default: false }
-        edited_field: { type: string, enum: [load, reps, ''] }
+        duration_s: { type: integer, minimum: 0, nullable: true }
+        distance_m: { type: number, format: double, minimum: 0, nullable: true }
+        propagate_load: { type: boolean, default: false, description: Compatibilidade com clientes anteriores; propagation V2 usa edited_field. }
+        edited_field: { type: string, enum: [load, reps, duration, distance, ''] }
     WorkoutSessionToggleRequest:
       type: object
       properties:

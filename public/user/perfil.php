@@ -160,9 +160,8 @@ if (!str_starts_with($profileMetaImage, 'http')) $profileMetaImage = stridebr_pu
                     </div>
                     <div class="profile-primary-action">
                         <?php if ($isSelf): ?>
-                            <a class="secondary-button" href="/user/edit-profile.php"><?php echo stridebr_e(stridebr_t('profile.edit')); ?></a>
-                            <a class="secondary-button" href="/user/settings.php"><?php echo stridebr_e(stridebr_t('nav.settings')); ?></a>
-                            <a class="secondary-button" href="/user/settings.php?view=connections"><?php echo stridebr_e(stridebr_t('settings.connections')); ?></a>
+                            <a class="primary-button" href="/user/edit-profile.php"><?php echo stridebr_e(stridebr_t('profile.edit')); ?></a>
+                            <details class="profile-action-menu" data-ui-menu="toggle"><summary class="secondary-button" aria-label="<?php echo stridebr_e(stridebr_t('common.more_options')); ?>">…</summary><div><a href="/user/settings.php"><?php echo stridebr_e(stridebr_t('nav.settings')); ?></a><a href="/user/settings.php?view=connections"><?php echo stridebr_e(stridebr_t('settings.connections')); ?></a></div></details>
                         <?php elseif ($isFriend): ?>
                             <span class="profile-friend-badge"><?php echo stridebr_e(stridebr_t('common.friends')); ?></span>
                         <?php elseif ($viewer !== ''): ?>
@@ -192,7 +191,7 @@ if (!str_starts_with($profileMetaImage, 'http')) $profileMetaImage = stridebr_pu
 
                     <section class="content-card profile-about-card">
                         <div class="profile-section-heading"><div><span><?php echo stridebr_e(stridebr_t('common.profile')); ?></span><h2><?php echo stridebr_e(stridebr_t('profile.sports')); ?></h2></div></div>
-                        <?php if ($sports !== []): ?><div class="profile-chips"><?php foreach ($sports as $sport): ?><span><?php echo stridebr_e($sport); ?></span><?php endforeach; ?></div><?php elseif ($isSelf): ?><div class="profile-empty-state"><strong><?php echo stridebr_e(stridebr_t('profile.no_sports')); ?></strong><a class="secondary-button" href="/user/settings.php#esportes"><?php echo stridebr_e(stridebr_t('profile.choose_sports')); ?></a></div><?php else: ?><p class="profile-empty-copy"><?php echo stridebr_e(stridebr_t('profile.no_sports_added')); ?></p><?php endif; ?>
+                        <?php if ($sports !== []): ?><div class="profile-chips" data-profile-sports><?php foreach ($sports as $index=>$sport): ?><span<?php echo $index >= 8 ? ' hidden' : ''; ?>><?php echo stridebr_e($sport); ?></span><?php endforeach; ?><?php if (count($sports)>8): ?><button type="button" class="profile-sports-more" data-profile-sports-more aria-expanded="false" aria-label="<?php echo stridebr_e(stridebr_t('profile.show_all_sports')); ?>">+<?php echo count($sports)-8; ?></button><?php endif; ?></div><?php elseif ($isSelf): ?><div class="profile-empty-state"><strong><?php echo stridebr_e(stridebr_t('profile.no_sports')); ?></strong><a class="secondary-button" href="/user/settings.php#esportes"><?php echo stridebr_e(stridebr_t('profile.choose_sports')); ?></a></div><?php else: ?><p class="profile-empty-copy"><?php echo stridebr_e(stridebr_t('profile.no_sports_added')); ?></p><?php endif; ?>
                     </section>
                 </div>
 
@@ -215,5 +214,5 @@ if (!str_starts_with($profileMetaImage, 'http')) $profileMetaImage = stridebr_pu
     </main>
 </div>
 <?php require dirname(__DIR__, 2) . '/src/layout/footer.php'; ?>
-</body>
+<script>document.querySelector('[data-profile-sports-more]')?.addEventListener('click',event=>{const button=event.currentTarget;button.closest('[data-profile-sports]').querySelectorAll('span[hidden]').forEach(item=>item.hidden=false);button.setAttribute('aria-expanded','true');button.remove()});</script></body>
 </html>

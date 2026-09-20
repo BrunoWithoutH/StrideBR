@@ -31,10 +31,14 @@ function stridebr_api_workout_session_history_payload(array $history): ?array
             'sets_total' => (int) ($latest['series_total'] ?? 0),
             'repetitions' => trim((string) ($latest['repeticoes'] ?? '')) ?: null,
             'load' => trim((string) ($latest['carga'] ?? '')) ?: null,
+            'duration_s' => is_numeric($latest['duracao_s'] ?? null) ? (int) $latest['duracao_s'] : null,
+            'distance_m' => is_numeric($latest['distancia_m'] ?? null) ? (float) $latest['distancia_m'] : null,
             'sets' => array_map(static fn(array $set): array => [
                 'number' => (int) ($set['numero'] ?? 0),
                 'repetitions' => trim((string) ($set['repeticoes'] ?? '')) ?: null,
                 'load' => trim((string) ($set['carga'] ?? '')) ?: null,
+                'duration_s' => is_numeric($set['duracao_s'] ?? null) ? (int) $set['duracao_s'] : null,
+                'distance_m' => is_numeric($set['distancia_m'] ?? null) ? (float) $set['distancia_m'] : null,
                 'completed' => stridebr_api_bool($set['concluida'] ?? false),
             ], (array) ($latest['series'] ?? [])),
         ],
@@ -62,6 +66,8 @@ function stridebr_api_workout_session_payload(array $session): array
                 'planned_load' => trim((string) ($exercise['carga_snapshot'] ?? '')) ?: null,
                 'actual_repetitions' => trim((string) ($set['repeticoes_realizadas'] ?? '')) ?: null,
                 'actual_load' => trim((string) ($set['carga_realizada'] ?? '')) ?: null,
+                'actual_duration_s' => is_numeric($set['duracao_realizada_s'] ?? null) ? (int) $set['duracao_realizada_s'] : null,
+                'actual_distance_m' => is_numeric($set['distancia_realizada_m'] ?? null) ? (float) $set['distancia_realizada_m'] : null,
                 'repetitions' => trim((string) ($set['repeticoes_realizadas'] ?? '')) ?: null,
                 'load' => trim((string) ($set['carga_realizada'] ?? '')) ?: null,
                 'completed_at' => stridebr_api_iso(isset($set['data_conclusao']) ? (string) $set['data_conclusao'] : null),
@@ -85,7 +91,9 @@ function stridebr_api_workout_session_payload(array $session): array
                 'rest_s' => function_exists('stridebr_api_training_text_seconds') ? stridebr_api_training_text_seconds(trim((string) ($exercise['descanso_snapshot'] ?? '')) ?: null) : null,
                 'notes' => trim((string) ($exercise['observacoes_snapshot'] ?? '')) ?: null,
                 'duration' => trim((string) ($exercise['duracao_snapshot'] ?? '')) ?: null,
+                'duration_s' => function_exists('sessaoDefaultsPlanejados') ? sessaoDefaultsPlanejados($exercise)['duration'] : null,
                 'distance' => trim((string) ($exercise['distancia_snapshot'] ?? '')) ?: null,
+                'distance_m' => function_exists('sessaoDefaultsPlanejados') ? (($value = sessaoDefaultsPlanejados($exercise)['distance']) !== null ? (float) $value : null) : null,
                 'intensity' => trim((string) ($exercise['intensidade_snapshot'] ?? '')) ?: null,
                 'rpe' => is_numeric($exercise['rpe_snapshot'] ?? null) ? (float) $exercise['rpe_snapshot'] : null,
                 'rir' => is_numeric($exercise['rir_snapshot'] ?? null) ? (float) $exercise['rir_snapshot'] : null,
@@ -166,7 +174,9 @@ function stridebr_api_workout_session_set_update(PDO $pdo, string $userId, strin
         stridebr_api_bool($payload['propagate_load'] ?? false),
         trim((string) ($payload['edited_field'] ?? '')),
         [],
-        $sessionId
+        $sessionId,
+        $payload['duration_s'] ?? ($payload['duration'] ?? null),
+        $payload['distance_m'] ?? ($payload['distance'] ?? null)
     );
     return stridebr_api_workout_session_payload($result['session']);
 }

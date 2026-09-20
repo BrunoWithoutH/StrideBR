@@ -43,8 +43,51 @@ try {
         stridebr_api_response(204);
     }
     if ($route === 'me') {
-        stridebr_api_require_method('GET');
-        stridebr_api_response(200, ['data'=>stridebr_api_user_payload(stridebr_api_user($pdo))]);
+        $user = stridebr_api_user($pdo);
+        $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+        try {
+            if ($method === 'GET') stridebr_api_response(200, ['data' => stridebr_api_mobile_me($pdo, (string) $user['idusuario'])]);
+            if ($method === 'PATCH') stridebr_api_response(200, ['data' => stridebr_api_mobile_profile_patch($pdo, (string) $user['idusuario'], stridebr_api_json_input())]);
+        } catch (InvalidArgumentException $e) {
+            stridebr_api_error(422, 'validation_error', $e->getMessage());
+        }
+        stridebr_api_require_method('GET', 'PATCH');
+    }
+    if ($route === 'me/privacy') {
+        $user = stridebr_api_user($pdo);
+        $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+        try {
+            if ($method === 'GET') stridebr_api_response(200, ['data' => stridebr_api_mobile_privacy($pdo, (string) $user['idusuario'])]);
+            if ($method === 'PATCH') stridebr_api_response(200, ['data' => stridebr_api_mobile_privacy_patch($pdo, (string) $user['idusuario'], stridebr_api_json_input())]);
+        } catch (InvalidArgumentException $e) {
+            stridebr_api_error(422, 'validation_error', $e->getMessage());
+        }
+        stridebr_api_require_method('GET', 'PATCH');
+    }
+    if ($route === 'equipment') {
+        $user = stridebr_api_user($pdo);
+        $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+        try {
+            if ($method === 'GET') stridebr_api_response(200, ['data' => stridebr_api_mobile_equipment_list($pdo, (string) $user['idusuario'])]);
+            if ($method === 'POST') stridebr_api_response(201, ['data' => stridebr_api_mobile_equipment_save($pdo, (string) $user['idusuario'], stridebr_api_json_input())]);
+        } catch (InvalidArgumentException $e) {
+            stridebr_api_error(422, 'validation_error', $e->getMessage());
+        }
+        stridebr_api_require_method('GET', 'POST');
+    }
+    if (count($parts) === 2 && $parts[0] === 'equipment') {
+        $user = stridebr_api_user($pdo);
+        $equipmentId = rawurldecode($parts[1]);
+        $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+        try {
+            if ($method === 'PATCH') stridebr_api_response(200, ['data' => stridebr_api_mobile_equipment_save($pdo, (string) $user['idusuario'], stridebr_api_json_input(), $equipmentId)]);
+            if ($method === 'DELETE') stridebr_api_response(200, ['data' => stridebr_api_mobile_equipment_delete($pdo, (string) $user['idusuario'], $equipmentId)]);
+        } catch (MobileApiNotFoundException $e) {
+            stridebr_api_error(404, 'not_found', $e->getMessage());
+        } catch (InvalidArgumentException $e) {
+            stridebr_api_error(422, 'validation_error', $e->getMessage());
+        }
+        stridebr_api_require_method('PATCH', 'DELETE');
     }
     if (($parts[0] ?? '') === 'institutional') {
         stridebr_api_require_method('GET');
@@ -126,6 +169,15 @@ try {
             stridebr_api_error(409, 'invalid_state', $e->getMessage());
         }
     }
+    if (count($parts) === 3 && $parts[0] === 'workout-sessions' && $parts[1] === 'by-workout') {
+        stridebr_api_require_method('GET');
+        $user = stridebr_api_user($pdo);
+        try {
+            stridebr_api_response(200, ['data' => stridebr_api_mobile_execution_summary($pdo, (string) $user['idusuario'], rawurldecode($parts[2]))]);
+        } catch (InvalidArgumentException $e) {
+            stridebr_api_error(422, 'validation_error', $e->getMessage());
+        }
+    }
     if (count($parts) >= 3 && $parts[0] === 'workout-sessions') {
         $user = stridebr_api_user($pdo);
         if (!sessaoFeatureAtiva($pdo)) stridebr_api_error(503, 'feature_disabled', 'A execução de treinos está temporariamente desativada.');
@@ -152,6 +204,17 @@ try {
             if (count($parts) === 5 && $parts[2] === 'exercises' && $parts[4] === 'toggle') {
                 stridebr_api_require_method('POST');
                 stridebr_api_response(200, ['data' => stridebr_api_workout_session_exercise_toggle($pdo, (string) $user['idusuario'], $sessionId, rawurldecode($parts[3]), stridebr_api_json_input())]);
+            }
+            if (count($parts) === 5 && $parts[2] === 'exercises' && $parts[4] === 'sets') {
+                stridebr_api_require_method('POST');
+                try {
+                    $result = stridebr_api_mobile_append_set($pdo, (string) $user['idusuario'], $sessionId, rawurldecode($parts[3]), stridebr_api_idempotency_key());
+                } catch (MobileApiNotFoundException $e) {
+                    stridebr_api_error(404, 'not_found', $e->getMessage());
+                } catch (MobileApiIdempotencyConflictException $e) {
+                    stridebr_api_error(409, 'idempotency_conflict', $e->getMessage());
+                }
+                stridebr_api_response(!empty($result['reused']) ? 200 : 201, ['data' => $result['session'], 'set_id' => $result['set_id'], 'reused' => !empty($result['reused'])]);
             }
         } catch (InvalidArgumentException $e) {
             stridebr_api_error(422, 'validation_error', $e->getMessage());
@@ -490,6 +553,21 @@ try {
             stridebr_api_error(422, 'validation_error', $e->getMessage());
         }
     }
+    if ($route === 'activities/manual') {
+        stridebr_api_require_method('POST');
+        $user = stridebr_api_user($pdo);
+        try {
+            $created = stridebr_api_mobile_activity_create($pdo, (string) $user['idusuario'], stridebr_api_json_input(4194304), stridebr_api_idempotency_key());
+        } catch (MobileApiIdempotencyConflictException $e) {
+            stridebr_api_error(409, 'idempotency_conflict', $e->getMessage());
+        } catch (InvalidArgumentException $e) {
+            stridebr_api_error(422, 'validation_error', $e->getMessage());
+        } catch (RuntimeException $e) {
+            stridebr_api_error(409, 'invalid_state', $e->getMessage());
+        }
+        header('Location: /api/v1/activities/' . rawurlencode((string) $created['activity']['id']));
+        stridebr_api_response(!empty($created['reused']) ? 200 : 201, ['data' => $created['activity'], 'reused' => !empty($created['reused'])]);
+    }
     if ($route === 'activities') {
         $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
         if ($method === 'POST') {
@@ -512,11 +590,25 @@ try {
         stridebr_api_response(200, $result);
     }
     if (count($parts) === 2 && $parts[0] === 'activities') {
-        stridebr_api_require_method('GET');
         $user = stridebr_api_user($pdo);
-        $detail = stridebr_api_activity_detail($pdo, $parts[1], (string)$user['idusuario']);
-        if ($detail === []) stridebr_api_error(404, 'not_found', 'Atividade não encontrada.');
-        stridebr_api_response(200, ['data'=>$detail]);
+        $activityId = rawurldecode($parts[1]);
+        $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+        try {
+            if ($method === 'GET') {
+                $detail = stridebr_api_activity_detail($pdo, $activityId, (string) $user['idusuario']);
+                if ($detail === []) stridebr_api_error(404, 'not_found', 'Atividade não encontrada.');
+                stridebr_api_response(200, ['data' => $detail]);
+            }
+            if ($method === 'PATCH') stridebr_api_response(200, ['data' => stridebr_api_mobile_activity_patch($pdo, (string) $user['idusuario'], $activityId, stridebr_api_json_input())]);
+            if ($method === 'DELETE') stridebr_api_response(200, ['data' => stridebr_api_mobile_activity_delete($pdo, (string) $user['idusuario'], $activityId)]);
+        } catch (MobileApiNotFoundException $e) {
+            stridebr_api_error(404, 'not_found', $e->getMessage());
+        } catch (TrainingPlatformVersionConflictException $e) {
+            stridebr_api_error(409, 'state_conflict', $e->getMessage());
+        } catch (InvalidArgumentException $e) {
+            stridebr_api_error(422, 'validation_error', $e->getMessage());
+        }
+        stridebr_api_require_method('GET', 'PATCH', 'DELETE');
     }
     stridebr_api_error(404, 'not_found', 'Endpoint não encontrado.');
 } catch (Throwable $e) {

@@ -341,6 +341,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (open) details.setAttribute('open', '');
         else details.removeAttribute('open');
         details.querySelector(':scope > summary')?.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open && details.classList.contains('user-menu')) {
+            requestAnimationFrame(() => {
+                const menu = details.querySelector(':scope > .user-menu-content');
+                if (!menu) return;
+                menu.classList.remove('is-height-compact', 'is-height-scroll');
+                const viewportHeight = window.visualViewport?.height || window.innerHeight;
+                const available = Math.max(180, viewportHeight - menu.getBoundingClientRect().top - 12);
+                menu.style.setProperty('--user-menu-available-height', `${available}px`);
+                if (menu.scrollHeight > available) menu.classList.add('is-height-compact');
+                requestAnimationFrame(() => menu.classList.toggle('is-height-scroll', menu.scrollHeight > available));
+            });
+        }
     };
     const closeDetailsMenu = details => {
         if (!(details instanceof HTMLDetailsElement)) return;

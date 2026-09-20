@@ -31,6 +31,8 @@ $libraryJs = $read('public/assets/js/library.js');
 $libraryCss = $read('public/assets/css/cronogramas.css');
 $trainer = $read('public/user/treinador.php');
 $trainerLayout = $read('src/layout/trainer_as_athlete.php');
+$trainerCoachAthletes = $read('src/layout/trainer/coach_athletes.php');
+$trainerCoachWorkspace = $read('src/layout/trainer/coach_athlete_workspace.php');
 $trainerJs = $read('public/assets/js/trainer.js');
 $progress = $read('public/user/progresso.php');
 $progressJs = $read('public/assets/js/progresso.js');
@@ -111,8 +113,8 @@ $assert(str_contains($read('public/user/bibliotecaexercicios.php'), "require __D
 
 $assert(!str_contains($trainer, "stridebr_t('trainer.open_agenda')") && !str_contains($trainer, "stridebr_t('trainer.subtitle')"), 'Heading de Treinador não deve duplicar Agenda nem carregar subtitle genérico.');
 $assert(str_contains($trainerLayout, "stridebr_t('trainer.manage_permissions')") && str_contains($trainerLayout, 'trainer-permission-summary'), 'Permissões do atleta devem usar resumo compacto e edição progressiva no próprio contexto.');
-$assert(str_contains($trainer, 'data-trainer-athlete-link') && str_contains($trainerJs, 'replaceAthleteWorkspace') && str_contains($trainerJs, 'history.pushState({trainerAthlete: true}'), 'Troca de atleta deve atualizar workspace sem reload quando JS está disponível.');
-$assert(str_contains($trainerJs, "window.addEventListener('popstate'") && str_contains($trainerJs, 'window.location.assign(athleteLink.href)'), 'Trainer deve suportar Back/Forward e fallback de link real.');
+$assert(str_contains($trainerCoachAthletes, '/user/treinador.php?context=coach&amp;view=athlete&amp;id=') && str_contains($trainerCoachWorkspace, '?context=coach&amp;view=athlete&amp;id=') && !str_contains($trainerJs, 'history.pushState('), 'Troca de atleta deve usar deep-links reais e preservar refresh/Back/Forward sem estado paralelo em JS.');
+$assert(str_contains($trainerCoachAthletes, 'view=athlete') && str_contains($trainerCoachWorkspace, 'tab=calendar') && str_contains($trainerCoachWorkspace, 'tab=activities'), 'Trainer deve manter contexto de atleta e subview na URL para Back/Forward nativo.');
 $assert(str_contains($trainer, "stridebr_t('trainer.as_athlete')") && str_contains($trainer, "stridebr_t('trainer.as_coach')") && str_contains($trainerLayout, "stridebr_t('trainer.manage_permissions')"), 'Treinador deve separar explicitamente os contextos Como atleta e Como treinador sem duplicar o editor de permissões.');
 
 foreach (['progress.question_consistency','progress.consistency_help_product','progress.question_volume','progress.question_trend','progress.question_sports','progress.modalities_help','progress.question_compare','progress.period_comparison_help'] as $key) {

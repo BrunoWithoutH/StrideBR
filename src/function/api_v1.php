@@ -589,7 +589,7 @@ function stridebr_api_activity_summary(array $row): array
 function stridebr_api_activity_detail(PDO $pdo, string $activityId, string $userId): array
 {
     $stmt = $pdo->prepare("SELECT ra.idregistro,ra.idmodalidade,ra.titulo,ra.observacoes,ra.data_inicio,ra.data_fim,ra.status,ra.visibilidade,ra.origem,ra.origem_provedor,ra.esforco_percebido,ra.usa_trechos,
-            ra.ocultar_inicio_m,ra.ocultar_fim_m,ra.calorias_ativas_estimadas,ra.calorias_totais_estimadas,
+            ra.ocultar_inicio_m,ra.ocultar_fim_m,ra.calorias_ativas_estimadas,ra.calorias_totais_estimadas,ra.data_atualizacao,
             m.nome AS modalidade_nome,m.slug AS modalidade_slug,m.familia_hub,m.metrica_derivada,m.permite_rota,
             COALESCE(NULLIF(g.distancia_final_m,0),CASE WHEN ra.usa_trechos THEN NULLIF(seg.distancia_m,0) END,NULLIF(r.distancia_metros,0),NULLIF(metric.distancia_m,0)) AS api_distance_m,
             COALESCE(NULLIF(g.duracao_s,0),CASE WHEN ra.usa_trechos THEN NULLIF(seg.duracao_s,0) END,NULLIF(GREATEST(EXTRACT(EPOCH FROM (COALESCE(ra.data_fim,ra.data_inicio)-ra.data_inicio)),0),0),NULLIF(metric.duracao_s,0)) AS api_duration_s,
@@ -719,6 +719,13 @@ function stridebr_api_activity_detail(PDO $pdo, string $activityId, string $user
         if (!in_array($e->getCode(), ['42P01','42703'], true)) throw $e;
         $detail['stream_capabilities'] = ['has_streams'=>false,'available_streams'=>[],'has_analysis'=>false,'has_heart_rate'=>false,'has_cadence'=>false,'has_laps'=>false];
     }
+    $detail['updated_at'] = stridebr_api_iso((string) ($row['data_atualizacao'] ?? ''));
+    $detail['version'] = function_exists('stridebr_api_training_version') ? stridebr_api_training_version($activityId, $row['data_atualizacao'] ?? null) : null;
+    if (function_exists('stridebr_api_mobile_activity_context') && function_exists('stridebr_api_mobile_activity_capabilities')) {
+        $context = stridebr_api_mobile_activity_context($pdo, $userId, $activityId);
+        $detail['capabilities'] = stridebr_api_mobile_activity_capabilities($context);
+    }
+    if (($detail['sport']['family'] ?? '') === 'strength' && function_exists('stridebr_api_mobile_strength_payload')) $detail['strength_exercises'] = stridebr_api_mobile_strength_payload($pdo, $userId, $activityId);
     return $detail;
 }
 
@@ -731,3 +738,4 @@ require_once __DIR__ . '/api_institutional_surface.php';
 require_once __DIR__ . '/api_training_platform.php';
 require_once __DIR__ . '/api_workout_sessions.php';
 require_once __DIR__ . '/api_progress.php';
+require_once __DIR__ . '/api_mobile_completion.php';

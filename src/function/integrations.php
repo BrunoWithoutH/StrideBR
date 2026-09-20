@@ -1094,6 +1094,7 @@ function stridebr_integrations_strava_backfill_is_due(array $state, ?int $now = 
 
 function stridebr_integrations_strava_backfill_step(PDO $pdo, string $userId, array $connection): array
 {
+    $connection = stridebr_integrations_get($pdo, $userId, 'strava') ?: $connection;
     $state = stridebr_integrations_strava_backfill_state($pdo, $userId, $connection, true);
     if (!stridebr_db_bool($connection['sincronizar_atividades'] ?? true)) return stridebr_integrations_result() + ['backfill_skipped' => 'disabled'];
     if (!stridebr_integrations_strava_backfill_is_due($state)) return stridebr_integrations_result() + ['backfill_skipped' => 'not_due'];

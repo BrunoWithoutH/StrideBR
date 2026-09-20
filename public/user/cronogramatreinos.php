@@ -442,6 +442,7 @@ $monthLeading = (int) $monthStart->format('w');
 $monthTotalDays = (int) $monthEnd->format('j');
 $monthCellCount = (int) (ceil(($monthLeading + $monthTotalDays) / 7) * 7);
 $today = (new DateTimeImmutable('today'))->format('Y-m-d');
+$treinosVigentes = cronogramaFiltrarTreinosVigentes($treinos, $today);
 
 $weekToday = new DateTimeImmutable('today');
 $weekStart = $weekToday->modify('-' . $weekToday->format('w') . ' days');
@@ -1070,11 +1071,11 @@ $initialView = in_array($requestedInitialView, $allowedInitialViews, true)
                 </section>
 
                 <section class="agenda-view" data-calendar-view="agenda"<?php echo $initialView === 'agenda' ? '' : ' hidden'; ?>>
-                    <?php if ($treinos === []): ?>
+                    <?php if ($treinosVigentes === []): ?>
                         <div class="empty-state rich"><strong><?php echo stridebr_e(stridebr_t('schedule.empty')); ?></strong><p><?php echo stridebr_e(stridebr_t('schedule.empty_help')); ?></p><button type="button" class="primary-button" data-new-workout><?php echo stridebr_e(stridebr_t('schedule.add_first_workout')); ?></button></div>
                     <?php else: ?>
                         <?php foreach ($dias as $dayIndex => $dayName): ?>
-                            <?php $dayWorkouts = array_values(array_filter($treinos, fn(array $t): bool => (int) $t['dia_semana'] === $dayIndex)); ?>
+                            <?php $dayWorkouts = array_values(array_filter($treinosVigentes, fn(array $t): bool => (int) $t['dia_semana'] === $dayIndex)); ?>
                             <?php if ($dayWorkouts !== []): ?>
                                 <div class="agenda-day">
                                     <h2><?php echo stridebr_e($dayName); ?></h2>
@@ -1197,6 +1198,7 @@ $initialView = in_array($requestedInitialView, $allowedInitialViews, true)
                                 </div>
                             </section>
                             <label class="quick-create-title-field"><?php echo stridebr_e(stridebr_t('common.title')); ?><input type="text" name="titulo" maxlength="120" placeholder="<?php echo stridebr_e(stridebr_t('schedule.library_title_placeholder')); ?>" required data-quick-workout-title></label>
+                            <div class="quick-create-section-heading quick-create-when-heading"><div><strong><?php echo stridebr_e(stridebr_t('schedule.when')); ?></strong></div></div>
                             <div class="quick-create-schedule-fields" data-quick-schedule-fields>
                                 <label><?php echo stridebr_e(stridebr_t('common.date')); ?><input type="date" name="data_treino" required data-quick-date></label>
                                 <div class="quick-create-time-row">
