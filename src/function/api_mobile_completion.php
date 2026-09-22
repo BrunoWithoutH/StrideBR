@@ -32,8 +32,8 @@ function stridebr_api_mobile_sport(PDO $pdo, string $userId, mixed $value): arra
 {
     $raw = trim((string) $value);
     if ($raw === '') throw new InvalidArgumentException('sport é obrigatório.');
-    $stmt = $pdo->prepare("SELECT idmodalidade,nome,slug,familia_hub,categoria FROM modalidades WHERE ativo=TRUE AND (idusuario IS NULL OR idusuario=:user) AND (idmodalidade=:sport OR lower(slug)=lower(:sport)) ORDER BY CASE WHEN idmodalidade=:sport THEN 0 ELSE 1 END LIMIT 1");
-    $stmt->execute([':user' => $userId, ':sport' => $raw]);
+    $stmt = $pdo->prepare("SELECT idmodalidade,nome,slug,familia_hub,categoria FROM modalidades WHERE ativo=TRUE AND (idusuario IS NULL OR idusuario=:user) AND (idmodalidade=:sport OR lower(slug)=lower(:slug)) ORDER BY CASE WHEN idmodalidade=:sport_exact THEN 0 WHEN idusuario=:owner THEN 1 ELSE 2 END LIMIT 1");
+    $stmt->execute([':user' => $userId, ':sport' => $raw, ':slug' => $raw, ':sport_exact' => $raw, ':owner' => $userId]);
     $row = $stmt->fetch();
     if (!$row) throw new InvalidArgumentException('Modalidade inválida.');
     $row['family'] = function_exists('sportCatalogFamilyKey') ? sportCatalogFamilyKey((string) ($row['familia_hub'] ?? ''), (string) ($row['categoria'] ?? ''), (string) ($row['slug'] ?? '')) : (string) ($row['familia_hub'] ?? '');
@@ -114,7 +114,7 @@ function stridebr_api_mobile_strength_payload(PDO $pdo, string $userId, string $
                 'distance_m' => $set['distancia_metros'] !== null ? (float) $set['distancia_metros'] : null,
                 'rir' => $set['rir'] !== null ? (float) $set['rir'] : null,
                 'rpe' => $set['rpe'] !== null ? (float) $set['rpe'] : null,
-                'completed' => !empty($set['concluida']),
+                'completed' => stridebr_db_bool($set['concluida'] ?? false),
                 'notes' => trim((string) ($set['observacoes'] ?? '')) ?: null,
             ], (array) ($exercise['series'] ?? [])),
         ];
@@ -146,8 +146,8 @@ function stridebr_api_mobile_activity_capabilities(array $context): array
         'can_edit_datetime' => $structural,
         'can_edit_sport' => false,
         'can_edit_equipment' => true,
-        'can_edit_metrics' => false,
-        'can_edit_strength' => false,
+        'can_edit_metrics' => $structural,
+        'can_edit_strength' => $structural && (function_exists('sportCatalogFamilyKey') ? sportCatalogFamilyKey((string) ($context['familia_hub'] ?? ''), (string) ($context['categoria'] ?? ''), (string) ($context['slug'] ?? '')) === 'strength' : (string) ($context['familia_hub'] ?? '') === 'strength'),
         'can_trim_route' => false,
     ];
 }
@@ -256,15 +256,50 @@ function stridebr_api_mobile_replace_activity_equipment(PDO $pdo, string $userId
     }
 }
 
+function stridebr_api_mobile_activity_update_distance(PDO $pdo, string $userId, array $context, string $activityId, mixed $value): void
+{
+    if ($value === null) $distance = null;
+    else {
+        $distance = filter_var($value, FILTER_VALIDATE_FLOAT);
+        if ($distance === false || (float) $distance < 0 || (float) $distance > 2000000) throw new InvalidArgumentException('distance_m inválido.');
+        $distance = (float) $distance;
+    }
+    $fields = atividadeBuscarCamposModelo($pdo, (string) $context['idmodelo'], false);
+    $distanceField = null;
+    foreach ($fields as $field) {
+        if (stridebr_api_lower(trim((string) ($field['slug'] ?? ''))) === 'distancia') {
+            $distanceField = $field;
+            break;
+        }
+    }
+    if (!is_array($distanceField)) throw new InvalidArgumentException('Esta atividade não possui métrica de distância editável.');
+    $pdo->prepare('DELETE FROM valores_atividade WHERE idregistro=:activity AND idcampo=:field')->execute([':activity'=>$activityId, ':field'=>$distanceField['idcampo']]);
+    if ($distance === null) return;
+    $mapped = stridebr_api_mobile_model_values($fields, null, $distance);
+    $raw = null;
+    $unitId = null;
+    if (($distanceField['escopo'] ?? '') === 'registro') $raw = $mapped['record_values'][(string) $distanceField['idcampo']] ?? null;
+    else {
+        $raw = $mapped['unidades'][0]['values'][(string) $distanceField['idcampo']] ?? null;
+        $stmt = $pdo->prepare('SELECT idunidade_atividade FROM unidades_atividade WHERE idregistro=:activity ORDER BY ordem,idunidade_atividade LIMIT 1');
+        $stmt->execute([':activity'=>$activityId]);
+        $unitId = $stmt->fetchColumn() ?: null;
+        if ($unitId === null) throw new InvalidArgumentException('Esta atividade não possui unidade para editar a distância.');
+    }
+    $prepared = atividadePrepararValor($distanceField, $raw, true);
+    if ($prepared !== null) atividadeInserirValor($pdo, $activityId, $unitId !== null ? (string) $unitId : null, $distanceField, $prepared);
+}
+
 function stridebr_api_mobile_activity_patch(PDO $pdo, string $userId, string $activityId, array $payload): array
 {
     $context = stridebr_api_mobile_activity_context($pdo, $userId, $activityId);
     if ($context === []) throw new MobileApiNotFoundException('Atividade não encontrada.');
+    if (trim((string) ($payload['if_version'] ?? '')) === '') throw new InvalidArgumentException('if_version é obrigatório.');
     stridebr_api_training_assert_version($activityId, $context['data_atualizacao'] ?? null, $payload);
     $cap = stridebr_api_mobile_activity_capabilities($context);
-    foreach (['sport','distance_m','duration_s','strength_exercises'] as $unsupported) {
-        if (array_key_exists($unsupported, $payload) && !in_array($unsupported, ['duration_s'], true)) throw new InvalidArgumentException($unsupported . ' não é editável neste contrato.');
-    }
+    if (array_key_exists('sport', $payload)) throw new InvalidArgumentException('sport não é editável neste contrato.');
+    if (array_key_exists('distance_m', $payload) && empty($cap['can_edit_metrics'])) throw new InvalidArgumentException('distance_m não é editável nesta atividade.');
+    if (array_key_exists('strength_exercises', $payload) && empty($cap['can_edit_strength'])) throw new InvalidArgumentException('strength_exercises não é editável nesta atividade.');
     $sets = [];
     $params = [':id' => $activityId, ':user' => $userId];
     if (array_key_exists('title', $payload)) {
@@ -312,6 +347,15 @@ function stridebr_api_mobile_activity_patch(PDO $pdo, string $userId, string $ac
             stridebr_api_mobile_replace_activity_equipment($pdo, $userId, $activityId, $payload['equipment_ids']);
             $pdo->prepare('UPDATE registros_atividade SET data_atualizacao=NOW() WHERE idregistro=:id AND idusuario=:user')->execute([':id' => $activityId, ':user' => $userId]);
         }
+        if (array_key_exists('distance_m', $payload)) {
+            stridebr_api_mobile_activity_update_distance($pdo, $userId, $context, $activityId, $payload['distance_m']);
+            $pdo->prepare('UPDATE registros_atividade SET data_atualizacao=NOW() WHERE idregistro=:id AND idusuario=:user')->execute([':id'=>$activityId, ':user'=>$userId]);
+        }
+        if (array_key_exists('strength_exercises', $payload)) {
+            if (!is_array($payload['strength_exercises'])) throw new InvalidArgumentException('strength_exercises precisa ser uma lista.');
+            atividadeForcaPersistirSeriesManuais($pdo, $userId, $activityId, stridebr_api_mobile_strength_input($payload['strength_exercises']));
+            $pdo->prepare('UPDATE registros_atividade SET data_atualizacao=NOW() WHERE idregistro=:id AND idusuario=:user')->execute([':id'=>$activityId, ':user'=>$userId]);
+        }
         $detail = stridebr_api_activity_detail($pdo, $activityId, $userId);
         if ($owns) $pdo->commit();
         return stridebr_api_mobile_activity_enrich($pdo, $userId, $detail);
@@ -347,10 +391,13 @@ function stridebr_api_mobile_me(PDO $pdo, string $userId): array
 
 function stridebr_api_mobile_username_valid(string $username): bool
 {
-    if ($username === '' || strlen($username) < 3 || strlen($username) > 30 || preg_match('/^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$/D', $username) !== 1) return false;
-    return !in_array($username, ['admin','api','app','auth','login','logout','me','user','users','usuario','usuarios','stridebr','support','suporte','www'], true);
+    if (in_array($username, [
+        'admin', 'administrator', 'moderator', 'owner', 'root', 'system', 'sistema',
+        'stridebr', 'official', 'oficial', 'support', 'suporte', 'security', 'seguranca',
+        'api', 'login', 'logout', 'signup', 'settings', 'feedback', 'null', 'undefined',
+    ], true)) return false;
+    return preg_match('/^(?!.*[._-]{2})[a-z0-9][a-z0-9._-]{1,38}[a-z0-9]$/', $username) === 1;
 }
-
 function stridebr_api_mobile_profile_patch(PDO $pdo, string $userId, array $payload): array
 {
     foreach (['email','password','new_password','delete_account'] as $field) if (array_key_exists($field, $payload)) throw new InvalidArgumentException($field . ' não pode ser alterado por este endpoint.');
@@ -557,44 +604,69 @@ function stridebr_api_mobile_execution_summary(PDO $pdo, string $userId, string 
         $params[':source'] = $parsed['id'];
         $params[':date'] = $parsed['date'];
     } else {
-        return ['available' => false, 'execution_mode' => null, 'workout_id' => $workoutId];
+        return ['available'=>false, 'execution_mode'=>null, 'workout_id'=>$workoutId];
     }
     $stmt = $pdo->prepare("SELECT s.idsessao FROM sessoes_treino s WHERE s.idusuario=:user AND s.status='concluido' AND {$where} ORDER BY s.data_fim DESC NULLS LAST,s.data_inicio DESC LIMIT 1");
     $stmt->execute($params);
     $sessionId = $stmt->fetchColumn();
     if ($sessionId === false) {
         $detail = stridebr_api_workout_detail($pdo, $userId, $workoutId);
-        if (!empty($detail['activity']['id'])) return ['available' => false, 'execution_mode' => 'quick_register', 'workout_id' => $workoutId, 'activity' => ['id' => (string) $detail['activity']['id']]];
-        return ['available' => false, 'execution_mode' => null, 'workout_id' => $workoutId];
+        if (!empty($detail['activity']['id'])) {
+            $activityId = (string) $detail['activity']['id'];
+            return ['available'=>false, 'execution_mode'=>'quick_register', 'workout_id'=>$workoutId, 'activity_id'=>$activityId, 'activity'=>['id'=>$activityId], 'exercises'=>[]];
+        }
+        return ['available'=>false, 'execution_mode'=>null, 'workout_id'=>$workoutId];
     }
     $session = sessaoCarregarPorId($pdo, $userId, (string) $sessionId, false);
+    if ((array) ($session['exercicios'] ?? []) === []) {
+        $activityId = trim((string) ($session['idregistro_atividade'] ?? ''));
+        if ($activityId !== '') {
+            return ['available'=>false, 'execution_mode'=>'quick_register', 'workout_id'=>$workoutId, 'activity_id'=>$activityId, 'activity'=>['id'=>$activityId], 'exercises'=>[]];
+        }
+        return ['available'=>false, 'execution_mode'=>null, 'workout_id'=>$workoutId];
+    }
     $exercises = [];
     foreach ((array) ($session['exercicios'] ?? []) as $exercise) {
         $sets = [];
         foreach ((array) ($exercise['series'] ?? []) as $set) {
             $hasActual = trim((string) ($set['repeticoes_realizadas'] ?? '')) !== '' || trim((string) ($set['carga_realizada'] ?? '')) !== '' || $set['duracao_realizada_s'] !== null || $set['distancia_realizada_m'] !== null;
             if (!$hasActual && !stridebr_db_bool($set['concluida'] ?? false)) continue;
+            $actualRepetitions = trim((string) ($set['repeticoes_realizadas'] ?? '')) ?: null;
+            $actualLoad = trim((string) ($set['carga_realizada'] ?? '')) ?: null;
+            $actualDuration = is_numeric($set['duracao_realizada_s'] ?? null) ? (int) $set['duracao_realizada_s'] : null;
+            $actualDistance = is_numeric($set['distancia_realizada_m'] ?? null) ? (float) $set['distancia_realizada_m'] : null;
             $sets[] = [
-                'id' => (string) $set['idserie'],
-                'number' => (int) $set['numero'],
-                'repetitions' => trim((string) ($set['repeticoes_realizadas'] ?? '')) ?: null,
-                'load' => trim((string) ($set['carga_realizada'] ?? '')) ?: null,
-                'duration_s' => is_numeric($set['duracao_realizada_s'] ?? null) ? (int) $set['duracao_realizada_s'] : null,
-                'distance_m' => is_numeric($set['distancia_realizada_m'] ?? null) ? (float) $set['distancia_realizada_m'] : null,
-                'completed' => stridebr_db_bool($set['concluida'] ?? false),
+                'id'=>(string) $set['idserie'],
+                'number'=>(int) $set['numero'],
+                'actual_repetitions'=>$actualRepetitions,
+                'actual_load'=>$actualLoad,
+                'actual_duration_s'=>$actualDuration,
+                'actual_distance_m'=>$actualDistance,
+                'repetitions'=>$actualRepetitions,
+                'load'=>$actualLoad,
+                'duration_s'=>$actualDuration,
+                'distance_m'=>$actualDistance,
+                'completed'=>stridebr_db_bool($set['concluida'] ?? false),
             ];
         }
         if ($sets === [] && !stridebr_db_bool($exercise['concluido'] ?? false)) continue;
-        $exercises[] = ['id' => (string) $exercise['idsessao_exercicio'], 'exercise_id' => !empty($exercise['idexercicio']) ? (string) $exercise['idexercicio'] : null, 'name' => (string) $exercise['nome_snapshot'], 'sets' => $sets];
+        $exercises[] = [
+            'id'=>(string) $exercise['idsessao_exercicio'],
+            'exercise_id'=>!empty($exercise['idexercicio']) ? (string) $exercise['idexercicio'] : null,
+            'name'=>(string) $exercise['nome_snapshot'],
+            'sets'=>$sets,
+            'completed'=>stridebr_db_bool($exercise['concluido'] ?? false) || $sets !== [],
+        ];
     }
     return [
-        'available' => true,
-        'execution_mode' => 'session',
-        'workout_id' => $workoutId,
-        'session_id' => (string) $session['idsessao'],
-        'started_at' => stridebr_api_iso((string) ($session['data_inicio'] ?? '')),
-        'ended_at' => stridebr_api_iso((string) ($session['data_fim'] ?? '')),
-        'activity' => !empty($session['idregistro_atividade']) ? ['id' => (string) $session['idregistro_atividade']] : null,
-        'exercises' => $exercises,
+        'available'=>true,
+        'execution_mode'=>'session',
+        'workout_id'=>$workoutId,
+        'session_id'=>(string) $session['idsessao'],
+        'started_at'=>stridebr_api_iso((string) ($session['data_inicio'] ?? '')),
+        'ended_at'=>stridebr_api_iso((string) ($session['data_fim'] ?? '')),
+        'activity_id'=>!empty($session['idregistro_atividade']) ? (string) $session['idregistro_atividade'] : null,
+        'activity'=>!empty($session['idregistro_atividade']) ? ['id'=>(string) $session['idregistro_atividade']] : null,
+        'exercises'=>$exercises,
     ];
 }

@@ -15,7 +15,7 @@ $restStart = strpos($home, "elseif (\$contextoHoje['state'] === 'rest'):", strpo
 $restEnd = strpos($home, '<?php else: ?>', $restStart);
 $restBlock = $restStart !== false && $restEnd !== false ? substr($home, $restStart, $restEnd - $restStart) : '';
 $assert($restBlock !== '', 'rest action block missing');
-$assert(str_contains($restBlock, "stridebr_t('home.next_workout')"), 'rest state must use dedicated next-workout copy');
+$assert(str_contains($restBlock, "'home.following_workout'") && str_contains($restBlock, "'home.next_workout'"), 'rest state must preserve next-workout semantics through V6.1 follow-up context');
 $assert(!str_contains($restBlock, "progress.log_activity") && !str_contains($restBlock, 'atividades.php?new=1'), 'rest state must not render activity CTA');
 $assert(str_contains($home, "stridebr_t('home.log_activity')"), 'activity registration must remain elsewhere on Home');
 
@@ -41,8 +41,8 @@ $page = $read('public/user/cronogramatreinos.php');
 $assert(str_contains($cronograma, 'function cronogramaTreinoVigenteEmData'), 'effective-date helper missing');
 $assert(str_contains($cronograma, 'function cronogramaFiltrarTreinosVigentes'), 'effective workout filter missing');
 $assert(str_contains($cronograma, 'SELECT * FROM treinos_cronograma WHERE idcronograma = :cronograma'), 'domain list must continue preserving all phase rows');
-$assert(str_contains($page, '$treinosVigentes = cronogramaFiltrarTreinosVigentes($treinos, $today);'), 'List view must derive current effective routine');
-$assert(str_contains($page, 'array_filter($treinosVigentes'), 'agenda/list renderer must use effective routine');
+$assert(str_contains($page, 'data-schedule-agenda-timeline'), 'List view must preserve the V6.1 chronological agenda surface');
+$assert(!str_contains($page, 'array_filter($treinosVigentes'), 'List view must not return to weekly-template phase rendering');
 $assert(!str_contains($cronograma, 'UNIQUE (idcronograma, dia_semana, hora_inicio)'), 'must not add unsafe time dedupe');
 
 $css = $read('public/assets/css/cronogramas.css');

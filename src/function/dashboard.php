@@ -862,7 +862,6 @@ function dashboardTreinosProximos(PDO $pdo, string $idUsuario, int $limite = 5):
         if (!empty($row['concluido']) || ($row['status'] ?? '') === 'cancelado') continue;
         $candidate = new DateTimeImmutable($row['data_treino'] . ' ' . $row['hora_inicio'], $now->getTimezone());
         if ($candidate < $now) continue;
-        // Identity is the occurrence, never its title: two workouts can share a name.
         $key = $row['idtreino'] . ':' . $row['data_original'];
         if (isset($seen[$key])) continue;
         $seen[$key] = true;
@@ -871,6 +870,30 @@ function dashboardTreinosProximos(PDO $pdo, string $idUsuario, int $limite = 5):
     }
     usort($proximos, static fn(array $a, array $b): int => [$a['proxima_data'], $a['idtreino']] <=> [$b['proxima_data'], $b['idtreino']]);
     return array_slice($proximos, 0, max(1, min(8, $limite)));
+}
+
+function dashboardTreinoSeguinteContexto(array $proximos, ?array $tomorrowWorkout, DateTimeImmutable $amanha): ?array
+{
+    if ($proximos === []) return null;
+    $identity = static fn(array $row): string => (string) ($row['idtreino'] ?? '') . ':' . (string) ($row['data_original'] ?? '');
+    if ($tomorrowWorkout !== null) {
+        $target = $identity($tomorrowWorkout);
+        $found = false;
+        foreach ($proximos as $workout) {
+            if (!$found) {
+                if ($identity($workout) === $target) $found = true;
+                continue;
+            }
+            return $workout;
+        }
+        return null;
+    }
+    foreach ($proximos as $workout) {
+        $candidate = $workout['proxima_data'] ?? null;
+        if (!$candidate instanceof DateTimeInterface) continue;
+        if ($candidate->format('Y-m-d') > $amanha->format('Y-m-d')) return $workout;
+    }
+    return null;
 }
 
 function dashboardPreferenciasUsuario(PDO $pdo, string $idUsuario): array

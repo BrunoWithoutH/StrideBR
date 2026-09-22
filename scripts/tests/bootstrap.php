@@ -109,6 +109,12 @@ function alphaTestCleanup(PDO $pdo): void
         }
     } catch (Throwable) {
     }
+    try {
+        if ($pdo->query("SELECT to_regclass('stridebr.activity_participants') IS NOT NULL")->fetchColumn()) {
+            $pdo->exec("DELETE FROM activity_participants WHERE idusuario LIKE 'alpha_test_%' OR invited_by LIKE 'alpha_test_%' OR idregistro IN (SELECT idregistro FROM registros_atividade WHERE idusuario LIKE 'alpha_test_%')");
+        }
+    } catch (Throwable) {
+    }
     $pdo->exec("DELETE FROM usuarios WHERE idusuario LIKE 'alpha_test_%'");
     $pdo->exec("DELETE FROM auth_rate_limits WHERE escopo LIKE 'alpha_test_%'");
 }

@@ -455,7 +455,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const currentAgenda = document.querySelector('[data-calendar-view="agenda"]');
             const incomingAgenda = doc.querySelector('[data-calendar-view="agenda"]');
-            if (currentAgenda && incomingAgenda) currentAgenda.innerHTML = incomingAgenda.innerHTML;
+            if (currentAgenda && incomingAgenda) {
+                if (currentAgenda.matches('[data-schedule-agenda-timeline]') && incomingAgenda.matches('[data-schedule-agenda-timeline]')) {
+                    currentAgenda.dataset.scheduleId = incomingAgenda.dataset.scheduleId || '';
+                    currentAgenda.dataset.initialDate = incomingAgenda.dataset.initialDate || localDate();
+                    document.dispatchEvent(new CustomEvent('stridebr:schedule-agenda-context'));
+                } else {
+                    currentAgenda.innerHTML = incomingAgenda.innerHTML;
+                }
+            }
             const incomingMonth = doc.querySelector('[data-month-calendar-shell]');
             if (monthShell && incomingMonth) {
                 monthShell.dataset.scheduleId = incomingMonth.dataset.scheduleId || '';
@@ -691,46 +699,87 @@ document.addEventListener('DOMContentLoaded', () => {
             exercise.cluster || '',
         ].filter(Boolean)
     };
+    const performedSetSummary = set => {
+        const parts = [];
+        const hasLoad = set.load_kg !== null && set.load_kg !== undefined && set.load_kg !== '';
+        const hasReps = set.repetitions !== null && set.repetitions !== undefined && set.repetitions !== '';
+        if (hasLoad && hasReps) parts.push(`${Number(set.load_kg)} kg × ${Number(set.repetitions)}`);
+        else if (hasLoad) parts.push(`${Number(set.load_kg)} kg`);
+        else if (hasReps) parts.push(`${Number(set.repetitions)} reps`);
+        if (set.duration_s !== null && set.duration_s !== undefined) parts.push(compactSeconds(set.duration_s));
+        if (set.distance_m !== null && set.distance_m !== undefined) parts.push(`${Number(set.distance_m)} m`);
+        if (set.rir !== null && set.rir !== undefined) parts.push(`RIR ${Number(set.rir)}`);
+        if (set.rpe !== null && set.rpe !== undefined) parts.push(`RPE ${Number(set.rpe)}`);
+        return parts.join(' · ');
+    };
+    const actualSummary = actual => {
+        if (!actual) return '';
+        const parts = [];
+        if (actual.duration_s !== null && actual.duration_s !== undefined) parts.push(compactSeconds(actual.duration_s));
+        if (actual.distance_m !== null && actual.distance_m !== undefined) {
+            const distance = Number(actual.distance_m);
+            parts.push(distance >= 1000 ? `${Number((distance / 1000).toFixed(2))} km` : `${distance} m`);
+        }
+        if (actual.perceived_effort !== null && actual.perceived_effort !== undefined) parts.push(`RPE ${Number(actual.perceived_effort)}`);
+        return parts.join(' · ');
+    };
     const renderDynamicPreviewContent = data => {
         if (!previewModal || !data?.workout) return null;
         const workout = data.workout;
+        const previewMode = ['planned','performed','missed'].includes(data.preview_mode) ? data.preview_mode : 'planned';
         if (workout.idtreino) editorWorkoutMap.set(String(workout.idtreino), workout);
         const content = document.createElement('div');
         content.className = 'workout-preview-content';
         content.dataset.workoutPreviewContent = String(workout.idtreino || '');
+        content.dataset.previewMode = previewMode;
+        content.dataset.activityId = String(data.activity_id || '');
         const tags = [workout.codigo, workout.foco].filter(Boolean).map(value => `<b>${escapeHtml(value)}</b>`).join('');
         const exercises = Array.isArray(data.exercises) ? data.exercises : [];
         const exerciseMarkup = exercises.length ? exercises.map((exercise, index) => {
+            if (previewMode === 'performed') {
+                const sets = Array.isArray(exercise.sets) ? exercise.sets : [];
+                const setMarkup = sets.length ? `<ol class="preview-performed-sets">${sets.map((set, setIndex) => {
+                    const summary = performedSetSummary(set);
+                    const note = set.notes ? `<small>${escapeHtml(set.notes)}</small>` : '';
+                    return `<li><strong>${escapeHtml(String(set.number || setIndex + 1))}</strong>${summary ? ` · ${escapeHtml(summary)}` : ` · ${escapeHtml(tr('schedule.preview_set_completed'))}`}${note}</li>`;
+                }).join('')}</ol>` : `<small>${escapeHtml(tr('schedule.preview_no_detailed_execution'))}</small>`;
+                return `<article class="preview-exercise"><span class="preview-exercise-number">${index + 1}</span><div><strong>${escapeHtml(exercise.nome || '')}</strong>${setMarkup}</div></article>`;
+            }
             const meta = previewExerciseMeta(exercise).map(value => `<span>${escapeHtml(value)}</span>`).join('');
             return `<article class="preview-exercise${exercise.tipo_passo && exercise.tipo_passo!=='exercise' ? ' is-endurance' : ''}"><span class="preview-exercise-number">${index + 1}</span><div><strong>${escapeHtml(exercise.nome || '')}</strong>${meta ? `<div class="preview-exercise-meta">${meta}</div>` : ''}${exercise.observacoes ? `<small>${escapeHtml(exercise.observacoes)}</small>` : ''}</div></article>`;
-        }).join('') : `<p class="preview-empty">${escapeHtml(tr('schedule.no_exercises'))}</p>`;
+        }).join('') : `<p class="preview-empty">${escapeHtml(previewMode === 'performed' ? tr('schedule.preview_no_detailed_execution') : tr('schedule.no_exercises'))}</p>`;
         const libraryAction = workout.biblioteca_disponivel
             ? workout.idtreino_modelo
                 ? `<form method="POST" class="preview-copy-form"><input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}"><input type="hidden" name="action" value="update_library_from_workout"><input type="hidden" name="idcronograma" value="${escapeHtml(workout.idcronograma)}"><input type="hidden" name="idtreino" value="${escapeHtml(workout.idtreino)}"><input type="hidden" name="return_to" value="${escapeHtml(`${location.pathname}${location.search}${location.hash}`)}" data-return-current><button type="submit">${escapeHtml(tr('schedule.update_saved'))}</button></form>`
                 : `<form method="POST" class="preview-copy-form"><input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}"><input type="hidden" name="action" value="save_workout_to_library"><input type="hidden" name="idcronograma" value="${escapeHtml(workout.idcronograma)}"><input type="hidden" name="idtreino" value="${escapeHtml(workout.idtreino)}"><input type="hidden" name="return_to" value="${escapeHtml(`${location.pathname}${location.search}${location.hash}`)}" data-return-current><button type="submit">${escapeHtml(tr('schedule.save_library'))}</button></form>`
             : '';
-        const sessionActions = document.querySelector('[data-quick-register-modal]')
+        const sessionActions = document.querySelector('[data-quick-register-modal]') && previewMode !== 'performed'
             ? `<button type="button" class="primary-button" data-quick-register-workout="${escapeHtml(workout.idtreino)}" data-workout-title="${escapeHtml(workout.titulo)}" data-workout-time="${escapeHtml(workout.hora_inicio)}" data-workout-duration="${escapeHtml(workout.duracao_minutos || 60)}">${escapeHtml(tr('schedule.log'))}</button><button type="button" class="secondary-button" data-start-workout="${escapeHtml(workout.idtreino)}">${escapeHtml(tr('schedule.start_live'))}</button>`
             : '';
-        content.innerHTML = `<div class="workout-preview-heading"><div class="workout-preview-occurrence-context" data-preview-occurrence-context hidden></div><span>${escapeHtml(workout.dia || '')} · ${escapeHtml(workout.hora_inicio || '')}–${escapeHtml(workout.hora_fim || '')}${workout.termina_dia_seguinte ? ' +1' : ''}</span>${tags ? `<div class="workout-preview-tags">${tags}</div>` : ''}<h2>${escapeHtml(workout.titulo || tr('schedule.workout_fallback'))}</h2>${workout.descricao ? `<p>${escapeHtml(workout.descricao)}</p>` : ''}</div><div class="workout-preview-exercises">${exerciseMarkup}</div><div class="workout-preview-actions"><div class="workout-preview-primary-actions">${sessionActions}<button type="button" class="secondary-button" data-edit-workout="${escapeHtml(workout.idtreino)}">${escapeHtml(tr('common.edit'))}</button><details class="workout-preview-more"><summary class="secondary-button">${escapeHtml(tr('common.more'))}</summary><div class="workout-preview-menu"><button type="button" data-preview-move>${escapeHtml(tr('schedule.reschedule'))}</button><button type="button" data-preview-adjust-history hidden>${escapeHtml(tr('schedule.fix_plan_actual'))}</button><button type="button" data-preview-skip>${escapeHtml(tr('schedule.skip_occurrence'))}</button><a href="/user/exercicioscronograma.php?idtreino=${encodeURIComponent(workout.idtreino)}">${escapeHtml(tr('schedule.edit_exercises'))}</a>${libraryAction}<form method="POST" class="preview-copy-form"><input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}"><input type="hidden" name="action" value="duplicate_workout"><input type="hidden" name="idcronograma" value="${escapeHtml(workout.idcronograma)}"><input type="hidden" name="idtreino" value="${escapeHtml(workout.idtreino)}"><input type="hidden" name="duplicate_mode" value="edit"><input type="hidden" name="return_to" value="${escapeHtml(`${location.pathname}${location.search}${location.hash}`)}" data-return-current><button type="submit">${escapeHtml(tr('schedule.duplicate_edit'))}</button></form><form method="POST" class="preview-delete-form" data-confirm="${escapeHtml(tr('schedule.remove_from_schedule'))}"><input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}"><input type="hidden" name="action" value="delete_workout"><input type="hidden" name="idcronograma" value="${escapeHtml(workout.idcronograma)}"><input type="hidden" name="idtreino" value="${escapeHtml(workout.idtreino)}"><input type="hidden" name="return_to" value="${escapeHtml(`${location.pathname}${location.search}${location.hash}`)}" data-return-current><button type="submit" class="is-danger">${escapeHtml(tr('schedule.delete_workout'))}</button></form></div></details></div></div>`;
+        const modeLabel = tr(`schedule.preview_${previewMode}`);
+        const actual = actualSummary(data.actual);
+        const actualMarkup = previewMode === 'performed' && actual ? `<div class="workout-preview-actuals"><strong>${escapeHtml(tr('schedule.preview_actual_summary'))}</strong><span>${escapeHtml(actual)}</span></div>` : '';
+        content.innerHTML = `<div class="workout-preview-heading"><div class="workout-preview-occurrence-context" data-preview-occurrence-context hidden></div><span>${escapeHtml(workout.dia || '')} · ${escapeHtml(workout.hora_inicio || '')}–${escapeHtml(workout.hora_fim || '')}${workout.termina_dia_seguinte ? ' +1' : ''}</span><b class="workout-preview-mode" data-preview-mode-label>${escapeHtml(modeLabel)}</b>${tags ? `<div class="workout-preview-tags">${tags}</div>` : ''}<h2>${escapeHtml(workout.titulo || tr('schedule.workout_fallback'))}</h2>${workout.descricao ? `<p>${escapeHtml(workout.descricao)}</p>` : ''}${actualMarkup}</div><div class="workout-preview-exercises">${exerciseMarkup}</div><div class="workout-preview-actions"><div class="workout-preview-primary-actions">${sessionActions}<button type="button" class="secondary-button" data-edit-workout="${escapeHtml(workout.idtreino)}">${escapeHtml(tr('common.edit'))}</button><details class="workout-preview-more"><summary class="secondary-button">${escapeHtml(tr('common.more'))}</summary><div class="workout-preview-menu"><button type="button" data-preview-move>${escapeHtml(tr('schedule.reschedule'))}</button><button type="button" data-preview-adjust-history hidden>${escapeHtml(tr('schedule.fix_plan_actual'))}</button><button type="button" data-preview-skip>${escapeHtml(tr('schedule.skip_occurrence'))}</button><a href="/user/exercicioscronograma.php?idtreino=${encodeURIComponent(workout.idtreino)}">${escapeHtml(tr('schedule.edit_exercises'))}</a>${libraryAction}<form method="POST" class="preview-copy-form"><input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}"><input type="hidden" name="action" value="duplicate_workout"><input type="hidden" name="idcronograma" value="${escapeHtml(workout.idcronograma)}"><input type="hidden" name="idtreino" value="${escapeHtml(workout.idtreino)}"><input type="hidden" name="duplicate_mode" value="edit"><input type="hidden" name="return_to" value="${escapeHtml(`${location.pathname}${location.search}${location.hash}`)}" data-return-current><button type="submit">${escapeHtml(tr('schedule.duplicate_edit'))}</button></form><form method="POST" class="preview-delete-form" data-confirm="${escapeHtml(tr('schedule.remove_from_schedule'))}"><input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}"><input type="hidden" name="action" value="delete_workout"><input type="hidden" name="idcronograma" value="${escapeHtml(workout.idcronograma)}"><input type="hidden" name="idtreino" value="${escapeHtml(workout.idtreino)}"><input type="hidden" name="return_to" value="${escapeHtml(`${location.pathname}${location.search}${location.hash}`)}" data-return-current><button type="submit" class="is-danger">${escapeHtml(tr('schedule.delete_workout'))}</button></form></div></details></div></div>`;
         previewModal.querySelector('.workout-preview-dialog')?.appendChild(content);
         return content;
     };
     const ensurePreviewContent = async id => {
-        let content = previewContents().find(item => item.dataset.workoutPreviewContent === id) || null;
-        if (content) return content;
+        previewContents().filter(item => item.dataset.workoutPreviewContent === id).forEach(item => item.remove());
         const loading = document.createElement('div');
         loading.className = 'workout-preview-content workout-preview-loading';
         loading.dataset.workoutPreviewContent = id;
         loading.innerHTML = '<div class="workout-preview-loading-line"><span></span><span></span><span></span></div>';
         previewModal?.querySelector('.workout-preview-dialog')?.appendChild(loading);
         try {
-            const response = await (window.StrideBRNet?.fetch || fetch)(`/api/cronograma-treino-preview.php?idtreino=${encodeURIComponent(id)}`, {headers:{'Accept':'application/json'}, credentials:'same-origin'}, 10000);
+            const params = new URLSearchParams({idtreino:id});
+            if (previewOccurrenceOriginal) params.set('occurrence_original', previewOccurrenceOriginal);
+            if (previewPlannedDate) params.set('planned_date', previewPlannedDate);
+            if (previewActivityId) params.set('activity_id', previewActivityId);
+            const response = await (window.StrideBRNet?.fetch || fetch)(`/api/cronograma-treino-preview.php?${params.toString()}`, {headers:{'Accept':'application/json'}, credentials:'same-origin'}, 10000);
             const data = await response.json().catch(() => null);
             if (!response.ok || !data?.ok) throw new Error(data?.error || tr('schedule.load_error'));
             loading.remove();
-            content = renderDynamicPreviewContent(data);
-            return content;
+            return renderDynamicPreviewContent(data);
         } catch (error) {
             loading.innerHTML = `<div class="workout-preview-load-error"><strong>${escapeHtml(tr('schedule.load_error'))}</strong><button type="button" class="secondary-button" data-preview-retry>${escapeHtml(tr('schedule.retry'))}</button></div>`;
             loading.querySelector('[data-preview-retry]')?.addEventListener('click', async () => {
@@ -749,18 +798,18 @@ document.addEventListener('DOMContentLoaded', () => {
         previewWorkoutDate = trigger.dataset.workoutDate || source.dataset.occurrenceDate || source.dataset.plannedDate || '';
         previewModal.hidden = false;
         document.documentElement.style.overflow = 'hidden';
-        previewContents().forEach(content => { content.hidden = content.dataset.workoutPreviewContent !== id; });
-        try { await ensurePreviewContent(id); } catch (error) { uiNotify(error?.message || tr('schedule.load_error')); }
-        previewContents().forEach(content => { content.hidden = content.dataset.workoutPreviewContent !== id; });
         syncPreviewOccurrenceContext(trigger);
-        previewContents().forEach(content => {
-            const active = content.dataset.workoutPreviewContent === id;
-            if (active) {
-                content.querySelectorAll('[data-quick-register-workout],[data-start-workout]').forEach(action => { action.hidden = previewCompleted; });
-                content.querySelectorAll('[data-preview-move],[data-preview-skip]').forEach(action => { action.hidden = !previewOccurrenceOriginal || previewCompleted; });
-                content.querySelectorAll('[data-preview-adjust-history]').forEach(action => { action.hidden = !previewCompleted || !previewActivityId; });
-            }
-        });
+        try { await ensurePreviewContent(id); } catch (error) { uiNotify(error?.message || tr('schedule.load_error')); }
+        const activeContent = previewContents().find(content => content.dataset.workoutPreviewContent === id) || null;
+        if (activeContent) {
+            const resolvedActivity = activeContent.dataset.activityId || '';
+            if (resolvedActivity) previewActivityId = resolvedActivity;
+            const performed = activeContent.dataset.previewMode === 'performed';
+            activeContent.querySelectorAll('[data-quick-register-workout],[data-start-workout]').forEach(action => { action.hidden = performed; });
+            activeContent.querySelectorAll('[data-preview-move],[data-preview-skip]').forEach(action => { action.hidden = !previewOccurrenceOriginal || performed; });
+            activeContent.querySelectorAll('[data-preview-adjust-history]').forEach(action => { action.hidden = !performed || !previewActivityId; });
+        }
+        syncPreviewOccurrenceContext(trigger);
         previewModal.querySelectorAll('[data-return-current]').forEach(input => { input.value = `${location.pathname}${location.search}${location.hash}`; });
         previewModal.querySelector('[data-close-preview]')?.focus();
     };
@@ -966,15 +1015,22 @@ document.addEventListener('DOMContentLoaded', () => {
         setOriginalPlanVisible(!document.body.classList.contains('schedule-show-original-plan'));
     });
 
-    document.querySelector('[data-print-schedule]')?.addEventListener('click', event => {
+    document.querySelector('[data-print-schedule]')?.addEventListener('click', async event => {
         event.currentTarget.closest('details')?.removeAttribute('open');
         document.documentElement.classList.remove('schedule-actions-open');
         const oldView = currentView;
         activateView('agenda');
-        setTimeout(() => {
-            window.print();
+        if (agendaMonths.size === 0) {
+            const key = agendaMonthKey(agendaRoot?.dataset.initialDate || localDate());
+            if (key) await agendaFetchMonth(key);
+        }
+        if (agendaMonths.size === 0) {
             activateView(oldView);
-        }, 50);
+            uiNotify(tr('schedule.agenda_load_error'));
+            return;
+        }
+        window.print();
+        activateView(oldView);
     });
 
     const scheduleMenus = [...document.querySelectorAll('.schedule-actions-menu')];
@@ -1744,6 +1800,222 @@ document.addEventListener('DOMContentLoaded', () => {
         if (monthShell?.dataset.currentMonth) navigateMonth(monthShell.dataset.currentMonth, {historyMode:'replace'});
     });
 
+
+    const agendaRoot = document.querySelector('[data-schedule-agenda-timeline]');
+    const agendaContent = agendaRoot?.querySelector('[data-agenda-content]');
+    const agendaStatus = agendaRoot?.querySelector('[data-agenda-status]');
+    const agendaPrevious = agendaRoot?.querySelector('[data-agenda-load-previous]');
+    const agendaMore = agendaRoot?.querySelector('[data-agenda-load-more]');
+    const agendaRetry = agendaRoot?.querySelector('[data-agenda-retry]');
+    const agendaSentinel = agendaRoot?.querySelector('[data-agenda-sentinel]');
+    const agendaMonths = new Map();
+    const agendaRequests = new Map();
+    let agendaGeneration = 0;
+    let agendaObserver = null;
+    let agendaLastFailed = '';
+    const agendaMaxMonths = 12;
+
+    const agendaDate = iso => {
+        const parts = String(iso || '').split('-').map(Number);
+        return parts.length === 3 && parts.every(Number.isFinite) ? new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0, 0) : null;
+    };
+    const agendaIso = date => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+    const agendaMonthKey = iso => String(iso || '').slice(0, 7);
+    const agendaDateLabel = iso => {
+        const date = agendaDate(iso);
+        return date ? new Intl.DateTimeFormat(localeTag(), {weekday:'long', day:'numeric', month:'long'}).format(date) : iso;
+    };
+    const agendaShortDate = iso => {
+        const date = agendaDate(iso);
+        return date ? new Intl.DateTimeFormat(localeTag(), {day:'numeric', month:'short'}).format(date).replace(/\.$/, '') : iso;
+    };
+    const agendaWeekStart = iso => {
+        const date = agendaDate(iso);
+        if (!date) return iso;
+        const mondayOffset = (date.getDay() + 6) % 7;
+        date.setDate(date.getDate() - mondayOffset);
+        return agendaIso(date);
+    };
+    const agendaWeekLabel = startIso => {
+        const start = agendaDate(startIso);
+        if (!start) return startIso;
+        const end = new Date(start);
+        end.setDate(end.getDate() + 6);
+        const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
+        const left = new Intl.DateTimeFormat(localeTag(), {day:'numeric', ...(sameMonth ? {} : {month:'short'})}).format(start).replace(/\.$/, '');
+        const right = new Intl.DateTimeFormat(localeTag(), {day:'numeric', month:'short'}).format(end).replace(/\.$/, '');
+        return `${left}–${right}`;
+    };
+    const agendaOccurrenceMarkup = item => {
+        const completed = !!item.concluido;
+        const state = completed ? (item.realizado_fora_planejado ? 'shifted' : 'completed') : 'todo';
+        const status = item.acompanhamento_disponivel === false ? '' : tr('planning.status.' + state);
+        const moved = item.data_original && item.data_original !== item.data_treino ? tr('planning.rescheduled_from', {date:agendaShortDate(item.data_original)}) : '';
+        const code = item.codigo ? `<b>${escapeHtml(item.codigo)}</b>` : '';
+        const menu = completed ? '' : `<button type="button" class="schedule-agenda-item-menu" data-move-occurrence aria-label="${escapeHtml(tr('schedule.move_or_skip'))}">•••</button>`;
+        return `<article class="schedule-agenda-occurrence${completed ? ' is-complete' : ''}${item.excecao ? ' is-exception' : ''}${item.realizado_fora_planejado ? ' is-realized-shifted' : ''}" data-occurrence-workout="${escapeHtml(item.idtreino)}" data-occurrence-original="${escapeHtml(item.data_original)}" data-occurrence-date="${escapeHtml(item.data_treino)}" data-occurrence-title="${escapeHtml(item.titulo)}" data-planned-date="${escapeHtml(item.data_planejada || item.data_treino)}" data-planned-time="${escapeHtml(item.hora_planejada || item.hora_inicio)}" data-realized-date="${escapeHtml(item.data_realizada || '')}" data-realized-time="${escapeHtml(item.hora_realizada || '')}" data-activity-id="${escapeHtml(item.idregistro || '')}" data-completed="${completed ? '1' : '0'}"><button type="button" class="schedule-agenda-occurrence-main" data-preview-workout="${escapeHtml(item.idtreino)}" data-workout-date="${escapeHtml(item.data_treino)}"><time>${escapeHtml(item.hora_inicio || '')}</time><span><strong>${code}<span>${escapeHtml(item.titulo)}</span></strong>${item.foco ? `<small>${escapeHtml(item.foco)}</small>` : ''}${moved ? `<small>${escapeHtml(moved)}</small>` : ''}</span>${status ? `<em>${escapeHtml(status)}</em>` : ''}</button>${menu}</article>`;
+    };
+    const agendaScheduledMarkup = item => {
+        const completed = item.status === 'concluido';
+        const kind = item.origem === 'treinador' ? tr('schedule.prescription') : tr('schedule.scheduled');
+        const status = completed ? tr('schedule.month_completed') : kind;
+        const action = item.status === 'publicado' ? `<button type="button" class="schedule-agenda-start" data-start-scheduled-workout="${escapeHtml(item.idagendamento)}">${escapeHtml(tr('schedule.month_start'))}</button>` : '';
+        return `<article class="schedule-agenda-occurrence is-scheduled${item.origem === 'treinador' ? ' is-trainer' : ''}${completed ? ' is-complete' : ''}"><div class="schedule-agenda-occurrence-main is-static"><time>${escapeHtml(item.hora_inicio || '—')}</time><span><strong>${escapeHtml(item.titulo)}</strong><small>${escapeHtml(status)}${item.criador_nome ? ` · ${escapeHtml(item.criador_nome)}` : ''}</small></span></div>${action}</article>`;
+    };
+    const agendaCombinedByDate = () => {
+        const byDate = new Map();
+        for (const data of agendaMonths.values()) {
+            for (const item of data.ocorrencias || []) {
+                const date = item.data_treino || '';
+                if (!byDate.has(date)) byDate.set(date, []);
+                byDate.get(date).push({kind:'occurrence', item});
+            }
+            for (const item of data.agendados || []) {
+                const date = item.data_treino || '';
+                if (!byDate.has(date)) byDate.set(date, []);
+                byDate.get(date).push({kind:'scheduled', item});
+            }
+        }
+        for (const rows of byDate.values()) rows.sort((a,b) => {
+            const timeA = a.item.hora_inicio || '99:99';
+            const timeB = b.item.hora_inicio || '99:99';
+            if (timeA !== timeB) return timeA.localeCompare(timeB);
+            const keyA = a.kind === 'occurrence' ? `${a.item.idtreino}:${a.item.data_original}` : a.item.idagendamento;
+            const keyB = b.kind === 'occurrence' ? `${b.item.idtreino}:${b.item.data_original}` : b.item.idagendamento;
+            return String(keyA).localeCompare(String(keyB));
+        });
+        return byDate;
+    };
+    const renderAgenda = () => {
+        if (!agendaContent) return;
+        const keys = [...agendaMonths.keys()].sort();
+        if (keys.length === 0) return;
+        const first = monthRange(keys[0]);
+        const last = monthRange(keys[keys.length - 1]);
+        if (!first || !last) return;
+        const byDate = agendaCombinedByDate();
+        const today = localDate();
+        const start = agendaDate(first.start);
+        const end = agendaDate(last.end);
+        const weeks = new Map();
+        for (let cursor = new Date(start); cursor <= end; cursor.setDate(cursor.getDate() + 1)) {
+            const iso = agendaIso(cursor);
+            const week = agendaWeekStart(iso);
+            if (!weeks.has(week)) weeks.set(week, []);
+            weeks.get(week).push(iso);
+        }
+        let html = '';
+        for (const [weekStart, dates] of weeks) {
+            const count = dates.reduce((sum,date) => sum + (byDate.get(date)?.length || 0), 0);
+            html += `<section class="schedule-agenda-week"><header class="schedule-agenda-week-head"><span class="dashboard-eyebrow">${escapeHtml(tr('schedule.agenda_week'))}</span><h2>${escapeHtml(agendaWeekLabel(weekStart))}</h2>${count ? `<small>${escapeHtml(trn('schedule.workout_count.one','schedule.workout_count.other',count))}</small>` : ''}</header>`;
+            for (const date of dates) {
+                const rows = byDate.get(date) || [];
+                const isToday = date === today;
+                html += `<section class="schedule-agenda-day${isToday ? ' is-today' : ''}" data-agenda-date="${date}"><header class="schedule-agenda-day-head"><div><h3>${escapeHtml(agendaDateLabel(date))}</h3>${isToday ? `<span>${escapeHtml(tr('common.today'))}</span>` : ''}</div><button type="button" class="schedule-agenda-day-add" data-agenda-add-date="${date}" aria-label="${escapeHtml(tr('schedule.add_workout_on',{date:agendaShortDate(date)}))}">+ ${escapeHtml(tr('schedule.add_workout'))}</button></header><div class="schedule-agenda-day-items">`;
+                if (rows.length) html += rows.map(row => row.kind === 'occurrence' ? agendaOccurrenceMarkup(row.item) : agendaScheduledMarkup(row.item)).join('');
+                else html += `<div class="schedule-agenda-empty-day"><span>${escapeHtml(tr('schedule.agenda_no_workout'))}</span><button type="button" data-agenda-add-date="${date}">+ ${escapeHtml(tr('schedule.add_workout'))}</button></div>`;
+                html += '</div></section>';
+            }
+            html += '</section>';
+        }
+        agendaContent.innerHTML = html;
+        agendaContent.setAttribute('aria-busy','false');
+        agendaRetry?.toggleAttribute('hidden', true);
+        agendaLastFailed = '';
+    };
+    const agendaSetLoading = loading => {
+        if (agendaStatus) agendaStatus.textContent = loading ? tr('common.loading') : '';
+        if (agendaMore) agendaMore.disabled = loading;
+        if (agendaPrevious) agendaPrevious.disabled = loading;
+    };
+    const agendaFetchMonth = async key => {
+        if (!agendaRoot || !agendaContent || !monthParts(key) || agendaMonths.has(key) || agendaRequests.has(key)) return;
+        if (agendaMonths.size >= agendaMaxMonths) return;
+        const schedule = agendaRoot.dataset.scheduleId || '';
+        if (!schedule) return;
+        const range = monthRange(key);
+        if (!range) return;
+        const generation = agendaGeneration;
+        const controller = new AbortController();
+        agendaRequests.set(key, controller);
+        agendaSetLoading(true);
+        try {
+            const response = await (window.StrideBRNet?.fetch || fetch)(`/api/cronograma-ocorrencias.php?start=${encodeURIComponent(range.start)}&end=${encodeURIComponent(range.end)}&schedule=${encodeURIComponent(schedule)}`, {headers:{'Accept':'application/json'}, signal:controller.signal}, 10000);
+            const data = await response.json();
+            if (!response.ok || !data.ok) throw new Error(data.error || tr('schedule.agenda_load_error'));
+            if (generation !== agendaGeneration || schedule !== (agendaRoot.dataset.scheduleId || '')) return;
+            agendaMonths.set(key, data);
+            renderAgenda();
+        } catch (error) {
+            if (error?.name === 'AbortError') return;
+            agendaLastFailed = key;
+            if (agendaStatus) agendaStatus.textContent = tr('schedule.agenda_load_error');
+            agendaRetry?.toggleAttribute('hidden', false);
+        } finally {
+            if (agendaRequests.get(key) === controller) agendaRequests.delete(key);
+            if (generation === agendaGeneration) agendaSetLoading(false);
+        }
+    };
+    const agendaBoundaryKey = direction => {
+        const keys = [...agendaMonths.keys()].sort();
+        if (!keys.length) return agendaMonthKey(agendaRoot?.dataset.initialDate || localDate());
+        return monthKeyShift(direction < 0 ? keys[0] : keys[keys.length - 1], direction);
+    };
+    const agendaLoadNext = () => agendaFetchMonth(agendaBoundaryKey(1));
+    const agendaLoadPrevious = async () => {
+        if (!agendaContent) return;
+        const before = agendaContent.scrollHeight;
+        await agendaFetchMonth(agendaBoundaryKey(-1));
+        const delta = agendaContent.scrollHeight - before;
+        if (delta > 0) window.scrollBy({top:delta, behavior:'auto'});
+    };
+    const agendaReset = () => {
+        agendaGeneration++;
+        agendaRequests.forEach(controller => controller.abort());
+        agendaRequests.clear();
+        agendaMonths.clear();
+        agendaLastFailed = '';
+        const schedule = agendaRoot?.dataset.scheduleId || '';
+        agendaRetry?.toggleAttribute('hidden', true);
+        if (!schedule) {
+            if (agendaContent) {
+                agendaContent.setAttribute('aria-busy','false');
+                agendaContent.innerHTML = `<div class="empty-state rich"><strong>${escapeHtml(tr('schedule.empty'))}</strong><p>${escapeHtml(tr('schedule.empty_help'))}</p></div>`;
+            }
+            if (agendaPrevious) agendaPrevious.disabled = true;
+            if (agendaMore) agendaMore.disabled = true;
+            if (agendaStatus) agendaStatus.textContent = '';
+            return;
+        }
+        if (agendaContent) {
+            agendaContent.setAttribute('aria-busy','true');
+            agendaContent.innerHTML = '<div class="schedule-agenda-skeleton" aria-hidden="true"><span></span><i></i><i></i><i></i></div>';
+        }
+        if (agendaPrevious) agendaPrevious.disabled = false;
+        if (agendaMore) agendaMore.disabled = false;
+        const key = agendaMonthKey(agendaRoot?.dataset.initialDate || localDate());
+        if (key) agendaFetchMonth(key);
+    };
+    if (agendaRoot && agendaContent) {
+        agendaPrevious?.addEventListener('click', agendaLoadPrevious);
+        agendaMore?.addEventListener('click', agendaLoadNext);
+        agendaRetry?.addEventListener('click', () => agendaLastFailed && agendaFetchMonth(agendaLastFailed));
+        agendaRoot.addEventListener('click', event => {
+            const add = event.target.closest('[data-agenda-add-date]');
+            if (add) openQuickCreate({mode:'schedule', date:add.dataset.agendaAddDate || localDate(), anchor:add});
+        });
+        if ('IntersectionObserver' in window && agendaSentinel) {
+            agendaObserver = new IntersectionObserver(entries => {
+                if (currentView === 'agenda' && entries.some(entry => entry.isIntersecting)) agendaLoadNext();
+            }, {rootMargin:'0px 0px 420px 0px'});
+            agendaObserver.observe(agendaSentinel);
+        }
+        document.addEventListener('stridebr:schedule-agenda-context', agendaReset);
+        viewButtons.forEach(button => button.addEventListener('click', () => {
+            if (button.dataset.view === 'agenda' && agendaMonths.size === 0) agendaReset();
+        }));
+        if (currentView === 'agenda') agendaReset();
+    }
 
     document.addEventListener('click', event => {
         const link = event.target.closest('[data-schedule-workspace-nav]');

@@ -442,7 +442,8 @@ $monthLeading = (int) $monthStart->format('w');
 $monthTotalDays = (int) $monthEnd->format('j');
 $monthCellCount = (int) (ceil(($monthLeading + $monthTotalDays) / 7) * 7);
 $today = (new DateTimeImmutable('today'))->format('Y-m-d');
-$treinosVigentes = cronogramaFiltrarTreinosVigentes($treinos, $today);
+$agendaInitialDate = trim((string) ($_GET['date'] ?? $today));
+if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $agendaInitialDate)) $agendaInitialDate = $today;
 
 $weekToday = new DateTimeImmutable('today');
 $weekStart = $weekToday->modify('-' . $weekToday->format('w') . ' days');
@@ -1070,34 +1071,23 @@ $initialView = in_array($requestedInitialView, $allowedInitialViews, true)
                     </div>
                 </section>
 
-                <section class="agenda-view" data-calendar-view="agenda"<?php echo $initialView === 'agenda' ? '' : ' hidden'; ?>>
-                    <?php if ($treinosVigentes === []): ?>
-                        <div class="empty-state rich"><strong><?php echo stridebr_e(stridebr_t('schedule.empty')); ?></strong><p><?php echo stridebr_e(stridebr_t('schedule.empty_help')); ?></p><button type="button" class="primary-button" data-new-workout><?php echo stridebr_e(stridebr_t('schedule.add_first_workout')); ?></button></div>
-                    <?php else: ?>
-                        <?php foreach ($dias as $dayIndex => $dayName): ?>
-                            <?php $dayWorkouts = array_values(array_filter($treinosVigentes, fn(array $t): bool => (int) $t['dia_semana'] === $dayIndex)); ?>
-                            <?php if ($dayWorkouts !== []): ?>
-                                <div class="agenda-day">
-                                    <h2><?php echo stridebr_e($dayName); ?></h2>
-                                    <?php foreach ($dayWorkouts as $item): ?>
-                                        <article class="agenda-card">
-                                            <button type="button" class="agenda-card-main" data-preview-workout="<?php echo stridebr_e($item['idtreino']); ?>">
-                                                <?php if (!empty($item['codigo']) || !empty($item['foco'])): ?><small class="workout-card-kicker"><?php echo stridebr_e(implode(' · ', array_filter([(string) ($item['codigo'] ?? ''), (string) ($item['foco'] ?? '')]))); ?></small><?php endif; ?>
-                                                <strong><?php echo stridebr_e($item['titulo']); ?></strong>
-                                                <span><?php echo stridebr_e(substr($item['hora_inicio'], 0, 5)); ?>–<?php echo stridebr_e(substr($item['hora_fim'], 0, 5)); ?><?php echo stridebr_db_bool($item['termina_dia_seguinte']) ? ' do dia seguinte' : ''; ?></span>
-                                            </button>
-                                            <div class="agenda-actions">
-                                                <details class="library-more-menu agenda-more-menu"><summary aria-label="<?php echo stridebr_e(stridebr_t('schedule.more_actions')); ?>">•••</summary><div>
-                                                    <button type="button" data-edit-workout="<?php echo stridebr_e((string) $item['idtreino']); ?>"><?php echo stridebr_e(stridebr_t('schedule.edit_workout')); ?></button>
-                                                    <form method="POST" data-confirm="Remover este treino?"><?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="delete_workout"><input type="hidden" name="idcronograma" value="<?php echo stridebr_e($idSelecionado); ?>"><input type="hidden" name="idtreino" value="<?php echo stridebr_e($item['idtreino']); ?>"><button class="is-danger" type="submit"><?php echo stridebr_e(stridebr_t('schedule.remove_workout')); ?></button></form>
-                                                </div></details>
-                                            </div>
-                                        </article>
-                                    <?php endforeach; ?>
-                                </div>
-                            <?php endif; ?>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
+                <section class="agenda-view schedule-agenda-timeline" data-calendar-view="agenda" data-schedule-agenda-timeline data-schedule-id="<?php echo stridebr_e($idSelecionado); ?>" data-initial-date="<?php echo stridebr_e($agendaInitialDate); ?>"<?php echo $initialView === 'agenda' ? '' : ' hidden'; ?>>
+                    <div class="schedule-agenda-toolbar">
+                        <button type="button" class="secondary-button schedule-agenda-previous" data-agenda-load-previous<?php echo $idSelecionado === '' ? ' disabled' : ''; ?>><?php echo stridebr_e(stridebr_t('schedule.agenda_load_previous')); ?></button>
+                        <span class="schedule-agenda-status" data-agenda-status aria-live="polite"></span>
+                    </div>
+                    <div class="schedule-agenda-content" data-agenda-content aria-live="polite" aria-busy="<?php echo $idSelecionado === '' ? 'false' : 'true'; ?>">
+                        <?php if ($idSelecionado === ''): ?>
+                            <div class="empty-state rich"><strong><?php echo stridebr_e(stridebr_t('schedule.empty')); ?></strong><p><?php echo stridebr_e(stridebr_t('schedule.empty_help')); ?></p><button type="button" class="primary-button" data-open-schedule-create><?php echo stridebr_e(stridebr_t('schedule.new_schedule')); ?></button></div>
+                        <?php else: ?>
+                            <div class="schedule-agenda-skeleton" aria-hidden="true"><span></span><i></i><i></i><i></i></div>
+                        <?php endif; ?>
+                    </div>
+                    <div class="schedule-agenda-sentinel" data-agenda-sentinel aria-hidden="true"></div>
+                    <div class="schedule-agenda-footer">
+                        <button type="button" class="secondary-button" data-agenda-load-more<?php echo $idSelecionado === '' ? ' disabled' : ''; ?>><?php echo stridebr_e(stridebr_t('schedule.agenda_load_more')); ?></button>
+                        <button type="button" class="secondary-button" data-agenda-retry hidden><?php echo stridebr_e(stridebr_t('schedule.retry')); ?></button>
+                    </div>
                 </section>
 
                     </div>

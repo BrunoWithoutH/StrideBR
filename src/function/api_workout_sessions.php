@@ -169,14 +169,14 @@ function stridebr_api_workout_session_set_update(PDO $pdo, string $userId, strin
         $pdo,
         $userId,
         $setId,
-        $payload['repetitions'] ?? '',
-        $payload['load'] ?? '',
+        $payload['actual_repetitions'] ?? ($payload['repetitions'] ?? ''),
+        $payload['actual_load'] ?? ($payload['load'] ?? ''),
         stridebr_api_bool($payload['propagate_load'] ?? false),
         trim((string) ($payload['edited_field'] ?? '')),
         [],
         $sessionId,
-        $payload['duration_s'] ?? ($payload['duration'] ?? null),
-        $payload['distance_m'] ?? ($payload['distance'] ?? null)
+        $payload['actual_duration_s'] ?? ($payload['duration_s'] ?? ($payload['duration'] ?? null)),
+        $payload['actual_distance_m'] ?? ($payload['distance_m'] ?? ($payload['distance'] ?? null))
     );
     return stridebr_api_workout_session_payload($result['session']);
 }

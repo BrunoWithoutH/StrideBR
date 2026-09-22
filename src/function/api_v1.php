@@ -738,4 +738,6 @@ require_once __DIR__ . '/api_institutional_surface.php';
 require_once __DIR__ . '/api_training_platform.php';
 require_once __DIR__ . '/api_workout_sessions.php';
 require_once __DIR__ . '/api_progress.php';
+require_once __DIR__ . '/api_sports.php';
+require_once __DIR__ . '/api_people.php';
 require_once __DIR__ . '/api_mobile_completion.php';

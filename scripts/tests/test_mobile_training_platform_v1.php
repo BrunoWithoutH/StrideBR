@@ -73,8 +73,24 @@ return function (PDO $pdo): void {
     AlphaTest::same('recurring', $recurring['kind'], 'POST workout deve criar recorrência usando cronograma real');
     AlphaTest::same('weekly', $recurring['recurrence']['frequency'], 'Contrato deve explicitar recorrência semanal real');
     AlphaTest::assert(!empty($recurring['permissions']['can_edit']), 'Ocorrência recorrente própria deve expor edição permitida');
+    $recurringParsed = stridebr_api_workout_parse_id((string) $recurring['id']);
+    $recurringBaseId = (string) $recurringParsed['id'];
+    $pacerId = stridebr_api_id();
+    $routeId = stridebr_api_id();
+    $pdo->prepare("INSERT INTO pacer_plans (idplan,idusuario,idmodalidade,name,strategy,target_distance_m,target_time_s,target_average_pace_s_per_km) VALUES (:id,:user,:sport,'Pacer recurrence alpha','even',5000,1800,360)")->execute([':id'=>$pacerId, ':user'=>$owner, ':sport'=>$sportId]);
+    $pdo->prepare("INSERT INTO rotas_salvas (idrota_salva,idusuario,nome,idmodalidade,coordenadas) VALUES (:id,:user,'Route recurrence alpha',:sport,'[]'::jsonb)")->execute([':id'=>$routeId, ':user'=>$owner, ':sport'=>$sportId]);
+    $pdo->prepare('UPDATE treinos_cronograma SET idpacerplan=:pacer,idrota_salva=:route WHERE idtreino=:id')->execute([':pacer'=>$pacerId, ':route'=>$routeId, ':id'=>$recurringBaseId]);
     $recurringUpdated = stridebr_api_workout_update($pdo, $owner, (string) $recurring['id'], ['scope' => 'all', 'title' => 'Academia recorrente editada']);
     AlphaTest::same('Academia recorrente editada', $recurringUpdated['title'], 'PATCH scope=all deve reutilizar engine Web de recorrência');
+    $recurringRowStmt = $pdo->prepare('SELECT vigencia_inicio,vigencia_fim,idpacerplan,idrota_salva FROM treinos_cronograma WHERE idtreino=:id');
+    $recurringRowStmt->execute([':id'=>$recurringBaseId]);
+    $recurringRow = $recurringRowStmt->fetch();
+    AlphaTest::same('2026-09-21', (string) ($recurringRow['vigencia_inicio'] ?? ''), 'PATCH scope=all precisa preservar vigencia_inicio original.');
+    AlphaTest::same('2026-10-31', (string) ($recurringRow['vigencia_fim'] ?? ''), 'PATCH scope=all precisa preservar vigencia_fim original.');
+    AlphaTest::same($pacerId, (string) ($recurringRow['idpacerplan'] ?? ''), 'PATCH parcial scope=all não pode remover Pacer existente.');
+    AlphaTest::same($routeId, (string) ($recurringRow['idrota_salva'] ?? ''), 'PATCH parcial scope=all não pode remover Route existente.');
+    $originalOccurrence = stridebr_api_workout_detail($pdo, $owner, (string) $recurring['id']);
+    AlphaTest::same('Academia recorrente editada', (string) ($originalOccurrence['title'] ?? ''), 'Occurrence original precisa continuar resolvendo após PATCH scope=all.');
 
     $range = stridebr_api_workout_schedule($pdo, $owner, ['from' => '2026-09-20', 'to' => '2026-10-20']);
     AlphaTest::assert((bool) array_filter($range['data'], static fn(array $item): bool => $item['id'] === $workout['id']), 'Range mensal deve conter workout pessoal');

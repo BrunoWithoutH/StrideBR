@@ -35,7 +35,7 @@ $pacerService = $read('src/function/pacer_service.php');
 $streamService = $read('src/function/activity_stream_service.php');
 $pacerMigration = $read('src/database/migrations/20260915_activity_streams_analysis_pacer_v1.sql');
 
-$assert(str_contains($home, 'dashboard-tomorrow-context') && str_contains($home, 'aria-label="Amanhã"'), 'Home precisa incorporar amanhã ao card principal.');
+$assert(str_contains($home, 'dashboard-tomorrow-context') && str_contains($home, "stridebr_t('common.tomorrow')"), 'Home precisa incorporar amanhã ao card principal com copy localizada.');
 $assert(!str_contains($home, '>Próximo treino<') && !str_contains($home, 'data-dashboard-module="upcoming"'), 'Home não pode reintroduzir card redundante de próximo treino.');
 $assert(str_contains($home, 'dashboard-home-rail') && str_contains($home, 'Próximas competições') && str_contains($home, 'count($nextCompetitions) >= 3'), 'Home precisa limitar competições no right rail.');
 $assert(str_contains($home, 'dashboard-period-strip') && str_contains($home, 'data-dashboard-module="recent"') && !str_contains($home, 'data-home-last-map'), 'Home precisa ter faixa 28 dias e lista recente sem mapa da última atividade.');

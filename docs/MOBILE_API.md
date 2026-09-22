@@ -829,13 +829,19 @@ Os gaps de autonomia Android fechados nesta rodada estão documentados operacion
 Contratos adicionados/expandidos:
 
 - Workout Session set PATCH: `duration_s`, `distance_m`, history/actuals V2;
-- Progress com `sport=<slug>` em dashboard/cardio/strength/exercises;
-- `POST /activities/manual` com idempotência;
-- `PATCH` e `DELETE /activities/{id}` com version/capabilities e soft delete;
+- Progress com `sport=<id ou slug>` owner-scoped em dashboard/cardio/strength/exercises/timeseries/calendar/adherence;
+- `GET /sports` como catálogo completo de modalidades ativas para registro;
+- `POST /activities/manual` com idempotência e `strength_exercises` realizado;
+- Activity Detail strength com séries realizadas, nullability, version e capabilities;
+- `PATCH` e `DELETE /activities/{id}` com concurrency, edição manual capability-scoped e soft delete;
 - `PATCH /me` para os campos simples do perfil Web;
 - `POST /workout-sessions/{sessionId}/exercises/{exerciseId}/sets` retry-safe;
-- `GET /workout-sessions/by-workout/{workoutId}` para execução concluída;
+- `GET /workout-sessions/by-workout/{workoutId}` para execução concluída e Quick Register sem sets fabricados;
+- preview Web de workout `planned|performed|missed`;
 - `GET/PATCH /me/privacy`;
-- CRUD owner-scoped de `/equipment`.
+- CRUD owner-scoped de `/equipment`;
+- `/people/*` para busca, amigos e vínculos treinador/atleta com privacidade e permissões.
 
-Continuam fora deste contrato: trim de rota, troca de e-mail/senha/exclusão de conta, Goals/Marks novos e redesign OAuth/integrations.
+Pessoas está documentado em [`PEOPLE_API_V1.md`](PEOPLE_API_V1.md). O fechamento completo está em [`CORE_APP_COMPLETION_V1.md`](CORE_APP_COMPLETION_V1.md).
+
+Continuam fora deste contrato: trim de rota, import FIT/GPX/TCX no Mobile, troca de e-mail/senha/exclusão de conta, Goals/Marks novos e redesign OAuth/integrations.

@@ -12,17 +12,24 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') stridebr_session_release();
 
 $idUsuario = stridebr_require_login();
 require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
-require_once dirname(__DIR__, 2) . '/src/function/cronograma.php';
+require_once dirname(__DIR__, 2) . '/src/function/workout_preview_service.php';
 
 try {
     $idTreino = trim((string) ($_GET['idtreino'] ?? ''));
     if ($idTreino === '') throw new InvalidArgumentException(stridebr_t('schedule.validation.workout_required'));
     $treino = cronogramaBuscarTreino($pdo, $idTreino, $idUsuario);
     if ($treino === []) throw new RuntimeException(stridebr_t('schedule.workout_not_found'));
-    $exercicios = cronogramaListarTreinoExercicios($pdo, $idTreino, $idUsuario);
+    $preview = workoutPreviewData($pdo, $idUsuario, $idTreino, [
+        'occurrence_original' => (string) ($_GET['occurrence_original'] ?? ''),
+        'planned_date' => (string) ($_GET['planned_date'] ?? ''),
+        'activity_id' => (string) ($_GET['activity_id'] ?? ''),
+    ]);
     $dias = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
     echo json_encode([
         'ok' => true,
+        'preview_mode' => $preview['preview_mode'],
+        'activity_id' => $preview['activity_id'],
+        'actual' => $preview['actual'],
         'workout' => [
             'idtreino' => (string) $treino['idtreino'],
             'idcronograma' => (string) $treino['idcronograma'],
@@ -44,26 +51,7 @@ try {
             'idtreino_modelo' => (string) ($treino['idtreino_modelo'] ?? ''),
             'biblioteca_disponivel' => cronogramaBibliotecaDisponivel($pdo),
         ],
-        'exercises' => array_map(static fn(array $row): array => [
-            'nome' => (string) ($row['nome_snapshot'] ?? ''),
-            'series' => $row['series'] !== null ? (int) $row['series'] : null,
-            'repeticoes' => (string) ($row['repeticoes'] ?? ''),
-            'carga' => (string) ($row['carga'] ?? ''),
-            'descanso' => (string) ($row['descanso'] ?? ''),
-            'bloco' => (string) ($row['bloco'] ?? ''),
-            'cluster' => (string) ($row['cluster'] ?? ''),
-            'duracao' => (string) ($row['duracao'] ?? ''),
-            'distancia' => (string) ($row['distancia'] ?? ''),
-            'tipo_passo' => (string) ($row['tipo_passo'] ?? 'exercise'),
-            'repeticoes_bloco' => $row['repeticoes_bloco'] !== null ? (int) $row['repeticoes_bloco'] : null,
-            'alvo_tipo' => (string) ($row['alvo_tipo'] ?? ''),
-            'alvo_min' => $row['alvo_min'] !== null ? (float) $row['alvo_min'] : null,
-            'alvo_max' => $row['alvo_max'] !== null ? (float) $row['alvo_max'] : null,
-            'alvo_unidade' => (string) ($row['alvo_unidade'] ?? ''),
-            'recuperacao_duracao_s' => $row['recuperacao_duracao_s'] !== null ? (int) $row['recuperacao_duracao_s'] : null,
-            'recuperacao_distancia_m' => $row['recuperacao_distancia_m'] !== null ? (float) $row['recuperacao_distancia_m'] : null,
-            'observacoes' => (string) ($row['observacoes'] ?? ''),
-        ], $exercicios),
+        'exercises' => $preview['exercises'],
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 } catch (InvalidArgumentException|RuntimeException $e) {
     http_response_code(422);

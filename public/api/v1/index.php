@@ -113,6 +113,74 @@ try {
         }
         stridebr_api_error(404, 'not_found', 'Endpoint não encontrado.');
     }
+    if ($route === 'sports') {
+        stridebr_api_require_method('GET');
+        $user = stridebr_api_user($pdo);
+        try {
+            stridebr_api_response(200, ['data' => stridebr_api_sports_catalog($pdo, (string) $user['idusuario'], $_GET)]);
+        } catch (InvalidArgumentException $e) {
+            stridebr_api_error(422, 'validation_error', $e->getMessage());
+        }
+    }
+    if (($parts[0] ?? '') === 'people') {
+        $user = stridebr_api_user($pdo);
+        $userId = (string) $user['idusuario'];
+        $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+        try {
+            if ($route === 'people/search') {
+                stridebr_api_require_method('GET');
+                stridebr_api_response(200, ['data' => stridebr_api_people_search($pdo, $userId, $_GET)]);
+            }
+            if ($route === 'people/friends') {
+                stridebr_api_require_method('GET');
+                stridebr_api_response(200, ['data' => stridebr_api_people_friends($pdo, $userId)]);
+            }
+            if ($route === 'people/friendships') {
+                stridebr_api_require_method('POST');
+                stridebr_api_response(201, ['data' => stridebr_api_people_friendship_create($pdo, $userId, stridebr_api_json_input())]);
+            }
+            if (count($parts) === 4 && $parts[1] === 'friendships' && in_array($parts[3], ['accept', 'reject'], true)) {
+                stridebr_api_require_method('POST');
+                stridebr_api_response(200, ['data' => stridebr_api_people_friendship_respond($pdo, $userId, rawurldecode($parts[2]), $parts[3])]);
+            }
+            if (count($parts) === 3 && $parts[1] === 'friendships') {
+                stridebr_api_require_method('DELETE');
+                stridebr_api_response(200, ['data' => stridebr_api_people_friendship_delete($pdo, $userId, rawurldecode($parts[2]))]);
+            }
+            if ($route === 'people/coaching') {
+                if ($method === 'GET') stridebr_api_response(200, ['data' => stridebr_api_people_coaching($pdo, $userId)]);
+                if ($method === 'POST') stridebr_api_response(201, ['data' => stridebr_api_people_coaching_create($pdo, $userId, stridebr_api_json_input())]);
+                stridebr_api_require_method('GET', 'POST');
+            }
+            if (count($parts) === 4 && $parts[1] === 'coaching' && in_array($parts[3], ['accept', 'reject'], true)) {
+                stridebr_api_require_method('POST');
+                stridebr_api_response(200, ['data' => stridebr_api_people_coaching_respond($pdo, $userId, rawurldecode($parts[2]), $parts[3])]);
+            }
+            if (count($parts) === 4 && $parts[1] === 'coaching' && $parts[3] === 'permissions') {
+                stridebr_api_require_method('PATCH');
+                stridebr_api_response(200, ['data' => stridebr_api_people_coaching_permissions($pdo, $userId, rawurldecode($parts[2]), stridebr_api_json_input())]);
+            }
+            if (count($parts) === 3 && $parts[1] === 'coaching') {
+                stridebr_api_require_method('DELETE');
+                stridebr_api_response(200, ['data' => stridebr_api_people_coaching_delete($pdo, $userId, rawurldecode($parts[2]))]);
+            }
+            if (count($parts) === 2) {
+                stridebr_api_require_method('GET');
+                stridebr_api_response(200, ['data' => stridebr_api_people_detail($pdo, $userId, rawurldecode($parts[1]))]);
+            }
+            stridebr_api_error(404, 'not_found', 'Endpoint de pessoas não encontrado.');
+        } catch (PeopleApiFeatureDisabledException $e) {
+            stridebr_api_error(503, 'feature_disabled', $e->getMessage());
+        } catch (PeopleApiNotFoundException $e) {
+            stridebr_api_error(404, 'not_found', $e->getMessage());
+        } catch (PeopleApiForbiddenException $e) {
+            stridebr_api_error(403, 'forbidden', $e->getMessage());
+        } catch (PeopleApiConflictException $e) {
+            stridebr_api_error(409, 'invalid_state', $e->getMessage());
+        } catch (InvalidArgumentException $e) {
+            stridebr_api_error(422, 'validation_error', $e->getMessage());
+        }
+    }
     if (str_starts_with($route, 'progress/')) {
         stridebr_api_require_method('GET');
         $user = stridebr_api_user($pdo);
@@ -214,7 +282,7 @@ try {
                 } catch (MobileApiIdempotencyConflictException $e) {
                     stridebr_api_error(409, 'idempotency_conflict', $e->getMessage());
                 }
-                stridebr_api_response(!empty($result['reused']) ? 200 : 201, ['data' => $result['session'], 'set_id' => $result['set_id'], 'reused' => !empty($result['reused'])]);
+                stridebr_api_response(!empty($result['reused']) ? 200 : 201, ['data' => ['session' => $result['session'], 'set_id' => $result['set_id'], 'reused' => !empty($result['reused'])]]);
             }
         } catch (InvalidArgumentException $e) {
             stridebr_api_error(422, 'validation_error', $e->getMessage());

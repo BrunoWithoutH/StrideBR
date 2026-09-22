@@ -2,6 +2,28 @@
 
 declare(strict_types=1);
 
+function notificacaoFeatureAtiva(PDO $pdo, string $key, bool $default = false): bool
+{
+    if (function_exists('stridebr_feature_enabled')) return stridebr_feature_enabled($pdo, $key, $default);
+    try {
+        $stmt = $pdo->prepare('SELECT ativo FROM feature_flags WHERE chave = :chave LIMIT 1');
+        $stmt->execute([':chave' => $key]);
+        $value = $stmt->fetchColumn();
+        return $value === false ? $default : stridebr_db_bool($value);
+    } catch (PDOException $e) {
+        if (in_array($e->getCode(), ['42P01', '42703'], true)) return $default;
+        throw $e;
+    }
+}
+
+function notificacaoGerarId(): string
+{
+    if (function_exists('stridebr_generate_id')) return stridebr_generate_id();
+    if (function_exists('stridebr_api_id')) return stridebr_api_id();
+    $bytes = random_bytes(18);
+    return substr(rtrim(strtr(base64_encode($bytes), '+/', '-_'), '='), 0, 21);
+}
+
 function notificacaoCopy(string $titulo, string $mensagem = ''): array
 {
     $titulo = trim($titulo);
@@ -40,12 +62,12 @@ function notificacaoUrlAbertura(array $notificacao): string
 
 function notificacaoCriar(PDO $pdo, string $idUsuario, string $tipo, string $titulo, string $mensagem = '', string $url = '', array $dados = []): string
 {
-    if (!stridebr_feature_enabled($pdo, 'notifications.enabled', true)) return '';
+    if (!notificacaoFeatureAtiva($pdo, 'notifications.enabled', true)) return '';
     $tipo = trim($tipo);
     $titulo = trim($titulo);
     if ($idUsuario === '' || $tipo === '' || $titulo === '') return '';
     ['titulo' => $titulo, 'mensagem' => $mensagem] = notificacaoCopy($titulo, $mensagem);
-    $id = stridebr_generate_id();
+    $id = notificacaoGerarId();
     try {
         $stmt = $pdo->prepare('INSERT INTO notificacoes (idnotificacao, idusuario, tipo, titulo, mensagem, url, dados) VALUES (:id, :usuario, :tipo, :titulo, :mensagem, :url, CAST(:dados AS jsonb))');
         $stmt->execute([
@@ -142,7 +164,7 @@ function notificacaoMarcarTodasLidas(PDO $pdo, string $idUsuario): int
 
 function notificacaoCronogramaSincronizadoAlterado(PDO $pdo, string $idDono, string $idCronograma, string $mensagem = 'O cronograma foi atualizado.', ?string $url = null): int
 {
-    if ($idDono === '' || $idCronograma === '' || !stridebr_feature_enabled($pdo, 'notifications.enabled', true)) return 0;
+    if ($idDono === '' || $idCronograma === '' || !notificacaoFeatureAtiva($pdo, 'notifications.enabled', true)) return 0;
     try {
         $schedule = $pdo->prepare('SELECT nome FROM cronogramas WHERE idcronograma = :cronograma AND idusuario = :dono LIMIT 1');
         $schedule->execute([':cronograma' => $idCronograma, ':dono' => $idDono]);

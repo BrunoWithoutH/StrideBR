@@ -64,7 +64,11 @@ paths:
     get:
       security: [{ bearerAuth: [] }]
       responses:
-        '200': { description: Usuário autenticado }
+        '200':
+          description: Usuário autenticado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SelfProfileResponse' }
         '401': { $ref: '#/components/responses/Error' }
     patch:
       security: [{ bearerAuth: [] }]
@@ -74,7 +78,11 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/ProfilePatchRequest' }
       responses:
-        '200': { description: Perfil atualizado }
+        '200':
+          description: Perfil atualizado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SelfProfileResponse' }
         '401': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
   /me/privacy:
@@ -94,6 +102,177 @@ paths:
         '200': { description: Preferências atualizadas }
         '401': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
+  /sports:
+    get:
+      security: [{ bearerAuth: [] }]
+      description: Catálogo completo de modalidades ativas registráveis. Inclui globais e custom do próprio usuário; não depende de Activities no período.
+      parameters:
+        - { name: q, in: query, schema: { type: string }, description: Busca por nome ou slug. }
+        - { name: family, in: query, schema: { type: string }, description: Filtra pela família canônica. }
+      responses:
+        '200':
+          description: Catálogo ordenado para seleção em Activity manual.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SportCatalogResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /people/search:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string } }
+        - { name: type, in: query, schema: { type: string, enum: [all, friend, trainer], default: all } }
+      responses:
+        '200':
+          description: Pessoas ativas e descobríveis; no máximo 20 resultados e sem dados privados.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PeopleSearchResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /people/{id}:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Perfil público seguro e estado de relação com o usuário atual.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PersonDetailResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /people/friends:
+    get:
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Amizades aceitas e solicitações incoming/outgoing.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FriendsResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  /people/friendships:
+    post:
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id]
+              properties:
+                user_id: { type: string }
+      responses:
+        '201': { description: Solicitação criada. }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  /people/friendships/{id}/accept:
+    post:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Solicitação recebida aceita. }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /people/friendships/{id}/reject:
+    post:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Solicitação recebida recusada e removida. }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /people/friendships/{id}:
+    delete:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Cancela outgoing pending ou remove amizade aceita; replay de ID inexistente é seguro para o participante. }
+        '401': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /people/coaching:
+    get:
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Treinadores, atletas e vínculos pending incoming/outgoing.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CoachingResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+    post:
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, role_for_me]
+              properties:
+                user_id: { type: string }
+                role_for_me: { type: string, enum: [trainer, athlete] }
+      responses:
+        '201': { description: Convite/vínculo pending criado reutilizando o domínio Web. }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /people/coaching/{id}/accept:
+    post:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Vínculo pending recebido aceito. }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /people/coaching/{id}/reject:
+    post:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Vínculo pending recebido recusado, preservando histórico. }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /people/coaching/{id}/permissions:
+    patch:
+      security: [{ bearerAuth: [] }]
+      description: Somente o atleta do vínculo aceito controla as permissões concedidas ao treinador.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CoachingPermissionsPatch' }
+      responses:
+        '200': { description: Permissões atualizadas. }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /people/coaching/{id}:
+    delete:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Cancela convite enviado ou encerra vínculo aceito, preservando histórico de coaching. }
+        '401': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
   /equipment:
     get:
       security: [{ bearerAuth: [] }]
@@ -605,8 +784,16 @@ paths:
         - { name: exercise_id, in: path, required: true, schema: { type: string } }
         - { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 8, maxLength: 128 } }
       responses:
-        '201': { description: Série extra criada; retorna a sessão canônica atualizada. }
-        '200': { description: Retry idempotente da mesma série extra. }
+        '201':
+          description: Série extra criada; retorna session, set_id e reused dentro de data.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AppendSetResponse' }
+        '200':
+          description: Retry idempotente da mesma série extra, com o mesmo set_id e reused=true.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AppendSetResponse' }
         '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
   /workout-sessions/by-workout/{workout_id}:
@@ -615,7 +802,15 @@ paths:
       parameters:
         - { name: workout_id, in: path, required: true, schema: { type: string } }
       responses:
-        '200': { description: Execução concluída do workout, somente com valores realizados; quick register pode retornar available=false. }
+        '200':
+          description: Execução concluída do workout, somente com valores realizados; Quick Register retorna available=false, execution_mode=quick_register e exercises vazio.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/WorkoutExecutionSummary' }
         '401': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
   /workout-sessions/{session_id}/exercises/{exercise_id}/toggle:
@@ -683,8 +878,20 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/ManualActivityCreateRequest' }
       responses:
-        '201': { description: Activity manual criada; retorna ActivityDetail canônico. }
-        '200': { description: Retry idempotente; retorna a mesma Activity. }
+        '201':
+          description: Activity manual criada; retorna ActivityDetail canônico e reused=false.
+          headers:
+            Location: { schema: { type: string }, description: 'Caminho relativo de GET /activities/{id}.' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ManualActivityCreateResponse' }
+        '200':
+          description: Retry idempotente; retorna a mesma Activity e reused=true.
+          headers:
+            Location: { schema: { type: string }, description: Caminho relativo da mesma Activity. }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ManualActivityCreateResponse' }
         '401': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
@@ -1249,7 +1456,7 @@ components:
     ProgressSport:
       name: sport
       in: query
-      description: Slug canônico de modalidade. Ausente significa todas as modalidades.
+      description: ID ou slug canônico de modalidade ativa disponível ao usuário. Ausente significa todas as modalidades.
       schema: { type: string }
   securitySchemes:
     bearerAuth: { type: http, scheme: bearer }
@@ -1694,6 +1901,229 @@ components:
         name: { type: string }
         family: { type: string, nullable: true }
         route_capable: { type: boolean }
+    SportCatalogItem:
+      type: object
+      required: [id, slug, name, family, route_capable]
+      properties:
+        id: { type: string }
+        slug: { type: string }
+        name: { type: string }
+        family: { type: string }
+        route_capable: { type: boolean }
+    SportCatalogResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/SportCatalogItem' }
+    PersonPublic:
+      type: object
+      required: [id, username, display_name, avatar_url, bio, trainer_mode]
+      properties:
+        id: { type: string }
+        username: { type: string, nullable: true }
+        display_name: { type: string }
+        avatar_url: { type: string, nullable: true }
+        bio: { type: string, nullable: true, description: Omitido semanticamente como null quando a visibilidade/relação não permite exposição. }
+        trainer_mode: { type: boolean }
+    PeopleCapabilities:
+      type: object
+      required: [friends_enabled, trainer_enabled]
+      properties:
+        friends_enabled: { type: boolean }
+        trainer_enabled: { type: boolean }
+    PeopleSearchItem:
+      allOf:
+        - { $ref: '#/components/schemas/PersonPublic' }
+        - type: object
+          properties:
+            friendship_status: { type: string, enum: [incoming, outgoing, accepted, rejected, blocked], nullable: true }
+            coaching_status: { type: string, enum: [pending, accepted, rejected, ended], nullable: true }
+    PeopleSearchResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [items, capabilities]
+          properties:
+            items: { type: array, maxItems: 20, items: { $ref: '#/components/schemas/PeopleSearchItem' } }
+            capabilities: { $ref: '#/components/schemas/PeopleCapabilities' }
+    PersonDetail:
+      allOf:
+        - { $ref: '#/components/schemas/PersonPublic' }
+        - type: object
+          properties:
+            friendship_status: { type: string, nullable: true }
+            coaching_status: { type: string, nullable: true }
+            capabilities:
+              type: object
+              properties:
+                can_send_friend_request: { type: boolean }
+                can_request_coaching: { type: boolean }
+            people_capabilities: { $ref: '#/components/schemas/PeopleCapabilities' }
+    PersonDetailResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/PersonDetail' }
+    Friendship:
+      type: object
+      required: [id, status, person, capabilities]
+      properties:
+        id: { type: string }
+        status: { type: string, enum: [incoming, outgoing, accepted] }
+        person: { $ref: '#/components/schemas/PersonPublic' }
+        capabilities:
+          type: object
+          required: [can_accept, can_reject, can_delete]
+          properties:
+            can_accept: { type: boolean }
+            can_reject: { type: boolean }
+            can_delete: { type: boolean }
+    FriendsData:
+      type: object
+      required: [friends, incoming, outgoing]
+      properties:
+        friends: { type: array, items: { $ref: '#/components/schemas/Friendship' } }
+        incoming: { type: array, items: { $ref: '#/components/schemas/Friendship' } }
+        outgoing: { type: array, items: { $ref: '#/components/schemas/Friendship' } }
+    FriendsResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/FriendsData' }
+    CoachingPermissions:
+      type: object
+      required: [can_prescribe, can_view_schedule, can_view_activities, can_view_feedback]
+      properties:
+        can_prescribe: { type: boolean }
+        can_view_schedule: { type: boolean }
+        can_view_activities: { type: boolean }
+        can_view_feedback: { type: boolean }
+    CoachingPermissionsPatch:
+      type: object
+      additionalProperties: false
+      properties:
+        can_prescribe: { type: boolean }
+        can_view_schedule: { type: boolean }
+        can_view_activities: { type: boolean }
+        can_view_feedback: { type: boolean }
+    CoachingLink:
+      type: object
+      required: [id, status, trainer, athlete, requested_by, permissions, capabilities]
+      properties:
+        id: { type: string }
+        status: { type: string, enum: [pending, accepted, rejected, ended] }
+        trainer: { $ref: '#/components/schemas/PersonPublic' }
+        athlete: { $ref: '#/components/schemas/PersonPublic' }
+        requested_by: { type: string, enum: [trainer, athlete] }
+        permissions: { $ref: '#/components/schemas/CoachingPermissions' }
+        capabilities:
+          type: object
+          required: [can_accept, can_reject, can_cancel, can_end, can_edit_permissions]
+          properties:
+            can_accept: { type: boolean }
+            can_reject: { type: boolean }
+            can_cancel: { type: boolean }
+            can_end: { type: boolean }
+            can_edit_permissions: { type: boolean }
+    CoachingData:
+      type: object
+      required: [trainers, athletes, incoming, outgoing]
+      properties:
+        trainers: { type: array, items: { $ref: '#/components/schemas/CoachingLink' } }
+        athletes: { type: array, items: { $ref: '#/components/schemas/CoachingLink' } }
+        incoming: { type: array, items: { $ref: '#/components/schemas/CoachingLink' } }
+        outgoing: { type: array, items: { $ref: '#/components/schemas/CoachingLink' } }
+    CoachingResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/CoachingData' }
+    WorkoutExecutionSet:
+      type: object
+      required: [id, number, actual_repetitions, actual_load, actual_duration_s, actual_distance_m, repetitions, load, duration_s, distance_m, completed]
+      properties:
+        id: { type: string }
+        number: { type: integer, minimum: 1 }
+        actual_repetitions: { type: string, nullable: true }
+        actual_load: { type: string, nullable: true }
+        actual_duration_s: { type: integer, nullable: true }
+        actual_distance_m: { type: number, nullable: true }
+        repetitions: { type: string, nullable: true, description: Alias do valor realizado; nunca recebe prescription como fallback. }
+        load: { type: string, nullable: true, description: Alias do valor realizado; nunca recebe prescription como fallback. }
+        duration_s: { type: integer, nullable: true, description: Alias de actual_duration_s. }
+        distance_m: { type: number, nullable: true, description: Alias de actual_distance_m. }
+        completed: { type: boolean }
+    WorkoutExecutionExercise:
+      type: object
+      required: [id, exercise_id, name, sets, completed]
+      properties:
+        id: { type: string }
+        exercise_id: { type: string, nullable: true }
+        name: { type: string }
+        sets: { type: array, items: { $ref: '#/components/schemas/WorkoutExecutionSet' } }
+        completed: { type: boolean }
+    WorkoutExecutionSummary:
+      type: object
+      required: [available, execution_mode, workout_id, exercises]
+      properties:
+        available: { type: boolean }
+        execution_mode: { type: string, enum: [session, quick_register], nullable: true }
+        workout_id: { type: string }
+        session_id: { type: string, nullable: true }
+        started_at: { type: string, format: date-time, nullable: true }
+        ended_at: { type: string, format: date-time, nullable: true }
+        activity_id: { type: string, nullable: true }
+        activity:
+          type: object
+          nullable: true
+          required: [id]
+          properties:
+            id: { type: string }
+        exercises: { type: array, items: { $ref: '#/components/schemas/WorkoutExecutionExercise' }, description: Quick Register retorna lista vazia; nenhuma série planejada é fabricada como realizada. }
+    SelfProfile:
+      type: object
+      required: [id, name, username, email, avatar_url, role, onboarding_complete, preferences, bio, phone, birth_date, profile_visibility, discoverable]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        username: { type: string, nullable: true }
+        email: { type: string, format: email }
+        avatar_url: { type: string, nullable: true }
+        role: { type: string }
+        onboarding_complete: { type: boolean }
+        preferences: { type: object, additionalProperties: true }
+        bio: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        birth_date: { type: string, format: date, nullable: true }
+        profile_visibility: { type: string, enum: [privado, amigos, publico] }
+        discoverable: { type: boolean }
+    SelfProfileResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/SelfProfile' }
+    AppendSetData:
+      type: object
+      required: [session, set_id, reused]
+      properties:
+        session: { $ref: '#/components/schemas/WorkoutSession' }
+        set_id: { type: string }
+        reused: { type: boolean }
+    AppendSetResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/AppendSetData' }
+    ManualActivityCreateResponse:
+      type: object
+      required: [data, reused]
+      properties:
+        data: { $ref: '#/components/schemas/ActivityDetail' }
+        reused: { type: boolean }
     ProfilePatchRequest:
       type: object
       properties:
@@ -1730,7 +2160,7 @@ components:
         type: { type: string, enum: [aquecimento, trabalho, drop, falha, outro] }
         repetitions: { type: integer, minimum: 0, maximum: 999, nullable: true }
         load_kg: { type: number, minimum: 0, nullable: true }
-        duration_s: { type: integer, minimum: 0, nullable: true }
+        duration_s: { type: number, format: double, minimum: 0, nullable: true }
         distance_m: { type: number, minimum: 0, nullable: true }
         rir: { type: number, minimum: 0, maximum: 10, nullable: true }
         rpe: { type: number, minimum: 1, maximum: 10, nullable: true }
@@ -1744,6 +2174,29 @@ components:
         sets:
           type: array
           items: { $ref: '#/components/schemas/ManualStrengthSet' }
+    ActivityStrengthSet:
+      type: object
+      required: [number, type, repetitions, load_kg, duration_s, distance_m, rir, rpe, completed, notes]
+      properties:
+        number: { type: integer, minimum: 1 }
+        type: { type: string }
+        repetitions: { type: integer, minimum: 0, nullable: true }
+        load_kg: { type: number, minimum: 0, nullable: true }
+        duration_s: { type: number, format: double, minimum: 0, nullable: true }
+        distance_m: { type: number, format: double, minimum: 0, nullable: true }
+        rir: { type: number, nullable: true }
+        rpe: { type: number, nullable: true }
+        completed: { type: boolean }
+        notes: { type: string, nullable: true }
+    ActivityStrengthExercise:
+      type: object
+      required: [exercise_id, name, sets]
+      properties:
+        exercise_id: { type: string, nullable: true }
+        name: { type: string }
+        sets:
+          type: array
+          items: { $ref: '#/components/schemas/ActivityStrengthSet' }
     ManualActivityCreateRequest:
       type: object
       required: [sport, started_at]
@@ -1764,8 +2217,9 @@ components:
           items: { $ref: '#/components/schemas/ManualStrengthExercise' }
     ActivityPatchRequest:
       type: object
+      required: [if_version]
       properties:
-        if_version: { type: string, description: version retornada pelo ActivityDetail. }
+        if_version: { type: string, minLength: 1, description: version retornada pelo ActivityDetail. Obrigatória para impedir last-write-wins silencioso. }
         title: { type: string, maxLength: 255 }
         notes: { type: string, nullable: true }
         perceived_effort: { type: integer, minimum: 1, maximum: 10, nullable: true }
@@ -1773,7 +2227,12 @@ components:
         started_at: { type: string, format: date-time }
         ended_at: { type: string, format: date-time, nullable: true }
         duration_s: { type: number, minimum: 0, nullable: true }
+        distance_m: { type: number, minimum: 0, nullable: true, description: Mutável somente quando capabilities.can_edit_metrics=true; Activities com rota GPS não aceitam override arbitrário. }
         equipment_ids: { type: array, items: { type: string } }
+        strength_exercises:
+          type: array
+          description: Mutável somente para Activity manual/API de força quando capabilities.can_edit_strength=true.
+          items: { $ref: '#/components/schemas/ManualStrengthExercise' }
     ActivityMutationCapabilities:
       type: object
       required: [can_edit, can_delete, can_edit_title, can_edit_notes, can_edit_effort, can_edit_visibility, can_edit_datetime, can_edit_sport, can_edit_equipment, can_edit_metrics, can_edit_strength, can_trim_route]
@@ -1882,7 +2341,7 @@ components:
       allOf:
         - { $ref: '#/components/schemas/ActivitySummary' }
         - type: object
-          required: [uses_segments, route_privacy, segments, equipment]
+          required: [uses_segments, route_privacy, segments, equipment, updated_at, version, capabilities]
           properties:
             notes: { type: string, nullable: true }
             uses_segments: { type: boolean }
@@ -1918,7 +2377,7 @@ components:
             capabilities: { $ref: '#/components/schemas/ActivityMutationCapabilities' }
             strength_exercises:
               type: array
-              items: { $ref: '#/components/schemas/ManualStrengthExercise' }
+              items: { $ref: '#/components/schemas/ActivityStrengthExercise' }
     InstitutionalNamedRef:
       type: object
       properties:
@@ -2433,10 +2892,14 @@ components:
     WorkoutSessionSetUpdateRequest:
       type: object
       properties:
-        repetitions: { type: string, nullable: true }
-        load: { type: string, nullable: true }
-        duration_s: { type: integer, minimum: 0, nullable: true }
-        distance_m: { type: number, format: double, minimum: 0, nullable: true }
+        actual_repetitions: { type: string, nullable: true }
+        actual_load: { type: string, nullable: true }
+        actual_duration_s: { type: integer, minimum: 0, nullable: true }
+        actual_distance_m: { type: number, format: double, minimum: 0, nullable: true }
+        repetitions: { type: string, nullable: true, deprecated: true, description: Alias legado de actual_repetitions. }
+        load: { type: string, nullable: true, deprecated: true, description: Alias legado de actual_load. }
+        duration_s: { type: integer, minimum: 0, nullable: true, deprecated: true, description: Alias legado de actual_duration_s. }
+        distance_m: { type: number, format: double, minimum: 0, nullable: true, deprecated: true, description: Alias legado de actual_distance_m. }
         propagate_load: { type: boolean, default: false, description: Compatibilidade com clientes anteriores; propagation V2 usa edited_field. }
         edited_field: { type: string, enum: [load, reps, duration, distance, ''] }
     WorkoutSessionToggleRequest:

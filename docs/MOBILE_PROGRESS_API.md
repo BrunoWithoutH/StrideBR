@@ -22,7 +22,7 @@ O período anterior possui exatamente a mesma quantidade de dias e termina no di
 
 `0` significa que o intervalo/bucket é válido e não houve ocorrência para uma métrica somável ou contável.
 
-`null` significa que a métrica é indisponível ou não aplicável aos dados existentes. Uma Activity sem distância não recebe distância zero. Uma sessão de força sem carga numérica não recebe volume inventado.
+`null` significa que a métrica é indisponível ou não aplicável aos dados existentes. Uma Activity sem distância não recebe distância zero. `duration_s` pode ser `null` quando desconhecida. Em força, `total_reps`, `best_load` e `volume` podem ser `null` quando não existe dado canônico suficiente; o Core não transforma ausência semântica em zero só para preencher UI.
 
 ## Unidades
 
@@ -54,13 +54,21 @@ Os agregados partem de `registros_atividade` concluídos e não excluídos. Mobi
 
 Séries de força históricas vêm de `series_exercicio_atividade`. Uma Workout Session concluída não é consultada como segunda fonte de histórico.
 
+## Filtro `sport`
+
+Quando um endpoint aceita `sport`, o valor pode ser o ID canônico ou o slug. A resolução é feita no Core e considera apenas modalidade ativa que seja global ou custom do próprio usuário. Uma modalidade custom de outro owner não pode ser usada para filtrar dados.
+
+Modalidade válida sem Activity no intervalo retorna `200` e o mesmo tipo de payload do endpoint sem filtro, usando listas vazias, `null` e zero conforme a semântica de cada campo. Não existe `404` por ausência de dados.
+
+Para descoberta de todas as modalidades registráveis, use `GET /sports`. `GET /progress/sports` não é catálogo: ele continua sendo o agregado das modalidades que aparecem nas Activities do período.
+
 ## GET `/progress/overview`
 
 Query:
 
 - `from` opcional com `to`;
 - `to` opcional com `from`;
-- `sport` opcional, slug canônico de modalidade.
+- `sport` opcional, ID ou slug canônico de modalidade.
 
 Retorna panorama atual, comparação com o período anterior e aderência ao planejamento.
 
@@ -131,6 +139,8 @@ Semanas seguem segunda a domingo. O primeiro e último bucket podem ser parciais
 ## GET `/progress/sports`
 
 Query: range padrão.
+
+Este endpoint não deve preencher o seletor de criação de Activity. Para isso existe `GET /sports`.
 
 Retorna uma linha por modalidade canônica com metadata de `sport` (`id`, `slug`, `name`, `family`, `route_capable`, `derived_metric`, `behavior`) e `activities_count`, `duration_s`, `distance_m`, `elevation_gain_m`, `activities_percentage`. Percentual é calculado pela quantidade de Activities. `behavior` é derivado de `metrica_derivada` no Core, nunca inferido pelo cliente.
 

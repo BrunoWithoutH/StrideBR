@@ -3,7 +3,7 @@
 ## Banco
 
 - Nenhuma migration nova foi criada nesta rodada.
-- Confirmar que as 29 migrations atuais estão aplicadas com `sbcmigrationstatus`.
+- Confirmar que as 30 migrations atuais estão aplicadas com `sbcmigrationstatus`.
 - Não restaurar banco nem remover volumes.
 
 ## Ambiente
@@ -15,7 +15,7 @@
 ## Gates
 
 ```bash
-cd /srv/http/stridebr
+sbc
 git diff --check
 TERM=xterm ./scripts/test_static.sh
 STRIDEBR_TEST_DB_NAME=stridebr_alpha_integration_test TERM=xterm ./scripts/test_all.sh
@@ -77,8 +77,8 @@ curl -sS -X POST \
 ## Backward compatibility
 
 - `POST /activities` continua sendo o contrato GPS anterior.
-- PATCH de Workout Session continua aceitando reps/load e `propagate_load`; duration/distance são adicionais.
-- GET `/me` preserva campos anteriores e apenas adiciona dados de perfil.
+- PATCH de Workout Session usa `actual_repetitions`, `actual_load`, `actual_duration_s` e `actual_distance_m` como contrato canônico; aliases antigos continuam aceitos apenas por compatibilidade.
+- GET `/me` preserva campos anteriores e inclui `bio`, `phone`, `birth_date`, `profile_visibility` e `discoverable`.
 - Rotas existentes de Workout, Progress, Streams, Splits, Laps e Analysis permanecem.
 
 ## Rollback
@@ -94,3 +94,15 @@ Não há migration desta rodada. Rollback de aplicação pode voltar o código a
 - Validar PATCH stale retornando `409 state_conflict`.
 - Validar append set com replay da mesma key.
 - Validar que `DELETE /activities/{id}` remove a Activity de list/Progress sem hard delete.
+
+
+## Freeze V1.1 antes do deploy
+
+O Android deve ser integrado contra [`MOBILE_CONTRACT_FREEZE_V1.md`](MOBILE_CONTRACT_FREEZE_V1.md). Antes de publicar, o T480 precisa executar o gate PostgreSQL real:
+
+```bash
+sbc
+STRIDEBR_TEST_DB_NAME=stridebr_alpha_integration_test TERM=xterm ./scripts/test_all.sh
+```
+
+Não prosseguir com deploy se `failed` for diferente de `0` ou se migrations/integration tests não forem executados.

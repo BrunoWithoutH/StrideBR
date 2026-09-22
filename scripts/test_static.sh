@@ -159,7 +159,11 @@ php scripts/tests/test_web_ux_fixes_v4_static.php
 php scripts/tests/test_exercise_library_v2_static.php
 php scripts/tests/test_workout_execution_v2_static.php
 php scripts/tests/test_core_mobile_api_completion_v1_static.php
+php scripts/tests/test_core_app_completion_v1_static.php
+php scripts/tests/test_core_app_completion_v1_1_static.php
 php scripts/tests/test_coach_workspace_v1_static.php
 php scripts/tests/test_training_planning_ux_polish_v6_static.php
+php scripts/tests/test_training_planning_ux_polish_v61_static.php
+node scripts/tests/test_training_planning_ux_polish_v61.js
 node scripts/tests/test_coach_workspace_v1.js
 node scripts/tests/test_workout_execution_v2.js

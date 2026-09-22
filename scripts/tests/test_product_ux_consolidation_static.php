@@ -20,6 +20,7 @@ $activities = $read('public/assets/css/atividades.css');
 $friends = $read('public/user/amigos.php');
 $trainerPage = $read('public/user/treinador.php');
 $trainerFn = $read('src/function/treinador.php');
+$trainerLinks = $read('src/function/treinador_vinculos.php');
 $trainerAthlete = $read('src/layout/trainer_as_athlete.php');
 $trainerJs = $read('public/assets/js/trainer.js');
 $pt = $read('src/i18n/pt-BR.php');
@@ -37,7 +38,7 @@ $assert(str_contains($activities, "@media (max-width:900px){\n  html.activity-de
 $assert(str_contains($trainerPage, "stridebr_t('trainer.as_athlete')") && str_contains($trainerPage, "stridebr_t('trainer.as_coach')") && str_contains($trainerPage, 'class="ux-context-nav'), 'Trainer precisa expor contextos atleta/treinador de forma explícita.');
 $assert(str_contains($trainerAthlete, 'trainer-permission-summary') && str_contains($trainerAthlete, 'trainer-permissions-editor'), 'Permissões do atleta precisam de resumo e edição progressiva.');
 $assert(str_contains($trainerAthlete, 'trainer-search-person') && str_contains($trainerAthlete, "treinadorBuscarPessoas") === false, 'Busca do treinador deve renderizar pessoas sem misturar SQL no layout.');
-$assert(str_contains($trainerFn, 'function treinadorBuscarPessoas') && str_contains($trainerFn, 'ILIKE :username') && str_contains($trainerFn, 'ILIKE :nome'), 'Busca de treinador precisa aceitar nome e username no domínio.');
+$assert(str_contains($trainerLinks, 'function treinadorBuscarPessoas') && str_contains($trainerLinks, 'ILIKE :username') && str_contains($trainerLinks, 'ILIKE :nome'), 'Busca de treinador precisa aceitar nome e username no domínio compartilhado.');
 $assert(str_contains($trainerFn, 'function treinadorEditarPrescricao') && str_contains($trainerFn, "['rascunho', 'publicado']") && str_contains($trainerFn, "(string) (\$current['data_treino'] ?? '') < date('Y-m-d')"), 'Edição de prescrição precisa restringir estados e histórico.');
 $assert(str_contains($trainerFn, 'idcriador=:treinador') && str_contains($trainerFn, "(string) (\$current['idvinculo'] ?? '') !== (string) (\$link['idvinculo'] ?? '')"), 'Edição precisa validar ownership e vínculo aceito correspondente.');
 $assert(str_contains($trainerFn, 'function treinadorAtividadeReadOnly') && str_contains($trainerFn, "pode_ver_atividades") && str_contains($trainerFn, 'atividadeCarregarRegistro($pdo, $idRegistro, $idAtleta)'), 'Atividade read-only precisa validar permissão e carregar a atividade pelo ownership do atleta.');

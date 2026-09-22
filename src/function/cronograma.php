@@ -1835,6 +1835,10 @@ function cronogramaEditarTreinoEscopo(PDO $pdo, string $idUsuario, string $idTre
     if (!in_array($scope, ['this', 'future', 'all'], true)) throw new InvalidArgumentException(stridebr_t('schedule.validation.edit_scope'));
     $payload['idcronograma'] = (string) $workout['idcronograma'];
     if ($scope === 'all' || trim($dataOriginal) === '') {
+        if (!array_key_exists('vigencia_inicio', $payload)) $payload['vigencia_inicio'] = (string) ($workout['vigencia_inicio'] ?? '');
+        if (!array_key_exists('vigencia_fim', $payload)) $payload['vigencia_fim'] = (string) ($workout['vigencia_fim'] ?? '');
+        if (!array_key_exists('pacer_plan_id', $payload)) $payload['pacer_plan_id'] = !empty($workout['idpacerplan']) ? (string) $workout['idpacerplan'] : null;
+        if (!array_key_exists('route_id', $payload)) $payload['route_id'] = !empty($workout['idrota_salva']) ? (string) $workout['idrota_salva'] : null;
         return ['idtreino' => cronogramaSalvarTreino($pdo, $idUsuario, $payload, $idTreino), 'scope' => 'all'];
     }
     $occurrence = cronogramaBuscarOcorrenciaOriginal($pdo, $idUsuario, $idTreino, $dataOriginal);

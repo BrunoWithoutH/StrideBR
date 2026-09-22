@@ -47,7 +47,7 @@ function stridebr_api_progress_exercise(PDO $pdo, string $userId, string $exerci
 function stridebr_api_progress_adherence(PDO $pdo, string $userId, array $filters): array
 {
     $range = progressResolveRange($filters);
-    $sport = progressResolveSport($pdo, $filters['sport'] ?? null);
+    $sport = progressResolveSport($pdo, $userId, $filters['sport'] ?? null);
     return ['range' => progressRangePayload($range), 'sport' => $sport] + progressAdherence($pdo, $userId, $range, $sport);
 }
 

@@ -291,21 +291,6 @@ function sessaoDefaultsPlanejados(array $exercise): array
     return $result;
 }
 
-/** Caller owns the session lock and transaction. Never rewrite already completed sets. */
-function sessaoPreencherDefaults(PDO $pdo, string $sessionId, ?string $exerciseId = null, ?string $setId = null): void
-{
-    $sql = 'SELECT st.*, se.repeticoes_snapshot, se.carga_snapshot, se.duracao_snapshot, se.distancia_snapshot FROM sessoes_treino_series st JOIN sessoes_treino_exercicios se ON se.idsessao_exercicio=st.idsessao_exercicio WHERE se.idsessao=:session AND st.concluida=FALSE';
-    $params = [':session'=>$sessionId];
-    if ($exerciseId !== null) { $sql .= ' AND se.idsessao_exercicio=:exercise'; $params[':exercise']=$exerciseId; }
-    if ($setId !== null) { $sql .= ' AND st.idserie=:set'; $params[':set']=$setId; }
-    $query = $pdo->prepare($sql . ' FOR UPDATE OF st'); $query->execute($params);
-    $update = $pdo->prepare('UPDATE sessoes_treino_series SET repeticoes_realizadas=COALESCE(repeticoes_realizadas,:reps), carga_realizada=COALESCE(carga_realizada,:load), duracao_realizada_s=COALESCE(duracao_realizada_s,:duration), distancia_realizada_m=COALESCE(distancia_realizada_m,:distance) WHERE idserie=:set');
-    foreach ($query->fetchAll() as $row) {
-        $defaults = sessaoDefaultsPlanejados($row);
-        $update->execute([':reps'=>$defaults['reps'],':load'=>$defaults['load'],':duration'=>$defaults['duration'],':distance'=>$defaults['distance'],':set'=>$row['idserie']]);
-    }
-}
-
 function sessaoPersistirSeriesAtividade(PDO $pdo, string $idRegistro, array $session): void
 {
     $pdo->prepare('DELETE FROM series_exercicio_atividade WHERE idregistro = :registro')->execute([':registro' => $idRegistro]);
@@ -837,7 +822,6 @@ function sessaoAlternarSerie(PDO $pdo, string $idUsuario, string $idSerie, bool 
         $lock->execute($lockParams);
         $state = $lock->fetch();
         if (!$state) throw new RuntimeException('Série não encontrada.');
-        if ($done) sessaoPreencherDefaults($pdo, (string) $state['idsessao'], null, $idSerie);
         $stmt = $pdo->prepare('UPDATE sessoes_treino_series SET concluida = :done, data_conclusao = CASE WHEN :done2 THEN NOW() ELSE NULL END WHERE idserie = :serie');
         $stmt->bindValue(':done', $done, PDO::PARAM_BOOL);
         $stmt->bindValue(':done2', $done, PDO::PARAM_BOOL);
@@ -868,7 +852,6 @@ function sessaoAlternarExercicio(PDO $pdo, string $idUsuario, string $id, bool $
         $lock->execute($lockParams);
         $sessionId = $lock->fetchColumn();
         if (!$sessionId) throw new RuntimeException('Exercício não encontrado.');
-        if ($done) sessaoPreencherDefaults($pdo, (string) $sessionId, $id);
         $stmt = $pdo->prepare('UPDATE sessoes_treino_exercicios SET concluido = :done WHERE idsessao_exercicio = :id');
         $stmt->bindValue(':done', $done, PDO::PARAM_BOOL);
         $stmt->bindValue(':id', $id, PDO::PARAM_STR);
@@ -901,7 +884,6 @@ function sessaoMarcarTudo(PDO $pdo, string $idUsuario, bool $done, ?string $expe
         $lock->execute($params);
         $sessionId = $lock->fetchColumn();
         if (!$sessionId) throw new RuntimeException('Nenhum treino em andamento.');
-        if ($done) sessaoPreencherDefaults($pdo, (string) $sessionId);
         $exerciseStmt = $pdo->prepare('UPDATE sessoes_treino_exercicios SET concluido = :done WHERE idsessao = :sessao');
         $exerciseStmt->bindValue(':done', $done, PDO::PARAM_BOOL);
         $exerciseStmt->bindValue(':sessao', $sessionId, PDO::PARAM_STR);

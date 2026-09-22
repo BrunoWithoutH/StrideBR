@@ -51,12 +51,19 @@ function progressResolveRange(array $filters, int $defaultDays = 28): array
     ];
 }
 
-function progressResolveSport(PDO $pdo, mixed $value): ?array
+function progressResolveSport(PDO $pdo, string $userId, mixed $value): ?array
 {
-    $slug = stridebr_lower(trim((string) $value));
-    if ($slug === '' || $slug === 'all') return null;
-    $stmt = $pdo->prepare('SELECT idmodalidade, nome, slug, categoria, familia_hub, metrica_derivada, permite_rota FROM modalidades WHERE lower(slug) = :slug LIMIT 1');
-    $stmt->execute([':slug' => $slug]);
+    $sportRef = trim((string) $value);
+    $normalized = stridebr_lower($sportRef);
+    if ($normalized === '' || $normalized === 'all') return null;
+    $stmt = $pdo->prepare("SELECT idmodalidade, nome, slug, categoria, familia_hub, metrica_derivada, permite_rota
+        FROM modalidades
+        WHERE ativo = TRUE
+          AND (idusuario IS NULL OR idusuario = :user)
+          AND (lower(slug) = :slug OR idmodalidade = :id)
+        ORDER BY CASE WHEN idusuario = :owner THEN 0 ELSE 1 END
+        LIMIT 1");
+    $stmt->execute([':user' => $userId, ':slug' => $normalized, ':id' => $sportRef, ':owner' => $userId]);
     $row = $stmt->fetch();
     if (!$row) throw new InvalidArgumentException('sport inválido.');
     $family = sportHubBucket((string) ($row['categoria'] ?? ''), (string) $row['slug'], (string) ($row['familia_hub'] ?? ''));
@@ -70,7 +77,6 @@ function progressResolveSport(PDO $pdo, mixed $value): ?array
         'behavior' => progressSportBehavior((string) $row['slug'], $family, (string) ($row['metrica_derivada'] ?? '')),
     ];
 }
-
 function progressSportBehavior(string $slug, string $family, string $derivedMetric = ''): ?string
 {
     $derivedMetric = stridebr_lower(trim($derivedMetric));
@@ -85,8 +91,8 @@ function progressSportBehavior(string $slug, string $family, string $derivedMetr
 function progressFilterSport(array $rows, ?array $sport): array
 {
     if ($sport === null) return array_values($rows);
-    $slug = stridebr_lower((string) $sport['slug']);
-    return array_values(array_filter($rows, static fn(array $row): bool => stridebr_lower((string) ($row['modalidade_slug'] ?? '')) === $slug));
+    $sportId = (string) ($sport['id'] ?? '');
+    return array_values(array_filter($rows, static fn(array $row): bool => (string) ($row['idmodalidade'] ?? '') === $sportId));
 }
 
 function progressLoadActivities(PDO $pdo, string $userId, array $range, ?array $sport = null): array
@@ -293,6 +299,7 @@ function progressAdherence(PDO $pdo, string $userId, array $range, ?array $sport
         $row['progress_planned_distance_m'] = null;
         $row['progress_route_capable'] = null;
         $row['progress_sport_slug'] = null;
+        $row['progress_sport_id'] = trim((string) ($row['idmodalidade'] ?? '')) ?: null;
         $meta = $sportMeta[(string) ($row['idmodalidade'] ?? '')] ?? null;
         if ($meta) {
             $row['progress_sport_slug'] = (string) $meta['slug'];
@@ -304,11 +311,12 @@ function progressAdherence(PDO $pdo, string $userId, array $range, ?array $sport
     foreach (progressAppointmentOccurrences($pdo, $userId, $range) as $row) {
         $row['progress_kind'] = 'appointment';
         $row['progress_sport_slug'] = (string) ($row['modalidade_slug'] ?? '');
+        $row['progress_sport_id'] = trim((string) ($row['resolved_idmodalidade'] ?? '')) ?: null;
         $items[] = $row;
     }
     if ($sport !== null) {
-        $slug = stridebr_lower((string) $sport['slug']);
-        $items = array_values(array_filter($items, static fn(array $row): bool => stridebr_lower((string) ($row['progress_sport_slug'] ?? '')) === $slug));
+        $sportId = (string) $sport['id'];
+        $items = array_values(array_filter($items, static fn(array $row): bool => (string) ($row['progress_sport_id'] ?? '') === $sportId));
     }
     $today = (new DateTimeImmutable('today', progressTimezone()))->format('Y-m-d');
     $counts = ['total_count' => count($items), 'planned_count' => 0, 'completed_count' => 0, 'cancelled_count' => 0, 'pending_count' => 0, 'past_due_count' => 0];
@@ -375,7 +383,7 @@ function progressAdherence(PDO $pdo, string $userId, array $range, ?array $sport
 function progressOverview(PDO $pdo, string $userId, array $filters): array
 {
     $range = progressResolveRange($filters);
-    $sport = progressResolveSport($pdo, $filters['sport'] ?? null);
+    $sport = progressResolveSport($pdo, $userId, $filters['sport'] ?? null);
     $activities = progressLoadActivities($pdo, $userId, $range, $sport);
     $current = progressActivitySummary($activities['current'], $range);
     $previousRange = $range;
@@ -475,7 +483,7 @@ function progressTimeseries(PDO $pdo, string $userId, array $filters): array
     if (!in_array($metric, $allowedMetrics, true)) throw new InvalidArgumentException('metric inválido.');
     $bucket = stridebr_lower(trim((string) ($filters['bucket'] ?? 'day')));
     $range = progressResolveRange($filters);
-    $sport = progressResolveSport($pdo, $filters['sport'] ?? null);
+    $sport = progressResolveSport($pdo, $userId, $filters['sport'] ?? null);
     $activities = progressLoadActivities($pdo, $userId, $range, $sport)['current'];
     $strengthRows = $metric === 'strength_volume' ? progressStrengthRows($pdo, $userId, $range) : [];
     $data = [];
@@ -571,7 +579,7 @@ function progressSports(PDO $pdo, string $userId, array $filters): array
 function progressCalendar(PDO $pdo, string $userId, array $filters): array
 {
     $range = progressResolveRange($filters);
-    $sport = progressResolveSport($pdo, $filters['sport'] ?? null);
+    $sport = progressResolveSport($pdo, $userId, $filters['sport'] ?? null);
     $rows = progressLoadActivities($pdo, $userId, $range, $sport)['current'];
     $byDay = [];
     foreach ($rows as $row) {
@@ -655,7 +663,7 @@ function progressCardioAggregate(array $rows, string $behavior): array
 function progressCardio(PDO $pdo, string $userId, array $filters): array
 {
     $range = progressResolveRange($filters);
-    $sport = progressResolveSport($pdo, $filters['sport'] ?? null);
+    $sport = progressResolveSport($pdo, $userId, $filters['sport'] ?? null);
     if ($sport === null) throw new InvalidArgumentException('sport é obrigatório para progresso cardio.');
     $behavior = (string) ($sport['behavior'] ?? '');
     if ($behavior === '' || $sport['family'] === 'strength') throw new InvalidArgumentException('sport não possui analytics cardio suportado.');
@@ -700,7 +708,7 @@ function progressCardio(PDO $pdo, string $userId, array $filters): array
 function progressStrength(PDO $pdo, string $userId, array $filters): array
 {
     $range = progressResolveRange($filters);
-    $sport = progressResolveSport($pdo, $filters['sport'] ?? null);
+    $sport = progressResolveSport($pdo, $userId, $filters['sport'] ?? null);
     if ($sport !== null && $sport['family'] !== 'strength') throw new InvalidArgumentException('sport precisa ser uma modalidade de força.');
     $activities = progressLoadActivities($pdo, $userId, $range, $sport)['current'];
     $activities = array_values(array_filter($activities, static fn(array $row): bool => (string) ($row['hub_bucket'] ?? '') === 'strength'));
@@ -772,7 +780,7 @@ function progressStrength(PDO $pdo, string $userId, array $filters): array
 function progressExerciseList(PDO $pdo, string $userId, array $filters): array
 {
     $range = progressResolveRange($filters);
-    $sport = progressResolveSport($pdo, $filters['sport'] ?? null);
+    $sport = progressResolveSport($pdo, $userId, $filters['sport'] ?? null);
     if ($sport !== null && $sport['family'] !== 'strength') {
         return ['range' => progressRangePayload($range), 'sport' => $sport, 'data' => [], 'meta' => ['page' => 1, 'limit' => max(1, min(100, (int) ($filters['limit'] ?? 30))), 'has_more' => false]];
     }
@@ -847,7 +855,7 @@ function progressExerciseDetail(PDO $pdo, string $userId, string $exerciseId, ar
 {
     $exerciseId = trim($exerciseId);
     if ($exerciseId === '') throw new InvalidArgumentException('Exercício não encontrado.');
-    $sport = progressResolveSport($pdo, $filters['sport'] ?? null);
+    $sport = progressResolveSport($pdo, $userId, $filters['sport'] ?? null);
     if ($sport !== null && $sport['family'] !== 'strength') throw new InvalidArgumentException('Exercício não encontrado.');
     $range = progressResolveRange($filters);
     $sportClause = $sport !== null ? ' AND ra.idmodalidade=:sport_id' : '';
@@ -939,7 +947,7 @@ function progressExerciseDetail(PDO $pdo, string $userId, string $exerciseId, ar
 function progressDashboard(PDO $pdo, string $userId, array $filters): array
 {
     $range = progressResolveRange($filters);
-    $sport = progressResolveSport($pdo, $filters['sport'] ?? null);
+    $sport = progressResolveSport($pdo, $userId, $filters['sport'] ?? null);
     $overview = progressOverview($pdo, $userId, $filters);
     $timeseriesFilters = $filters;
     $timeseriesFilters['metric'] = 'activities';
@@ -950,6 +958,7 @@ function progressDashboard(PDO $pdo, string $userId, array $filters): array
         'timeseries' => progressTimeseries($pdo, $userId, $timeseriesFilters),
         'sports' => progressSports($pdo, $userId, $filters),
         'adherence' => ['range' => progressRangePayload($range), 'sport' => $sport] + $overview['adherence'],
+        'cardio' => $sport !== null && $sport['family'] === 'cardio' ? progressCardio($pdo, $userId, $filters) : null,
         'strength' => $sport === null || $sport['family'] === 'strength' ? progressStrength($pdo, $userId, $filters) : null,
     ];
 }
