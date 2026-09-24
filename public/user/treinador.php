@@ -18,6 +18,7 @@ if (!stridebr_feature_enabled($pdo, 'trainer.enabled', false)) {
 $errors = [];
 $redirectAthleteWorkout = '';
 $exerciseRowsFromPost = static function (array $post): array {
+    if (is_array($post['rows'] ?? null)) return array_values(array_filter($post['rows'], 'is_array'));
     $ids = is_array($post['exercise_id'] ?? null) ? $post['exercise_id'] : [];
     $names = is_array($post['exercise_name'] ?? null) ? $post['exercise_name'] : [];
     $series = is_array($post['exercise_series'] ?? null) ? $post['exercise_series'] : [];
@@ -28,9 +29,7 @@ $exerciseRowsFromPost = static function (array $post): array {
     $rests = is_array($post['exercise_rest'] ?? null) ? $post['exercise_rest'] : [];
     $notes = is_array($post['exercise_notes'] ?? null) ? $post['exercise_notes'] : [];
     $rows = [];
-    foreach ($names as $index => $name) {
-        $rows[] = ['idexercicio'=>$ids[$index] ?? '','nome'=>$name,'series'=>$series[$index] ?? '','repeticoes'=>$reps[$index] ?? '','carga'=>$loads[$index] ?? '','duracao'=>$durations[$index] ?? '','distancia'=>$distances[$index] ?? '','descanso'=>$rests[$index] ?? '','observacoes'=>$notes[$index] ?? ''];
-    }
+    foreach ($names as $index => $name) $rows[] = ['idexercicio'=>$ids[$index] ?? '','nome'=>$name,'series'=>$series[$index] ?? '','repeticoes'=>$reps[$index] ?? '','carga'=>$loads[$index] ?? '','duracao'=>$durations[$index] ?? '','distancia'=>$distances[$index] ?? '','descanso'=>$rests[$index] ?? '','observacoes'=>$notes[$index] ?? ''];
     return $rows;
 };
 
@@ -386,6 +385,7 @@ function treinadorAvatar(array $user): string
 <?php require dirname(__DIR__, 2) . '/src/layout/footer.php'; ?>
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/time24.js')); ?>"></script>
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/exercise-entry.js')); ?>"></script>
+<script src="<?php echo stridebr_e(stridebr_asset('/assets/js/workout-builder.js')); ?>"></script>
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/trainer.js')); ?>"></script>
 </body>
 </html>

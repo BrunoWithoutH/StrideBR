@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/cronograma.php';
+require_once __DIR__ . '/workout_definition.php';
 
 function treinoEstruturaTexto(mixed $value, int $max, string $field): ?string
 {
@@ -94,7 +95,7 @@ function treinoEstruturaNormalizar(PDO $pdo, string $idUsuario, array $structure
         $distance = array_key_exists('distance_m', $row)
             ? treinoEstruturaDistanciaTexto($row['distance_m'], 'distance_m')
             : treinoEstruturaTexto($row['distance'] ?? $row['distancia'] ?? null, 40, 'distance');
-        $normalized[] = [
+        $normalizedRow = [
             'idexercicio' => $exerciseId !== '' ? $exerciseId : null,
             'nome' => $name,
             'series' => $sets,
@@ -119,7 +120,24 @@ function treinoEstruturaNormalizar(PDO $pdo, string $idUsuario, array $structure
             'alvo_unidade' => $structured['alvo_unidade'],
             'recuperacao_duracao_s' => $structured['recuperacao_duracao_s'],
             'recuperacao_distancia_m' => $structured['recuperacao_distancia_m'],
+            'metodo_prescricao' => trim((string) ($row['prescription_method'] ?? $row['metodo_prescricao'] ?? 'standard')) ?: 'standard',
+            'prescription' => is_array($row['prescription'] ?? null) ? $row['prescription'] : workoutPrescriptionDecode($row['config_prescricao'] ?? null),
         ];
+        $group = is_array($row['group'] ?? null) ? $row['group'] : [];
+        $normalizedRow['grupo_chave'] = trim((string) ($group['id'] ?? $group['key'] ?? $row['grupo_chave'] ?? $row['idgrupo_prescricao'] ?? ''));
+        $normalizedRow['grupo_tipo'] = trim((string) ($group['type'] ?? $row['grupo_tipo'] ?? ''));
+        $normalizedRow['grupo_voltas'] = $group['rounds'] ?? $row['grupo_voltas'] ?? null;
+        $normalizedRow['grupo_descanso_entre_exercicios_s'] = $group['rest_between_exercises_s'] ?? $row['grupo_descanso_entre_exercicios_s'] ?? null;
+        $normalizedRow['grupo_descanso_pos_volta_s'] = $group['rest_after_round_s'] ?? $row['grupo_descanso_pos_volta_s'] ?? null;
+        if ($type === 'exercise') {
+            $normalizedRow = workoutPrescriptionLegacyFields($normalizedRow, workoutPrescriptionNormalize($normalizedRow));
+        } else {
+            $normalizedRow['metodo_prescricao'] = 'standard';
+            $normalizedRow['config_prescricao'] = null;
+            $normalizedRow['grupo_chave'] = '';
+            $normalizedRow['grupo_tipo'] = '';
+        }
+        $normalized[] = $normalizedRow;
     }
     return $normalized;
 }
@@ -161,20 +179,7 @@ function treinoAgendadoSalvarEstrutura(PDO $pdo, string $idUsuario, string $idAg
     $owns = !$pdo->inTransaction();
     if ($owns) $pdo->beginTransaction();
     try {
-        $pdo->prepare('DELETE FROM treinos_agendados_exercicios WHERE idagendamento=:id')->execute([':id' => $idAgendamento]);
-        $insert = $pdo->prepare('INSERT INTO treinos_agendados_exercicios (idagendamento_exercicio,idagendamento,idexercicio,nome_snapshot,series,repeticoes,carga,bloco,cluster,descanso,observacoes,duracao,distancia,intensidade,rpe,rir,tempo_execucao,cadencia,tipo_passo,repeticoes_bloco,alvo_tipo,alvo_min,alvo_max,alvo_unidade,recuperacao_duracao_s,recuperacao_distancia_m,ordem) VALUES (:id,:agendamento,:exercicio,:nome,:series,:repeticoes,:carga,:bloco,:cluster,:descanso,:observacoes,:duracao,:distancia,:intensidade,:rpe,:rir,:tempo,:cadencia,:tipo_passo,:repeticoes_bloco,:alvo_tipo,:alvo_min,:alvo_max,:alvo_unidade,:recuperacao_duracao_s,:recuperacao_distancia_m,:ordem)');
-        $order = 1;
-        foreach ($normalized as $row) {
-            $insert->execute([
-                ':id' => cronogramaGerarId(), ':agendamento' => $idAgendamento, ':exercicio' => $row['idexercicio'], ':nome' => $row['nome'],
-                ':series' => $row['series'], ':repeticoes' => $row['repeticoes'], ':carga' => $row['carga'], ':bloco' => $row['bloco'], ':cluster' => $row['cluster'],
-                ':descanso' => $row['descanso'], ':observacoes' => $row['observacoes'], ':duracao' => $row['duracao'], ':distancia' => $row['distancia'],
-                ':intensidade' => $row['intensidade'], ':rpe' => $row['rpe'], ':rir' => $row['rir'], ':tempo' => $row['tempo_execucao'], ':cadencia' => $row['cadencia'],
-                ':tipo_passo' => $row['tipo_passo'] ?? 'exercise', ':repeticoes_bloco' => $row['repeticoes_bloco'] ?? null, ':alvo_tipo' => $row['alvo_tipo'] ?? null,
-                ':alvo_min' => $row['alvo_min'] ?? null, ':alvo_max' => $row['alvo_max'] ?? null, ':alvo_unidade' => $row['alvo_unidade'] ?? null,
-                ':recuperacao_duracao_s' => $row['recuperacao_duracao_s'] ?? null, ':recuperacao_distancia_m' => $row['recuperacao_distancia_m'] ?? null, ':ordem' => $order++,
-            ]);
-        }
+        workoutDefinitionWriteScheduledItems($pdo, $idAgendamento, $normalized);
         $pdo->prepare('UPDATE treinos_agendados SET data_atualizacao=NOW() WHERE idagendamento=:id AND idatleta=:user')->execute([':id' => $idAgendamento, ':user' => $idUsuario]);
         if ($owns) $pdo->commit();
     } catch (Throwable $e) {

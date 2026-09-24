@@ -157,12 +157,46 @@
     };
 
     const formatRepetitions = value => workoutPrescription?.formatReps?.(value) || String(value || '').trim();
-    const plannedPrescription = exercise => workoutPrescription?.resolve?.({
+    const decodeJson = value => {
+        if (!value) return null
+        if (typeof value === 'object') return value
+        try { return JSON.parse(String(value)) } catch (_) { return null }
+    }
+    const plannedPrescription = exercise => workoutPrescription?.structured?.(exercise) || workoutPrescription?.resolve?.({
         load: exercise?.carga_snapshot,
         repetitions: exercise?.repeticoes_snapshot,
         duration: exercise?.duracao_snapshot,
         distance: exercise?.distancia_snapshot,
     }) || {mode:'EMPTY',fields:[],values:{},labels:{load:'Carga',reps:'Reps',duration:'Duração',distance:'Distância'},summaryParts:[]};
+    const plannedRepText = (set, exercise, prescription) => {
+        const target = decodeJson(set?.meta_repeticoes)
+        const targetText = workoutPrescription?.repTargetText?.(target || {}) || ''
+        if (targetText) return targetText
+        const explicit = String(set?.repeticoes_planejadas ?? '').trim()
+        if (explicit) return formatRepetitions(explicit)
+        return prescription?.values?.reps || String(exercise?.repeticoes_snapshot ?? '').trim()
+    }
+    const plannedLoadText = (set, exercise, prescription) => {
+        const explicit = String(set?.carga_planejada ?? '').trim()
+        if (explicit) return workoutPrescription?.formatLoad?.(explicit) || explicit
+        return prescription?.values?.load || workoutPrescription?.formatLoad?.(exercise?.carga_snapshot) || String(exercise?.carga_snapshot ?? '').trim()
+    }
+    const plannedMetricText = (set, field, prescription) => {
+        if (field === 'duration') {
+            if (set?.duracao_planejada_s !== null && set?.duracao_planejada_s !== undefined) return workoutPrescription?.formatDurationSeconds?.(set.duracao_planejada_s) || String(set.duracao_planejada_s)
+            return prescription?.values?.duration || ''
+        }
+        if (set?.distancia_planejada_m !== null && set?.distancia_planejada_m !== undefined) return workoutPrescription?.formatDistance?.(Number(set.distancia_planejada_m)) || String(set.distancia_planejada_m)
+        return prescription?.values?.distance || ''
+    }
+    const segmentInfo = set => {
+        const type = String(set?.segmento_tipo || 'set')
+        const block = Number(set?.bloco_indice || 0)
+        const stage = Number(set?.etapa_indice || 0)
+        if (type === 'cluster') return {short: block && stage ? `${block}.${stage}` : String(set?.numero || ''), label: t('workout_session.cluster_segment', {block, stage}, `Bloco ${block} · parte ${stage}`)}
+        if (type === 'drop_stage') return {short: block && stage ? `${block}↓${stage}` : String(set?.numero || ''), label: t('workout_session.drop_segment', {round:block, stage}, `Rodada ${block} · queda ${stage}`)}
+        return {short: String(set?.numero || ''), label: t('workout_session.set_number', {number:set?.numero || ''}, `Série ${set?.numero || ''}`)}
+    }
 
     const formatDuration = value => {
         const seconds = Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : 0;
@@ -208,50 +242,103 @@
         document.documentElement.classList.add('workout-session-open');
     };
 
-    const renderExercises = () => {
-        if (!exercisesContainer) return;
-        const exercises = session?.exercicios || [];
-        if (!exercises.length) {
-            exercisesContainer.innerHTML = `<div class="session-empty"><strong>${escapeHtml(t('workout_session.empty_title', {}, 'Workout without exercises'))}</strong><p>${escapeHtml(t('workout_session.empty_help', {}, 'You can still finish the session.'))}</p></div>`;
-            return;
-        }
-        exercisesContainer.innerHTML = exercises.map((exercise, index) => {
-            const prescription = plannedPrescription(exercise);
-            const meta = [exercise.series_planejadas ? `${exercise.series_planejadas} ${tn('workout_session.set_unit.one', 'workout_session.set_unit.other', Number(exercise.series_planejadas))}` : '', ...prescription.summaryParts].filter(Boolean).join(' · ');
-            const previousSets = new Map(((exercise.historico || {}).ultima?.series || []).map(set => [Number(set.numero || 0), set]));
-            const fields = workoutPrescription.loggingFields(prescription);
-            const header = [`<span>${escapeHtml(t('workout_session.series', {}, 'Set'))}</span>`, ...fields.map(field => `<span>${escapeHtml(t(field === 'reps' ? 'workout_session.repetitions' : `workout_session.${field}`, {}, prescription.labels[field] || field))}</span>`), `<span>${escapeHtml(t('workout_session.done', {}, 'Done'))}</span>`].join('');
-            const sets = (exercise.series || []).map(set => {
-                const previous = previousSets.get(Number(set.numero || 0)) || {};
-                const cells = fields.map(field => {
-                    if (field === 'load') {
-                        const loadPlaceholder = previous.carga || exercise.carga_snapshot || 'kg';
-                        return `<label><span>${escapeHtml(t('workout_session.load', {}, 'Load'))}</span><input type="text" inputmode="decimal" pattern="[0-9]+([.,][0-9]{1,3})?" data-session-set-load="${escapeHtml(set.idserie)}" ${set.concluida ? 'disabled' : ''} value="${escapeHtml(set.carga_realizada ?? '')}" placeholder="${escapeHtml(loadPlaceholder)}"></label>`;
-                    }
-                    if (field === 'reps') {
-                        const repsPlaceholder = previous.repeticoes || (/^\d{1,3}$/.test(String(prescription.raw?.reps || '').trim()) ? prescription.raw.reps : '') || 'reps';
-                        return `<label><span>${escapeHtml(t('workout_session.repetitions', {}, 'Reps'))}</span><input type="number" min="0" max="999" step="1" inputmode="numeric" data-session-set-reps="${escapeHtml(set.idserie)}" ${set.concluida ? 'disabled' : ''} value="${escapeHtml(set.repeticoes_realizadas ?? '')}" placeholder="${escapeHtml(repsPlaceholder)}"></label>`;
-                    }
-                    const actual = field === 'duration' ? set.duracao_realizada_s : set.distancia_realizada_m;
-                    const actualText = actual === null || actual === undefined ? '' : (field === 'duration' ? `${Number(actual) % 60 === 0 ? Number(actual)/60 : Number(actual)} ${Number(actual) % 60 === 0 ? 'min' : 's'}` : `${Number(actual) >= 1000 ? Number(actual)/1000 : Number(actual)} ${Number(actual) >= 1000 ? 'km' : 'm'}`);
-                    return `<label><span>${escapeHtml(t(field === 'reps' ? 'workout_session.repetitions' : `workout_session.${field}`, {}, prescription.labels[field] || field))}</span><input type="text" data-session-set-${field}="${escapeHtml(set.idserie)}" ${set.concluida ? 'disabled' : ''} value="${escapeHtml(actualText)}" placeholder="${escapeHtml(prescription.values[field] || '')}"></label>`;
-                }).join('');
-                return `<div class="session-set-row${set.concluida ? ' is-done' : ''}" data-session-set-row="${escapeHtml(set.idserie)}" data-session-field-count="${fields.length}" style="--session-field-count:${fields.length}" data-prescription-mode="${escapeHtml(prescription.mode)}">
-                    <span class="session-set-number">${set.numero}</span>
+    const renderExercise = (exercise, index, seriesOverride = null, options = {}) => {
+        const prescription = plannedPrescription(exercise)
+        const method = String(exercise.metodo_prescricao || exercise.prescription_method || prescription?.method || 'standard')
+        const methodLabel = method === 'cluster' ? t('workout_builder.method.cluster', {}, 'Cluster') : method === 'drop_set' ? t('workout_builder.method.drop_set', {}, 'Drop set') : t('workout_builder.method.standard', {}, 'Tradicional')
+        const summaryParts = Array.isArray(prescription?.summaryParts) ? prescription.summaryParts : []
+        const meta = [method !== 'standard' ? methodLabel : '', method === 'standard' && exercise.series_planejadas ? `${exercise.series_planejadas} ${tn('workout_session.set_unit.one', 'workout_session.set_unit.other', Number(exercise.series_planejadas))}` : '', ...summaryParts].filter(Boolean).join(' · ')
+        const previousSets = new Map(((exercise.historico || {}).ultima?.series || []).map(set => [Number(set.numero || 0), set]))
+        const fields = workoutPrescription.loggingFields(prescription)
+        const header = [`<span>${escapeHtml(method === 'cluster' ? t('workout_session.cluster_piece', {}, 'Bloco') : method === 'drop_set' ? t('workout_session.drop_stage', {}, 'Etapa') : t('workout_session.series', {}, 'Série'))}</span>`, ...fields.map(field => `<span>${escapeHtml(t(field === 'reps' ? 'workout_session.repetitions' : `workout_session.${field}`, {}, prescription.labels?.[field] || field))}</span>`), `<span>${escapeHtml(t('workout_session.done', {}, 'Feito'))}</span>`].join('')
+        const sets = (seriesOverride ?? exercise.series ?? []).map(set => {
+            const previous = previousSets.get(Number(set.numero || 0)) || {}
+            const segment = segmentInfo(set)
+            const cells = fields.map(field => {
+                if (field === 'load') {
+                    const loadPlaceholder = previous.carga || plannedLoadText(set, exercise, prescription) || 'kg'
+                    return `<label><span>${escapeHtml(t('workout_session.load', {}, 'Carga'))}</span><input type="text" inputmode="decimal" pattern="[0-9]+([.,][0-9]{1,3})?" data-session-set-load="${escapeHtml(set.idserie)}" ${set.concluida ? 'disabled' : ''} value="${escapeHtml(set.carga_realizada ?? '')}" placeholder="${escapeHtml(loadPlaceholder)}"></label>`
+                }
+                if (field === 'reps') {
+                    const repsPlaceholder = previous.repeticoes || plannedRepText(set, exercise, prescription) || 'reps'
+                    return `<label><span>${escapeHtml(t('workout_session.repetitions', {}, 'Reps'))}</span><input type="number" min="0" max="999" step="1" inputmode="numeric" data-session-set-reps="${escapeHtml(set.idserie)}" ${set.concluida ? 'disabled' : ''} value="${escapeHtml(set.repeticoes_realizadas ?? '')}" placeholder="${escapeHtml(repsPlaceholder)}"></label>`
+                }
+                const actual = field === 'duration' ? set.duracao_realizada_s : set.distancia_realizada_m
+                const actualText = actual === null || actual === undefined ? '' : (field === 'duration' ? `${Number(actual) % 60 === 0 ? Number(actual)/60 : Number(actual)} ${Number(actual) % 60 === 0 ? 'min' : 's'}` : `${Number(actual) >= 1000 ? Number(actual)/1000 : Number(actual)} ${Number(actual) >= 1000 ? 'km' : 'm'}`)
+                const placeholder = plannedMetricText(set, field, prescription)
+                return `<label><span>${escapeHtml(t(`workout_session.${field}`, {}, prescription.labels?.[field] || field))}</span><input type="text" data-session-set-${field}="${escapeHtml(set.idserie)}" ${set.concluida ? 'disabled' : ''} value="${escapeHtml(actualText)}" placeholder="${escapeHtml(placeholder)}"></label>`
+            }).join('')
+            const restAfter = Number(set.descanso_apos_s || 0)
+            return `<div class="session-set-segment-wrap" data-segment-type="${escapeHtml(set.segmento_tipo || 'set')}">
+                <div class="session-set-row${set.concluida ? ' is-done' : ''}" data-session-set-row="${escapeHtml(set.idserie)}" data-session-field-count="${fields.length}" style="--session-field-count:${fields.length}" data-prescription-mode="${escapeHtml(method)}">
+                    <span class="session-set-number" title="${escapeHtml(segment.label)}" aria-label="${escapeHtml(segment.label)}">${escapeHtml(segment.short)}</span>
                     ${cells}
-                    <button type="button" class="session-set-check" data-toggle-session-set="${escapeHtml(set.idserie)}" data-next-value="${set.concluida ? '0' : '1'}" aria-label="${escapeHtml(set.concluida ? t('workout_session.reopen_set', {number:set.numero}, `Reopen set ${set.numero}`) : t('workout_session.complete_set', {number:set.numero}, `Complete set ${set.numero}`))}">${set.concluida ? '✓' : '○'}</button>
-                </div>`;
-            }).join('');
-            const rest = parseRestSeconds(exercise.descanso_snapshot);
-            return `<article class="session-exercise${exercise.concluido ? ' is-done' : ''}" data-prescription-mode="${escapeHtml(prescription.mode)}">
-                <div class="session-exercise-heading"><span class="session-exercise-number">${index + 1}</span><div><strong>${escapeHtml(exercise.nome_snapshot)}</strong>${meta ? `<small>${escapeHtml(meta)}</small>` : ''}</div><button type="button" class="session-exercise-check" data-toggle-session-exercise="${escapeHtml(exercise.idsessao_exercicio)}" data-next-value="${exercise.concluido ? '0' : '1'}" aria-label="${escapeHtml(exercise.concluido ? t('workout_session.reopen_exercise', {}, 'Reopen exercise') : t('workout_session.complete_exercise', {}, 'Complete exercise'))}">${exercise.concluido ? '✓' : '○'}</button></div>
-                ${historyHtml(exercise)}
-                <div class="session-set-table-head" data-session-field-count="${fields.length}" style="--session-field-count:${fields.length}">${header}</div>
-                <div class="session-sets">${sets}</div>
-                ${(exercise.descanso_snapshot || exercise.observacoes_snapshot) ? `<div class="session-exercise-footer">${exercise.descanso_snapshot ? `<span>${escapeHtml(t('workout_session.rest', {value: exercise.descanso_snapshot}, `Rest: ${exercise.descanso_snapshot}`))}</span>` : '<span></span>'}${rest > 0 ? `<button type="button" data-session-rest="${rest}">${escapeHtml(t('workout_session.start_rest', {}, 'Start rest'))}</button>` : ''}${exercise.observacoes_snapshot ? `<p>${escapeHtml(exercise.observacoes_snapshot)}</p>` : ''}</div>` : ''}
-            </article>`;
-        }).join('');
-    };
+                    <button type="button" class="session-set-check" data-toggle-session-set="${escapeHtml(set.idserie)}" data-next-value="${set.concluida ? '0' : '1'}" aria-label="${escapeHtml(set.concluida ? t('workout_session.reopen_set', {number:set.numero}, `Reabrir série ${set.numero}`) : t('workout_session.complete_set', {number:set.numero}, `Concluir série ${set.numero}`))}">${set.concluida ? '✓' : '○'}</button>
+                </div>
+                ${restAfter > 0 ? `<div class="session-segment-rest"><span>${escapeHtml(t('workout_session.segment_rest', {seconds:restAfter}, `${restAfter} s de pausa`))}</span><button type="button" data-session-rest="${restAfter}">${escapeHtml(t('workout_session.start_rest', {}, 'Iniciar descanso'))}</button></div>` : ''}
+            </div>`
+        }).join('')
+        const rest = parseRestSeconds(exercise.descanso_snapshot)
+        return `<article class="session-exercise${exercise.concluido ? ' is-done' : ''}" data-prescription-mode="${escapeHtml(method)}">
+            <div class="session-exercise-heading"><span class="session-exercise-number">${index + 1}</span><div><strong>${escapeHtml(exercise.nome_snapshot)}</strong>${meta ? `<small>${escapeHtml(meta)}</small>` : ''}</div><button type="button" class="session-exercise-check" data-toggle-session-exercise="${escapeHtml(exercise.idsessao_exercicio)}" data-next-value="${exercise.concluido ? '0' : '1'}" aria-label="${escapeHtml(exercise.concluido ? t('workout_session.reopen_exercise', {}, 'Reabrir exercício') : t('workout_session.complete_exercise', {}, 'Concluir exercício'))}">${exercise.concluido ? '✓' : '○'}</button></div>
+            ${options.hideHistory ? '' : historyHtml(exercise)}
+            <div class="session-set-table-head" data-session-field-count="${fields.length}" style="--session-field-count:${fields.length}">${header}</div>
+            <div class="session-sets">${sets}</div>
+            ${(exercise.descanso_snapshot || exercise.observacoes_snapshot) ? `<div class="session-exercise-footer">${exercise.descanso_snapshot ? `<span>${escapeHtml(t('workout_session.rest', {value: exercise.descanso_snapshot}, `Descanso: ${exercise.descanso_snapshot}`))}</span>` : '<span></span>'}${rest > 0 ? `<button type="button" data-session-rest="${rest}">${escapeHtml(t('workout_session.start_rest', {}, 'Iniciar descanso'))}</button>` : ''}${exercise.observacoes_snapshot ? `<p>${escapeHtml(exercise.observacoes_snapshot)}</p>` : ''}</div>` : ''}
+        </article>`
+    }
+
+    const renderGroupFromSequence = (entry, exerciseMap, startIndex) => {
+        const type = String(entry.group_type || 'superset')
+        const rounds = Array.isArray(entry.rounds) ? entry.rounds : []
+        const label = type === 'circuit' ? t('workout_builder.group.circuit', {}, 'Circuito') : t('workout_builder.group.superset', {}, 'Superset')
+        const warning = entry.warning ? `<p class="session-group-warning">${escapeHtml(t('workout_session.group_legacy_warning', {}, 'Configuração antiga: as séries extras foram preservadas.'))}</p>` : ''
+        const roundMarkup = rounds.map(round => {
+            const members = Array.isArray(round.members) ? round.members : []
+            const memberMarkup = members.map((member, memberIndex) => {
+                const exercise = exerciseMap.get(String(member.exercise_id || ''))
+                if (!exercise) return ''
+                const setIds = new Set((member.set_ids || []).map(String))
+                const series = (exercise.series || []).filter(set => setIds.has(String(set.idserie || '')))
+                if (!series.length) return ''
+                const between = Number(round.rest_between_exercises_s || 0)
+                const restMarkup = between > 0 && memberIndex < members.length - 1 ? `<div class="session-group-rest"><span>${escapeHtml(t('workout_session.group_rest_between', {seconds:between}, `${between} s entre exercícios`))}</span><button type="button" data-session-rest="${between}">${escapeHtml(t('workout_session.start_rest', {}, 'Iniciar descanso'))}</button></div>` : ''
+                return `${renderExercise(exercise, startIndex + memberIndex, series, {hideHistory: Number(round.number || 1) > 1})}${restMarkup}`
+            }).join('')
+            const after = Number(round.rest_after_round_s || 0)
+            const afterMarkup = after > 0 && Number(round.number || 1) < rounds.length ? `<div class="session-group-rest is-round"><span>${escapeHtml(t('workout_session.group_rest_round', {seconds:after}, `${after} s após volta`))}</span><button type="button" data-session-rest="${after}">${escapeHtml(t('workout_session.start_rest', {}, 'Iniciar descanso'))}</button></div>` : ''
+            return `<div class="session-group-round"><div class="session-group-round-head"><strong>${escapeHtml(t('workout_session.group_round', {current:round.number, total:rounds.length}, `Volta ${round.number} de ${rounds.length}`))}</strong></div>${memberMarkup}${afterMarkup}</div>`
+        }).join('')
+        return `<section class="session-prescription-group" aria-label="${escapeHtml(`${label}, ${rounds.length} voltas`)}"><div class="session-prescription-group-head"><strong>${escapeHtml(label)}</strong><span>${escapeHtml(`${rounds.length} ${t('workout_builder.group_rounds', {}, 'voltas').toLowerCase()}`)}</span></div>${warning}${roundMarkup}</section>`
+    }
+
+    const renderExercises = () => {
+        if (!exercisesContainer) return
+        const exercises = session?.exercicios || []
+        if (!exercises.length) {
+            exercisesContainer.innerHTML = `<div class="session-empty"><strong>${escapeHtml(t('workout_session.empty_title', {}, 'Treino sem exercícios'))}</strong><p>${escapeHtml(t('workout_session.empty_help', {}, 'Você ainda pode finalizar a sessão.'))}</p></div>`
+            return
+        }
+        const exerciseMap = new Map(exercises.map(exercise => [String(exercise.idsessao_exercicio || ''), exercise]))
+        const sequence = Array.isArray(session?.execution_sequence) ? session.execution_sequence : []
+        if (sequence.length) {
+            let visualIndex = 0
+            const chunks = sequence.map(entry => {
+                if (entry?.kind === 'group') {
+                    const markup = renderGroupFromSequence(entry, exerciseMap, visualIndex)
+                    const memberIds = new Set((entry.rounds || []).flatMap(round => (round.members || []).map(member => String(member.exercise_id || ''))))
+                    visualIndex += memberIds.size
+                    return markup
+                }
+                const exercise = exerciseMap.get(String(entry?.exercise_id || ''))
+                if (!exercise) return ''
+                return renderExercise(exercise, visualIndex++)
+            })
+            exercisesContainer.innerHTML = chunks.join('')
+            return
+        }
+        exercisesContainer.innerHTML = exercises.map((exercise, index) => renderExercise(exercise, index)).join('')
+    }
 
     const syncElapsedTicker = () => {
         if (elapsedTicker !== null) {

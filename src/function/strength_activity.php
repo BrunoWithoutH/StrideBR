@@ -158,6 +158,7 @@ function atividadeForcaBuscarSeries(PDO $pdo, string $idUsuario, string $idRegis
                 'idexercicio' => (string) ($row['idexercicio'] ?? ''),
                 'nome' => (string) $row['nome_exercicio'],
                 'ordem_exercicio' => $order,
+                'metodo_prescricao' => trim((string) ($row['metodo_prescricao'] ?? '')) ?: 'standard',
                 'series' => [],
             ];
         }
@@ -172,6 +173,10 @@ function atividadeForcaBuscarSeries(PDO $pdo, string $idUsuario, string $idRegis
             'rpe' => $row['rpe'] !== null ? (float) $row['rpe'] : null,
             'concluida' => stridebr_db_bool($row['concluida']),
             'observacoes' => (string) ($row['observacoes'] ?? ''),
+            'segmento_tipo' => trim((string) ($row['segmento_tipo'] ?? '')) ?: null,
+            'bloco_indice' => is_numeric($row['bloco_indice'] ?? null) ? (int) $row['bloco_indice'] : null,
+            'etapa_indice' => is_numeric($row['etapa_indice'] ?? null) ? (int) $row['etapa_indice'] : null,
+            'meta_planejada' => isset($row['meta_planejada']) ? (json_decode((string) $row['meta_planejada'], true) ?: null) : null,
         ];
     }
     return array_values($grouped);

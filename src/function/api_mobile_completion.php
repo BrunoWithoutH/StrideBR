@@ -105,6 +105,7 @@ function stridebr_api_mobile_strength_payload(PDO $pdo, string $userId, string $
         $data[] = [
             'exercise_id' => trim((string) ($exercise['idexercicio'] ?? '')) ?: null,
             'name' => (string) ($exercise['nome'] ?? ''),
+            'prescription_method' => trim((string) ($exercise['metodo_prescricao'] ?? '')) ?: 'standard',
             'sets' => array_map(static fn(array $set): array => [
                 'number' => (int) ($set['ordem_serie'] ?? 0),
                 'type' => (string) ($set['tipo'] ?? 'trabalho'),
@@ -116,6 +117,12 @@ function stridebr_api_mobile_strength_payload(PDO $pdo, string $userId, string $
                 'rpe' => $set['rpe'] !== null ? (float) $set['rpe'] : null,
                 'completed' => stridebr_db_bool($set['concluida'] ?? false),
                 'notes' => trim((string) ($set['observacoes'] ?? '')) ?: null,
+                'segment' => !empty($set['segmento_tipo']) ? [
+                    'type' => (string) $set['segmento_tipo'],
+                    'block_index' => $set['bloco_indice'] ?? null,
+                    'stage_index' => $set['etapa_indice'] ?? null,
+                ] : null,
+                'planned_target' => is_array($set['meta_planejada'] ?? null) ? $set['meta_planejada'] : null,
             ], (array) ($exercise['series'] ?? [])),
         ];
     }

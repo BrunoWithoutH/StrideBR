@@ -45,11 +45,12 @@ return function (PDO $pdo): void {
     $link = treinadorCriarConvite($pdo, $coach, 'alpha_planning_v61_athlete', 'treinador');
     treinadorResponderVinculo($pdo, $athlete, $link, 'aceitar');
     treinadorAtualizarPermissoes($pdo, $athlete, $link, ['pode_prescrever'=>true,'pode_ver_cronograma'=>true,'pode_ver_atividades'=>true,'pode_ver_feedback'=>true]);
-    $scheduled = treinadorCriarPrescricao($pdo, $coach, $athlete, ['titulo'=>'Treino do treinador','data_treino'=>'2026-09-22','hora_inicio'=>'18:00','status'=>'publicado'], []);
+    $coachDate = (new DateTimeImmutable('tomorrow', $tz))->format('Y-m-d');
+    $scheduled = treinadorCriarPrescricao($pdo, $coach, $athlete, ['titulo'=>'Treino do treinador','data_treino'=>$coachDate,'hora_inicio'=>'18:00','status'=>'publicado'], []);
     $stmt = $pdo->prepare("SELECT data_treino,status,origem FROM treinos_agendados WHERE idagendamento=:id AND idatleta=:athlete");
     $stmt->execute([':id'=>$scheduled,':athlete'=>$athlete]);
     $scheduledRow = $stmt->fetch();
-    AlphaTest::same('2026-09-22', (string)($scheduledRow['data_treino'] ?? ''), 'Treino avulso/agendado não ficou disponível no dia real');
+    AlphaTest::same($coachDate, (string)($scheduledRow['data_treino'] ?? ''), 'Treino avulso/agendado não ficou disponível no dia real');
     AlphaTest::same('publicado', (string)($scheduledRow['status'] ?? ''), 'Treino do treinador não ficou publicado');
     AlphaTest::same('treinador', (string)($scheduledRow['origem'] ?? ''), 'Provenance do treino do treinador foi perdida');
 };

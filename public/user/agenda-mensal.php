@@ -10,6 +10,7 @@ require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
 require_once dirname(__DIR__, 2) . '/src/function/treinador.php';
 require_once dirname(__DIR__, 2) . '/src/function/cronograma.php';
 require_once dirname(__DIR__, 2) . '/src/function/planejamento.php';
+require_once dirname(__DIR__, 2) . '/src/function/workout_definition.php';
 require_once dirname(__DIR__, 2) . '/src/function/teams_surface_provider.php';
 
 if (!stridebr_feature_enabled($pdo, 'monthly_calendar.enabled', false)) {
@@ -91,7 +92,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($description === '' && !empty($source['descricao'])) {
                     $description = (string) $source['descricao'];
                 }
-                $sourceExercises = cronogramaListarTreinoExercicios($pdo, $sourceWorkout, $idUsuario);
+                $sourceExercises = workoutDefinitionRows(workoutDefinitionFromSchedule($pdo, $idUsuario, $sourceWorkout));
             }
 
             if ($title === '' || stridebr_length($title) > 120) {
@@ -114,30 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ':titulo' => $title,
                     ':descricao' => $description !== '' ? $description : null,
                 ]);
-                if ($sourceExercises !== []) {
-                    $insertExercise = $pdo->prepare('INSERT INTO treinos_agendados_exercicios (idagendamento_exercicio, idagendamento, idexercicio, nome_snapshot, series, repeticoes, carga, descanso, observacoes, duracao, distancia, intensidade, rpe, rir, tempo_execucao, cadencia, ordem) VALUES (:id, :agendamento, :exercicio, :nome, :series, :repeticoes, :carga, :descanso, :observacoes, :duracao, :distancia, :intensidade, :rpe, :rir, :tempo_execucao, :cadencia, :ordem)');
-                    foreach ($sourceExercises as $index => $exercise) {
-                        $insertExercise->execute([
-                            ':id' => stridebr_generate_id(),
-                            ':agendamento' => $idAgendamento,
-                            ':exercicio' => $exercise['idexercicio'] ?: null,
-                            ':nome' => $exercise['nome_snapshot'],
-                            ':series' => $exercise['series'],
-                            ':repeticoes' => $exercise['repeticoes'] ?: null,
-                            ':carga' => $exercise['carga'] ?: null,
-                            ':descanso' => $exercise['descanso'] ?: null,
-                            ':observacoes' => $exercise['observacoes'] ?: null,
-                            ':duracao' => $exercise['duracao'] ?: null,
-                            ':distancia' => $exercise['distancia'] ?: null,
-                            ':intensidade' => $exercise['intensidade'] ?: null,
-                            ':rpe' => $exercise['rpe'] !== null && $exercise['rpe'] !== '' ? $exercise['rpe'] : null,
-                            ':rir' => $exercise['rir'] !== null && $exercise['rir'] !== '' ? $exercise['rir'] : null,
-                            ':tempo_execucao' => $exercise['tempo_execucao'] ?: null,
-                            ':cadencia' => $exercise['cadencia'] ?: null,
-                            ':ordem' => $index + 1,
-                        ]);
-                    }
-                }
+                if ($sourceExercises !== []) workoutDefinitionWriteScheduledItems($pdo, $idAgendamento, $sourceExercises);
                 $pdo->commit();
             } catch (Throwable $e) {
                 if ($pdo->inTransaction()) {

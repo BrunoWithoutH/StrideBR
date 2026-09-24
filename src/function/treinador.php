@@ -6,6 +6,7 @@ require_once dirname(__DIR__) . '/includes/app.php';
 require_once __DIR__ . '/atividade_modelo.php';
 require_once __DIR__ . '/atividade_presenter.php';
 require_once __DIR__ . '/cronograma.php';
+require_once __DIR__ . '/workout_definition.php';
 
 require_once __DIR__ . '/treinador_vinculos.php';
 
@@ -112,7 +113,7 @@ function treinadorCriarPrescricao(PDO $pdo, string $idTreinador, string $idAtlet
         if (stridebr_length($observacoes) > 1000) {
             throw new InvalidArgumentException(stridebr_t('planning.message.notes_long'));
         }
-        $rows[] = [
+        $normalizedRow = [
             'idexercicio' => $resolved['idexercicio'] !== '' ? $resolved['idexercicio'] : null,
             'nome' => $nome,
             'series' => $series,
@@ -123,6 +124,15 @@ function treinadorCriarPrescricao(PDO $pdo, string $idTreinador, string $idAtlet
             'descanso' => $fields['descanso'],
             'observacoes' => $observacoes !== '' ? $observacoes : null,
         ];
+        if (array_key_exists('prescription', $row) || array_key_exists('prescription_method', $row) || array_key_exists('metodo_prescricao', $row)) {
+            $normalizedRow['metodo_prescricao'] = $row['prescription_method'] ?? $row['metodo_prescricao'] ?? 'standard';
+            $normalizedRow['prescription'] = is_array($row['prescription'] ?? null) ? $row['prescription'] : workoutPrescriptionDecode($row['config_prescricao'] ?? null);
+            $normalizedRow = workoutPrescriptionLegacyFields($normalizedRow, workoutPrescriptionNormalize($normalizedRow));
+        }
+        foreach (['grupo_chave','grupo_tipo','grupo_voltas','grupo_descanso_entre_exercicios_s','grupo_descanso_pos_volta_s'] as $field) {
+            if (array_key_exists($field, $row)) $normalizedRow[$field] = $row[$field];
+        }
+        $rows[] = $normalizedRow;
     }
 
     $id = stridebr_generate_id();
@@ -144,23 +154,7 @@ function treinadorCriarPrescricao(PDO $pdo, string $idTreinador, string $idAtlet
             ':status' => $status,
             ':status_publicado' => $status,
         ]);
-        $insert = $pdo->prepare('INSERT INTO treinos_agendados_exercicios (idagendamento_exercicio, idagendamento, idexercicio, nome_snapshot, series, repeticoes, carga, duracao, distancia, descanso, observacoes, ordem) VALUES (:id, :agendamento, :exercicio, :nome, :series, :repeticoes, :carga, :duracao, :distancia, :descanso, :observacoes, :ordem)');
-        foreach ($rows as $index => $row) {
-            $insert->execute([
-                ':id' => stridebr_generate_id(),
-                ':agendamento' => $id,
-                ':exercicio' => $row['idexercicio'],
-                ':nome' => $row['nome'],
-                ':series' => $row['series'],
-                ':repeticoes' => $row['repeticoes'],
-                ':carga' => $row['carga'],
-                ':duracao' => $row['duracao'],
-                ':distancia' => $row['distancia'],
-                ':descanso' => $row['descanso'],
-                ':observacoes' => $row['observacoes'],
-                ':ordem' => $index + 1,
-            ]);
-        }
+        treinadorWorkspaceCopiarExerciciosAgendados($pdo, $id, $rows);
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
@@ -216,9 +210,9 @@ function treinadorPrescricao(PDO $pdo, string $idTreinador, string $idAgendament
     $stmt->execute([':id' => $idAgendamento, ':treinador' => $idTreinador]);
     $row = $stmt->fetch() ?: [];
     if ($row === []) return [];
-    $exerciseStmt = $pdo->prepare('SELECT idexercicio, nome_snapshot, series, repeticoes, carga, duracao, distancia, descanso, observacoes FROM treinos_agendados_exercicios WHERE idagendamento=:id ORDER BY ordem');
+    $exerciseStmt = $pdo->prepare('SELECT * FROM treinos_agendados_exercicios WHERE idagendamento=:id ORDER BY ordem');
     $exerciseStmt->execute([':id' => $idAgendamento]);
-    $row['exercicios'] = $exerciseStmt->fetchAll();
+    $row['exercicios'] = cronogramaHidratarExerciciosPlanejados($pdo, $idTreinador, $exerciseStmt->fetchAll());
     return $row;
 }
 
@@ -262,7 +256,7 @@ function treinadorEditarPrescricao(PDO $pdo, string $idTreinador, string $idAgen
 
     $catalog = stridebr_exercise_catalog_for_user($pdo, $idTreinador);
     $rows = [];
-    foreach (array_slice($exercicios, 0, 100) as $row) {
+    foreach (array_slice($exercicios, 0, 100) as $editIndex => $row) {
         if (!is_array($row)) continue;
         $resolved = cronogramaResolverExercicioBiblioteca($pdo, $catalog, (string) ($row['idexercicio'] ?? ''), (string) ($row['nome'] ?? ''));
         $nome = $resolved['nome'];
@@ -282,7 +276,18 @@ function treinadorEditarPrescricao(PDO $pdo, string $idTreinador, string $idAgen
         }
         $observacoes = trim((string) ($row['observacoes'] ?? ''));
         if (stridebr_length($observacoes) > 1000) throw new InvalidArgumentException(stridebr_t('planning.message.notes_long'));
-        $rows[] = ['idexercicio'=>$resolved['idexercicio'] !== '' ? $resolved['idexercicio'] : null,'nome'=>$nome,'series'=>$series,'repeticoes'=>$values['repeticoes'],'carga'=>$values['carga'],'duracao'=>$values['duracao'],'distancia'=>$values['distancia'],'descanso'=>$values['descanso'],'observacoes'=>$observacoes !== '' ? $observacoes : null];
+        $normalizedRow = ['idexercicio'=>$resolved['idexercicio'] !== '' ? $resolved['idexercicio'] : null,'nome'=>$nome,'series'=>$series,'repeticoes'=>$values['repeticoes'],'carga'=>$values['carga'],'duracao'=>$values['duracao'],'distancia'=>$values['distancia'],'descanso'=>$values['descanso'],'observacoes'=>$observacoes !== '' ? $observacoes : null];
+        $currentRow = $current['exercicios'][$editIndex] ?? [];
+        if (!array_key_exists('prescription', $row) && !array_key_exists('prescription_method', $row) && !array_key_exists('metodo_prescricao', $row)) {
+            foreach (['metodo_prescricao','config_prescricao','grupo_chave','grupo_tipo','grupo_voltas','grupo_descanso_entre_exercicios_s','grupo_descanso_pos_volta_s'] as $field) {
+                if (array_key_exists($field, $currentRow)) $normalizedRow[$field] = $currentRow[$field];
+            }
+        } else {
+            $normalizedRow['metodo_prescricao'] = $row['prescription_method'] ?? $row['metodo_prescricao'] ?? 'standard';
+            $normalizedRow['prescription'] = $row['prescription'] ?? [];
+            $normalizedRow = workoutPrescriptionLegacyFields($normalizedRow, workoutPrescriptionNormalize($normalizedRow));
+        }
+        $rows[] = $normalizedRow;
     }
 
     $pdo->beginTransaction();
@@ -291,10 +296,7 @@ function treinadorEditarPrescricao(PDO $pdo, string $idTreinador, string $idAgen
         $stmt->execute([':modalidade'=>$idModalidade,':data'=>$data,':hora'=>$hora !== '' ? $hora : null,':duracao'=>$duracao,':distancia'=>$distanciaPrevista,':titulo'=>$titulo,':descricao'=>$descricao !== '' ? $descricao : null,':status'=>$status,':status_publicado'=>$status,':id'=>$idAgendamento,':treinador'=>$idTreinador]);
         if ($stmt->rowCount() !== 1) throw new RuntimeException(stridebr_t('trainer.prescription_edit_forbidden'));
         $pdo->prepare('DELETE FROM treinos_agendados_exercicios WHERE idagendamento=:id')->execute([':id'=>$idAgendamento]);
-        $insert = $pdo->prepare('INSERT INTO treinos_agendados_exercicios (idagendamento_exercicio, idagendamento, idexercicio, nome_snapshot, series, repeticoes, carga, duracao, distancia, descanso, observacoes, ordem) VALUES (:id,:agendamento,:exercicio,:nome,:series,:repeticoes,:carga,:duracao,:distancia,:descanso,:observacoes,:ordem)');
-        foreach ($rows as $index => $row) {
-            $insert->execute([':id'=>stridebr_generate_id(),':agendamento'=>$idAgendamento,':exercicio'=>$row['idexercicio'],':nome'=>$row['nome'],':series'=>$row['series'],':repeticoes'=>$row['repeticoes'],':carga'=>$row['carga'],':duracao'=>$row['duracao'],':distancia'=>$row['distancia'],':descanso'=>$row['descanso'],':observacoes'=>$row['observacoes'],':ordem'=>$index+1]);
-        }
+        treinadorWorkspaceCopiarExerciciosAgendados($pdo, $idAgendamento, $rows);
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
@@ -605,37 +607,12 @@ function treinadorAplicarTreinoModelo(PDO $pdo,string $idTreinador,string $idAtl
 
 function treinadorWorkspaceCopiarExerciciosAgendados(PDO $pdo,string $idAgendamento,array $rows): void
 {
-    treinadorWorkspaceCopiarExerciciosAgendadosLote($pdo,[['idagendamento'=>$idAgendamento,'rows'=>$rows]]);
+    workoutDefinitionWriteScheduledItems($pdo, $idAgendamento, $rows);
 }
 
 function treinadorWorkspaceCopiarExerciciosAgendadosLote(PDO $pdo,array $appointments): void
 {
-    $all=[];
-    foreach($appointments as $appointment){
-        $idAgendamento=trim((string)($appointment['idagendamento']??''));
-        if($idAgendamento==='') continue;
-        foreach(array_values((array)($appointment['rows']??[])) as $index=>$row){
-            $all[]=[
-                stridebr_generate_id(),$idAgendamento,trim((string)($row['idexercicio']??''))?:null,trim((string)($row['nome_snapshot']??$row['nome']??''))?:stridebr_t('common.exercise'),
-                isset($row['series'])&&is_numeric($row['series'])?(int)$row['series']:null,trim((string)($row['repeticoes']??''))?:null,trim((string)($row['carga']??''))?:null,
-                trim((string)($row['bloco']??''))?:null,trim((string)($row['cluster']??''))?:null,trim((string)($row['descanso']??''))?:null,trim((string)($row['observacoes']??''))?:null,
-                trim((string)($row['duracao']??''))?:null,trim((string)($row['distancia']??''))?:null,trim((string)($row['intensidade']??''))?:null,
-                isset($row['rpe'])&&is_numeric($row['rpe'])?(float)$row['rpe']:null,isset($row['rir'])&&is_numeric($row['rir'])?(float)$row['rir']:null,
-                trim((string)($row['tempo_execucao']??''))?:null,trim((string)($row['cadencia']??''))?:null,trim((string)($row['tipo_passo']??''))?:'exercise',
-                isset($row['repeticoes_bloco'])&&is_numeric($row['repeticoes_bloco'])?(int)$row['repeticoes_bloco']:null,trim((string)($row['alvo_tipo']??''))?:null,
-                isset($row['alvo_min'])&&is_numeric($row['alvo_min'])?(float)$row['alvo_min']:null,isset($row['alvo_max'])&&is_numeric($row['alvo_max'])?(float)$row['alvo_max']:null,
-                trim((string)($row['alvo_unidade']??''))?:null,isset($row['recuperacao_duracao_s'])&&is_numeric($row['recuperacao_duracao_s'])?(int)$row['recuperacao_duracao_s']:null,
-                isset($row['recuperacao_distancia_m'])&&is_numeric($row['recuperacao_distancia_m'])?(float)$row['recuperacao_distancia_m']:null,isset($row['ordem'])&&is_numeric($row['ordem'])?(int)$row['ordem']:$index+1,
-            ];
-        }
-    }
-    if($all===[]) return;
-    $columns='idagendamento_exercicio,idagendamento,idexercicio,nome_snapshot,series,repeticoes,carga,bloco,cluster,descanso,observacoes,duracao,distancia,intensidade,rpe,rir,tempo_execucao,cadencia,tipo_passo,repeticoes_bloco,alvo_tipo,alvo_min,alvo_max,alvo_unidade,recuperacao_duracao_s,recuperacao_distancia_m,ordem';
-    foreach(array_chunk($all,200) as $chunk){
-        $values=[];$params=[];
-        foreach($chunk as $row){$values[]='('.implode(',',array_fill(0,27,'?')).')';array_push($params,...$row);}
-        $pdo->prepare("INSERT INTO treinos_agendados_exercicios ({$columns}) VALUES ".implode(',',$values))->execute($params);
-    }
+    workoutDefinitionWriteScheduledItemsBatch($pdo, $appointments);
 }
 
 function treinadorWorkspaceListarOcorrenciasFonte(PDO $pdo,string $idTreinador,string $idCronograma,DateTimeImmutable $start,DateTimeImmutable $end): array

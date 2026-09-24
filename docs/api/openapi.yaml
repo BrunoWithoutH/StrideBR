@@ -2174,6 +2174,16 @@ components:
         sets:
           type: array
           items: { $ref: '#/components/schemas/ManualStrengthSet' }
+    ActivityStrengthPlannedTarget:
+      type: object
+      properties:
+        reps:
+          allOf: [{ $ref: '#/components/schemas/WorkoutRepTarget' }]
+          nullable: true
+        load: { type: string, nullable: true }
+        duration_s: { type: number, format: double, minimum: 0, nullable: true }
+        distance_m: { type: number, format: double, minimum: 0, nullable: true }
+        rest_after_s: { type: integer, minimum: 0, maximum: 86400, nullable: true }
     ActivityStrengthSet:
       type: object
       required: [number, type, repetitions, load_kg, duration_s, distance_m, rir, rpe, completed, notes]
@@ -2188,12 +2198,19 @@ components:
         rpe: { type: number, nullable: true }
         completed: { type: boolean }
         notes: { type: string, nullable: true }
+        segment:
+          allOf: [{ $ref: '#/components/schemas/WorkoutSessionSegment' }]
+          nullable: true
+        planned_target:
+          allOf: [{ $ref: '#/components/schemas/ActivityStrengthPlannedTarget' }]
+          nullable: true
     ActivityStrengthExercise:
       type: object
       required: [exercise_id, name, sets]
       properties:
         exercise_id: { type: string, nullable: true }
         name: { type: string }
+        prescription_method: { type: string, enum: [standard, cluster, drop_set], default: standard }
         sets:
           type: array
           items: { $ref: '#/components/schemas/ActivityStrengthSet' }
@@ -2582,6 +2599,120 @@ components:
       properties:
         duration_s: { type: integer, minimum: 0, nullable: true }
         distance_m: { type: number, minimum: 0, nullable: true }
+    WorkoutRepTarget:
+      type: object
+      required: [mode]
+      properties:
+        mode: { type: string, enum: [fixed, range, amrap, failure, legacy] }
+        value: { type: integer, minimum: 1, maximum: 999, nullable: true }
+        min: { type: integer, minimum: 1, maximum: 999, nullable: true }
+        max: { type: integer, minimum: 1, maximum: 999, nullable: true }
+        text: { type: string, nullable: true }
+    WorkoutLoadTarget:
+      type: object
+      properties:
+        value: { type: number, format: double, minimum: 0, nullable: true }
+        unit: { type: string, enum: [kg], nullable: true }
+        text: { type: string, nullable: true }
+    WorkoutPrescriptionStandard:
+      type: object
+      required: [version, method]
+      properties:
+        version: { type: integer, enum: [1] }
+        method: { type: string, enum: [standard] }
+        sets: { type: integer, minimum: 1, maximum: 99, nullable: true }
+        reps:
+          allOf: [{ $ref: '#/components/schemas/WorkoutRepTarget' }]
+          nullable: true
+        load:
+          allOf: [{ $ref: '#/components/schemas/WorkoutLoadTarget' }]
+          nullable: true
+        rest_after_s: { type: integer, minimum: 0, maximum: 86400, nullable: true }
+        duration_s: { type: integer, minimum: 0, nullable: true }
+        distance_m: { type: number, format: double, minimum: 0, nullable: true }
+        distance_display_unit: { type: string, enum: [m, km], nullable: true }
+        effort:
+          type: object
+          nullable: true
+          required: [type, value]
+          properties:
+            type: { type: string, enum: [rir, rpe] }
+            value: { type: number, minimum: 0, maximum: 10 }
+    WorkoutClusterPiece:
+      type: object
+      required: [reps]
+      properties:
+        reps: { type: integer, minimum: 1, maximum: 999 }
+    WorkoutPrescriptionCluster:
+      type: object
+      required: [version, method, blocks, clusters]
+      properties:
+        version: { type: integer, enum: [1] }
+        method: { type: string, enum: [cluster] }
+        blocks: { type: integer, minimum: 1, maximum: 99 }
+        clusters:
+          type: array
+          minItems: 2
+          maxItems: 12
+          items: { $ref: '#/components/schemas/WorkoutClusterPiece' }
+        load:
+          allOf: [{ $ref: '#/components/schemas/WorkoutLoadTarget' }]
+          nullable: true
+        intra_cluster_rest_s: { type: integer, minimum: 0, maximum: 86400, nullable: true }
+        between_blocks_rest_s: { type: integer, minimum: 0, maximum: 86400, nullable: true }
+    WorkoutDropStage:
+      type: object
+      required: [reps]
+      properties:
+        load:
+          allOf: [{ $ref: '#/components/schemas/WorkoutLoadTarget' }]
+          nullable: true
+        reps: { $ref: '#/components/schemas/WorkoutRepTarget' }
+        rest_after_s: { type: integer, minimum: 0, maximum: 86400, nullable: true }
+    WorkoutPrescriptionDropSet:
+      type: object
+      required: [version, method, rounds, stages]
+      properties:
+        version: { type: integer, enum: [1] }
+        method: { type: string, enum: [drop_set] }
+        rounds: { type: integer, minimum: 1, maximum: 20 }
+        stages:
+          type: array
+          minItems: 2
+          maxItems: 10
+          items: { $ref: '#/components/schemas/WorkoutDropStage' }
+        round_rest_s: { type: integer, minimum: 0, maximum: 86400, nullable: true }
+    WorkoutPrescription:
+      oneOf:
+        - $ref: '#/components/schemas/WorkoutPrescriptionStandard'
+        - $ref: '#/components/schemas/WorkoutPrescriptionCluster'
+        - $ref: '#/components/schemas/WorkoutPrescriptionDropSet'
+      discriminator:
+        propertyName: method
+    WorkoutPrescriptionGroup:
+      type: object
+      required: [id, type, rounds]
+      properties:
+        id: { type: string }
+        type: { type: string, enum: [superset, circuit] }
+        rounds: { type: integer, minimum: 1, maximum: 99 }
+        rest_between_exercises_s: { type: integer, minimum: 0, maximum: 86400, nullable: true }
+        rest_after_round_s: { type: integer, minimum: 0, maximum: 86400, nullable: true }
+    WorkoutSessionSegment:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, enum: [set, cluster, drop_stage] }
+        block_index: { type: integer, minimum: 1, maximum: 99, nullable: true }
+        stage_index: { type: integer, minimum: 1, maximum: 99, nullable: true }
+        rest_after_s: { type: integer, minimum: 0, maximum: 86400, nullable: true }
+    WorkoutStructuredPrescriptionCapability:
+      type: object
+      required: [version, present, client_capability]
+      properties:
+        version: { type: integer, enum: [1] }
+        present: { type: boolean }
+        client_capability: { type: string, enum: [structured_prescription_v1] }
     WorkoutExercise:
       type: object
       required: [name, step_type]
@@ -2591,6 +2722,12 @@ components:
         sets: { type: integer, nullable: true }
         planned_repetitions: { type: string, nullable: true }
         planned_load: { type: string, nullable: true }
+        planned_duration_s: { type: integer, minimum: 0, nullable: true }
+        planned_distance_m: { type: number, format: double, minimum: 0, nullable: true }
+        rep_target:
+          allOf: [{ $ref: '#/components/schemas/WorkoutRepTarget' }]
+          nullable: true
+        segment: { $ref: '#/components/schemas/WorkoutSessionSegment' }
         actual_repetitions: { type: string, nullable: true }
         actual_load: { type: string, nullable: true }
         actual_duration_s: { type: integer, minimum: 0, nullable: true }
@@ -2601,6 +2738,13 @@ components:
         rest_s: { type: integer, minimum: 0, nullable: true }
         block: { type: string, nullable: true }
         cluster: { type: string, nullable: true }
+        prescription_method: { type: string, enum: [standard, cluster, drop_set], default: standard }
+        prescription:
+          allOf: [{ $ref: '#/components/schemas/WorkoutPrescription' }]
+          nullable: true
+        group:
+          allOf: [{ $ref: '#/components/schemas/WorkoutPrescriptionGroup' }]
+          nullable: true
         duration: { type: string, nullable: true }
         duration_s: { type: integer, minimum: 0, nullable: true }
         distance: { type: string, nullable: true }
@@ -2763,6 +2907,13 @@ components:
         order: { type: integer }
         block: { type: string, nullable: true }
         cluster: { type: string, nullable: true }
+        prescription_method: { type: string, enum: [standard, cluster, drop_set], default: standard }
+        prescription:
+          allOf: [{ $ref: '#/components/schemas/WorkoutPrescription' }]
+          nullable: true
+        group:
+          allOf: [{ $ref: '#/components/schemas/WorkoutPrescriptionGroup' }]
+          nullable: true
         completed: { type: boolean }
         planned:
           type: object
@@ -2786,6 +2937,37 @@ components:
           type: array
           items: { $ref: '#/components/schemas/WorkoutSessionSet' }
         history: { $ref: '#/components/schemas/WorkoutExerciseHistory' }
+    WorkoutSessionExecutionMember:
+      type: object
+      required: [exercise_id, set_ids]
+      properties:
+        exercise_id: { type: string, description: ID do exercício dentro da sessão. }
+        set_ids:
+          type: array
+          items: { type: string }
+    WorkoutSessionExecutionRound:
+      type: object
+      required: [number, members]
+      properties:
+        number: { type: integer, minimum: 1 }
+        members:
+          type: array
+          items: { $ref: '#/components/schemas/WorkoutSessionExecutionMember' }
+        rest_between_exercises_s: { type: integer, minimum: 0, nullable: true }
+        rest_after_round_s: { type: integer, minimum: 0, nullable: true }
+    WorkoutSessionExecutionSequenceItem:
+      type: object
+      required: [kind]
+      properties:
+        kind: { type: string, enum: [exercise, group] }
+        exercise_id: { type: string, nullable: true, description: ID do exercício dentro da sessão quando kind=exercise. }
+        group_id: { type: string, nullable: true }
+        group_type: { type: string, enum: [superset, circuit], nullable: true }
+        declared_rounds: { type: integer, minimum: 1, nullable: true }
+        rounds:
+          type: array
+          items: { $ref: '#/components/schemas/WorkoutSessionExecutionRound' }
+        warning: { type: string, enum: [legacy_round_mismatch], nullable: true }
     WorkoutSession:
       type: object
       required: [id, title, source, status, progress, exercises]
@@ -2878,6 +3060,7 @@ components:
             date: { type: string, format: date, nullable: true }
             time: { type: string, nullable: true }
             timezone: { type: string, example: America/Sao_Paulo }
+        structured_prescription: { $ref: '#/components/schemas/WorkoutStructuredPrescriptionCapability' }
         progress:
           type: object
           required: [exercises_completed, exercises_total, sets_completed, sets_total]
@@ -2886,6 +3069,10 @@ components:
             exercises_total: { type: integer }
             sets_completed: { type: integer }
             sets_total: { type: integer }
+        execution_sequence:
+          type: array
+          description: Ordem executável da sessão. Supersets e circuitos são organizados por volta; IDs referenciam exercises/sets da própria sessão.
+          items: { $ref: '#/components/schemas/WorkoutSessionExecutionSequenceItem' }
         exercises:
           type: array
           items: { $ref: '#/components/schemas/WorkoutSessionExercise' }

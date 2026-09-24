@@ -167,3 +167,7 @@ php scripts/tests/test_training_planning_ux_polish_v61_static.php
 node scripts/tests/test_training_planning_ux_polish_v61.js
 node scripts/tests/test_coach_workspace_v1.js
 node scripts/tests/test_workout_execution_v2.js
+php scripts/tests/test_workout_builder_v2_static.php
+node scripts/tests/test_workout_builder_v2.js
+php scripts/tests/test_training_platform_consistency_v1_static.php
+node scripts/tests/test_training_platform_consistency_v1.js

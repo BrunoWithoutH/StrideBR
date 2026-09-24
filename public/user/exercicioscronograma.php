@@ -58,7 +58,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $exercicios = cronogramaListarTreinoExercicios($pdo, $idTreino, $idUsuario);
 $camposExtras = cronogramaListarCamposExtras($pdo, $idTreino, $idUsuario);
 $valoresExtras = cronogramaCarregarValoresExtras($pdo, $exercicios);
-$biblioteca = cronogramaListarExerciciosBiblioteca($pdo, $idUsuario);
 $destinos = cronogramaListarTreinosUsuario($pdo, $idUsuario, $idTreino);
 $flashes = stridebr_take_flashes();
 
@@ -78,6 +77,7 @@ function renderExtraInput(array $campo, mixed $valor, string $name): string
     }
     return '<input type="text" name="' . $escapedName . '" value="' . stridebr_e($valor ?? '') . '">';
 }
+require_once dirname(__DIR__, 2) . '/src/layout/workout_builder.php';
 ?>
 <!DOCTYPE html>
 <html lang="<?php echo function_exists('stridebr_html_lang') ? stridebr_e(stridebr_html_lang()) : 'pt-BR'; ?>">
@@ -113,11 +113,14 @@ function renderExtraInput(array $campo, mixed $valor, string $name): string
                 <div class="alert alert-danger"><?php echo stridebr_e($error); ?></div>
             <?php endforeach; ?>
 
-            <section class="exercise-tools-card">
-                <div>
-                    <h2><?php echo stridebr_e(stridebr_t('exercise.columns_title')); ?></h2>
-                    <p><?php echo stridebr_e(stridebr_t('exercise.columns_help')); ?></p>
-                </div>
+            <details class="exercise-tools-card wb-custom-fields-admin">
+                <summary>
+                    <span>
+                        <strong><?php echo stridebr_e(stridebr_t('exercise.columns_title')); ?></strong>
+                        <small><?php echo stridebr_e(stridebr_t('exercise.columns_help')); ?></small>
+                    </span>
+                </summary>
+                <div class="wb-custom-fields-body">
                 <form method="POST" class="inline-field-form">
                     <?php echo stridebr_csrf_field(); ?>
                     <input type="hidden" name="action" value="add_field">
@@ -145,106 +148,57 @@ function renderExtraInput(array $campo, mixed $valor, string $name): string
                         <?php endforeach; ?>
                     </div>
                 <?php endif; ?>
-            </section>
+                </div>
+            </details>
 
-            <section class="exercise-tools-card endurance-structure-card">
-                <div><h2>Estrutura do treino</h2><p>Use os mesmos passos para musculação ou endurance. Em corrida e ciclismo, defina aquecimento, blocos, alvos e recuperação.</p></div>
-                <div class="endurance-preset-actions"><button type="button" class="secondary-button" data-add-endurance-preset="warmup">Aquecimento</button><button type="button" class="secondary-button" data-add-endurance-preset="work">Trabalho</button><button type="button" class="secondary-button" data-add-endurance-preset="interval_group">Intervalo</button><button type="button" class="secondary-button" data-add-endurance-preset="recovery">Recuperação</button><button type="button" class="secondary-button" data-add-endurance-preset="cooldown">Desaquecimento</button></div>
-            </section>
-
-            <form method="POST" class="exercise-editor-card" data-exercise-editor>
+            <?php
+            $builderOptions = [
+                'sport_slug' => (string) ($treino['modalidade_slug'] ?? ''),
+                'extra_fields' => $camposExtras,
+                'extra_values' => $valoresExtras,
+                'extra_renderer' => 'renderExtraInput',
+            ];
+            ?>
+            <form method="POST" class="workout-builder-shell" data-workout-builder>
                 <?php echo stridebr_csrf_field(); ?>
                 <input type="hidden" name="action" value="save_exercises">
                 <input type="hidden" name="idtreino" value="<?php echo stridebr_e($idTreino); ?>">
-                <div class="exercise-table-scroll">
-                    <table class="exercise-table">
-                        <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Tipo</th>
-                            <th><?php echo stridebr_e(stridebr_t('library.page_title')); ?></th>
-                            <th><?php echo stridebr_e(stridebr_t('home.exercise')); ?></th>
-                            <th><?php echo stridebr_e(stridebr_t('common.series')); ?></th>
-                            <th><?php echo stridebr_e(stridebr_t('common.repetitions')); ?></th>
-                            <th><?php echo stridebr_e(stridebr_t('common.load')); ?></th>
-                            <th><?php echo stridebr_e(stridebr_t('common.block')); ?></th>
-                            <th><?php echo stridebr_e(stridebr_t('common.cluster')); ?></th>
-                            <th><?php echo stridebr_e(stridebr_t('home.rest')); ?></th>
-                            <th>Duração</th>
-                            <th>Distância</th>
-                            <th>Alvo</th>
-                            <th>Repetir</th>
-                            <th>Recuperação</th>
-                            <?php foreach ($camposExtras as $campo): ?><th><?php echo stridebr_e($campo['nome']); ?></th><?php endforeach; ?>
-                            <th><?php echo stridebr_e(stridebr_t('activity.notes')); ?></th>
-                            <th></th>
-                        </tr>
-                        </thead>
-                        <tbody data-exercise-rows>
-                        <?php if ($exercicios === []): ?>
-                            <tr data-exercise-empty><td colspan="<?php echo 17 + count($camposExtras); ?>"><div class="exercise-empty-row"><div><strong>Nenhum exercício neste treino.</strong><span>Adicione o primeiro exercício para montar a prescrição.</span></div><button type="button" class="secondary-button" data-add-exercise-empty>Adicionar exercício</button></div></td></tr>
-                        <?php endif; ?>
-                        <?php foreach ($exercicios as $index => $row): ?>
-                            <tr data-exercise-row>
-                                <td data-row-number><?php echo $index + 1; ?></td>
-                                <td><select name="rows[<?php echo $index; ?>][tipo_passo]"><option value="exercise"<?php echo ($row['tipo_passo'] ?? 'exercise') === 'exercise' ? ' selected' : ''; ?>>Exercício</option><option value="warmup"<?php echo ($row['tipo_passo'] ?? '') === 'warmup' ? ' selected' : ''; ?>>Aquecimento</option><option value="work"<?php echo ($row['tipo_passo'] ?? '') === 'work' ? ' selected' : ''; ?>>Trabalho</option><option value="recovery"<?php echo ($row['tipo_passo'] ?? '') === 'recovery' ? ' selected' : ''; ?>>Recuperação</option><option value="cooldown"<?php echo ($row['tipo_passo'] ?? '') === 'cooldown' ? ' selected' : ''; ?>>Desaquecimento</option><option value="interval_group"<?php echo ($row['tipo_passo'] ?? '') === 'interval_group' ? ' selected' : ''; ?>>Intervalo</option></select></td>
-                                <td>
-                                    <input type="hidden" name="rows[<?php echo $index; ?>][idtreino_exercicio]" value="<?php echo stridebr_e($row['idtreino_exercicio']); ?>">
-                                    <input type="hidden" name="rows[<?php echo $index; ?>][idexercicio]" value="<?php echo stridebr_e((string) ($row['idexercicio'] ?? '')); ?>" data-exercise-id>
-                                    <span class="exercise-picker-hint"><?php echo stridebr_e(stridebr_t('library.search_exercise_alias')); ?></span>
-                                </td>
-                                <td><input type="text" name="rows[<?php echo $index; ?>][nome]" value="<?php echo stridebr_e($row['nome_snapshot']); ?>" data-exercise-name maxlength="120" required></td>
-                                <td><input type="number" min="1" step="1" name="rows[<?php echo $index; ?>][series]" value="<?php echo stridebr_e($row['series'] ?? ''); ?>"></td>
-                                <td><input type="text" name="rows[<?php echo $index; ?>][repeticoes]" maxlength="40" value="<?php echo stridebr_e($row['repeticoes'] ?? ''); ?>" placeholder="8-12"></td>
-                                <td><input type="text" name="rows[<?php echo $index; ?>][carga]" maxlength="40" value="<?php echo stridebr_e($row['carga'] ?? ''); ?>" placeholder="40 kg"></td>
-                                <td><input type="text" name="rows[<?php echo $index; ?>][bloco]" maxlength="40" value="<?php echo stridebr_e($row['bloco'] ?? ''); ?>" placeholder="A"></td>
-                                <td><input type="text" name="rows[<?php echo $index; ?>][cluster]" maxlength="80" value="<?php echo stridebr_e($row['cluster'] ?? ''); ?>" placeholder="4+4+4"></td>
-                                <td><input type="text" name="rows[<?php echo $index; ?>][descanso]" maxlength="40" value="<?php echo stridebr_e($row['descanso'] ?? ''); ?>" placeholder="90 s"></td>
-                                <td><input type="text" name="rows[<?php echo $index; ?>][duracao]" maxlength="40" value="<?php echo stridebr_e($row['duracao'] ?? ''); ?>" placeholder="10 min"></td>
-                                <td><input type="text" name="rows[<?php echo $index; ?>][distancia]" maxlength="40" value="<?php echo stridebr_e($row['distancia'] ?? ''); ?>" placeholder="1000 m"></td>
-                                <td><div class="endurance-target-cell"><select name="rows[<?php echo $index; ?>][alvo_tipo]"><option value="">—</option><?php foreach (['pace'=>'Pace','speed'=>'Velocidade','heart_rate'=>'FC','rpe'=>'RPE','duration'=>'Duração','distance'=>'Distância'] as $key=>$label): ?><option value="<?php echo $key; ?>"<?php echo ($row['alvo_tipo'] ?? '') === $key ? ' selected' : ''; ?>><?php echo $label; ?></option><?php endforeach; ?></select><input type="number" step="any" name="rows[<?php echo $index; ?>][alvo_min]" value="<?php echo stridebr_e($row['alvo_min'] ?? ''); ?>" placeholder="mín"><input type="number" step="any" name="rows[<?php echo $index; ?>][alvo_max]" value="<?php echo stridebr_e($row['alvo_max'] ?? ''); ?>" placeholder="máx"><select name="rows[<?php echo $index; ?>][alvo_unidade]"><option value="">unidade</option><?php foreach (['s_per_km'=>'s/km','km_h'=>'km/h','bpm'=>'bpm','rpe_1_10'=>'RPE','s'=>'s','m'=>'m'] as $key=>$label): ?><option value="<?php echo $key; ?>"<?php echo ($row['alvo_unidade'] ?? '') === $key ? ' selected' : ''; ?>><?php echo $label; ?></option><?php endforeach; ?></select></div></td>
-                                <td><input type="number" min="1" max="99" name="rows[<?php echo $index; ?>][repeticoes_bloco]" value="<?php echo stridebr_e($row['repeticoes_bloco'] ?? ''); ?>" placeholder="5"></td>
-                                <td><div class="endurance-recovery-cell"><input type="number" min="0" name="rows[<?php echo $index; ?>][recuperacao_duracao_s]" value="<?php echo stridebr_e($row['recuperacao_duracao_s'] ?? ''); ?>" placeholder="s"><input type="number" min="0" step="any" name="rows[<?php echo $index; ?>][recuperacao_distancia_m]" value="<?php echo stridebr_e($row['recuperacao_distancia_m'] ?? ''); ?>" placeholder="m"></div></td>
-                                <?php foreach ($camposExtras as $campo): ?>
-                                    <td><?php echo renderExtraInput($campo, $valoresExtras[$row['idtreino_exercicio']][$campo['idcampo']] ?? null, "rows[{$index}][extras][{$campo['idcampo']}]"); ?></td>
+                <div class="workout-builder-toolbar">
+                    <div class="workout-builder-toolbar-main">
+                        <div class="workout-builder-toolbar-title"><strong><?php echo stridebr_e(stridebr_t('workout_builder.title')); ?></strong><span><?php echo count($exercicios); ?> <?php echo stridebr_e(stridebr_t('common.exercises')); ?></span></div>
+                        <span class="wb-unsaved" data-wb-dirty hidden><?php echo stridebr_e(stridebr_t('workout_builder.unsaved')); ?></span>
+                    </div>
+                    <div class="workout-builder-toolbar-actions">
+                        <details class="wb-add-menu">
+                            <summary class="secondary-button">+ <?php echo stridebr_e(stridebr_t('workout_builder.add')); ?></summary>
+                            <div class="wb-add-menu-panel">
+                                <button type="button" data-wb-add-exercise><?php echo stridebr_e(stridebr_t('workout_builder.add_exercise')); ?></button>
+                                <div class="wb-add-menu-divider"></div>
+                                <?php foreach (['warmup','work','interval_group','recovery','cooldown'] as $step): ?>
+                                    <button type="button" data-wb-add-step="<?php echo $step; ?>"><?php echo stridebr_e(workoutBuilderStepLabel($step)); ?></button>
                                 <?php endforeach; ?>
-                                <td><textarea name="rows[<?php echo $index; ?>][observacoes]" rows="2"><?php echo stridebr_e($row['observacoes'] ?? ''); ?></textarea></td>
-                                <td><button type="button" class="remove-row-button" data-remove-exercise aria-label="<?php echo stridebr_e(stridebr_t('exercise.remove_row')); ?>">×</button></td>
-                            </tr>
-                        <?php endforeach; ?>
-                        </tbody>
-                    </table>
+                            </div>
+                        </details>
+                        <div class="wb-selection-bar" data-wb-selection hidden>
+                            <span data-wb-selected-count></span>
+                            <button type="button" class="secondary-button compact-button" data-wb-create-group="superset"><?php echo stridebr_e(stridebr_t('workout_builder.group.superset')); ?></button>
+                            <button type="button" class="secondary-button compact-button" data-wb-create-group="circuit"><?php echo stridebr_e(stridebr_t('workout_builder.group.circuit')); ?></button>
+                        </div>
+                        <button type="submit" class="primary-button"><?php echo stridebr_e(stridebr_t('workout_builder.save')); ?></button>
+                    </div>
                 </div>
-                <template data-exercise-row-template>
-                    <tr data-exercise-row>
-                        <td data-row-number></td>
-                        <td><select name="rows[__INDEX__][tipo_passo]"><option value="exercise">Exercício</option><option value="warmup">Aquecimento</option><option value="work">Trabalho</option><option value="recovery">Recuperação</option><option value="cooldown">Desaquecimento</option><option value="interval_group">Intervalo</option></select></td>
-                        <td>
-                            <input type="hidden" name="rows[__INDEX__][idtreino_exercicio]" value="">
-                            <input type="hidden" name="rows[__INDEX__][idexercicio]" value="" data-exercise-id>
-                            <span class="exercise-picker-hint"><?php echo stridebr_e(stridebr_t('library.search_exercise_alias')); ?></span>
-                        </td>
-                        <td><input type="text" name="rows[__INDEX__][nome]" value="" data-exercise-name maxlength="120"></td>
-                        <td><input type="number" min="1" step="1" name="rows[__INDEX__][series]"></td>
-                        <td><input type="text" name="rows[__INDEX__][repeticoes]" maxlength="40" placeholder="8-12"></td>
-                        <td><input type="text" name="rows[__INDEX__][carga]" maxlength="40" placeholder="40 kg"></td>
-                        <td><input type="text" name="rows[__INDEX__][bloco]" maxlength="40" placeholder="A"></td>
-                        <td><input type="text" name="rows[__INDEX__][cluster]" maxlength="80" placeholder="4+4+4"></td>
-                        <td><input type="text" name="rows[__INDEX__][descanso]" maxlength="40" placeholder="90 s"></td>
-                        <td><input type="text" name="rows[__INDEX__][duracao]" maxlength="40" placeholder="10 min"></td>
-                        <td><input type="text" name="rows[__INDEX__][distancia]" maxlength="40" placeholder="1000 m"></td>
-                        <td><div class="endurance-target-cell"><select name="rows[__INDEX__][alvo_tipo]"><option value="">—</option><option value="pace">Pace</option><option value="speed">Velocidade</option><option value="heart_rate">FC</option><option value="rpe">RPE</option><option value="duration">Duração</option><option value="distance">Distância</option></select><input type="number" step="any" name="rows[__INDEX__][alvo_min]" placeholder="mín"><input type="number" step="any" name="rows[__INDEX__][alvo_max]" placeholder="máx"><select name="rows[__INDEX__][alvo_unidade]"><option value="">unidade</option><option value="s_per_km">s/km</option><option value="km_h">km/h</option><option value="bpm">bpm</option><option value="rpe_1_10">RPE</option><option value="s">s</option><option value="m">m</option></select></div></td>
-                        <td><input type="number" min="1" max="99" name="rows[__INDEX__][repeticoes_bloco]" placeholder="5"></td>
-                        <td><div class="endurance-recovery-cell"><input type="number" min="0" name="rows[__INDEX__][recuperacao_duracao_s]" placeholder="s"><input type="number" min="0" step="any" name="rows[__INDEX__][recuperacao_distancia_m]" placeholder="m"></div></td>
-                        <?php foreach ($camposExtras as $campo): ?><td><?php echo renderExtraInput($campo, null, "rows[__INDEX__][extras][{$campo['idcampo']}]"); ?></td><?php endforeach; ?>
-                        <td><textarea name="rows[__INDEX__][observacoes]" rows="2"></textarea></td>
-                        <td><button type="button" class="remove-row-button" data-remove-exercise aria-label="<?php echo stridebr_e(stridebr_t('exercise.remove_row')); ?>">×</button></td>
-                    </tr>
-                </template>
-                <div class="exercise-editor-actions">
-                    <button type="button" class="secondary-button" data-add-exercise><?php echo stridebr_e(stridebr_t('common.add_exercise')); ?></button>
-                    <button type="submit" class="primary-button"><?php echo stridebr_e(stridebr_t('settings.save_changes')); ?></button>
+                <div class="workout-builder-list" data-wb-list>
+                    <?php workoutBuilderRender($exercicios, $builderOptions); ?>
+                    <div class="workout-builder-empty" data-wb-empty<?php echo $exercicios !== [] ? ' hidden' : ''; ?>><strong><?php echo stridebr_e(stridebr_t('workout_builder.empty')); ?></strong><span><?php echo stridebr_e(stridebr_t('workout_builder.empty_help')); ?></span><button type="button" class="secondary-button" data-wb-add-exercise><?php echo stridebr_e(stridebr_t('workout_builder.add_exercise')); ?></button></div>
                 </div>
+                <template data-wb-card-template><?php echo workoutBuilderRenderCard(['tipo_passo'=>'exercise','tracking_mode'=>'load_reps','metodo_prescricao'=>'standard'], '__INDEX__', $builderOptions); ?></template>
+                <div class="workout-builder-footer"><span class="wb-unsaved" data-wb-dirty hidden><?php echo stridebr_e(stridebr_t('workout_builder.unsaved')); ?></span><button type="submit" class="primary-button"><?php echo stridebr_e(stridebr_t('workout_builder.save')); ?></button></div>
+                <div class="wb-a11y-live" data-wb-live aria-live="polite" aria-atomic="true"></div>
+                <dialog class="wb-picker" data-wb-picker>
+                    <div class="wb-picker-head"><h2><?php echo stridebr_e(stridebr_t('workout_builder.add_exercise')); ?></h2><button type="button" data-wb-picker-close aria-label="<?php echo stridebr_e(stridebr_t('workout_builder.close')); ?>">×</button></div>
+                    <div class="wb-picker-search"><input type="search" data-wb-picker-search placeholder="<?php echo stridebr_e(stridebr_t('workout_builder.search_placeholder')); ?>" autocomplete="off" aria-label="<?php echo stridebr_e(stridebr_t('workout_builder.search')); ?>"></div>
+                    <div class="wb-picker-results" data-wb-picker-results></div>
+                </dialog>
             </form>
 
             <?php if ($exercicios !== [] && $destinos !== []): ?>
@@ -271,5 +225,6 @@ function renderExtraInput(array $campo, mixed $valor, string $name): string
 </div>
 <?php require dirname(__DIR__, 2) . '/src/layout/footer.php'; ?>
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/cronogramas.js')); ?>"></script>
+<script src="<?php echo stridebr_e(stridebr_asset('/assets/js/workout-builder.js')); ?>"></script>
 </body>
 </html>

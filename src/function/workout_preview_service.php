@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/cronograma.php';
 require_once __DIR__ . '/api_v1.php';
+require_once __DIR__ . '/workout_definition.php';
 
 function workoutPreviewValidDate(string $value): bool
 {
@@ -93,6 +94,23 @@ function workoutPreviewData(PDO $pdo, string $userId, string $workoutId, array $
     $occurrenceOriginal = substr(trim((string) ($context['occurrence_original'] ?? '')), 0, 10);
     $plannedDate = substr(trim((string) ($context['planned_date'] ?? '')), 0, 10);
     $activityId = trim((string) ($context['activity_id'] ?? ''));
+    $referenceDate = workoutPreviewValidDate($plannedDate) ? $plannedDate : (workoutPreviewValidDate($occurrenceOriginal) ? $occurrenceOriginal : '');
+    $today = (new DateTimeImmutable('today', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d');
+    $mode = $referenceDate !== '' && $referenceDate < $today ? 'missed' : 'planned';
+    $workout = cronogramaBuscarTreino($pdo, $workoutId, $userId);
+    if ($workout === []) {
+        return [
+            'preview_mode' => $mode,
+            'activity_id' => null,
+            'exercises' => [],
+            'presentation' => ['sections' => [], 'groups' => [], 'items' => []],
+            'capabilities' => ['can_start_session' => false, 'can_quick_complete' => false, 'quick_complete_mode' => 'unsupported'],
+            'actual' => null,
+        ];
+    }
+    $definition = workoutDefinitionBuild($workout, cronogramaListarTreinoExercicios($pdo, $workoutId, $userId), 'schedule');
+    $presentation = workoutDefinitionPresentation($definition);
+    $capabilities = workoutDefinitionCapabilities($definition);
     $linked = workoutPreviewLinkedActivity($pdo, $userId, $workoutId, $activityId, $occurrenceOriginal, $plannedDate);
     if ($linked !== []) {
         $detail = stridebr_api_activity_detail($pdo, (string) $linked['idregistro'], $userId);
@@ -106,6 +124,8 @@ function workoutPreviewData(PDO $pdo, string $userId, string $workoutId, array $
                 'preview_mode' => 'performed',
                 'activity_id' => (string) $detail['id'],
                 'exercises' => $exercises,
+                'presentation' => $presentation,
+                'capabilities' => $capabilities,
                 'actual' => [
                     'started_at' => $detail['started_at'] ?? null,
                     'ended_at' => $detail['ended_at'] ?? null,
@@ -116,13 +136,12 @@ function workoutPreviewData(PDO $pdo, string $userId, string $workoutId, array $
             ];
         }
     }
-    $referenceDate = workoutPreviewValidDate($plannedDate) ? $plannedDate : (workoutPreviewValidDate($occurrenceOriginal) ? $occurrenceOriginal : '');
-    $today = (new DateTimeImmutable('today', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d');
-    $mode = $referenceDate !== '' && $referenceDate < $today ? 'missed' : 'planned';
     return [
         'preview_mode' => $mode,
         'activity_id' => null,
-        'exercises' => array_map('workoutPreviewPlannedExercise', cronogramaListarTreinoExercicios($pdo, $workoutId, $userId)),
+        'exercises' => array_map('workoutPreviewPlannedExercise', workoutDefinitionRows($definition)),
+        'presentation' => $presentation,
+        'capabilities' => $capabilities,
         'actual' => null,
     ];
 }

@@ -185,7 +185,16 @@ function sessaoHidratar(PDO $pdo, string $idUsuario, array $session, bool $inclu
     $exerciseStmt = $pdo->prepare('SELECT * FROM sessoes_treino_exercicios WHERE idsessao = :sessao ORDER BY ordem');
     $exerciseStmt->execute([':sessao' => $session['idsessao']]);
     $session['exercicios'] = $exerciseStmt->fetchAll();
-    if (($session['status'] ?? '') === 'ativo') $session['exercicios'] = cronogramaHidratarExerciciosPlanejados($pdo, $idUsuario, $session['exercicios']);
+    if (($session['status'] ?? '') === 'ativo') {
+        $session['exercicios'] = cronogramaHidratarExerciciosPlanejados($pdo, $idUsuario, $session['exercicios']);
+    } else {
+        $session['exercicios'] = workoutPrescriptionHydrateGroups($pdo, $session['exercicios']);
+        foreach ($session['exercicios'] as &$snapshotExercise) {
+            $snapshotExercise['prescription_method'] = trim((string) ($snapshotExercise['metodo_prescricao'] ?? '')) ?: 'standard';
+            $snapshotExercise['prescription'] = workoutPrescriptionDecode($snapshotExercise['config_prescricao'] ?? null);
+        }
+        unset($snapshotExercise);
+    }
     $seriesByExercise = [];
     if ($session['exercicios'] !== []) {
         $exerciseIds = array_values(array_map(static fn(array $row): string => (string) $row['idsessao_exercicio'], $session['exercicios']));
@@ -210,7 +219,68 @@ function sessaoHidratar(PDO $pdo, string $idUsuario, array $session, bool $inclu
         $exercise['historico'] = $historyByExercise[(string) $exercise['idsessao_exercicio']] ?? [];
     }
     unset($exercise);
+    $session['execution_sequence'] = sessaoExecutionSequence($session['exercicios']);
     return $session;
+}
+
+
+function sessaoExecutionSequence(array $exercises): array
+{
+    $sequence = [];
+    $processedGroups = [];
+    foreach (array_values($exercises) as $exercise) {
+        if (!is_array($exercise)) continue;
+        $groupId = trim((string) ($exercise['idgrupo_prescricao'] ?? $exercise['grupo_chave'] ?? ''));
+        if ($groupId === '') {
+            $sequence[] = ['kind' => 'exercise', 'exercise_id' => (string) ($exercise['idsessao_exercicio'] ?? '')];
+            continue;
+        }
+        if (isset($processedGroups[$groupId])) continue;
+        $processedGroups[$groupId] = true;
+        $members = array_values(array_filter($exercises, static fn($candidate): bool => is_array($candidate) && trim((string) ($candidate['idgrupo_prescricao'] ?? $candidate['grupo_chave'] ?? '')) === $groupId));
+        usort($members, static fn(array $a, array $b): int => ((int) ($a['ordem'] ?? 0)) <=> ((int) ($b['ordem'] ?? 0)));
+        $declaredRounds = max(1, (int) ($exercise['grupo_voltas'] ?? 1));
+        $actualRounds = $declaredRounds;
+        $memberSets = [];
+        foreach ($members as $member) {
+            $byRound = [];
+            $plainIndex = 0;
+            foreach ((array) ($member['series'] ?? []) as $set) {
+                if (!is_array($set)) continue;
+                $block = isset($set['bloco_indice']) && is_numeric($set['bloco_indice']) ? max(1, (int) $set['bloco_indice']) : null;
+                if ($block === null) $block = ++$plainIndex;
+                $byRound[$block][] = (string) ($set['idserie'] ?? '');
+                $actualRounds = max($actualRounds, $block);
+            }
+            $memberSets[(string) ($member['idsessao_exercicio'] ?? '')] = $byRound;
+        }
+        $rounds = [];
+        foreach (range(1, $actualRounds) as $round) {
+            $roundMembers = [];
+            foreach ($members as $member) {
+                $exerciseId = (string) ($member['idsessao_exercicio'] ?? '');
+                $roundMembers[] = [
+                    'exercise_id' => $exerciseId,
+                    'set_ids' => array_values(array_filter($memberSets[$exerciseId][$round] ?? [])),
+                ];
+            }
+            $rounds[] = [
+                'number' => $round,
+                'members' => $roundMembers,
+                'rest_between_exercises_s' => $exercise['grupo_descanso_entre_exercicios_s'] ?? null,
+                'rest_after_round_s' => $exercise['grupo_descanso_pos_volta_s'] ?? null,
+            ];
+        }
+        $sequence[] = [
+            'kind' => 'group',
+            'group_id' => $groupId,
+            'group_type' => (string) ($exercise['grupo_tipo'] ?? 'superset'),
+            'declared_rounds' => $declaredRounds,
+            'rounds' => $rounds,
+            'warning' => $actualRounds !== $declaredRounds ? 'legacy_round_mismatch' : null,
+        ];
+    }
+    return $sequence;
 }
 
 function sessaoCarregar(PDO $pdo, string $idUsuario, bool $includeHistory = true): array
@@ -296,8 +366,8 @@ function sessaoPersistirSeriesAtividade(PDO $pdo, string $idRegistro, array $ses
     $pdo->prepare('DELETE FROM series_exercicio_atividade WHERE idregistro = :registro')->execute([':registro' => $idRegistro]);
     $insert = $pdo->prepare(
         "INSERT INTO series_exercicio_atividade
-        (idserie, idregistro, idexercicio, nome_exercicio, ordem_exercicio, ordem_serie, tipo, carga_kg, repeticoes, duracao_segundos, distancia_metros, rir, rpe, concluida)
-        VALUES (:id, :registro, :exercicio, :nome, :ordem_exercicio, :ordem_serie, 'trabalho', :carga, :reps, :duration, :distance, :rir, :rpe, :concluida)"
+        (idserie, idregistro, idexercicio, nome_exercicio, ordem_exercicio, ordem_serie, tipo, carga_kg, repeticoes, duracao_segundos, distancia_metros, rir, rpe, concluida, metodo_prescricao, segmento_tipo, bloco_indice, etapa_indice, meta_planejada)
+        VALUES (:id, :registro, :exercicio, :nome, :ordem_exercicio, :ordem_serie, :tipo, :carga, :reps, :duration, :distance, :rir, :rpe, :concluida, :metodo_prescricao, :segmento_tipo, :bloco_indice, :etapa_indice, CAST(:meta_planejada AS jsonb))"
     );
     foreach ((array) ($session['exercicios'] ?? []) as $exercise) {
         $order = max(1, (int) ($exercise['ordem'] ?? 1));
@@ -307,6 +377,16 @@ function sessaoPersistirSeriesAtividade(PDO $pdo, string $idRegistro, array $ses
             $load = sessaoCargaNumero(isset($set['carga_realizada']) ? (string) $set['carga_realizada'] : null);
             $repsRaw = trim((string) ($set['repeticoes_realizadas'] ?? ''));
             $reps = preg_match('/^\d+$/', $repsRaw) === 1 ? (int) $repsRaw : null;
+            $segmentType = trim((string) ($set['segmento_tipo'] ?? 'set')) ?: 'set';
+            $repTarget = workoutPrescriptionDecode($set['meta_repeticoes'] ?? null);
+            $plannedTarget = array_filter([
+                'reps' => $repTarget !== [] ? $repTarget : null,
+                'load' => trim((string) ($set['carga_planejada'] ?? '')) ?: null,
+                'duration_s' => $set['duracao_planejada_s'] ?? null,
+                'distance_m' => $set['distancia_planejada_m'] ?? null,
+                'rest_after_s' => $set['descanso_apos_s'] ?? null,
+            ], static fn(mixed $value): bool => $value !== null);
+            $activityType = $segmentType === 'drop_stage' ? 'drop' : (($repTarget['mode'] ?? '') === 'failure' ? 'falha' : 'trabalho');
             $insert->execute([
                 ':id' => atividadeGerarId(),
                 ':registro' => $idRegistro,
@@ -321,6 +401,12 @@ function sessaoPersistirSeriesAtividade(PDO $pdo, string $idRegistro, array $ses
                 ':rir' => $rir,
                 ':rpe' => $rpe,
                 ':concluida' => stridebr_db_bool($set['concluida'] ?? false) ? 1 : 0,
+                ':tipo' => $activityType,
+                ':metodo_prescricao' => trim((string) ($exercise['metodo_prescricao'] ?? '')) ?: 'standard',
+                ':segmento_tipo' => $segmentType,
+                ':bloco_indice' => is_numeric($set['bloco_indice'] ?? null) ? (int) $set['bloco_indice'] : null,
+                ':etapa_indice' => is_numeric($set['etapa_indice'] ?? null) ? (int) $set['etapa_indice'] : null,
+                ':meta_planejada' => workoutPrescriptionJson($plannedTarget !== [] ? $plannedTarget : null),
             ]);
         }
     }
@@ -551,17 +637,32 @@ function sessaoGarantirSemAtiva(PDO $pdo, string $idUsuario): void
 
 function sessaoCopiarExercicios(PDO $pdo, string $idSessao, array $exercicios): void
 {
-    $insertExercise = $pdo->prepare('INSERT INTO sessoes_treino_exercicios (idsessao_exercicio, idsessao, idexercicio, nome_snapshot, series_planejadas, repeticoes_snapshot, carga_snapshot, bloco_snapshot, cluster_snapshot, descanso_snapshot, observacoes_snapshot, duracao_snapshot, distancia_snapshot, intensidade_snapshot, rpe_snapshot, rir_snapshot, tempo_execucao_snapshot, cadencia_snapshot, ordem) VALUES (:id, :sessao, :exercicio, :nome, :series, :repeticoes, :carga, :bloco, :cluster, :descanso, :observacoes, :duracao, :distancia, :intensidade, :rpe, :rir, :tempo_execucao, :cadencia, :ordem)');
-    $insertSet = $pdo->prepare('INSERT INTO sessoes_treino_series (idserie, idsessao_exercicio, numero) VALUES (:id, :exercicio, :numero)');
+    workoutPrescriptionReplaceGroups($pdo, 'session', $idSessao, $exercicios);
+    $insertExercise = $pdo->prepare('INSERT INTO sessoes_treino_exercicios (idsessao_exercicio, idsessao, idexercicio, nome_snapshot, series_planejadas, repeticoes_snapshot, carga_snapshot, bloco_snapshot, cluster_snapshot, descanso_snapshot, observacoes_snapshot, duracao_snapshot, distancia_snapshot, intensidade_snapshot, rpe_snapshot, rir_snapshot, tempo_execucao_snapshot, cadencia_snapshot, tracking_mode, tipo_passo, repeticoes_bloco, alvo_tipo, alvo_min, alvo_max, alvo_unidade, recuperacao_duracao_s, recuperacao_distancia_m, metodo_prescricao, config_prescricao, idgrupo_prescricao, ordem) VALUES (:id, :sessao, :exercicio, :nome, :series, :repeticoes, :carga, :bloco, :cluster, :descanso, :observacoes, :duracao, :distancia, :intensidade, :rpe, :rir, :tempo_execucao, :cadencia, :tracking_mode, :tipo_passo, :repeticoes_bloco, :alvo_tipo, :alvo_min, :alvo_max, :alvo_unidade, :recuperacao_duracao_s, :recuperacao_distancia_m, :metodo_prescricao, CAST(:config_prescricao AS jsonb), :idgrupo_prescricao, :ordem)');
+    $insertSet = $pdo->prepare('INSERT INTO sessoes_treino_series (idserie, idsessao_exercicio, numero, segmento_tipo, bloco_indice, etapa_indice, repeticoes_planejadas, carga_planejada, duracao_planejada_s, distancia_planejada_m, meta_repeticoes, descanso_apos_s) VALUES (:id, :exercicio, :numero, :segmento_tipo, :bloco_indice, :etapa_indice, :repeticoes_planejadas, :carga_planejada, :duracao_planejada_s, :distancia_planejada_m, CAST(:meta_repeticoes AS jsonb), :descanso_apos_s)');
     foreach ($exercicios as $row) {
+        if (!is_array($row)) continue;
+        $stepType = trim((string) ($row['tipo_passo'] ?? 'exercise')) ?: 'exercise';
+        if ($stepType === 'exercise') {
+            $row = workoutPrescriptionLegacyFields($row, workoutPrescriptionNormalize($row));
+        } else {
+            $row['metodo_prescricao'] = 'standard';
+            $row['config_prescricao'] = null;
+        }
         $idSessaoExercicio = atividadeGerarId();
         $seriesRaw = $row['series'] ?? $row['series_planejadas'] ?? null;
-        $plannedSets = is_numeric($seriesRaw) ? max(1, min(99, (int) $seriesRaw)) : 1;
+        $segments = $stepType === 'exercise' ? workoutPrescriptionMaterializeSets($row) : [];
+        if ($segments === []) {
+            $plannedSets = is_numeric($seriesRaw) ? max(1, min(99, (int) $seriesRaw)) : 1;
+            for ($number = 1; $number <= $plannedSets; $number++) {
+                $segments[] = ['segment_type'=>'set','block_index'=>null,'stage_index'=>null,'planned_repetitions'=>trim((string) ($row['repeticoes'] ?? $row['repeticoes_snapshot'] ?? '')) ?: null,'planned_load'=>trim((string) ($row['carga'] ?? $row['carga_snapshot'] ?? '')) ?: null,'planned_duration_s'=>workoutPrescriptionDurationSeconds($row['duracao'] ?? $row['duracao_snapshot'] ?? null),'planned_distance_m'=>workoutPrescriptionLegacyDistance($row['distancia'] ?? $row['distancia_snapshot'] ?? null)['meters'],'rep_target'=>null,'rest_after_s'=>workoutPrescriptionRestSeconds(null,$row['descanso'] ?? $row['descanso_snapshot'] ?? null)];
+            }
+        }
         $insertExercise->execute([
             ':id' => $idSessaoExercicio,
             ':sessao' => $idSessao,
             ':exercicio' => trim((string) ($row['idexercicio'] ?? '')) ?: null,
-            ':nome' => (string) ($row['nome_snapshot'] ?? 'Exercício'),
+            ':nome' => (string) ($row['nome_snapshot'] ?? $row['nome'] ?? 'Exercício'),
             ':series' => is_numeric($seriesRaw) ? (int) $seriesRaw : null,
             ':repeticoes' => ($row['repeticoes'] ?? $row['repeticoes_snapshot'] ?? null) ?: null,
             ':carga' => ($row['carga'] ?? $row['carga_snapshot'] ?? null) ?: null,
@@ -576,10 +677,35 @@ function sessaoCopiarExercicios(PDO $pdo, string $idSessao, array $exercicios): 
             ':rir' => ($row['rir'] ?? $row['rir_snapshot'] ?? null) !== null && ($row['rir'] ?? $row['rir_snapshot']) !== '' ? ($row['rir'] ?? $row['rir_snapshot']) : null,
             ':tempo_execucao' => ($row['tempo_execucao'] ?? $row['tempo_execucao_snapshot'] ?? null) ?: null,
             ':cadencia' => ($row['cadencia'] ?? $row['cadencia_snapshot'] ?? null) ?: null,
+            ':tracking_mode' => trim((string) ($row['tracking_mode'] ?? '')) ?: 'load_reps',
+            ':tipo_passo' => $stepType,
+            ':repeticoes_bloco' => isset($row['repeticoes_bloco']) && is_numeric($row['repeticoes_bloco']) ? (int) $row['repeticoes_bloco'] : null,
+            ':alvo_tipo' => trim((string) ($row['alvo_tipo'] ?? '')) ?: null,
+            ':alvo_min' => isset($row['alvo_min']) && is_numeric($row['alvo_min']) ? (float) $row['alvo_min'] : null,
+            ':alvo_max' => isset($row['alvo_max']) && is_numeric($row['alvo_max']) ? (float) $row['alvo_max'] : null,
+            ':alvo_unidade' => trim((string) ($row['alvo_unidade'] ?? '')) ?: null,
+            ':recuperacao_duracao_s' => isset($row['recuperacao_duracao_s']) && is_numeric($row['recuperacao_duracao_s']) ? (int) $row['recuperacao_duracao_s'] : null,
+            ':recuperacao_distancia_m' => isset($row['recuperacao_distancia_m']) && is_numeric($row['recuperacao_distancia_m']) ? (float) $row['recuperacao_distancia_m'] : null,
+            ':metodo_prescricao' => $row['metodo_prescricao'] ?? 'standard',
+            ':config_prescricao' => $row['config_prescricao'] ?? null,
+            ':idgrupo_prescricao' => $row['idgrupo_prescricao'] ?? null,
             ':ordem' => max(1, (int) ($row['ordem'] ?? 1)),
         ]);
-        for ($number = 1; $number <= $plannedSets; $number++) {
-            $insertSet->execute([':id' => atividadeGerarId(), ':exercicio' => $idSessaoExercicio, ':numero' => $number]);
+        foreach ($segments as $index => $segment) {
+            $insertSet->execute([
+                ':id' => atividadeGerarId(),
+                ':exercicio' => $idSessaoExercicio,
+                ':numero' => $index + 1,
+                ':segmento_tipo' => $segment['segment_type'] ?? 'set',
+                ':bloco_indice' => $segment['block_index'] ?? null,
+                ':etapa_indice' => $segment['stage_index'] ?? null,
+                ':repeticoes_planejadas' => $segment['planned_repetitions'] ?? null,
+                ':carga_planejada' => $segment['planned_load'] ?? null,
+                ':duracao_planejada_s' => $segment['planned_duration_s'] ?? null,
+                ':distancia_planejada_m' => $segment['planned_distance_m'] ?? null,
+                ':meta_repeticoes' => workoutPrescriptionJson($segment['rep_target'] ?? null),
+                ':descanso_apos_s' => $segment['rest_after_s'] ?? null,
+            ]);
         }
     }
 }

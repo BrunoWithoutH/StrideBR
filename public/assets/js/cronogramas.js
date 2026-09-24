@@ -723,6 +723,33 @@ document.addEventListener('DOMContentLoaded', () => {
         if (actual.perceived_effort !== null && actual.perceived_effort !== undefined) parts.push(`RPE ${Number(actual.perceived_effort)}`);
         return parts.join(' · ');
     };
+    const renderPresentationItems = presentation => {
+        const items = Array.isArray(presentation?.items) ? presentation.items : []
+        const groups = Array.isArray(presentation?.groups) ? presentation.groups : []
+        if (!items.length) return ''
+        const byOrder = new Map(items.map(item => [Number(item.order || 0), item]))
+        const groupedOrders = new Set(groups.flatMap(group => Array.isArray(group.members) ? group.members.map(Number) : []))
+        const chunks = []
+        const renderItem = item => `<article class="preview-exercise${item.step_type && item.step_type !== 'exercise' ? ' is-endurance' : ''}"><span class="preview-exercise-number">${escapeHtml(String(item.order || ''))}</span><div><strong>${escapeHtml(item.name || '')}</strong>${item.prescription_method && item.prescription_method !== 'standard' ? `<small>${escapeHtml(tr(`workout_builder.method.${item.prescription_method}`))}</small>` : ''}${item.summary ? `<div class="preview-exercise-meta"><span>${escapeHtml(item.summary)}</span></div>` : ''}${item.notes ? `<small>${escapeHtml(item.notes)}</small>` : ''}</div></article>`
+        const groupByFirst = new Map()
+        groups.forEach(group => {
+            const members = (group.members || []).map(Number).filter(Number.isFinite).sort((a,b)=>a-b)
+            if (members.length) groupByFirst.set(members[0], {...group, members})
+        })
+        items.forEach(item => {
+            const order = Number(item.order || 0)
+            const group = groupByFirst.get(order)
+            if (group) {
+                const label = group.type === 'circuit' ? tr('workout_builder.group.circuit') : tr('workout_builder.group.superset')
+                const meta = [`${Number(group.rounds || 1)} ${tr('workout_builder.group_rounds').toLowerCase()}`, group.rest_between_exercises_s ? `${group.rest_between_exercises_s} s ${tr('workout_builder.group_rest_between').toLowerCase()}` : '', group.rest_after_round_s ? `${group.rest_after_round_s} s ${tr('workout_builder.group_rest_round').toLowerCase()}` : ''].filter(Boolean).join(' · ')
+                chunks.push(`<section class="preview-prescription-group"><div class="preview-prescription-group-head"><strong>${escapeHtml(label)}</strong><span>${escapeHtml(meta)}</span></div>${group.members.map(memberOrder => byOrder.has(memberOrder) ? renderItem(byOrder.get(memberOrder)) : '').join('')}</section>`)
+                return
+            }
+            if (!groupedOrders.has(order)) chunks.push(renderItem(item))
+        })
+        return chunks.join('')
+    }
+
     const renderDynamicPreviewContent = data => {
         if (!previewModal || !data?.workout) return null;
         const workout = data.workout;
@@ -735,7 +762,8 @@ document.addEventListener('DOMContentLoaded', () => {
         content.dataset.activityId = String(data.activity_id || '');
         const tags = [workout.codigo, workout.foco].filter(Boolean).map(value => `<b>${escapeHtml(value)}</b>`).join('');
         const exercises = Array.isArray(data.exercises) ? data.exercises : [];
-        const exerciseMarkup = exercises.length ? exercises.map((exercise, index) => {
+        const presentationMarkup = previewMode !== 'performed' ? renderPresentationItems(data.presentation) : '';
+        const exerciseMarkup = presentationMarkup || (exercises.length ? exercises.map((exercise, index) => {
             if (previewMode === 'performed') {
                 const sets = Array.isArray(exercise.sets) ? exercise.sets : [];
                 const setMarkup = sets.length ? `<ol class="preview-performed-sets">${sets.map((set, setIndex) => {
@@ -747,14 +775,18 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const meta = previewExerciseMeta(exercise).map(value => `<span>${escapeHtml(value)}</span>`).join('');
             return `<article class="preview-exercise${exercise.tipo_passo && exercise.tipo_passo!=='exercise' ? ' is-endurance' : ''}"><span class="preview-exercise-number">${index + 1}</span><div><strong>${escapeHtml(exercise.nome || '')}</strong>${meta ? `<div class="preview-exercise-meta">${meta}</div>` : ''}${exercise.observacoes ? `<small>${escapeHtml(exercise.observacoes)}</small>` : ''}</div></article>`;
-        }).join('') : `<p class="preview-empty">${escapeHtml(previewMode === 'performed' ? tr('schedule.preview_no_detailed_execution') : tr('schedule.no_exercises'))}</p>`;
+        }).join('') : `<p class="preview-empty">${escapeHtml(previewMode === 'performed' ? tr('schedule.preview_no_detailed_execution') : tr('schedule.no_exercises'))}</p>`);
         const libraryAction = workout.biblioteca_disponivel
             ? workout.idtreino_modelo
                 ? `<form method="POST" class="preview-copy-form"><input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}"><input type="hidden" name="action" value="update_library_from_workout"><input type="hidden" name="idcronograma" value="${escapeHtml(workout.idcronograma)}"><input type="hidden" name="idtreino" value="${escapeHtml(workout.idtreino)}"><input type="hidden" name="return_to" value="${escapeHtml(`${location.pathname}${location.search}${location.hash}`)}" data-return-current><button type="submit">${escapeHtml(tr('schedule.update_saved'))}</button></form>`
                 : `<form method="POST" class="preview-copy-form"><input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}"><input type="hidden" name="action" value="save_workout_to_library"><input type="hidden" name="idcronograma" value="${escapeHtml(workout.idcronograma)}"><input type="hidden" name="idtreino" value="${escapeHtml(workout.idtreino)}"><input type="hidden" name="return_to" value="${escapeHtml(`${location.pathname}${location.search}${location.hash}`)}" data-return-current><button type="submit">${escapeHtml(tr('schedule.save_library'))}</button></form>`
             : '';
-        const sessionActions = document.querySelector('[data-quick-register-modal]') && previewMode !== 'performed'
-            ? `<button type="button" class="primary-button" data-quick-register-workout="${escapeHtml(workout.idtreino)}" data-workout-title="${escapeHtml(workout.titulo)}" data-workout-time="${escapeHtml(workout.hora_inicio)}" data-workout-duration="${escapeHtml(workout.duracao_minutos || 60)}">${escapeHtml(tr('schedule.log'))}</button><button type="button" class="secondary-button" data-start-workout="${escapeHtml(workout.idtreino)}">${escapeHtml(tr('schedule.start_live'))}</button>`
+        const capabilities = data.capabilities || data.presentation?.capabilities || {};
+        const quickMode = String(capabilities.quick_complete_mode || 'partial');
+        const canStart = capabilities.can_start_session !== false;
+        const canQuick = capabilities.can_quick_complete !== false && Boolean(document.querySelector('[data-quick-register-modal]'));
+        const sessionActions = previewMode !== 'performed'
+            ? `${canStart ? `<button type="button" class="primary-button" data-start-workout="${escapeHtml(workout.idtreino)}">${escapeHtml(tr('schedule.start_live'))}</button>` : ''}${canQuick ? `<button type="button" class="secondary-button" data-quick-register-workout="${escapeHtml(workout.idtreino)}" data-quick-complete-mode="${escapeHtml(quickMode)}" data-workout-title="${escapeHtml(workout.titulo)}" data-workout-time="${escapeHtml(workout.hora_inicio)}" data-workout-duration="${escapeHtml(workout.duracao_minutos || 60)}">${escapeHtml(quickMode === 'ambiguous' ? tr('schedule.complete_without_details') : tr('schedule.log'))}</button>` : ''}`
             : '';
         const modeLabel = tr(`schedule.preview_${previewMode}`);
         const actual = actualSummary(data.actual);
@@ -835,6 +867,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const quickRegisterTime = quickRegisterModal?.querySelector('[data-quick-register-time]');
     const quickRegisterDuration = quickRegisterModal?.querySelector('[data-quick-register-duration]');
     const quickRegisterNoDuration = quickRegisterModal?.querySelector('[data-quick-register-no-duration]');
+    const quickRegisterAmbiguous = quickRegisterModal?.querySelector('[data-quick-register-ambiguous]');
+    const quickRegisterSubmit = quickRegisterModal?.querySelector('[data-quick-register-submit]');
     if (quickRegisterModal && quickRegisterModal.parentElement !== document.body) {
         document.body.appendChild(quickRegisterModal);
     }
@@ -866,6 +900,9 @@ document.addEventListener('DOMContentLoaded', () => {
             quickRegisterDuration.dataset.defaultDuration = button.dataset.workoutDuration || '60';
         }
         if (quickRegisterNoDuration) quickRegisterNoDuration.checked = false;
+        const quickMode = button.dataset.quickCompleteMode || '';
+        if (quickRegisterAmbiguous) quickRegisterAmbiguous.hidden = quickMode !== 'ambiguous';
+        if (quickRegisterSubmit) quickRegisterSubmit.textContent = quickMode === 'ambiguous' ? tr('schedule.complete_without_details') : tr('schedule.save_day');
         quickRegisterDuration?.closest('.quick-register-duration-field')?.classList.remove('is-disabled');
         quickRegisterForm.querySelector('select[name="intensidade"]').value = '';
         quickRegisterForm.querySelector('textarea[name="observacoes"]').value = '';

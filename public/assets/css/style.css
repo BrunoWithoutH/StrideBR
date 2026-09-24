@@ -3737,3 +3737,99 @@ body {
 .profile-action-menu>div a{padding:8px;border-radius:var(--radius-control);color:var(--ui-text-secondary);font-size:.76rem;text-decoration:none}
 .profile-action-menu>div a:hover,.profile-action-menu>div a:focus-visible{background:var(--ui-surface-hover)}
 .profile-sports-more{corner-shape:round;padding:7px 10px;border:1px solid var(--ui-border);border-radius:var(--radius-full);background:var(--ui-panel-soft);color:var(--ui-accent);font:inherit;font-size:.78rem;font-weight:800;cursor:pointer}
+
+.session-prescription-group {
+    display: grid;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--radius-card);
+    background: var(--ui-panel-soft);
+}
+.session-prescription-group-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 0 2px;
+}
+.session-prescription-group-head strong {
+    color: var(--ui-text-strong);
+    font-size: .8rem;
+    text-transform: uppercase;
+    letter-spacing: .035em;
+}
+.session-prescription-group-head span {
+    color: var(--ui-muted);
+    font-size: .72rem;
+    text-align: right;
+}
+.session-prescription-group-items {
+    display: grid;
+    gap: 8px;
+}
+.session-prescription-group .session-exercise {
+    margin: 0;
+}
+.session-set-segment-wrap {
+    display: grid;
+    gap: 4px;
+}
+.session-set-segment-wrap[data-segment-type="cluster"] .session-set-row,
+.session-set-segment-wrap[data-segment-type="drop_stage"] .session-set-row {
+    border-inline-start-width: 3px;
+}
+.session-set-segment-wrap[data-segment-type="cluster"] .session-set-row {
+    border-inline-start-color: var(--ui-accent);
+}
+.session-set-segment-wrap[data-segment-type="drop_stage"] .session-set-row {
+    border-inline-start-color: var(--ui-warning, #d97706);
+}
+.session-segment-rest {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 0 8px 2px;
+    color: var(--ui-muted);
+    font-size: .7rem;
+}
+.session-segment-rest button {
+    min-height: 32px;
+    padding: 5px 9px;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--radius-control);
+    background: var(--ui-panel);
+    color: var(--ui-text-secondary);
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+.session-exercise[data-prescription-mode="cluster"] .session-exercise-heading small,
+.session-exercise[data-prescription-mode="drop_set"] .session-exercise-heading small {
+    color: var(--ui-text-secondary);
+    font-weight: 650;
+}
+@media (max-width: 560px) {
+    .session-prescription-group {
+        padding: 7px;
+    }
+    .session-prescription-group-head {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 2px;
+    }
+    .session-prescription-group-head span {
+        text-align: left;
+    }
+}
+.session-group-round{display:grid;gap:var(--space-3,12px);padding-block:var(--space-2,8px)}
+.session-group-round+.session-group-round{border-top:1px solid var(--border-subtle)}
+.session-group-round-head{display:flex;align-items:center;justify-content:space-between;min-height:var(--control-height-sm)}
+.session-group-round-head strong{font-size:.82rem;letter-spacing:.02em;text-transform:uppercase;color:var(--text-secondary)}
+.session-group-rest{display:flex;align-items:center;justify-content:space-between;gap:var(--space-2,8px);padding:var(--space-2,8px) var(--space-3,12px);border-radius:var(--radius-control);background:var(--surface-soft)}
+.session-group-rest span{font-size:.82rem;color:var(--text-secondary)}
+.session-group-warning{margin:0;padding:var(--space-2,8px) var(--space-3,12px);font-size:.82rem;color:var(--warning-text,var(--text-secondary))}
+.preview-prescription-group{display:grid;gap:var(--space-2,8px);padding:var(--space-2,8px);border:1px solid var(--border-subtle);border-radius:var(--radius-card)}
+.preview-prescription-group-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3,12px)}
+.preview-prescription-group-head span{font-size:.78rem;color:var(--text-secondary)}

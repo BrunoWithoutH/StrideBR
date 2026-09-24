@@ -60,13 +60,19 @@ function stridebr_api_training_text_seconds(?string $value): ?int
 function stridebr_api_training_structure_payload(array $exercises): array
 {
     $blocks = [];
+    $groups = [];
     foreach ($exercises as $exercise) {
         $label = $exercise['block'] ?? null;
         $key = $label === null ? '__unblocked__' : (string) $label;
         if (!isset($blocks[$key])) $blocks[$key] = ['label' => $label, 'exercises' => []];
         $blocks[$key]['exercises'][] = $exercise;
+        if (is_array($exercise['group'] ?? null) && !empty($exercise['group']['id'])) {
+            $groupId = (string) $exercise['group']['id'];
+            if (!isset($groups[$groupId])) $groups[$groupId] = $exercise['group'] + ['exercises' => []];
+            $groups[$groupId]['exercises'][] = $exercise['id'];
+        }
     }
-    return ['exercise_count' => count($exercises), 'exercises' => $exercises, 'blocks' => array_values($blocks)];
+    return ['exercise_count' => count($exercises), 'exercises' => $exercises, 'blocks' => array_values($blocks), 'groups' => array_values($groups)];
 }
 
 function stridebr_api_training_decode_json_array(mixed $value): array

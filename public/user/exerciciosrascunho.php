@@ -7,9 +7,10 @@ require_once dirname(__DIR__, 2) . '/src/includes/app.php';
 $idUsuario = stridebr_require_login();
 require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
 require_once dirname(__DIR__, 2) . '/src/function/cronograma.php';
+require_once dirname(__DIR__, 2) . '/src/layout/workout_builder.php';
 
 $returnTo = stridebr_safe_redirect((string) ($_GET['return_to'] ?? ''), '/user/cronogramatreinos.php');
-$biblioteca = cronogramaListarExerciciosBiblioteca($pdo, $idUsuario);
+$builderOptions = ['sport_slug' => ''];
 ?>
 <!DOCTYPE html>
 <html lang="<?php echo function_exists('stridebr_html_lang') ? stridebr_e(stridebr_html_lang()) : 'pt-BR'; ?>">
@@ -20,59 +21,34 @@ $biblioteca = cronogramaListarExerciciosBiblioteca($pdo, $idUsuario);
     <link rel="icon" type="image/png" href="<?php echo stridebr_e(stridebr_asset('/assets/img/favicon/favicon.png')); ?>">
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/style.css')); ?>">
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/cronogramas.css')); ?>">
-
-    <title>Editar exercícios | StrideBR</title>
+    <title><?php echo stridebr_e(stridebr_t('workout_builder.title')); ?> | StrideBR</title>
     <link rel="stylesheet" href="<?php echo stridebr_e(stridebr_asset('/assets/css/ui-refresh.css')); ?>">
 </head>
 <body>
 <div class="container-fluid">
     <?php require dirname(__DIR__, 2) . '/src/layout/header.php'; ?>
     <main class="main-content draft-exercise-page" data-draft-exercise-page data-return-to="<?php echo stridebr_e($returnTo); ?>">
-        <div class="draft-exercise-heading">
-            <div><span class="eyebrow">Novo treino</span><h1>Editar exercícios</h1><p>O treino que você estava montando ficou salvo neste navegador. Salve os exercícios e você volta para o popup do calendário.</p></div>
-            <a class="secondary-button" href="<?php echo stridebr_e($returnTo); ?>">Voltar</a>
-        </div>
-        <div class="draft-exercise-missing" data-draft-missing hidden>
-            <strong>Não encontrei o rascunho deste treino.</strong>
-            <p>Volte ao cronograma e abra o editor novamente.</p>
-            <a class="primary-button" href="<?php echo stridebr_e($returnTo); ?>">Voltar ao cronograma</a>
-        </div>
-        <section class="draft-exercise-editor" data-draft-editor>
-            <div class="draft-exercise-list" data-draft-exercise-list></div>
-            <button type="button" class="secondary-button" data-add-draft-exercise>Adicionar exercício</button>
-            <div class="draft-exercise-footer">
-                <span data-draft-save-state>Alterações guardadas neste navegador</span>
-                <div><a class="secondary-button" href="<?php echo stridebr_e($returnTo); ?>">Cancelar</a><button type="button" class="primary-button" data-save-draft-exercises>Salvar exercícios e voltar</button></div>
-            </div>
-        </section>
-        <template data-draft-exercise-template>
-            <article class="draft-exercise-card" data-draft-exercise-row>
-                <div class="draft-exercise-card-heading"><strong data-draft-number></strong><button type="button" class="danger-link" data-remove-draft-exercise>Remover</button></div>
-                <div class="draft-exercise-core">
-                    <label>Biblioteca<select data-field="idexercicio"><option value="">Manual</option><?php foreach ($biblioteca as $item): ?><option value="<?php echo stridebr_e((string) $item['idexercicio']); ?>" data-name="<?php echo stridebr_e((string) $item['nome']); ?>"><?php echo stridebr_e((string) $item['nome']); ?><?php echo !empty($item['categorias']) ? ' · ' . stridebr_e((string) $item['categorias']) : ''; ?></option><?php endforeach; ?></select></label>
-                    <label class="draft-exercise-name">Exercício<input type="text" data-field="nome" maxlength="120" required></label>
-                    <label>Séries<input type="number" data-field="series" min="1" max="99" step="1"></label>
-                    <label>Repetições<input type="text" data-field="repeticoes" maxlength="40" placeholder="8–12"></label>
-                    <label>Carga<input type="text" data-field="carga" maxlength="40" placeholder="40 kg"></label>
-                    <label>Descanso<input type="text" data-field="descanso" maxlength="40" placeholder="90 s"></label>
+        <div class="draft-exercise-heading"><div><span class="eyebrow"><?php echo stridebr_e(stridebr_t('schedule.new_workout')); ?></span><h1><?php echo stridebr_e(stridebr_t('workout_builder.title')); ?></h1><p><?php echo stridebr_e(stridebr_t('workout_builder.empty_help')); ?></p></div><a class="secondary-button" href="<?php echo stridebr_e($returnTo); ?>"><?php echo stridebr_e(stridebr_t('common.back')); ?></a></div>
+        <div class="draft-exercise-missing" data-draft-missing hidden><strong><?php echo stridebr_e(stridebr_t('schedule.draft_missing')); ?></strong><a class="primary-button" href="<?php echo stridebr_e($returnTo); ?>"><?php echo stridebr_e(stridebr_t('common.back')); ?></a></div>
+        <form class="workout-builder-shell" data-workout-builder data-draft-workout-builder>
+            <div class="workout-builder-toolbar">
+                <div class="workout-builder-toolbar-main"><div class="workout-builder-toolbar-title"><strong><?php echo stridebr_e(stridebr_t('workout_builder.title')); ?></strong><span data-draft-save-state><?php echo stridebr_e(stridebr_t('draft.saved')); ?></span></div><span class="wb-unsaved" data-wb-dirty hidden><?php echo stridebr_e(stridebr_t('workout_builder.unsaved')); ?></span></div>
+                <div class="workout-builder-toolbar-actions">
+                    <details class="wb-add-menu"><summary class="secondary-button">+ <?php echo stridebr_e(stridebr_t('workout_builder.add')); ?></summary><div class="wb-add-menu-panel"><button type="button" data-wb-add-exercise><?php echo stridebr_e(stridebr_t('workout_builder.add_exercise')); ?></button><div class="wb-add-menu-divider"></div><?php foreach (['warmup','work','interval_group','recovery','cooldown'] as $step): ?><button type="button" data-wb-add-step="<?php echo $step; ?>"><?php echo stridebr_e(workoutBuilderStepLabel($step)); ?></button><?php endforeach; ?></div></details>
+                    <div class="wb-selection-bar" data-wb-selection hidden><span data-wb-selected-count></span><button type="button" class="secondary-button compact-button" data-wb-create-group="superset"><?php echo stridebr_e(stridebr_t('workout_builder.group.superset')); ?></button><button type="button" class="secondary-button compact-button" data-wb-create-group="circuit"><?php echo stridebr_e(stridebr_t('workout_builder.group.circuit')); ?></button></div>
+                    <button type="button" class="primary-button" data-save-draft-exercises><?php echo stridebr_e(stridebr_t('workout_builder.save')); ?></button>
                 </div>
-                <details class="draft-exercise-more"><summary>Mais campos</summary><div class="draft-exercise-more-grid">
-                    <label>Bloco<input type="text" data-field="bloco" maxlength="40"></label>
-                    <label>Cluster<input type="text" data-field="cluster" maxlength="80"></label>
-                    <label>Duração<input type="text" data-field="duracao" maxlength="40"></label>
-                    <label>Distância<input type="text" data-field="distancia" maxlength="40"></label>
-                    <label>Intensidade<input type="text" data-field="intensidade" maxlength="80"></label>
-                    <label>RPE<input type="number" data-field="rpe" min="0" max="10" step="0.5"></label>
-                    <label>RIR<input type="number" data-field="rir" min="0" max="10" step="0.5"></label>
-                    <label>Tempo de execução<input type="text" data-field="tempo_execucao" maxlength="40"></label>
-                    <label>Cadência<input type="text" data-field="cadencia" maxlength="40"></label>
-                    <label class="draft-exercise-notes">Observações<textarea data-field="observacoes" rows="2"></textarea></label>
-                </div></details>
-            </article>
-        </template>
+            </div>
+            <div class="workout-builder-list" data-wb-list><div class="workout-builder-empty" data-wb-empty><strong><?php echo stridebr_e(stridebr_t('workout_builder.empty')); ?></strong><span><?php echo stridebr_e(stridebr_t('workout_builder.empty_help')); ?></span><button type="button" class="secondary-button" data-wb-add-exercise><?php echo stridebr_e(stridebr_t('workout_builder.add_exercise')); ?></button></div></div>
+            <template data-wb-card-template><?php echo workoutBuilderRenderCard(['tipo_passo'=>'exercise','tracking_mode'=>'load_reps','metodo_prescricao'=>'standard'], '__INDEX__', $builderOptions); ?></template>
+            <div class="workout-builder-footer"><a class="secondary-button" href="<?php echo stridebr_e($returnTo); ?>"><?php echo stridebr_e(stridebr_t('common.cancel')); ?></a><button type="button" class="primary-button" data-save-draft-exercises><?php echo stridebr_e(stridebr_t('workout_builder.save')); ?></button></div>
+            <div class="wb-a11y-live" data-wb-live aria-live="polite" aria-atomic="true"></div>
+            <dialog class="wb-picker" data-wb-picker><div class="wb-picker-head"><h2><?php echo stridebr_e(stridebr_t('workout_builder.add_exercise')); ?></h2><button type="button" data-wb-picker-close aria-label="<?php echo stridebr_e(stridebr_t('workout_builder.close')); ?>">×</button></div><div class="wb-picker-search"><input type="search" data-wb-picker-search placeholder="<?php echo stridebr_e(stridebr_t('workout_builder.search_placeholder')); ?>" autocomplete="off"></div><div class="wb-picker-results" data-wb-picker-results></div></dialog>
+        </form>
     </main>
 </div>
 <?php require dirname(__DIR__, 2) . '/src/layout/footer.php'; ?>
+<script src="<?php echo stridebr_e(stridebr_asset('/assets/js/workout-builder.js')); ?>"></script>
 <script src="<?php echo stridebr_e(stridebr_asset('/assets/js/exercicios-rascunho.js')); ?>"></script>
 </body>
 </html>

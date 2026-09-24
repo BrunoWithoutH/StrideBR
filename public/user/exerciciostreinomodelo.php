@@ -29,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $modelo = cronogramaBuscarTreinoModelo($pdo, $idUsuario, $idModelo);
 $exercicios = $modelo['exercicios'] ?? [];
-$biblioteca = cronogramaListarExerciciosBiblioteca($pdo, $idUsuario);
+require_once dirname(__DIR__, 2) . '/src/layout/workout_builder.php';
 ?>
 <!DOCTYPE html>
 <html lang="<?php echo function_exists('stridebr_html_lang') ? stridebr_e(stridebr_html_lang()) : 'pt-BR'; ?>">
@@ -51,58 +51,51 @@ $biblioteca = cronogramaListarExerciciosBiblioteca($pdo, $idUsuario);
         <?php $plannedReviewRows=$exercicios; $plannedReviewKind='template'; $plannedReviewId=$idModelo; $plannedReviewReturn='/user/exerciciostreinomodelo.php?idtreino_modelo='.rawurlencode($idModelo); require dirname(__DIR__,2).'/src/layout/planned_name_review.php'; ?>
         <div class="draft-exercise-heading"><div><span class="eyebrow"><?php echo stridebr_e(stridebr_t('exercise_model.my_workouts')); ?></span><h1><?php echo stridebr_e((string) $modelo['titulo']); ?></h1><p><?php echo stridebr_e(stridebr_t('exercise_model.subtitle')); ?></p></div><div class="draft-exercise-heading-actions"><a class="secondary-button" href="/user/biblioteca.php?tab=treinos&edit=<?php echo rawurlencode($idModelo); ?>#editar-treino"><?php echo stridebr_e(stridebr_t('exercise_model.edit_general')); ?></a><a class="secondary-button" href="<?php echo stridebr_e($returnTo); ?>"><?php echo stridebr_e(stridebr_t('common.back')); ?></a></div></div>
         <?php if ($errors !== []): ?><div class="alert error"><?php echo stridebr_e(implode(' ', $errors)); ?></div><?php endif; ?>
-        <form method="POST" class="model-exercise-editor" data-model-exercise-editor>
+        <?php $builderOptions = ['sport_slug' => (string) ($modelo['modalidade_slug'] ?? '')]; ?>
+        <form method="POST" class="workout-builder-shell" data-workout-builder>
             <?php echo stridebr_csrf_field(); ?>
             <input type="hidden" name="idtreino_modelo" value="<?php echo stridebr_e($idModelo); ?>">
             <input type="hidden" name="return_to" value="<?php echo stridebr_e($returnTo); ?>">
-            <div class="draft-exercise-list" data-model-exercise-list>
-                <?php foreach ($exercicios as $index => $row): ?>
-                    <article class="draft-exercise-card" data-model-exercise-row>
-                        <div class="draft-exercise-card-heading"><strong data-model-number><?php echo stridebr_e(stridebr_t('home.exercise')); ?> <?php echo $index + 1; ?></strong><button type="button" class="danger-link" data-remove-model-exercise><?php echo stridebr_e(stridebr_t('common.remove')); ?></button></div>
-                        <div class="draft-exercise-core">
-                            <input type="hidden" name="rows[<?php echo $index; ?>][idexercicio]" value="<?php echo stridebr_e((string) ($row['idexercicio'] ?? '')); ?>" data-exercise-id>
-                            <label class="draft-exercise-name"><?php echo stridebr_e(stridebr_t('home.exercise')); ?><input type="text" name="rows[<?php echo $index; ?>][nome]" value="<?php echo stridebr_e((string) ($row['nome_snapshot'] ?? '')); ?>" data-exercise-name maxlength="120" required></label>
-                            <label><?php echo stridebr_e(stridebr_t('common.series')); ?><input type="number" name="rows[<?php echo $index; ?>][series]" value="<?php echo stridebr_e((string) ($row['series'] ?? '')); ?>" min="1" max="99"></label>
-                            <label><?php echo stridebr_e(stridebr_t('common.repetitions')); ?><input type="text" name="rows[<?php echo $index; ?>][repeticoes]" value="<?php echo stridebr_e((string) ($row['repeticoes'] ?? '')); ?>" maxlength="40"></label>
-                            <label><?php echo stridebr_e(stridebr_t('common.load')); ?><input type="text" name="rows[<?php echo $index; ?>][carga]" value="<?php echo stridebr_e((string) ($row['carga'] ?? '')); ?>" maxlength="40"></label>
-                            <label><?php echo stridebr_e(stridebr_t('home.rest')); ?><input type="text" name="rows[<?php echo $index; ?>][descanso]" value="<?php echo stridebr_e((string) ($row['descanso'] ?? '')); ?>" maxlength="40"></label>
+            <div class="workout-builder-toolbar">
+                <div class="workout-builder-toolbar-main">
+                    <div class="workout-builder-toolbar-title"><strong><?php echo stridebr_e(stridebr_t('workout_builder.title')); ?></strong><span><?php echo count($exercicios); ?> <?php echo stridebr_e(stridebr_t('common.exercises')); ?></span></div>
+                    <span class="wb-unsaved" data-wb-dirty hidden><?php echo stridebr_e(stridebr_t('workout_builder.unsaved')); ?></span>
+                </div>
+                <div class="workout-builder-toolbar-actions">
+                    <details class="wb-add-menu">
+                        <summary class="secondary-button">+ <?php echo stridebr_e(stridebr_t('workout_builder.add')); ?></summary>
+                        <div class="wb-add-menu-panel">
+                            <button type="button" data-wb-add-exercise><?php echo stridebr_e(stridebr_t('workout_builder.add_exercise')); ?></button>
+                            <div class="wb-add-menu-divider"></div>
+                            <?php foreach (['warmup','work','interval_group','recovery','cooldown'] as $step): ?>
+                                <button type="button" data-wb-add-step="<?php echo $step; ?>"><?php echo stridebr_e(workoutBuilderStepLabel($step)); ?></button>
+                            <?php endforeach; ?>
                         </div>
-                        <details class="draft-exercise-more"><summary><?php echo stridebr_e(stridebr_t('common.more_fields')); ?></summary><div class="draft-exercise-more-grid">
-                            <label><?php echo stridebr_e(stridebr_t('common.block')); ?><input type="text" name="rows[<?php echo $index; ?>][bloco]" value="<?php echo stridebr_e((string) ($row['bloco'] ?? '')); ?>" maxlength="40"></label>
-                            <label><?php echo stridebr_e(stridebr_t('common.cluster')); ?><input type="text" name="rows[<?php echo $index; ?>][cluster]" value="<?php echo stridebr_e((string) ($row['cluster'] ?? '')); ?>" maxlength="80"></label>
-                            <label><?php echo stridebr_e(stridebr_t('common.duration')); ?><input type="text" name="rows[<?php echo $index; ?>][duracao]" value="<?php echo stridebr_e((string) ($row['duracao'] ?? '')); ?>" maxlength="40"></label>
-                            <label><?php echo stridebr_e(stridebr_t('common.distance')); ?><input type="text" name="rows[<?php echo $index; ?>][distancia]" value="<?php echo stridebr_e((string) ($row['distancia'] ?? '')); ?>" maxlength="40"></label>
-                            <label><?php echo stridebr_e(stridebr_t('schedule.intensity')); ?><input type="text" name="rows[<?php echo $index; ?>][intensidade]" value="<?php echo stridebr_e((string) ($row['intensidade'] ?? '')); ?>" maxlength="80"></label>
-                            <label>RPE<input type="number" name="rows[<?php echo $index; ?>][rpe]" value="<?php echo stridebr_e((string) ($row['rpe'] ?? '')); ?>" min="0" max="10" step="0.5"></label>
-                            <label>RIR<input type="number" name="rows[<?php echo $index; ?>][rir]" value="<?php echo stridebr_e((string) ($row['rir'] ?? '')); ?>" min="0" max="10" step="0.5"></label>
-                            <label><?php echo stridebr_e(stridebr_t('common.execution_time')); ?><input type="text" name="rows[<?php echo $index; ?>][tempo_execucao]" value="<?php echo stridebr_e((string) ($row['tempo_execucao'] ?? '')); ?>" maxlength="40"></label>
-                            <label><?php echo stridebr_e(stridebr_t('common.cadence')); ?><input type="text" name="rows[<?php echo $index; ?>][cadencia]" value="<?php echo stridebr_e((string) ($row['cadencia'] ?? '')); ?>" maxlength="40"></label>
-                            <label class="draft-exercise-notes"><?php echo stridebr_e(stridebr_t('activity.notes')); ?><textarea name="rows[<?php echo $index; ?>][observacoes]" rows="2"><?php echo stridebr_e((string) ($row['observacoes'] ?? '')); ?></textarea></label>
-                        </div></details>
-                    </article>
-                <?php endforeach; ?>
-            </div>
-            <template data-model-exercise-template>
-                <article class="draft-exercise-card" data-model-exercise-row>
-                    <div class="draft-exercise-card-heading"><strong data-model-number></strong><button type="button" class="danger-link" data-remove-model-exercise><?php echo stridebr_e(stridebr_t('common.remove')); ?></button></div>
-                    <div class="draft-exercise-core">
-                        <input type="hidden" name="rows[__INDEX__][idexercicio]" value="" data-exercise-id>
-                        <label class="draft-exercise-name"><?php echo stridebr_e(stridebr_t('home.exercise')); ?><input type="text" name="rows[__INDEX__][nome]" data-exercise-name maxlength="120"></label>
-                        <label><?php echo stridebr_e(stridebr_t('common.series')); ?><input type="number" name="rows[__INDEX__][series]" min="1" max="99"></label>
-                        <label><?php echo stridebr_e(stridebr_t('common.repetitions')); ?><input type="text" name="rows[__INDEX__][repeticoes]" maxlength="40"></label>
-                        <label><?php echo stridebr_e(stridebr_t('common.load')); ?><input type="text" name="rows[__INDEX__][carga]" maxlength="40"></label>
-                        <label><?php echo stridebr_e(stridebr_t('home.rest')); ?><input type="text" name="rows[__INDEX__][descanso]" maxlength="40"></label>
+                    </details>
+                    <div class="wb-selection-bar" data-wb-selection hidden>
+                        <span data-wb-selected-count></span>
+                        <button type="button" class="secondary-button compact-button" data-wb-create-group="superset"><?php echo stridebr_e(stridebr_t('workout_builder.group.superset')); ?></button>
+                        <button type="button" class="secondary-button compact-button" data-wb-create-group="circuit"><?php echo stridebr_e(stridebr_t('workout_builder.group.circuit')); ?></button>
                     </div>
-                    <details class="draft-exercise-more"><summary><?php echo stridebr_e(stridebr_t('common.more_fields')); ?></summary><div class="draft-exercise-more-grid">
-                        <label><?php echo stridebr_e(stridebr_t('common.block')); ?><input type="text" name="rows[__INDEX__][bloco]" maxlength="40"></label><label><?php echo stridebr_e(stridebr_t('common.cluster')); ?><input type="text" name="rows[__INDEX__][cluster]" maxlength="80"></label><label><?php echo stridebr_e(stridebr_t('common.duration')); ?><input type="text" name="rows[__INDEX__][duracao]" maxlength="40"></label><label><?php echo stridebr_e(stridebr_t('common.distance')); ?><input type="text" name="rows[__INDEX__][distancia]" maxlength="40"></label><label><?php echo stridebr_e(stridebr_t('schedule.intensity')); ?><input type="text" name="rows[__INDEX__][intensidade]" maxlength="80"></label><label>RPE<input type="number" name="rows[__INDEX__][rpe]" min="0" max="10" step="0.5"></label><label>RIR<input type="number" name="rows[__INDEX__][rir]" min="0" max="10" step="0.5"></label><label><?php echo stridebr_e(stridebr_t('common.execution_time')); ?><input type="text" name="rows[__INDEX__][tempo_execucao]" maxlength="40"></label><label><?php echo stridebr_e(stridebr_t('common.cadence')); ?><input type="text" name="rows[__INDEX__][cadencia]" maxlength="40"></label><label class="draft-exercise-notes"><?php echo stridebr_e(stridebr_t('activity.notes')); ?><textarea name="rows[__INDEX__][observacoes]" rows="2"></textarea></label>
-                    </div></details>
-                </article>
-            </template>
-            <div class="draft-exercise-footer"><button type="button" class="secondary-button" data-add-model-exercise><?php echo stridebr_e(stridebr_t('common.add_exercise')); ?></button><div><a class="secondary-button" href="<?php echo stridebr_e($returnTo); ?>"><?php echo stridebr_e(stridebr_t('common.cancel')); ?></a><button type="submit" class="primary-button"><?php echo stridebr_e(stridebr_t('common.save_exercises')); ?></button></div></div>
+                    <button type="submit" class="primary-button"><?php echo stridebr_e(stridebr_t('workout_builder.save')); ?></button>
+                </div>
+            </div>
+            <div class="workout-builder-list" data-wb-list>
+                <?php workoutBuilderRender($exercicios, $builderOptions); ?>
+                <div class="workout-builder-empty" data-wb-empty<?php echo $exercicios !== [] ? ' hidden' : ''; ?>><strong><?php echo stridebr_e(stridebr_t('workout_builder.empty')); ?></strong><span><?php echo stridebr_e(stridebr_t('workout_builder.empty_help')); ?></span><button type="button" class="secondary-button" data-wb-add-exercise><?php echo stridebr_e(stridebr_t('workout_builder.add_exercise')); ?></button></div>
+            </div>
+            <template data-wb-card-template><?php echo workoutBuilderRenderCard(['tipo_passo'=>'exercise','tracking_mode'=>'load_reps','metodo_prescricao'=>'standard'], '__INDEX__', $builderOptions); ?></template>
+            <div class="workout-builder-footer"><a class="secondary-button" href="<?php echo stridebr_e($returnTo); ?>"><?php echo stridebr_e(stridebr_t('common.cancel')); ?></a><button type="submit" class="primary-button"><?php echo stridebr_e(stridebr_t('workout_builder.save')); ?></button></div>
+            <div class="wb-a11y-live" data-wb-live aria-live="polite" aria-atomic="true"></div>
+            <dialog class="wb-picker" data-wb-picker>
+                <div class="wb-picker-head"><h2><?php echo stridebr_e(stridebr_t('workout_builder.add_exercise')); ?></h2><button type="button" data-wb-picker-close aria-label="<?php echo stridebr_e(stridebr_t('workout_builder.close')); ?>">×</button></div>
+                <div class="wb-picker-search"><input type="search" data-wb-picker-search placeholder="<?php echo stridebr_e(stridebr_t('workout_builder.search_placeholder')); ?>" autocomplete="off" aria-label="<?php echo stridebr_e(stridebr_t('workout_builder.search')); ?>"></div>
+                <div class="wb-picker-results" data-wb-picker-results></div>
+            </dialog>
         </form>
     </main>
 </div>
 <?php require dirname(__DIR__, 2) . '/src/layout/footer.php'; ?>
-<script src="<?php echo stridebr_e(stridebr_asset('/assets/js/exercicios-modelo.js')); ?>"></script>
+<script src="<?php echo stridebr_e(stridebr_asset('/assets/js/workout-builder.js')); ?>"></script>
 </body>
 </html>

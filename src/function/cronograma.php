@@ -6,6 +6,7 @@ require_once __DIR__ . '/exercise_resolver.php';
 require_once __DIR__ . '/activity_stream_service.php';
 require_once __DIR__ . '/pacer_service.php';
 require_once __DIR__ . '/routes.php';
+require_once __DIR__ . '/workout_prescription_v2.php';
 
 
 function cronogramaGerarId(int $length = 21): string
@@ -122,7 +123,7 @@ function cronogramaFiltrarTreinosVigentes(array $treinos, string $dataReferencia
 function cronogramaBuscarTreino(PDO $pdo, string $idTreino, string $idUsuario): array
 {
     $stmt = $pdo->prepare(
-        'SELECT t.*, c.nome AS cronograma_nome, c.idusuario FROM treinos_cronograma t JOIN cronogramas c ON c.idcronograma = t.idcronograma WHERE t.idtreino = :id AND c.idusuario = :usuario LIMIT 1'
+        'SELECT t.*, c.nome AS cronograma_nome, c.idusuario, m.slug AS modalidade_slug, m.nome AS modalidade_nome FROM treinos_cronograma t JOIN cronogramas c ON c.idcronograma = t.idcronograma LEFT JOIN modalidades m ON m.idmodalidade = t.idmodalidade WHERE t.idtreino = :id AND c.idusuario = :usuario LIMIT 1'
     );
     $stmt->execute([':id' => $idTreino, ':usuario' => $idUsuario]);
     return $stmt->fetch() ?: [];
@@ -378,7 +379,8 @@ function cronogramaDuplicarTreino(PDO $pdo, string $idUsuario, string $idTreino)
         $exerciseMap = [];
         $exerciseStmt = $pdo->prepare('SELECT * FROM treinos_exercicios WHERE idtreino = :treino ORDER BY ordem');
         $exerciseStmt->execute([':treino' => $idTreino]);
-        $insertExercise = $pdo->prepare('INSERT INTO treinos_exercicios (idtreino_exercicio, idtreino, idexercicio, nome_snapshot, series, repeticoes, carga, bloco, cluster, descanso, observacoes, duracao, distancia, intensidade, rpe, rir, tempo_execucao, cadencia, tipo_passo, repeticoes_bloco, alvo_tipo, alvo_min, alvo_max, alvo_unidade, recuperacao_duracao_s, recuperacao_distancia_m, ordem) VALUES (:id, :treino, :exercicio, :nome, :series, :repeticoes, :carga, :bloco, :cluster, :descanso, :observacoes, :duracao, :distancia, :intensidade, :rpe, :rir, :tempo_execucao, :cadencia, :tipo_passo, :repeticoes_bloco, :alvo_tipo, :alvo_min, :alvo_max, :alvo_unidade, :recuperacao_duracao_s, :recuperacao_distancia_m, :ordem)');
+        $insertExercise = $pdo->prepare('INSERT INTO treinos_exercicios (idtreino_exercicio, idtreino, idexercicio, nome_snapshot, series, repeticoes, carga, bloco, cluster, descanso, observacoes, duracao, distancia, intensidade, rpe, rir, tempo_execucao, cadencia, tipo_passo, repeticoes_bloco, alvo_tipo, alvo_min, alvo_max, alvo_unidade, recuperacao_duracao_s, recuperacao_distancia_m, metodo_prescricao, config_prescricao, idgrupo_prescricao, ordem) VALUES (:id, :treino, :exercicio, :nome, :series, :repeticoes, :carga, :bloco, :cluster, :descanso, :observacoes, :duracao, :distancia, :intensidade, :rpe, :rir, :tempo_execucao, :cadencia, :tipo_passo, :repeticoes_bloco, :alvo_tipo, :alvo_min, :alvo_max, :alvo_unidade, :recuperacao_duracao_s, :recuperacao_distancia_m, :metodo_prescricao, CAST(:config_prescricao AS jsonb), :idgrupo_prescricao, :ordem)');
+        $groupMap = workoutPrescriptionCloneGroups($pdo, 'workout', $idTreino, 'workout', $newId);
         $catalog = stridebr_exercise_catalog_for_user($pdo, $idUsuario);
         foreach ($exerciseStmt->fetchAll() as $exercise) {
             $exercise['nome_snapshot'] = cronogramaResolverExercicioBiblioteca($pdo, $catalog, (string) ($exercise['idexercicio'] ?? ''), (string) $exercise['nome_snapshot'])['nome'];
@@ -411,6 +413,9 @@ function cronogramaDuplicarTreino(PDO $pdo, string $idUsuario, string $idTreino)
                 ':alvo_unidade' => $exercise['alvo_unidade'] ?? null,
                 ':recuperacao_duracao_s' => $exercise['recuperacao_duracao_s'] ?? null,
                 ':recuperacao_distancia_m' => $exercise['recuperacao_distancia_m'] ?? null,
+                ':metodo_prescricao' => $exercise['metodo_prescricao'] ?? 'standard',
+                ':config_prescricao' => $exercise['config_prescricao'] ?? null,
+                ':idgrupo_prescricao' => isset($groupMap[(string) ($exercise['idgrupo_prescricao'] ?? '')]) ? $groupMap[(string) $exercise['idgrupo_prescricao']] : null,
                 ':ordem' => (int) $exercise['ordem'],
             ]);
         }
@@ -768,6 +773,20 @@ function cronogramaSalvarExercicios(PDO $pdo, string $idTreino, string $idUsuari
     }
 
     try {
+        foreach ($rows as &$prescriptionRow) {
+            if (!is_array($prescriptionRow)) continue;
+            $step = cronogramaNormalizarPassoEstruturado($prescriptionRow);
+            if ($step['tipo_passo'] === 'exercise') {
+                $prescriptionRow = workoutPrescriptionLegacyFields($prescriptionRow, workoutPrescriptionNormalize($prescriptionRow));
+            } else {
+                $prescriptionRow['metodo_prescricao'] = 'standard';
+                $prescriptionRow['config_prescricao'] = null;
+                $prescriptionRow['idgrupo_prescricao'] = null;
+                $prescriptionRow['grupo_chave'] = '';
+            }
+        }
+        unset($prescriptionRow);
+        workoutPrescriptionReplaceGroups($pdo, 'workout', $idTreino, $rows);
         $pdo->prepare('UPDATE treinos_exercicios SET ordem = ordem + 1000000 WHERE idtreino = :treino')->execute([':treino' => $idTreino]);
         $seen = [];
         $order = 1;
@@ -819,7 +838,7 @@ function cronogramaSalvarExercicios(PDO $pdo, string $idTreino, string $idUsuari
 
 
             if ($idOccurrence !== '' && isset($existing[$idOccurrence])) {
-                $stmt = $pdo->prepare('UPDATE treinos_exercicios SET idexercicio = :exercicio, nome_snapshot = :nome, series = :series, repeticoes = :repeticoes, carga = :carga, bloco = :bloco, cluster = :cluster, descanso = :descanso, observacoes = :observacoes, duracao = :duracao, distancia = :distancia, intensidade = :intensidade, rpe = :rpe, rir = :rir, tempo_execucao = :tempo_execucao, cadencia = :cadencia, tipo_passo = :tipo_passo, repeticoes_bloco = :repeticoes_bloco, alvo_tipo = :alvo_tipo, alvo_min = :alvo_min, alvo_max = :alvo_max, alvo_unidade = :alvo_unidade, recuperacao_duracao_s = :recuperacao_duracao_s, recuperacao_distancia_m = :recuperacao_distancia_m, ordem = :ordem WHERE idtreino_exercicio = :id AND idtreino = :treino');
+                $stmt = $pdo->prepare('UPDATE treinos_exercicios SET idexercicio = :exercicio, nome_snapshot = :nome, series = :series, repeticoes = :repeticoes, carga = :carga, bloco = :bloco, cluster = :cluster, descanso = :descanso, observacoes = :observacoes, duracao = :duracao, distancia = :distancia, intensidade = :intensidade, rpe = :rpe, rir = :rir, tempo_execucao = :tempo_execucao, cadencia = :cadencia, tipo_passo = :tipo_passo, repeticoes_bloco = :repeticoes_bloco, alvo_tipo = :alvo_tipo, alvo_min = :alvo_min, alvo_max = :alvo_max, alvo_unidade = :alvo_unidade, recuperacao_duracao_s = :recuperacao_duracao_s, recuperacao_distancia_m = :recuperacao_distancia_m, metodo_prescricao = :metodo_prescricao, config_prescricao = CAST(:config_prescricao AS jsonb), idgrupo_prescricao = :idgrupo_prescricao, ordem = :ordem WHERE idtreino_exercicio = :id AND idtreino = :treino');
                 $stmt->execute([
                     ':exercicio' => $idExercise !== '' ? $idExercise : null,
                     ':nome' => $name,
@@ -838,13 +857,14 @@ function cronogramaSalvarExercicios(PDO $pdo, string $idTreino, string $idUsuari
                     ':tempo_execucao' => $tempoExecucao !== '' ? $tempoExecucao : null,
                     ':cadencia' => $cadencia !== '' ? $cadencia : null,
                     ':tipo_passo' => $structured['tipo_passo'], ':repeticoes_bloco' => $structured['repeticoes_bloco'], ':alvo_tipo' => $structured['alvo_tipo'], ':alvo_min' => $structured['alvo_min'], ':alvo_max' => $structured['alvo_max'], ':alvo_unidade' => $structured['alvo_unidade'], ':recuperacao_duracao_s' => $structured['recuperacao_duracao_s'], ':recuperacao_distancia_m' => $structured['recuperacao_distancia_m'],
+                    ':metodo_prescricao' => $row['metodo_prescricao'] ?? 'standard', ':config_prescricao' => $row['config_prescricao'] ?? null, ':idgrupo_prescricao' => $row['idgrupo_prescricao'] ?? null,
                     ':ordem' => $order,
                     ':id' => $idOccurrence,
                     ':treino' => $idTreino,
                 ]);
             } else {
                 $idOccurrence = cronogramaGerarId();
-                $stmt = $pdo->prepare('INSERT INTO treinos_exercicios (idtreino_exercicio, idtreino, idexercicio, nome_snapshot, series, repeticoes, carga, bloco, cluster, descanso, observacoes, duracao, distancia, intensidade, rpe, rir, tempo_execucao, cadencia, tipo_passo, repeticoes_bloco, alvo_tipo, alvo_min, alvo_max, alvo_unidade, recuperacao_duracao_s, recuperacao_distancia_m, ordem) VALUES (:id, :treino, :exercicio, :nome, :series, :repeticoes, :carga, :bloco, :cluster, :descanso, :observacoes, :duracao, :distancia, :intensidade, :rpe, :rir, :tempo_execucao, :cadencia, :tipo_passo, :repeticoes_bloco, :alvo_tipo, :alvo_min, :alvo_max, :alvo_unidade, :recuperacao_duracao_s, :recuperacao_distancia_m, :ordem)');
+                $stmt = $pdo->prepare('INSERT INTO treinos_exercicios (idtreino_exercicio, idtreino, idexercicio, nome_snapshot, series, repeticoes, carga, bloco, cluster, descanso, observacoes, duracao, distancia, intensidade, rpe, rir, tempo_execucao, cadencia, tipo_passo, repeticoes_bloco, alvo_tipo, alvo_min, alvo_max, alvo_unidade, recuperacao_duracao_s, recuperacao_distancia_m, metodo_prescricao, config_prescricao, idgrupo_prescricao, ordem) VALUES (:id, :treino, :exercicio, :nome, :series, :repeticoes, :carga, :bloco, :cluster, :descanso, :observacoes, :duracao, :distancia, :intensidade, :rpe, :rir, :tempo_execucao, :cadencia, :tipo_passo, :repeticoes_bloco, :alvo_tipo, :alvo_min, :alvo_max, :alvo_unidade, :recuperacao_duracao_s, :recuperacao_distancia_m, :metodo_prescricao, CAST(:config_prescricao AS jsonb), :idgrupo_prescricao, :ordem)');
                 $stmt->execute([
                     ':id' => $idOccurrence,
                     ':treino' => $idTreino,
@@ -865,6 +885,7 @@ function cronogramaSalvarExercicios(PDO $pdo, string $idTreino, string $idUsuari
                     ':tempo_execucao' => $tempoExecucao !== '' ? $tempoExecucao : null,
                     ':cadencia' => $cadencia !== '' ? $cadencia : null,
                     ':tipo_passo' => $structured['tipo_passo'], ':repeticoes_bloco' => $structured['repeticoes_bloco'], ':alvo_tipo' => $structured['alvo_tipo'], ':alvo_min' => $structured['alvo_min'], ':alvo_max' => $structured['alvo_max'], ':alvo_unidade' => $structured['alvo_unidade'], ':recuperacao_duracao_s' => $structured['recuperacao_duracao_s'], ':recuperacao_distancia_m' => $structured['recuperacao_distancia_m'],
+                    ':metodo_prescricao' => $row['metodo_prescricao'] ?? 'standard', ':config_prescricao' => $row['config_prescricao'] ?? null, ':idgrupo_prescricao' => $row['idgrupo_prescricao'] ?? null,
                     ':ordem' => $order,
                 ]);
             }
@@ -990,7 +1011,7 @@ function cronogramaCopiarExercicio(PDO $pdo, string $idUsuario, string $idTreino
 
     $pdo->beginTransaction();
     try {
-        $pdo->prepare('INSERT INTO treinos_exercicios (idtreino_exercicio, idtreino, idexercicio, nome_snapshot, series, repeticoes, carga, bloco, cluster, descanso, observacoes, duracao, distancia, intensidade, rpe, rir, tempo_execucao, cadencia, tipo_passo, repeticoes_bloco, alvo_tipo, alvo_min, alvo_max, alvo_unidade, recuperacao_duracao_s, recuperacao_distancia_m, ordem) VALUES (:id, :treino, :exercicio, :nome, :series, :repeticoes, :carga, :bloco, :cluster, :descanso, :observacoes, :duracao, :distancia, :intensidade, :rpe, :rir, :tempo_execucao, :cadencia, :tipo_passo, :repeticoes_bloco, :alvo_tipo, :alvo_min, :alvo_max, :alvo_unidade, :recuperacao_duracao_s, :recuperacao_distancia_m, :ordem)')->execute([
+        $pdo->prepare('INSERT INTO treinos_exercicios (idtreino_exercicio, idtreino, idexercicio, nome_snapshot, series, repeticoes, carga, bloco, cluster, descanso, observacoes, duracao, distancia, intensidade, rpe, rir, tempo_execucao, cadencia, tipo_passo, repeticoes_bloco, alvo_tipo, alvo_min, alvo_max, alvo_unidade, recuperacao_duracao_s, recuperacao_distancia_m, metodo_prescricao, config_prescricao, idgrupo_prescricao, ordem) VALUES (:id, :treino, :exercicio, :nome, :series, :repeticoes, :carga, :bloco, :cluster, :descanso, :observacoes, :duracao, :distancia, :intensidade, :rpe, :rir, :tempo_execucao, :cadencia, :tipo_passo, :repeticoes_bloco, :alvo_tipo, :alvo_min, :alvo_max, :alvo_unidade, :recuperacao_duracao_s, :recuperacao_distancia_m, :metodo_prescricao, CAST(:config_prescricao AS jsonb), :idgrupo_prescricao, :ordem)')->execute([
             ':id' => $newId,
             ':treino' => $idTreinoDestino,
             ':exercicio' => $source['idexercicio'],
@@ -1002,6 +1023,7 @@ function cronogramaCopiarExercicio(PDO $pdo, string $idUsuario, string $idTreino
             ':cluster' => $source['cluster'],
             ':descanso' => $source['descanso'],
             ':observacoes' => $source['observacoes'], ':duracao' => $source['duracao'] ?? null, ':distancia' => $source['distancia'] ?? null, ':intensidade' => $source['intensidade'] ?? null, ':rpe' => $source['rpe'] ?? null, ':rir' => $source['rir'] ?? null, ':tempo_execucao' => $source['tempo_execucao'] ?? null, ':cadencia' => $source['cadencia'] ?? null, ':tipo_passo' => $source['tipo_passo'] ?? 'exercise', ':repeticoes_bloco' => $source['repeticoes_bloco'] ?? null, ':alvo_tipo' => $source['alvo_tipo'] ?? null, ':alvo_min' => $source['alvo_min'] ?? null, ':alvo_max' => $source['alvo_max'] ?? null, ':alvo_unidade' => $source['alvo_unidade'] ?? null, ':recuperacao_duracao_s' => $source['recuperacao_duracao_s'] ?? null, ':recuperacao_distancia_m' => $source['recuperacao_distancia_m'] ?? null,
+            ':metodo_prescricao' => $source['metodo_prescricao'] ?? 'standard', ':config_prescricao' => $source['config_prescricao'] ?? null, ':idgrupo_prescricao' => null,
             ':ordem' => (int) $orderStmt->fetchColumn(),
         ]);
 
@@ -1469,11 +1491,25 @@ function cronogramaSalvarExerciciosTreinoModelo(PDO $pdo, string $idUsuario, str
     $ownsTransaction = !$pdo->inTransaction();
     if ($ownsTransaction) $pdo->beginTransaction();
     try {
+        foreach ($rows as &$prescriptionRow) {
+            if (!is_array($prescriptionRow)) continue;
+            $step = cronogramaNormalizarPassoEstruturado($prescriptionRow);
+            if ($step['tipo_passo'] === 'exercise') {
+                $prescriptionRow = workoutPrescriptionLegacyFields($prescriptionRow, workoutPrescriptionNormalize($prescriptionRow));
+            } else {
+                $prescriptionRow['metodo_prescricao'] = 'standard';
+                $prescriptionRow['config_prescricao'] = null;
+                $prescriptionRow['idgrupo_prescricao'] = null;
+                $prescriptionRow['grupo_chave'] = '';
+            }
+        }
+        unset($prescriptionRow);
         $pdo->prepare('DELETE FROM treinos_modelo_exercicios WHERE idtreino_modelo = :id')->execute([':id' => $idTreinoModelo]);
+        workoutPrescriptionReplaceGroups($pdo, 'model', $idTreinoModelo, $rows);
         $insert = $pdo->prepare(
             'INSERT INTO treinos_modelo_exercicios
-             (idtreino_modelo_exercicio, idtreino_modelo, idexercicio, nome_snapshot, series, repeticoes, carga, bloco, cluster, descanso, observacoes, duracao, distancia, intensidade, rpe, rir, tempo_execucao, cadencia, tipo_passo, repeticoes_bloco, alvo_tipo, alvo_min, alvo_max, alvo_unidade, recuperacao_duracao_s, recuperacao_distancia_m, ordem)
-             VALUES (:id, :modelo, :exercicio, :nome, :series, :repeticoes, :carga, :bloco, :cluster, :descanso, :observacoes, :duracao, :distancia, :intensidade, :rpe, :rir, :tempo_execucao, :cadencia, :tipo_passo, :repeticoes_bloco, :alvo_tipo, :alvo_min, :alvo_max, :alvo_unidade, :recuperacao_duracao_s, :recuperacao_distancia_m, :ordem)'
+             (idtreino_modelo_exercicio, idtreino_modelo, idexercicio, nome_snapshot, series, repeticoes, carga, bloco, cluster, descanso, observacoes, duracao, distancia, intensidade, rpe, rir, tempo_execucao, cadencia, tipo_passo, repeticoes_bloco, alvo_tipo, alvo_min, alvo_max, alvo_unidade, recuperacao_duracao_s, recuperacao_distancia_m, metodo_prescricao, config_prescricao, idgrupo_prescricao, ordem)
+             VALUES (:id, :modelo, :exercicio, :nome, :series, :repeticoes, :carga, :bloco, :cluster, :descanso, :observacoes, :duracao, :distancia, :intensidade, :rpe, :rir, :tempo_execucao, :cadencia, :tipo_passo, :repeticoes_bloco, :alvo_tipo, :alvo_min, :alvo_max, :alvo_unidade, :recuperacao_duracao_s, :recuperacao_distancia_m, :metodo_prescricao, CAST(:config_prescricao AS jsonb), :idgrupo_prescricao, :ordem)'
         );
         $order = 1;
         foreach ($rows as $row) {
@@ -1513,6 +1549,7 @@ function cronogramaSalvarExerciciosTreinoModelo(PDO $pdo, string $idUsuario, str
                 ':tempo_execucao' => trim((string) ($row['tempo_execucao'] ?? '')) ?: null,
                 ':cadencia' => trim((string) ($row['cadencia'] ?? '')) ?: null,
                 ':tipo_passo' => $structured['tipo_passo'], ':repeticoes_bloco' => $structured['repeticoes_bloco'], ':alvo_tipo' => $structured['alvo_tipo'], ':alvo_min' => $structured['alvo_min'], ':alvo_max' => $structured['alvo_max'], ':alvo_unidade' => $structured['alvo_unidade'], ':recuperacao_duracao_s' => $structured['recuperacao_duracao_s'], ':recuperacao_distancia_m' => $structured['recuperacao_distancia_m'],
+                ':metodo_prescricao' => $row['metodo_prescricao'] ?? 'standard', ':config_prescricao' => $row['config_prescricao'] ?? null, ':idgrupo_prescricao' => $row['idgrupo_prescricao'] ?? null,
                 ':ordem' => $order++,
             ]);
         }
@@ -1567,9 +1604,10 @@ function cronogramaAdicionarTreinoModeloAoCronograma(PDO $pdo, string $idUsuario
         $pdo->prepare('UPDATE treinos_cronograma SET idtreino_modelo = :modelo WHERE idtreino = :treino')->execute([':modelo' => $idTreinoModelo, ':treino' => $idTreino]);
         $insert = $pdo->prepare(
             'INSERT INTO treinos_exercicios
-             (idtreino_exercicio, idtreino, idexercicio, nome_snapshot, series, repeticoes, carga, bloco, cluster, descanso, observacoes, duracao, distancia, intensidade, rpe, rir, tempo_execucao, cadencia, tipo_passo, repeticoes_bloco, alvo_tipo, alvo_min, alvo_max, alvo_unidade, recuperacao_duracao_s, recuperacao_distancia_m, ordem)
-             VALUES (:id, :treino, :exercicio, :nome, :series, :repeticoes, :carga, :bloco, :cluster, :descanso, :observacoes, :duracao, :distancia, :intensidade, :rpe, :rir, :tempo_execucao, :cadencia, :tipo_passo, :repeticoes_bloco, :alvo_tipo, :alvo_min, :alvo_max, :alvo_unidade, :recuperacao_duracao_s, :recuperacao_distancia_m, :ordem)'
+             (idtreino_exercicio, idtreino, idexercicio, nome_snapshot, series, repeticoes, carga, bloco, cluster, descanso, observacoes, duracao, distancia, intensidade, rpe, rir, tempo_execucao, cadencia, tipo_passo, repeticoes_bloco, alvo_tipo, alvo_min, alvo_max, alvo_unidade, recuperacao_duracao_s, recuperacao_distancia_m, metodo_prescricao, config_prescricao, idgrupo_prescricao, ordem)
+             VALUES (:id, :treino, :exercicio, :nome, :series, :repeticoes, :carga, :bloco, :cluster, :descanso, :observacoes, :duracao, :distancia, :intensidade, :rpe, :rir, :tempo_execucao, :cadencia, :tipo_passo, :repeticoes_bloco, :alvo_tipo, :alvo_min, :alvo_max, :alvo_unidade, :recuperacao_duracao_s, :recuperacao_distancia_m, :metodo_prescricao, CAST(:config_prescricao AS jsonb), :idgrupo_prescricao, :ordem)'
         );
+        $groupMap = workoutPrescriptionCloneGroups($pdo, 'model', $idTreinoModelo, 'workout', $idTreino);
         $catalog = stridebr_exercise_catalog_for_user($pdo, $idUsuario);
         foreach ($modelo['exercicios'] as $exercise) {
             $exercise['nome_snapshot'] = cronogramaResolverExercicioBiblioteca($pdo, $catalog, (string) ($exercise['idexercicio'] ?? ''), (string) $exercise['nome_snapshot'])['nome'];
@@ -1578,7 +1616,7 @@ function cronogramaAdicionarTreinoModeloAoCronograma(PDO $pdo, string $idUsuario
                 ':nome' => $exercise['nome_snapshot'], ':series' => $exercise['series'], ':repeticoes' => $exercise['repeticoes'], ':carga' => $exercise['carga'],
                 ':bloco' => $exercise['bloco'], ':cluster' => $exercise['cluster'], ':descanso' => $exercise['descanso'], ':observacoes' => $exercise['observacoes'],
                 ':duracao' => $exercise['duracao'], ':distancia' => $exercise['distancia'], ':intensidade' => $exercise['intensidade'], ':rpe' => $exercise['rpe'], ':rir' => $exercise['rir'],
-                ':tempo_execucao' => $exercise['tempo_execucao'], ':cadencia' => $exercise['cadencia'], ':tipo_passo' => $exercise['tipo_passo'] ?? 'exercise', ':repeticoes_bloco' => $exercise['repeticoes_bloco'] ?? null, ':alvo_tipo' => $exercise['alvo_tipo'] ?? null, ':alvo_min' => $exercise['alvo_min'] ?? null, ':alvo_max' => $exercise['alvo_max'] ?? null, ':alvo_unidade' => $exercise['alvo_unidade'] ?? null, ':recuperacao_duracao_s' => $exercise['recuperacao_duracao_s'] ?? null, ':recuperacao_distancia_m' => $exercise['recuperacao_distancia_m'] ?? null, ':ordem' => $exercise['ordem'],
+                ':tempo_execucao' => $exercise['tempo_execucao'], ':cadencia' => $exercise['cadencia'], ':tipo_passo' => $exercise['tipo_passo'] ?? 'exercise', ':repeticoes_bloco' => $exercise['repeticoes_bloco'] ?? null, ':alvo_tipo' => $exercise['alvo_tipo'] ?? null, ':alvo_min' => $exercise['alvo_min'] ?? null, ':alvo_max' => $exercise['alvo_max'] ?? null, ':alvo_unidade' => $exercise['alvo_unidade'] ?? null, ':recuperacao_duracao_s' => $exercise['recuperacao_duracao_s'] ?? null, ':recuperacao_distancia_m' => $exercise['recuperacao_distancia_m'] ?? null, ':metodo_prescricao' => $exercise['metodo_prescricao'] ?? 'standard', ':config_prescricao' => $exercise['config_prescricao'] ?? null, ':idgrupo_prescricao' => isset($groupMap[(string) ($exercise['idgrupo_prescricao'] ?? '')]) ? $groupMap[(string) $exercise['idgrupo_prescricao']] : null, ':ordem' => $exercise['ordem'],
             ]);
         }
         if ($ownsTransaction) $pdo->commit();
@@ -2313,6 +2351,20 @@ function cronogramaHidratarExerciciosPlanejados(PDO $pdo, string $userId, array 
             if (strlen($original) > 3 && $upper === $original && stridebr_lower($original) !== $original) $row['nome_revisao'] = 'unknown';
         }
         if (in_array($row['nome_revisao'], ['fuzzy','unknown'], true) && ($_SESSION['planned_name_kept'][$userId][$reviewKey] ?? '') === $reviewHash) $row['nome_revisao']=null;
+    }
+    unset($row);
+    $rows = workoutPrescriptionHydrateGroups($pdo, $rows);
+    foreach ($rows as &$row) {
+        $row['metodo_prescricao'] = trim((string) ($row['metodo_prescricao'] ?? '')) ?: 'standard';
+        $row['prescription_method'] = $row['metodo_prescricao'];
+        $row['prescription'] = workoutPrescriptionDecode($row['config_prescricao'] ?? null);
+        if (($row['tipo_passo'] ?? 'exercise') === 'exercise') {
+            try { $row['prescription_summary'] = workoutPrescriptionSummary($row); } catch (Throwable) { $row['prescription_summary'] = ''; }
+        } else {
+            $row['prescription_summary'] = '';
+        }
+        $match = $row['nome_resolucao']['match'] ?? null;
+        $row['tracking_mode'] = is_array($match) ? (string) ($match['tipo_registro'] ?? 'load_reps') : 'load_reps';
     }
     unset($row);
     return $rows;

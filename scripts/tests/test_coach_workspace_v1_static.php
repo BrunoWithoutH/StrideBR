@@ -16,6 +16,7 @@ $files = [
     'modal' => $root . '/src/layout/trainer/coach_prescription_modal.php',
     'athleteSide' => $root . '/src/layout/trainer_as_athlete.php',
     'js' => $root . '/public/assets/js/trainer.js',
+    'builderJs' => $root . '/public/assets/js/workout-builder.js',
     'css' => $root . '/public/assets/css/cronogramas.css',
     'pt' => $root . '/src/i18n/pt-BR.php',
     'en' => $root . '/src/i18n/en.php',
@@ -61,7 +62,7 @@ $assert(str_contains($files['athlete'], 'trainer.workspace.comments'), 'Contextu
 $assert(str_contains($files['athlete'], 'stridebr_e((string)$comment[\'texto\'])'), 'Comment output must be escaped');
 $assert(str_contains($files['library'], 'trainer.workspace.library_workouts'), 'Workout library surface missing');
 $assert(str_contains($files['library'], 'trainer.workspace.schedules'), 'Schedule library surface missing');
-$assert(str_contains($files['modal'], 'name="exercise_name[]"') && str_contains($files['page'], "/assets/js/exercise-entry.js"), 'Prescription must reuse exercise typeahead');
+$assert(str_contains($files['modal'], 'data-workout-builder') && str_contains($files['builderJs'], '/api/exercicio-resolver.php'), 'Prescription must reuse shared Workout Builder exercise resolver');
 $assert(substr_count($files['page'], "'idmodalidade' => \$_POST['idmodalidade']") >= 2 && substr_count($files['page'], "'distancia_prevista_m' => \$_POST['distancia_prevista_m']") >= 2, 'Create/edit prescription must preserve sport and planned distance');
 $assert(!preg_match('/<select[^>]+(?:exercise|exercicio)[^>]*>[\s\S]{10000,}<\/select>/i', $files['modal']), 'Prescription must not dump exercise catalog into select');
 $assert(str_contains($files['page'], '/src/layout/trainer/coach_workspace.php'), 'Coach workspace layout not mounted');

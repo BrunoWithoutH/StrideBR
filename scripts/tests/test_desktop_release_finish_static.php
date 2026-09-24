@@ -27,6 +27,7 @@ $exerciseLibrary = $read('public/user/biblioteca.php');
 $exerciseModelJs = $read('public/assets/js/exercicios-modelo.js');
 $exerciseDraftJs = $read('public/assets/js/exercicios-rascunho.js');
 $trainerJs = $read('public/assets/js/trainer.js');
+$workoutBuilder = $read('public/assets/js/workout-builder.js');
 $scriptsJs = $read('public/assets/js/scripts.js');
 $cronogramasJs = $read('public/assets/js/cronogramas.js');
 $agendaJs = $read('public/assets/js/agenda-mensal.js');
@@ -79,7 +80,7 @@ $checks = [
     'agenda AJAX passa corpo estruturado ao wrapper' => str_contains($agendaJs, "(window.StrideBRNet?.fetch || fetch)('/api/cronograma-ocorrencias.php'") && str_contains($agendaJs, 'body,'),
     'ações destrutivas de atividade têm chave e desfazer' => substr_count($activitiesJs, "_idempotency_key: requestKey()") >= 2 && str_contains($activitiesJs, "body.set('_idempotency_key', requestKey())") && str_contains($activitiesJs, "StrideBRUI.undo(tr('activity.deleted')") && str_contains($activitiesJs, '/api/atividades-restaurar.php'),
     'desfazer também cobre exclusão por formulário' => str_contains($activityDelete, '$_SESSION[\'activity_undo\']') && str_contains($activitiesPage, 'name="action" value="restore_activity"') && str_contains($activitiesPage, 'ui-server-undo'),
-    'remoção de exercício oferece desfazer' => str_contains($cronograma, 'function cronogramaRestaurarExercicioPessoal') && str_contains($exerciseLibrary, 'value="restore_exercise"') && str_contains($exerciseModelJs, "t('library.saved_exercise_removed'") && str_contains($exerciseDraftJs, "t('draft.exercise_removed'") && str_contains($trainerJs, "t('trainer.exercise_removed_undo'"),
+    'remoção de exercício oferece desfazer' => str_contains($cronograma, 'function cronogramaRestaurarExercicioPessoal') && str_contains($exerciseLibrary, 'value="restore_exercise"') && str_contains($exerciseModelJs, "t('library.saved_exercise_removed'") && str_contains($workoutBuilder, 'StrideBRUI?.undo') && str_contains($trainerJs, "t('trainer.exercise_removed_undo'"),
     'apoio financeiro é opt-in e só aparece quando configurado' => str_contains($env, 'STRIDEBR_DONATION_ENABLED=0') && str_contains($footer, 'stridebr_donation_enabled()') && str_contains($supportProject, 'stridebr_donation_enabled()') && str_contains($supportProject, 'stridebr_donation_pix_key()') && str_contains($supportProject, 'stridebr_donation_url()'),
     'landing apresenta planejamento registro e comparação' => str_contains($landing, 'Planeje. Treine.') && str_contains($landing, 'Compare com você mesmo'),
     'legais atualizadas para a RC' => str_contains($terms, '30 de agosto de 2026') && str_contains($privacy, '9 de setembro de 2026') && str_contains($privacy, 'Analytics de produto') && str_contains($privacy, 'Aquisição e campanhas') && str_contains($privacy, 'trechos privados') && str_contains($cookies, 'Atribuição de campanhas') && str_contains($cookies, 'desligada por padrão'),

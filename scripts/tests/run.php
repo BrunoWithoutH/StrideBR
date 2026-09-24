@@ -10,6 +10,8 @@ $suites = [
     'schedules' => 'test_schedule.php', 'workout sessions' => 'test_workout_session.php',
     'Workout Execution V2' => 'test_workout_execution_v2.php',
     'Exercise Library V2' => 'test_exercise_library_v2.php',
+    'Workout Builder V2' => 'test_workout_builder_v2.php',
+    'Training Platform Consistency V1' => 'test_training_platform_consistency_v1.php',
     'Core Mobile API Completion V1' => 'test_core_mobile_api_completion_v1.php',
     'Core App Completion V1' => 'test_core_app_completion_v1.php',
     'Coach Workspace V1' => 'test_coach_workspace_v1.php',

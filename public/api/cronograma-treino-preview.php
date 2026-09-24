@@ -30,6 +30,8 @@ try {
         'preview_mode' => $preview['preview_mode'],
         'activity_id' => $preview['activity_id'],
         'actual' => $preview['actual'],
+        'presentation' => $preview['presentation'] ?? null,
+        'capabilities' => $preview['capabilities'] ?? null,
         'workout' => [
             'idtreino' => (string) $treino['idtreino'],
             'idcronograma' => (string) $treino['idcronograma'],

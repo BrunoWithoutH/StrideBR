@@ -60,7 +60,7 @@
         const meters = distanceMeters(value)
         if (meters === null) return text(value)
         if (meters >= 1000) return `${decimal(meters / 1000, meters % 1000 === 0 ? 0 : 2)} km`
-        return `${decimal(meters, meters % 1 === 0 ? 0 : 1)} m`
+        return `${decimal(meters, meters % 1 === 0 ? 0 : 2)} m`
     }
     const formatLoad = value => {
         const raw = text(value)
@@ -75,6 +75,60 @@
         if (/\b(?:rep|reps|repeti(?:ção|ções|cao|coes))\b/i.test(raw)) return raw
         const numeric = number(raw)
         return numeric === null ? raw : `${decimal(numeric, 0)} reps`
+    }
+    const repTargetText = reps => {
+        const target = reps && typeof reps === 'object' ? reps : {}
+        if (target.mode === 'range') return `${target.min ?? ''}–${target.max ?? ''} reps`
+        if (target.mode === 'amrap') return 'AMRAP'
+        if (target.mode === 'failure') return 'Até a falha'
+        if (target.mode === 'legacy') return text(target.text)
+        if (target.mode === 'fixed' && target.value !== null && target.value !== undefined && text(target.value) !== '') return `${target.value} reps`
+        return ''
+    }
+    const structuredSummary = (method, config = {}) => {
+        if (method === 'cluster') {
+            const pattern = Array.isArray(config.clusters) ? config.clusters.map(item => item?.reps).filter(value => value !== null && value !== undefined && value !== '').join('+') : ''
+            const load = config.load?.value !== undefined ? formatLoad(`${config.load.value}${config.load.unit ? ` ${config.load.unit}` : ''}`) : ''
+            return [`${config.blocks || 1} blocos`, pattern, load, config.intra_cluster_rest_s !== undefined ? `${config.intra_cluster_rest_s} s intra` : '', config.between_blocks_rest_s !== undefined ? `${config.between_blocks_rest_s} s descanso` : ''].filter(Boolean).join(' · ')
+        }
+        if (method === 'drop_set') {
+            const stages = Array.isArray(config.stages) ? config.stages.map(stage => {
+                const load = stage?.load?.value !== undefined ? decimal(stage.load.value, 2) : ''
+                const reps = repTargetText(stage?.reps || {}).replace(/ reps$/i, '')
+                return `${load}${load && reps ? '×' : ''}${reps}`
+            }).filter(Boolean) : []
+            return `${Number(config.rounds || 1) > 1 ? `${config.rounds} rodadas · ` : ''}${stages.join(' → ')}`
+        }
+        const parts = []
+        const reps = repTargetText(config.reps || {})
+        if (config.sets) parts.push(`${config.sets} × ${reps || '—'}`)
+        else if (reps) parts.push(reps)
+        if (config.load?.value !== undefined && config.load?.value !== null && text(config.load.value) !== '') parts.push(formatLoad(`${config.load.value} ${config.load.unit || 'kg'}`))
+        if (config.duration_s !== undefined && config.duration_s !== null && text(config.duration_s) !== '') parts.push(formatDurationSeconds(config.duration_s))
+        if (config.distance_m !== undefined && config.distance_m !== null && text(config.distance_m) !== '') {
+            const unit = config.distance_display_unit === 'km' ? 'km' : 'm'
+            const meters = Number(config.distance_m)
+            parts.push(unit === 'km' ? `${decimal(meters / 1000, 3)} km` : `${decimal(meters, 2)} m`)
+        }
+        if (config.rest_after_s !== undefined && config.rest_after_s !== null && text(config.rest_after_s) !== '') parts.push(`${config.rest_after_s} s`)
+        return parts.filter(Boolean).join(' · ')
+    }
+    const structured = source => {
+        const raw = source || {}
+        let config = raw.prescription && typeof raw.prescription === 'object' ? raw.prescription : {}
+        if (!Object.keys(config).length && raw.config_prescricao) { try { config = typeof raw.config_prescricao === 'string' ? JSON.parse(raw.config_prescricao) : raw.config_prescricao } catch (_) { config = {} } }
+        const method = text(raw.prescription_method || raw.metodo_prescricao || config.method || 'standard') || 'standard'
+        if (method === 'standard' && !Object.keys(config).length) return null
+        const summary = structuredSummary(method, config)
+        let fields = []
+        if (method === 'cluster' || method === 'drop_set') fields = ['load','reps']
+        else {
+            if (config.load?.value !== undefined || config.load?.text) fields.push('load')
+            if (repTargetText(config.reps || {})) fields.push('reps')
+            if (config.duration_s !== undefined && config.duration_s !== null) fields.push('duration')
+            if (config.distance_m !== undefined && config.distance_m !== null) fields.push('distance')
+        }
+        return {method, config, summary, fields, summaryParts: summary ? [summary] : []}
     }
     const resolve = source => {
         const raw = source || {}
@@ -128,6 +182,9 @@
     }
     globalThis.StrideBRWorkoutPrescription = {
         resolve,
+        structured,
+        structuredSummary,
+        repTargetText,
         loggingFields: prescription => {
             const fields = [...(prescription?.fields || [])]
             if (!fields.length) return ['load','reps']

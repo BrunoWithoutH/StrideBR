@@ -10,6 +10,7 @@ $idUsuario = stridebr_require_login();
 require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
 require_once dirname(__DIR__, 2) . '/src/function/cronograma.php';
 require_once dirname(__DIR__, 2) . '/src/function/cronograma_compartilhar.php';
+require_once dirname(__DIR__, 2) . '/src/function/workout_definition.php';
 require_once dirname(__DIR__, 2) . '/src/function/product_analytics.php';
 require_once dirname(__DIR__, 2) . '/src/function/notificacoes.php';
 require_once dirname(__DIR__, 2) . '/src/layout/sport_picker.php';
@@ -34,103 +35,15 @@ function cronogramaNomeImportado(PDO $pdo, string $idUsuario, string $base): str
 
 function cronogramaExportData(PDO $pdo, string $idUsuario, string $idCronograma): array
 {
-    $cronograma = cronogramaBuscar($pdo, $idCronograma, $idUsuario);
-    if ($cronograma === []) throw new RuntimeException(stridebr_t('schedule.not_found'));
-    $treinos = cronogramaListarTreinos($pdo, $idCronograma, $idUsuario);
-    foreach ($treinos as &$treino) {
-        $treino['exercicios'] = cronogramaListarTreinoExercicios($pdo, (string) $treino['idtreino'], $idUsuario);
-    }
-    unset($treino);
-    return [
-        'format' => 'stridebr-schedule',
-        'version' => 1,
-        'cronograma' => [
-            'nome' => $cronograma['nome'],
-            'descricao' => $cronograma['descricao'] ?? null,
-        ],
-        'treinos' => $treinos,
-    ];
+    return compartilhamentoCronogramaSnapshot($pdo, $idUsuario, $idCronograma);
 }
 
 function cronogramaImportData(PDO $pdo, string $idUsuario, array $data): string
 {
-    if (($data['format'] ?? '') !== 'stridebr-schedule' || (int) ($data['version'] ?? 0) !== 1 || !is_array($data['cronograma'] ?? null) || !is_array($data['treinos'] ?? null)) {
-        throw new InvalidArgumentException(stridebr_t('schedule.import_invalid_incompatible'));
-    }
-
-    if (count($data['treinos']) > 200) {
-        throw new InvalidArgumentException(stridebr_t('schedule.import_too_many_workouts'));
-    }
-
-    $nome = cronogramaNomeImportado($pdo, $idUsuario, (string) ($data['cronograma']['nome'] ?? stridebr_t('schedule.imported_name')));
-    $pdo->beginTransaction();
-
     try {
-        $idCronograma = cronogramaCriar($pdo, $idUsuario, $nome, $data['cronograma']['descricao'] ?? null);
-        $totalExercicios = 0;
-
-        foreach ($data['treinos'] as $treino) {
-            if (!is_array($treino)) continue;
-
-            $payload = [
-                'idcronograma' => $idCronograma,
-                'titulo' => (string) ($treino['titulo'] ?? ''),
-                'codigo' => (string) ($treino['codigo'] ?? ''),
-                'foco' => (string) ($treino['foco'] ?? ''),
-                'descricao' => $treino['descricao'] ?? null,
-                'dia_semana' => $treino['dia_semana'] ?? 1,
-                'hora_inicio' => substr((string) ($treino['hora_inicio'] ?? '18:00'), 0, 5),
-                'hora_fim' => substr((string) ($treino['hora_fim'] ?? '19:00'), 0, 5),
-                'vigencia_inicio' => (string) ($treino['vigencia_inicio'] ?? date('Y-m-d')),
-                'vigencia_fim' => (string) ($treino['vigencia_fim'] ?? ''),
-            ];
-
-            if (stridebr_db_bool($treino['termina_dia_seguinte'] ?? false)) {
-                $payload['termina_dia_seguinte'] = '1';
-            }
-
-            $idTreino = cronogramaSalvarTreino($pdo, $idUsuario, $payload);
-            $rows = [];
-
-            foreach (($treino['exercicios'] ?? []) as $exercicio) {
-                if (!is_array($exercicio)) continue;
-
-                $totalExercicios++;
-                if ($totalExercicios > 2000) {
-                    throw new InvalidArgumentException(stridebr_t('schedule.import_too_many_exercises'));
-                }
-
-                $rows[] = [
-                    'nome' => (string) ($exercicio['nome_snapshot'] ?? $exercicio['nome'] ?? ''),
-                    'series' => $exercicio['series'] ?? '',
-                    'repeticoes' => $exercicio['repeticoes'] ?? '',
-                    'carga' => $exercicio['carga'] ?? '',
-                    'bloco' => $exercicio['bloco'] ?? '',
-                    'cluster' => $exercicio['cluster'] ?? '',
-                    'descanso' => $exercicio['descanso'] ?? '',
-                    'observacoes' => $exercicio['observacoes'] ?? '',
-                    'duracao' => $exercicio['duracao'] ?? '',
-                    'distancia' => $exercicio['distancia'] ?? '',
-                    'intensidade' => $exercicio['intensidade'] ?? '',
-                    'rpe' => $exercicio['rpe'] ?? '',
-                    'rir' => $exercicio['rir'] ?? '',
-                    'tempo_execucao' => $exercicio['tempo_execucao'] ?? '',
-                    'cadencia' => $exercicio['cadencia'] ?? '',
-                ];
-            }
-
-            if ($rows !== []) {
-                cronogramaSalvarExercicios($pdo, $idTreino, $idUsuario, $rows, []);
-            }
-        }
-
-        $pdo->commit();
-        return $idCronograma;
-    } catch (Throwable $e) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
-        throw $e;
+        return compartilhamentoImportarSnapshot($pdo, $idUsuario, $data);
+    } catch (InvalidArgumentException $e) {
+        throw new InvalidArgumentException(stridebr_t('schedule.import_invalid_incompatible'));
     }
 }
 
@@ -1098,7 +1011,7 @@ $initialView = in_array($requestedInitialView, $allowedInitialViews, true)
                     <section class="workout-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="workout-preview-title">
                         <button type="button" class="icon-button workout-preview-close" data-close-preview aria-label="<?php echo stridebr_e(stridebr_t('common.close')); ?>">×</button>
                         <?php foreach ($treinos as $item): ?>
-                            <?php $previewExercises = $exerciciosPorTreino[$item['idtreino']] ?? []; ?>
+                            <?php $previewExercises = $exerciciosPorTreino[$item['idtreino']] ?? []; $previewDefinition = workoutDefinitionBuild($item, $previewExercises, 'schedule'); $previewPresentation = workoutDefinitionPresentation($previewDefinition); $previewCapabilities = workoutDefinitionCapabilities($previewDefinition); ?>
                             <div class="workout-preview-content" data-workout-preview-content="<?php echo stridebr_e($item['idtreino']); ?>" hidden>
                                 <div class="workout-preview-heading">
                                     <div class="workout-preview-occurrence-context" data-preview-occurrence-context hidden></div>
@@ -1109,33 +1022,42 @@ $initialView = in_array($requestedInitialView, $allowedInitialViews, true)
                                 </div>
                                 <?php $plannedReviewRows=$previewExercises; $plannedReviewKind='workout'; $plannedReviewId=(string) $item['idtreino']; $plannedReviewReturn='/user/cronogramatreinos.php?id='.rawurlencode($idSelecionado); require dirname(__DIR__,2).'/src/layout/planned_name_review.php'; ?>
                                 <div class="workout-preview-exercises">
-                                    <?php if ($previewExercises === []): ?>
+                                    <?php if (($previewPresentation['items'] ?? []) === []): ?>
                                         <p class="preview-empty"><?php echo stridebr_e(stridebr_t('schedule.no_exercises')); ?></p>
                                     <?php else: ?>
-                                        <?php foreach ($previewExercises as $i => $exercise): ?>
-                                            <article class="preview-exercise">
-                                                <span class="preview-exercise-number"><?php echo $i + 1; ?></span>
-                                                <div>
-                                                    <strong><?php echo stridebr_e($exercise['nome_snapshot']); ?></strong>
-                                                    <div class="preview-exercise-meta">
-                                                        <?php if ($exercise['series'] !== null): ?><span><?php echo stridebr_e((string) $exercise['series']); ?> <?php echo stridebr_e(stridebr_t('schedule.sets')); ?></span><?php endif; ?>
-                                                        <?php if (!empty($exercise['repeticoes'])): ?><span><?php echo stridebr_e(cronogramaFormatarRepeticoes((string) $exercise['repeticoes'])); ?></span><?php endif; ?>
-                                                        <?php if (!empty($exercise['carga'])): ?><span><?php echo stridebr_e($exercise['carga']); ?></span><?php endif; ?>
-                                                        <?php if (!empty($exercise['descanso'])): ?><span><?php echo stridebr_e(stridebr_t('schedule.rest')); ?> <?php echo stridebr_e($exercise['descanso']); ?></span><?php endif; ?>
-                                                        <?php if (!empty($exercise['bloco'])): ?><span><?php echo stridebr_e(stridebr_t('schedule.block')); ?> <?php echo stridebr_e($exercise['bloco']); ?></span><?php endif; ?>
-                                                        <?php if (!empty($exercise['cluster'])): ?><span><?php echo stridebr_e($exercise['cluster']); ?></span><?php endif; ?>
-                                                    </div>
-                                                    <?php if (!empty($exercise['observacoes'])): ?><small><?php echo stridebr_e($exercise['observacoes']); ?></small><?php endif; ?>
-                                                </div>
-                                            </article>
+                                        <?php
+                                        $presentationItemsByOrder = [];
+                                        foreach ((array) $previewPresentation['items'] as $presentationItem) $presentationItemsByOrder[(int) ($presentationItem['order'] ?? 0)] = $presentationItem;
+                                        $groupedOrders = [];
+                                        $groupsByFirst = [];
+                                        foreach ((array) $previewPresentation['groups'] as $presentationGroup) {
+                                            $members = array_values(array_map('intval', (array) ($presentationGroup['members'] ?? [])));
+                                            sort($members);
+                                            if ($members === []) continue;
+                                            foreach ($members as $memberOrder) $groupedOrders[$memberOrder] = true;
+                                            $presentationGroup['members'] = $members;
+                                            $groupsByFirst[$members[0]] = $presentationGroup;
+                                        }
+                                        ?>
+                                        <?php foreach ((array) $previewPresentation['items'] as $presentationItem): $presentationOrder=(int)($presentationItem['order']??0); ?>
+                                            <?php if (isset($groupsByFirst[$presentationOrder])): $presentationGroup=$groupsByFirst[$presentationOrder]; $groupType=(string)($presentationGroup['type']??'superset'); ?>
+                                                <section class="preview-prescription-group">
+                                                    <div class="preview-prescription-group-head"><strong><?php echo stridebr_e(stridebr_t('workout_builder.group.' . $groupType)); ?></strong><span><?php echo stridebr_e((string)($presentationGroup['rounds']??1)); ?> <?php echo stridebr_e(stridebr_t('workout_builder.group_rounds')); ?></span></div>
+                                                    <?php foreach ($presentationGroup['members'] as $memberOrder): $member=$presentationItemsByOrder[$memberOrder]??null; if(!$member) continue; ?>
+                                                        <article class="preview-exercise<?php echo ($member['step_type']??'exercise')!=='exercise'?' is-endurance':''; ?>"><span class="preview-exercise-number"><?php echo (int)$memberOrder; ?></span><div><strong><?php echo stridebr_e((string)($member['name']??'')); ?></strong><?php if(!empty($member['summary'])): ?><div class="preview-exercise-meta"><span><?php echo stridebr_e((string)$member['summary']); ?></span></div><?php endif; ?><?php if(!empty($member['notes'])): ?><small><?php echo stridebr_e((string)$member['notes']); ?></small><?php endif; ?></div></article>
+                                                    <?php endforeach; ?>
+                                                </section>
+                                            <?php elseif (!isset($groupedOrders[$presentationOrder])): ?>
+                                                <article class="preview-exercise<?php echo ($presentationItem['step_type']??'exercise')!=='exercise'?' is-endurance':''; ?>"><span class="preview-exercise-number"><?php echo $presentationOrder; ?></span><div><strong><?php echo stridebr_e((string)($presentationItem['name']??'')); ?></strong><?php if(!empty($presentationItem['summary'])): ?><div class="preview-exercise-meta"><span><?php echo stridebr_e((string)$presentationItem['summary']); ?></span></div><?php endif; ?><?php if(!empty($presentationItem['notes'])): ?><small><?php echo stridebr_e((string)$presentationItem['notes']); ?></small><?php endif; ?></div></article>
+                                            <?php endif; ?>
                                         <?php endforeach; ?>
                                     <?php endif; ?>
                                 </div>
                                 <div class="workout-preview-actions">
                                     <div class="workout-preview-primary-actions">
                                         <?php if ($workoutSessionsEnabled): ?>
-                                            <button type="button" class="primary-button" data-quick-register-workout="<?php echo stridebr_e($item['idtreino']); ?>" data-workout-title="<?php echo stridebr_e($item['titulo']); ?>" data-workout-time="<?php echo stridebr_e(substr((string) $item['hora_inicio'], 0, 5)); ?>" data-workout-duration="<?php echo cronogramaDuracaoMinutos($item); ?>"><?php echo stridebr_e(stridebr_t('schedule.log')); ?></button>
-                                            <button type="button" class="secondary-button" data-start-workout="<?php echo stridebr_e($item['idtreino']); ?>"><?php echo stridebr_e(stridebr_t('schedule.start_live')); ?></button>
+                                            <?php if (!empty($previewCapabilities['can_start_session'])): ?><button type="button" class="primary-button" data-start-workout="<?php echo stridebr_e($item['idtreino']); ?>"><?php echo stridebr_e(stridebr_t('schedule.start_live')); ?></button><?php endif; ?>
+                                            <?php if (!empty($previewCapabilities['can_quick_complete'])): ?><button type="button" class="secondary-button" data-quick-register-workout="<?php echo stridebr_e($item['idtreino']); ?>" data-quick-complete-mode="<?php echo stridebr_e((string)$previewCapabilities['quick_complete_mode']); ?>" data-workout-title="<?php echo stridebr_e($item['titulo']); ?>" data-workout-time="<?php echo stridebr_e(substr((string) $item['hora_inicio'], 0, 5)); ?>" data-workout-duration="<?php echo cronogramaDuracaoMinutos($item); ?>"><?php echo stridebr_e(stridebr_t(($previewCapabilities['quick_complete_mode']??'')==='ambiguous'?'schedule.complete_without_details':'schedule.log')); ?></button><?php endif; ?>
                                         <?php endif; ?>
                                         <button type="button" class="secondary-button" data-edit-workout="<?php echo stridebr_e((string) $item['idtreino']); ?>"><?php echo stridebr_e(stridebr_t('common.edit')); ?></button>
                                         <details class="workout-preview-more">
@@ -1255,7 +1177,8 @@ $initialView = in_array($requestedInitialView, $allowedInitialViews, true)
                             <label><?php echo stridebr_e(stridebr_t('schedule.intensity')); ?><select name="intensidade"><option value=""><?php echo stridebr_e(stridebr_t('schedule.not_inform')); ?></option><option value="leve"><?php echo stridebr_e(stridebr_t('schedule.light')); ?></option><option value="moderado"><?php echo stridebr_e(stridebr_t('schedule.moderate')); ?></option><option value="intenso"><?php echo stridebr_e(stridebr_t('schedule.intense')); ?></option></select></label>
                             <label><?php echo stridebr_e(stridebr_t('schedule.notes')); ?><textarea name="observacoes" rows="2" maxlength="1000" placeholder="<?php echo stridebr_e(stridebr_t('schedule.optional_placeholder')); ?>"></textarea></label>
                             <div class="quick-register-note"><strong><?php echo stridebr_e(stridebr_t('schedule.full_log')); ?></strong><span><?php echo stridebr_e(stridebr_t('schedule.full_log_help')); ?></span></div>
-                            <div class="quick-register-actions"><button type="button" class="secondary-button" data-close-quick-register><?php echo stridebr_e(stridebr_t('common.cancel')); ?></button><button type="submit" class="primary-button"><?php echo stridebr_e(stridebr_t('schedule.save_day')); ?></button></div>
+                            <p class="form-message form-message-warning" data-quick-register-ambiguous hidden><?php echo stridebr_e(stridebr_t('schedule.quick_ambiguous_warning')); ?></p>
+                            <div class="quick-register-actions"><button type="button" class="secondary-button" data-close-quick-register><?php echo stridebr_e(stridebr_t('common.cancel')); ?></button><button type="submit" class="primary-button" data-quick-register-submit><?php echo stridebr_e(stridebr_t('schedule.save_day')); ?></button></div>
                         </form>
                     </section>
                 </div>

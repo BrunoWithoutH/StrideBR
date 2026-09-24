@@ -17,7 +17,7 @@
         input.autocomplete = 'off'
         let timer, controller, latest = null, latestValue = '', kept = '', version = 0
         const hide = () => { panel.hidden = true; input.setAttribute('aria-expanded', 'false') }
-        const librarySelect = () => input.closest('tr, [data-exercise-row], [data-draft-exercise-row], .draft-exercise-card')?.querySelector('[data-exercise-id], [data-library-select], [data-field="idexercicio"]')
+        const librarySelect = () => input.closest('tr, [data-exercise-row], [data-draft-exercise-row], .draft-exercise-card, [data-wb-card], [data-workout-builder-picker]')?.querySelector('[data-exercise-id], [data-library-select], [data-field="idexercicio"]')
         const use = item => {
             input.value = item.nome
             const select = librarySelect()
@@ -25,6 +25,7 @@
             latest = null
             hide()
             input.dispatchEvent(new Event('change', {bubbles: true}))
+            input.dispatchEvent(new CustomEvent('stridebr:exercise-selected', {bubbles: true, detail: {item, source: 'selection'}}))
             input.focus()
         }
         const button = (label, callback) => {
@@ -61,6 +62,7 @@
                         const select = librarySelect()
                         if (select) select.value = item.idexercicio
                         input.dispatchEvent(new Event('change', {bubbles: true}))
+                        input.dispatchEvent(new CustomEvent('stridebr:exercise-selected', {bubbles: true, detail: {item, source: 'match'}}))
                     }
                     latestValue = input.value
                     render(data)

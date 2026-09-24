@@ -410,3 +410,18 @@ Em `performed`, exercício planejado que não foi realizado não aparece como re
 Este freeze descreve o contrato que o Android deve consumir. Correções V1.1 preservam aliases legados de PATCH Set apenas para compatibilidade; eles não são o contrato preferencial para cliente novo.
 
 Não tratar `/progress/sports` como catálogo, prescription como actual, `name` como Person public name, nem Coaching como um único `person + role`.
+
+## Workout Builder V2 — extensão aditiva
+
+Workout Builder V2 não remove nem renomeia campos congelados anteriormente. Workouts e Workout Sessions podem incluir structured prescription opcional:
+
+- `prescription_method`: `standard|cluster|drop_set`;
+- `prescription`: configuração versionada do método;
+- `group`: Superset/Circuit quando aplicável;
+- `segment`: metadata `set|cluster|drop_stage` por série de sessão;
+- `rep_target`: target planejado estruturado;
+- `structured_prescription.client_capability = structured_prescription_v1`.
+
+Clientes antigos podem ignorar os campos novos e continuar consumindo os campos legacy/materializados. Eles não devem converter target planejado em actual nem declarar suporte completo a métodos estruturados sem implementar a capability.
+
+O follow-up de UI Android está documentado em `docs/MOBILE_STRUCTURED_PRESCRIPTION_FOLLOW_UP.md`.

@@ -62,8 +62,17 @@ function stridebr_api_workout_session_payload(array $session): array
                 'id' => (string) $set['idserie'],
                 'number' => (int) $set['numero'],
                 'completed' => $completed,
-                'planned_repetitions' => trim((string) ($exercise['repeticoes_snapshot'] ?? '')) ?: null,
-                'planned_load' => trim((string) ($exercise['carga_snapshot'] ?? '')) ?: null,
+                'planned_repetitions' => trim((string) ($set['repeticoes_planejadas'] ?? $exercise['repeticoes_snapshot'] ?? '')) ?: null,
+                'planned_load' => trim((string) ($set['carga_planejada'] ?? $exercise['carga_snapshot'] ?? '')) ?: null,
+                'planned_duration_s' => isset($set['duracao_planejada_s']) ? (int) $set['duracao_planejada_s'] : null,
+                'planned_distance_m' => isset($set['distancia_planejada_m']) ? (float) $set['distancia_planejada_m'] : null,
+                'rep_target' => workoutPrescriptionDecode($set['meta_repeticoes'] ?? null) ?: null,
+                'segment' => [
+                    'type' => trim((string) ($set['segmento_tipo'] ?? '')) ?: 'set',
+                    'block_index' => is_numeric($set['bloco_indice'] ?? null) ? (int) $set['bloco_indice'] : null,
+                    'stage_index' => is_numeric($set['etapa_indice'] ?? null) ? (int) $set['etapa_indice'] : null,
+                    'rest_after_s' => is_numeric($set['descanso_apos_s'] ?? null) ? (int) $set['descanso_apos_s'] : null,
+                ],
                 'actual_repetitions' => trim((string) ($set['repeticoes_realizadas'] ?? '')) ?: null,
                 'actual_load' => trim((string) ($set['carga_realizada'] ?? '')) ?: null,
                 'actual_duration_s' => is_numeric($set['duracao_realizada_s'] ?? null) ? (int) $set['duracao_realizada_s'] : null,
@@ -75,6 +84,13 @@ function stridebr_api_workout_session_payload(array $session): array
         }
         $completed = stridebr_api_bool($exercise['concluido'] ?? false);
         if ($completed) $doneExercises++;
+        $group = trim((string) ($exercise['idgrupo_prescricao'] ?? '')) !== '' ? [
+            'id' => (string) $exercise['idgrupo_prescricao'],
+            'type' => (string) ($exercise['grupo_tipo'] ?? ''),
+            'rounds' => (int) ($exercise['grupo_voltas'] ?? 1),
+            'rest_between_exercises_s' => is_numeric($exercise['grupo_descanso_entre_exercicios_s'] ?? null) ? (int) $exercise['grupo_descanso_entre_exercicios_s'] : null,
+            'rest_after_round_s' => is_numeric($exercise['grupo_descanso_pos_volta_s'] ?? null) ? (int) $exercise['grupo_descanso_pos_volta_s'] : null,
+        ] : null;
         $exercises[] = [
             'id' => (string) $exercise['idsessao_exercicio'],
             'exercise_id' => !empty($exercise['idexercicio']) ? (string) $exercise['idexercicio'] : null,
@@ -82,6 +98,9 @@ function stridebr_api_workout_session_payload(array $session): array
             'order' => (int) $exercise['ordem'],
             'block' => !empty($exercise['bloco_snapshot']) ? (string) $exercise['bloco_snapshot'] : null,
             'cluster' => !empty($exercise['cluster_snapshot']) ? (string) $exercise['cluster_snapshot'] : null,
+            'prescription_method' => trim((string) ($exercise['metodo_prescricao'] ?? '')) ?: 'standard',
+            'prescription' => workoutPrescriptionDecode($exercise['config_prescricao'] ?? null) ?: null,
+            'group' => $group,
             'completed' => $completed,
             'planned' => [
                 'sets' => $exercise['series_planejadas'] !== null ? (int) $exercise['series_planejadas'] : null,
@@ -124,12 +143,18 @@ function stridebr_api_workout_session_payload(array $session): array
             'time' => !empty($session['hora_ocorrencia_planejada']) ? substr((string) $session['hora_ocorrencia_planejada'], 0, 5) : null,
             'timezone' => stridebr_api_workout_timezone(),
         ],
+        'structured_prescription' => [
+            'version' => 1,
+            'present' => count(array_filter($exercises, static fn(array $item): bool => ($item['prescription_method'] ?? 'standard') !== 'standard' || $item['group'] !== null)) > 0,
+            'client_capability' => 'structured_prescription_v1',
+        ],
         'progress' => [
             'exercises_completed' => $doneExercises,
             'exercises_total' => count($exercises),
             'sets_completed' => $doneSets,
             'sets_total' => $totalSets,
         ],
+        'execution_sequence' => array_values((array) ($session['execution_sequence'] ?? [])),
         'exercises' => $exercises,
     ];
 }

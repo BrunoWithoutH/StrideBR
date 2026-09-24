@@ -49,6 +49,8 @@ for (const item of fixture.series) {
     near(series.distance_m, item.distance, 0.001, `distância da série ${item.slug}`)
     ok(series.unit === item.unit, `unidade da série ${item.slug}`)
 }
+ok(engine.chooseDistanceUnit(54.73, engine.context({slug:'lancamento-de-dardo',registered_m:54.73})) === 'm', 'dardo usa metros')
+ok(engine.formatDistance(54.73, engine.context({slug:'lancamento-de-dardo',registered_m:54.73}), 'pt-BR') === '54,73 m', 'dardo preserva centímetro')
 ok(engine.chooseDistanceUnit(5000, engine.context({slug:'corrida',registered_m:5000})) === 'km', '5000 m comum usa km')
 ok(engine.chooseDistanceUnit(5000, engine.context({slug:'atletismo-5000m',registered_m:5000})) === 'm', '5000 m pista usa m')
 ok(engine.chooseDistanceUnit(1500, engine.context({slug:'atletismo-1500m'}), 'km') === 'km', 'manual vence disciplina')

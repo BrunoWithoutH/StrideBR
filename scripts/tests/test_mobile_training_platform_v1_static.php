@@ -28,7 +28,7 @@ foreach (['stridebr_api_training_exercises', 'stridebr_api_training_exercise_cre
     $assert(str_contains($platform, 'function ' . $fn), 'Plataforma precisa implementar ' . $fn);
 }
 $assert(str_contains($service, 'treinoEstruturaNormalizar') && str_contains($service, 'treinoAgendadoSalvarEstrutura') && str_contains($service, 'treinoTemplateSalvarEstrutura'), 'Editor deve reutilizar serviço estrutural compartilhado.');
-$assert(str_contains($service, 'beginTransaction') && str_contains($service, "DELETE FROM treinos_agendados_exercicios"), 'Salvar estrutura agendada precisa ser transacional.');
+$assert(str_contains($service, 'beginTransaction') && str_contains($service, 'workoutDefinitionWriteScheduledItems'), 'Salvar estrutura agendada precisa ser transacional e usar materialização canônica.');
 foreach (['sets', 'repetitions', 'load', 'rest_s', 'block', 'cluster', 'duration_s', 'distance_m', 'intensity', 'rpe', 'rir', 'cadence'] as $field) {
     $assert(str_contains($service, "'{$field}'") || str_contains($service, "['{$field}']"), 'Editor deve reconhecer ' . $field);
 }

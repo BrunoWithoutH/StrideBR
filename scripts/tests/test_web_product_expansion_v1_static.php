@@ -28,6 +28,7 @@ $cronograma = $read('src/function/cronograma.php');
 $training = $read('src/function/training_platform_service.php');
 $apiWorkouts = $read('src/function/api_workouts.php');
 $workoutPage = $read('public/user/exercicioscronograma.php');
+$workoutBuilder = $read('src/layout/workout_builder.php');
 $activityDetailJs = $read('public/assets/js/activity-detail-v3.js');
 $plannedApi = $read('public/api/atividade-planned-actual.php');
 $plannedService = $read('src/function/endurance_workout_analysis.php');
@@ -71,8 +72,8 @@ $assert(str_contains($insights, 'FROM series_exercicio_atividade sea') && !str_c
 $assert(str_contains($insights, 'SELECT MAX(sea.carga_kg) FROM series_exercicio_atividade'), 'insights de força históricos precisam usar a mesma fonte canônica.');
 
 $assert(str_contains($migration, 'repeticoes_bloco') && str_contains($migration, 'alvo_tipo') && str_contains($migration, 'recuperacao_duracao_s'), 'schema endurance precisa persistir repetição, alvo e recuperação.');
-$assert(str_contains($workoutPage, 'Aquecimento') && str_contains($workoutPage, 'Trabalho') && str_contains($workoutPage, 'Recuperação') && str_contains($workoutPage, 'Desaquecimento'), 'editor Web precisa expor passos endurance.');
-$assert(str_contains($workoutPage, "['pace'=>'Pace','speed'=>'Velocidade','heart_rate'=>'FC','rpe'=>'RPE','duration'=>'Duração','distance'=>'Distância']"), 'editor precisa expor targets de endurance suportados.');
+$assert(str_contains($workoutPage, "['warmup','work','interval_group','recovery','cooldown']") && str_contains($workoutBuilder, "workoutBuilderStepLabel") && str_contains($workoutBuilder, "'workout_builder.step.'"), 'Builder Web precisa expor warmup/work/interval/recovery/cooldown no mesmo fluxo.');
+$assert(str_contains($workoutBuilder, "['pace'=>'Pace','speed'=>'Velocidade','heart_rate'=>'FC','rpe'=>'RPE','duration'=>'Duração','distance'=>'Distância']"), 'Builder precisa expor targets de endurance suportados.');
 $assert(str_contains($cronograma, 'cronogramaNormalizarPassoEstruturado') && str_contains($cronograma, 'cronogramaPassoNomePadrao'), 'cronograma precisa centralizar normalização dos passos.');
 $assert(str_contains($training, "array_key_exists('step_type', \$row)") && str_contains($training, "isset(\$row['target'])") && str_contains($training, "isset(\$row['recovery'])"), 'Training Platform precisa aceitar o contrato canônico endurance do Mobile.');
 $assert(str_contains($apiWorkouts, "'step_type'") && str_contains($apiWorkouts, "'repeat_count'") && str_contains($apiWorkouts, "'target'") && str_contains($apiWorkouts, "'recovery'"), 'Workout API precisa devolver os passos estruturados.');

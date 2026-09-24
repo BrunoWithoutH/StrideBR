@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/cronograma.php';
+require_once __DIR__ . '/workout_definition.php';
 
 function compartilhamentoCronogramaSnapshot(PDO $pdo, string $idUsuario, string $idCronograma): array
 {
@@ -10,12 +10,14 @@ function compartilhamentoCronogramaSnapshot(PDO $pdo, string $idUsuario, string 
     if ($cronograma === []) throw new RuntimeException('Cronograma não encontrado.');
     $treinos = cronogramaListarTreinos($pdo, $idCronograma, $idUsuario);
     foreach ($treinos as &$treino) {
-        $treino['exercicios'] = cronogramaListarTreinoExercicios($pdo, (string) $treino['idtreino'], $idUsuario);
+        $definition = workoutDefinitionFromSchedule($pdo, $idUsuario, (string) $treino['idtreino']);
+        $treino['definition'] = $definition;
+        $treino['exercicios'] = workoutDefinitionRows($definition);
     }
     unset($treino);
     return [
         'format' => 'stridebr-schedule',
-        'version' => 1,
+        'version' => 2,
         'cronograma' => ['nome' => $cronograma['nome'], 'descricao' => $cronograma['descricao'] ?? null],
         'treinos' => $treinos,
     ];
@@ -35,7 +37,7 @@ function compartilhamentoCronogramaNomeLivre(PDO $pdo, string $idUsuario, string
 
 function compartilhamentoImportarSnapshot(PDO $pdo, string $idUsuario, array $data): string
 {
-    if (($data['format'] ?? '') !== 'stridebr-schedule' || (int) ($data['version'] ?? 0) !== 1 || !is_array($data['cronograma'] ?? null) || !is_array($data['treinos'] ?? null)) {
+    if (($data['format'] ?? '') !== 'stridebr-schedule' || !in_array((int) ($data['version'] ?? 0), [1,2], true) || !is_array($data['cronograma'] ?? null) || !is_array($data['treinos'] ?? null)) {
         throw new InvalidArgumentException('Cronograma compartilhado inválido.');
     }
     if (count($data['treinos']) > 100) {
@@ -65,7 +67,11 @@ function compartilhamentoImportarSnapshot(PDO $pdo, string $idUsuario, array $da
             if (stridebr_db_bool($treino['termina_dia_seguinte'] ?? false)) $payload['termina_dia_seguinte'] = '1';
             $idTreino = cronogramaSalvarTreino($pdo, $idUsuario, $payload);
             $rows = [];
-            $exercicios = $treino['exercicios'] ?? [];
+            if (is_array($treino['definition'] ?? null) && ($treino['definition']['schema'] ?? '') === 'stridebr-workout-definition') {
+                $exercicios = workoutDefinitionRows($treino['definition']);
+            } else {
+                $exercicios = $treino['exercicios'] ?? [];
+            }
             if (!is_array($exercicios) || count($exercicios) > 200) {
                 throw new InvalidArgumentException('Um treino compartilhado possui exercícios inválidos ou excede o limite de 200 itens.');
             }
@@ -83,6 +89,29 @@ function compartilhamentoImportarSnapshot(PDO $pdo, string $idUsuario, array $da
                     'cluster' => $exercicio['cluster'] ?? '',
                     'descanso' => $exercicio['descanso'] ?? '',
                     'observacoes' => $exercicio['observacoes'] ?? '',
+                    'duracao' => $exercicio['duracao'] ?? '',
+                    'distancia' => $exercicio['distancia'] ?? '',
+                    'intensidade' => $exercicio['intensidade'] ?? '',
+                    'rpe' => $exercicio['rpe'] ?? '',
+                    'rir' => $exercicio['rir'] ?? '',
+                    'tempo_execucao' => $exercicio['tempo_execucao'] ?? '',
+                    'cadencia' => $exercicio['cadencia'] ?? '',
+                    'tipo_passo' => $exercicio['tipo_passo'] ?? 'exercise',
+                    'repeticoes_bloco' => $exercicio['repeticoes_bloco'] ?? null,
+                    'alvo_tipo' => $exercicio['alvo_tipo'] ?? null,
+                    'alvo_min' => $exercicio['alvo_min'] ?? null,
+                    'alvo_max' => $exercicio['alvo_max'] ?? null,
+                    'alvo_unidade' => $exercicio['alvo_unidade'] ?? null,
+                    'recuperacao_duracao_s' => $exercicio['recuperacao_duracao_s'] ?? null,
+                    'recuperacao_distancia_m' => $exercicio['recuperacao_distancia_m'] ?? null,
+                    'metodo_prescricao' => $exercicio['metodo_prescricao'] ?? 'standard',
+                    'config_prescricao' => $exercicio['config_prescricao'] ?? null,
+                    'prescription' => is_array($exercicio['prescription'] ?? null) ? $exercicio['prescription'] : workoutPrescriptionDecode($exercicio['config_prescricao'] ?? null),
+                    'grupo_chave' => $exercicio['grupo_chave'] ?? $exercicio['idgrupo_prescricao'] ?? '',
+                    'grupo_tipo' => $exercicio['grupo_tipo'] ?? '',
+                    'grupo_voltas' => $exercicio['grupo_voltas'] ?? null,
+                    'grupo_descanso_entre_exercicios_s' => $exercicio['grupo_descanso_entre_exercicios_s'] ?? null,
+                    'grupo_descanso_pos_volta_s' => $exercicio['grupo_descanso_pos_volta_s'] ?? null,
                 ];
             }
             if ($rows !== []) cronogramaSalvarExercicios($pdo, $idTreino, $idUsuario, $rows, []);

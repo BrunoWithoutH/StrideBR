@@ -556,6 +556,15 @@ function stridebr_api_workout_exercise_payload(array $row): array
         'rest_s' => function_exists('stridebr_api_training_text_seconds') ? stridebr_api_training_text_seconds($rest) : null,
         'block' => isset($row['bloco']) && $row['bloco'] !== null ? (string) $row['bloco'] : null,
         'cluster' => isset($row['cluster']) && $row['cluster'] !== null ? (string) $row['cluster'] : null,
+        'prescription_method' => trim((string) ($row['metodo_prescricao'] ?? '')) ?: 'standard',
+        'prescription' => workoutPrescriptionDecode($row['config_prescricao'] ?? null) ?: null,
+        'group' => trim((string) ($row['idgrupo_prescricao'] ?? '')) !== '' ? [
+            'id' => (string) $row['idgrupo_prescricao'],
+            'type' => (string) ($row['grupo_tipo'] ?? ''),
+            'rounds' => (int) ($row['grupo_voltas'] ?? 1),
+            'rest_between_exercises_s' => is_numeric($row['grupo_descanso_entre_exercicios_s'] ?? null) ? (int) $row['grupo_descanso_entre_exercicios_s'] : null,
+            'rest_after_round_s' => is_numeric($row['grupo_descanso_pos_volta_s'] ?? null) ? (int) $row['grupo_descanso_pos_volta_s'] : null,
+        ] : null,
         'duration' => $duration,
         'duration_s' => function_exists('stridebr_api_training_text_seconds') ? stridebr_api_training_text_seconds($duration) : null,
         'distance' => $distance,
@@ -620,7 +629,8 @@ function stridebr_api_workout_detail(PDO $pdo, string $userId, string $apiId): a
         if (!$row) return [];
         $exerciseStmt = $pdo->prepare('SELECT * FROM treinos_agendados_exercicios WHERE idagendamento = :id ORDER BY ordem');
         $exerciseStmt->execute([':id' => $parsed['id']]);
-        $exercises = array_map('stridebr_api_workout_exercise_payload', $exerciseStmt->fetchAll());
+        $exerciseRows = cronogramaHidratarExerciciosPlanejados($pdo, $userId, $exerciseStmt->fetchAll());
+        $exercises = array_map('stridebr_api_workout_exercise_payload', $exerciseRows);
         $sport = !empty($row['resolved_idmodalidade']) ? [
             'idmodalidade' => $row['resolved_idmodalidade'], 'nome' => $row['modalidade_nome'], 'slug' => $row['modalidade_slug'],
             'familia_hub' => $row['modalidade_family'], 'permite_rota' => $row['modalidade_route'],
@@ -734,7 +744,8 @@ function stridebr_api_workout_template(PDO $pdo, string $userId, string $templat
     if (!$row) return [];
     $exerciseStmt = $pdo->prepare('SELECT * FROM treinos_modelo_exercicios WHERE idtreino_modelo = :id ORDER BY ordem');
     $exerciseStmt->execute([':id' => $templateId]);
-    $exercises = array_map('stridebr_api_workout_exercise_payload', $exerciseStmt->fetchAll());
+    $exerciseRows = cronogramaHidratarExerciciosPlanejados($pdo, $userId, $exerciseStmt->fetchAll());
+    $exercises = array_map('stridebr_api_workout_exercise_payload', $exerciseRows);
     $sport = !empty($row['idmodalidade']) ? [
         'idmodalidade' => $row['idmodalidade'], 'nome' => $row['modalidade_nome'], 'slug' => $row['modalidade_slug'],
         'familia_hub' => $row['modalidade_family'], 'permite_rota' => $row['modalidade_route'],
@@ -854,15 +865,8 @@ function stridebr_api_workout_create(PDO $pdo, string $userId, array $payload): 
             ':title' => $title, ':notes' => $notes, ':intensity' => $intensity, ':objective' => $objective,
         ]);
         if ($templateId !== '') {
-            $copy = $pdo->prepare(
-                'INSERT INTO treinos_agendados_exercicios
-                    (idagendamento_exercicio,idagendamento,idexercicio,nome_snapshot,series,repeticoes,carga,bloco,cluster,descanso,observacoes,duracao,distancia,intensidade,rpe,rir,tempo_execucao,cadencia,tipo_passo,repeticoes_bloco,alvo_tipo,alvo_min,alvo_max,alvo_unidade,recuperacao_duracao_s,recuperacao_distancia_m,ordem)
-                 SELECT substr(md5(:appointment || idtreino_modelo_exercicio || random()::text),1,21), :appointment2, idexercicio, nome_snapshot, series, repeticoes, carga, bloco, cluster, descanso, observacoes, duracao, distancia, intensidade, rpe, rir, tempo_execucao, cadencia, tipo_passo, repeticoes_bloco, alvo_tipo, alvo_min, alvo_max, alvo_unidade, recuperacao_duracao_s, recuperacao_distancia_m, ordem
-                   FROM treinos_modelo_exercicios
-                  WHERE idtreino_modelo = :template
-                  ORDER BY ordem'
-            );
-            $copy->execute([':appointment' => $id, ':appointment2' => $id, ':template' => $templateId]);
+            $definition = workoutDefinitionFromTemplate($pdo, $userId, $templateId);
+            workoutDefinitionMaterializeScheduled($pdo, $id, $definition);
         }
         if (array_key_exists('structure', $payload)) {
             if (!is_array($payload['structure'])) throw new InvalidArgumentException('structure precisa ser um objeto.');
