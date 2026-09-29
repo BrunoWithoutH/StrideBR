@@ -1010,76 +1010,7 @@ $initialView = in_array($requestedInitialView, $allowedInitialViews, true)
                     <div class="workout-preview-backdrop" data-close-preview></div>
                     <section class="workout-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="workout-preview-title">
                         <button type="button" class="icon-button workout-preview-close" data-close-preview aria-label="<?php echo stridebr_e(stridebr_t('common.close')); ?>">×</button>
-                        <?php foreach ($treinos as $item): ?>
-                            <?php $previewExercises = $exerciciosPorTreino[$item['idtreino']] ?? []; $previewDefinition = workoutDefinitionBuild($item, $previewExercises, 'schedule'); $previewPresentation = workoutDefinitionPresentation($previewDefinition); $previewCapabilities = workoutDefinitionCapabilities($previewDefinition); ?>
-                            <div class="workout-preview-content" data-workout-preview-content="<?php echo stridebr_e($item['idtreino']); ?>" hidden>
-                                <div class="workout-preview-heading">
-                                    <div class="workout-preview-occurrence-context" data-preview-occurrence-context hidden></div>
-                                    <span><?php echo stridebr_e($dias[(int) $item['dia_semana']]); ?> · <?php echo stridebr_e(substr($item['hora_inicio'], 0, 5)); ?>–<?php echo stridebr_e(substr($item['hora_fim'], 0, 5)); ?><?php echo stridebr_db_bool($item['termina_dia_seguinte']) ? ' +1' : ''; ?></span>
-                                    <?php if (!empty($item['codigo']) || !empty($item['foco'])): ?><div class="workout-preview-tags"><?php if (!empty($item['codigo'])): ?><b><?php echo stridebr_e((string) $item['codigo']); ?></b><?php endif; ?><?php if (!empty($item['foco'])): ?><b><?php echo stridebr_e((string) $item['foco']); ?></b><?php endif; ?></div><?php endif; ?>
-                                    <h2 id="workout-preview-title"><?php echo stridebr_e($item['titulo']); ?></h2>
-                                    <?php if (!empty($item['descricao'])): ?><p><?php echo stridebr_e($item['descricao']); ?></p><?php endif; ?>
-                                </div>
-                                <?php $plannedReviewRows=$previewExercises; $plannedReviewKind='workout'; $plannedReviewId=(string) $item['idtreino']; $plannedReviewReturn='/user/cronogramatreinos.php?id='.rawurlencode($idSelecionado); require dirname(__DIR__,2).'/src/layout/planned_name_review.php'; ?>
-                                <div class="workout-preview-exercises">
-                                    <?php if (($previewPresentation['items'] ?? []) === []): ?>
-                                        <p class="preview-empty"><?php echo stridebr_e(stridebr_t('schedule.no_exercises')); ?></p>
-                                    <?php else: ?>
-                                        <?php
-                                        $presentationItemsByOrder = [];
-                                        foreach ((array) $previewPresentation['items'] as $presentationItem) $presentationItemsByOrder[(int) ($presentationItem['order'] ?? 0)] = $presentationItem;
-                                        $groupedOrders = [];
-                                        $groupsByFirst = [];
-                                        foreach ((array) $previewPresentation['groups'] as $presentationGroup) {
-                                            $members = array_values(array_map('intval', (array) ($presentationGroup['members'] ?? [])));
-                                            sort($members);
-                                            if ($members === []) continue;
-                                            foreach ($members as $memberOrder) $groupedOrders[$memberOrder] = true;
-                                            $presentationGroup['members'] = $members;
-                                            $groupsByFirst[$members[0]] = $presentationGroup;
-                                        }
-                                        ?>
-                                        <?php foreach ((array) $previewPresentation['items'] as $presentationItem): $presentationOrder=(int)($presentationItem['order']??0); ?>
-                                            <?php if (isset($groupsByFirst[$presentationOrder])): $presentationGroup=$groupsByFirst[$presentationOrder]; $groupType=(string)($presentationGroup['type']??'superset'); ?>
-                                                <section class="preview-prescription-group">
-                                                    <div class="preview-prescription-group-head"><strong><?php echo stridebr_e(stridebr_t('workout_builder.group.' . $groupType)); ?></strong><span><?php echo stridebr_e((string)($presentationGroup['rounds']??1)); ?> <?php echo stridebr_e(stridebr_t('workout_builder.group_rounds')); ?></span></div>
-                                                    <?php foreach ($presentationGroup['members'] as $memberOrder): $member=$presentationItemsByOrder[$memberOrder]??null; if(!$member) continue; ?>
-                                                        <article class="preview-exercise<?php echo ($member['step_type']??'exercise')!=='exercise'?' is-endurance':''; ?>"><span class="preview-exercise-number"><?php echo (int)$memberOrder; ?></span><div><strong><?php echo stridebr_e((string)($member['name']??'')); ?></strong><?php if(!empty($member['summary'])): ?><div class="preview-exercise-meta"><span><?php echo stridebr_e((string)$member['summary']); ?></span></div><?php endif; ?><?php if(!empty($member['notes'])): ?><small><?php echo stridebr_e((string)$member['notes']); ?></small><?php endif; ?></div></article>
-                                                    <?php endforeach; ?>
-                                                </section>
-                                            <?php elseif (!isset($groupedOrders[$presentationOrder])): ?>
-                                                <article class="preview-exercise<?php echo ($presentationItem['step_type']??'exercise')!=='exercise'?' is-endurance':''; ?>"><span class="preview-exercise-number"><?php echo $presentationOrder; ?></span><div><strong><?php echo stridebr_e((string)($presentationItem['name']??'')); ?></strong><?php if(!empty($presentationItem['summary'])): ?><div class="preview-exercise-meta"><span><?php echo stridebr_e((string)$presentationItem['summary']); ?></span></div><?php endif; ?><?php if(!empty($presentationItem['notes'])): ?><small><?php echo stridebr_e((string)$presentationItem['notes']); ?></small><?php endif; ?></div></article>
-                                            <?php endif; ?>
-                                        <?php endforeach; ?>
-                                    <?php endif; ?>
-                                </div>
-                                <div class="workout-preview-actions">
-                                    <div class="workout-preview-primary-actions">
-                                        <?php if ($workoutSessionsEnabled): ?>
-                                            <?php if (!empty($previewCapabilities['can_start_session'])): ?><button type="button" class="primary-button" data-start-workout="<?php echo stridebr_e($item['idtreino']); ?>"><?php echo stridebr_e(stridebr_t('schedule.start_live')); ?></button><?php endif; ?>
-                                            <?php if (!empty($previewCapabilities['can_quick_complete'])): ?><button type="button" class="secondary-button" data-quick-register-workout="<?php echo stridebr_e($item['idtreino']); ?>" data-quick-complete-mode="<?php echo stridebr_e((string)$previewCapabilities['quick_complete_mode']); ?>" data-workout-title="<?php echo stridebr_e($item['titulo']); ?>" data-workout-time="<?php echo stridebr_e(substr((string) $item['hora_inicio'], 0, 5)); ?>" data-workout-duration="<?php echo cronogramaDuracaoMinutos($item); ?>"><?php echo stridebr_e(stridebr_t(($previewCapabilities['quick_complete_mode']??'')==='ambiguous'?'schedule.complete_without_details':'schedule.log')); ?></button><?php endif; ?>
-                                        <?php endif; ?>
-                                        <button type="button" class="secondary-button" data-edit-workout="<?php echo stridebr_e((string) $item['idtreino']); ?>"><?php echo stridebr_e(stridebr_t('common.edit')); ?></button>
-                                        <details class="workout-preview-more">
-                                            <summary class="secondary-button"><?php echo stridebr_e(stridebr_t('common.more')); ?></summary>
-                                            <div class="workout-preview-menu">
-                                                <button type="button" data-preview-move><?php echo stridebr_e(stridebr_t('schedule.reschedule')); ?></button>
-                                                <button type="button" data-preview-adjust-history hidden><?php echo stridebr_e(stridebr_t('schedule.fix_plan_actual')); ?></button>
-                                                <button type="button" data-preview-skip><?php echo stridebr_e(stridebr_t('schedule.skip_occurrence')); ?></button>
-                                                <a href="/user/exercicioscronograma.php?idtreino=<?php echo urlencode($item['idtreino']); ?>"><?php echo stridebr_e(stridebr_t('schedule.edit_exercises')); ?></a>
-                                                <?php if (cronogramaBibliotecaDisponivel($pdo) && !empty($item['idtreino_modelo'])): ?>
-                                                <form method="POST" class="preview-copy-form"><?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="update_library_from_workout"><input type="hidden" name="idcronograma" value="<?php echo stridebr_e($idSelecionado); ?>"><input type="hidden" name="idtreino" value="<?php echo stridebr_e($item['idtreino']); ?>"><input type="hidden" name="return_to" value="" data-return-current><button type="submit"><?php echo stridebr_e(stridebr_t('schedule.update_saved')); ?></button></form>
-                                                <?php elseif (cronogramaBibliotecaDisponivel($pdo)): ?>
-                                                <form method="POST" class="preview-copy-form"><?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="save_workout_to_library"><input type="hidden" name="idcronograma" value="<?php echo stridebr_e($idSelecionado); ?>"><input type="hidden" name="idtreino" value="<?php echo stridebr_e($item['idtreino']); ?>"><input type="hidden" name="return_to" value="" data-return-current><button type="submit"><?php echo stridebr_e(stridebr_t('schedule.save_library')); ?></button></form>
-                                                <?php endif; ?>
-                                                <form method="POST" class="preview-copy-form"><?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="duplicate_workout"><input type="hidden" name="idcronograma" value="<?php echo stridebr_e($idSelecionado); ?>"><input type="hidden" name="idtreino" value="<?php echo stridebr_e($item['idtreino']); ?>"><input type="hidden" name="duplicate_mode" value="edit"><input type="hidden" name="return_to" value="" data-return-current><button type="submit"><?php echo stridebr_e(stridebr_t('schedule.duplicate_edit')); ?></button></form>
-                                                <form method="POST" class="preview-delete-form" data-confirm="Remover este treino do cronograma?"><?php echo stridebr_csrf_field(); ?><input type="hidden" name="action" value="delete_workout"><input type="hidden" name="idcronograma" value="<?php echo stridebr_e($idSelecionado); ?>"><input type="hidden" name="idtreino" value="<?php echo stridebr_e($item['idtreino']); ?>"><input type="hidden" name="return_to" value="" data-return-current><button type="submit" class="is-danger"><?php echo stridebr_e(stridebr_t('schedule.delete_workout')); ?></button></form>
-                                            </div>
-                                        </details>
-                                    </div>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
+                        <div class="workout-preview-host" data-workout-preview-host aria-live="polite"></div>
                     </section>
                 </div>
 

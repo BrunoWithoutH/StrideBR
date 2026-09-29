@@ -60,7 +60,7 @@ $assert(str_contains($preview, "? 'missed' : 'planned'"), 'Preview precisa disti
 $assert(str_contains($preview, 'ra.idusuario=:user AND ra.idtreino_cronograma=:workout'), 'Preview performed precisa validar owner e workout.');
 $assert(str_contains($previewHttp, "'preview_mode' => \$preview['preview_mode']"), 'Endpoint de preview precisa expor preview_mode.');
 $assert(str_contains($previewJs, 'data.preview_mode') && str_contains($previewJs, 'preview-performed-sets'), 'UI precisa renderizar preview contextual performed.');
-$assert(str_contains($previewJs, "params.set('activity_id', previewActivityId)"), 'UI precisa enviar activity_id contextual para validação.');
+$assert(str_contains($previewJs, "params.set('activity_id', context.activityId)"), 'UI precisa enviar activity_id contextual imutável para validação.');
 $assert(str_contains($openapi, '/sports:') && str_contains($openapi, '/people/search:'), 'OpenAPI precisa documentar Sports e People API.');
 
 foreach (['emailusuario','foneusuario','datanascimentousuario'] as $private) {

@@ -1,3 +1,63 @@
+const createWorkoutPreviewRequestState = () => {
+    let generation = 0
+    let active = null
+    return {
+        begin(context) {
+            active?.controller.abort()
+            const controller = new AbortController()
+            const request = Object.freeze({
+                generation: ++generation,
+                controller,
+                context: Object.freeze({...context}),
+            })
+            active = request
+            return request
+        },
+        isCurrent(request) {
+            return Boolean(request && active === request && request.generation === generation && !request.controller.signal.aborted)
+        },
+        invalidate() {
+            active?.controller.abort()
+            active = null
+            generation++
+        },
+        current() { return active },
+        generation() { return generation },
+    }
+}
+
+if (typeof window !== 'undefined') {
+    window.StrideBRWorkoutPreviewRequestState = {create: createWorkoutPreviewRequestState}
+}
+
+const createWorkoutPreviewSlot = host => {
+    const requests = createWorkoutPreviewRequestState()
+    return {
+        begin(context, loadingNode) {
+            const request = requests.begin(context)
+            if (loadingNode !== undefined) host.replaceChildren(loadingNode)
+            return request
+        },
+        isCurrent: request => requests.isCurrent(request),
+        replace(request, node) {
+            if (!requests.isCurrent(request)) return false
+            host.replaceChildren(node)
+            return true
+        },
+        invalidate() { requests.invalidate() },
+        close() {
+            requests.invalidate()
+            host.replaceChildren()
+        },
+        current: () => requests.current(),
+        generation: () => requests.generation(),
+    }
+}
+
+if (typeof window !== 'undefined') {
+    window.StrideBRWorkoutPreviewSlot = {create: createWorkoutPreviewSlot}
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const tr = (key, values = {}, fallback = null) => window.StrideBRI18n?.t?.(key, values, fallback) ?? fallback ?? key
     const trn = (oneKey, otherKey, count, values = {}) => window.StrideBRI18n?.tn?.(oneKey, otherKey, count, values) ?? tr(Number(count) === 1 ? oneKey : otherKey, {...values, count})
@@ -413,6 +473,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
     const refreshScheduleView = async (targetUrl = window.location.href) => {
+        if (previewModal && !previewModal.hidden) closePreview({restoreFocus:false});
+        else invalidatePreviewRequest();
         const workspace = document.querySelector('.schedule-view-layout');
         workspace?.setAttribute('aria-busy', 'true');
         workspace?.classList.add('is-refreshing');
@@ -632,7 +694,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const previewModal = document.querySelector('[data-workout-preview-modal]');
-    const previewContents = () => [...document.querySelectorAll('[data-workout-preview-content]')];
+    const previewHost = previewModal?.querySelector('[data-workout-preview-host]') || null;
+    const previewSlot = previewHost ? createWorkoutPreviewSlot(previewHost) : null;
+    let previewLastTrigger = null;
     let previewWorkoutId = '';
     let previewWorkoutDate = '';
     let previewOccurrenceOriginal = '';
@@ -642,29 +706,46 @@ document.addEventListener('DOMContentLoaded', () => {
     let previewRealizedTime = '';
     let previewActivityId = '';
     let previewCompleted = false;
+    const previewContents = () => previewHost ? [...previewHost.querySelectorAll('[data-workout-preview-content]')] : [];
     const shortDate = value => window.StrideBRI18n?.date?.(value, {day:'2-digit', month:'2-digit'}) || value || '';
-    const syncPreviewOccurrenceContext = trigger => {
+    const capturePreviewContext = trigger => {
         const source = trigger.closest('[data-occurrence-workout],[data-planned-date],[data-completed]') || trigger;
-        previewOccurrenceOriginal = trigger.dataset.occurrenceOriginal || source.dataset.occurrenceOriginal || '';
-        previewPlannedDate = trigger.dataset.plannedDate || source.dataset.plannedDate || trigger.dataset.workoutDate || '';
-        previewPlannedTime = trigger.dataset.plannedTime || source.dataset.plannedTime || '';
-        previewRealizedDate = trigger.dataset.realizedDate || source.dataset.realizedDate || '';
-        previewRealizedTime = trigger.dataset.realizedTime || source.dataset.realizedTime || '';
-        previewActivityId = trigger.dataset.activityId || source.dataset.activityId || '';
-        const completed = (trigger.dataset.completed || source.dataset.completed || '') === '1';
-        previewCompleted = completed;
-        const activeContent = previewContents().find(content => !content.hidden) || previewModal?.querySelector('[data-workout-preview-content]');
-        const context = activeContent?.querySelector('[data-preview-occurrence-context]') || null;
-        if (!context) return;
+        return Object.freeze({
+            workoutId: String(trigger.dataset.previewWorkout || ''),
+            workoutDate: String(trigger.dataset.workoutDate || source.dataset.occurrenceDate || source.dataset.plannedDate || ''),
+            occurrenceOriginal: String(trigger.dataset.occurrenceOriginal || source.dataset.occurrenceOriginal || ''),
+            plannedDate: String(trigger.dataset.plannedDate || source.dataset.plannedDate || trigger.dataset.workoutDate || ''),
+            plannedTime: String(trigger.dataset.plannedTime || source.dataset.plannedTime || ''),
+            realizedDate: String(trigger.dataset.realizedDate || source.dataset.realizedDate || ''),
+            realizedTime: String(trigger.dataset.realizedTime || source.dataset.realizedTime || ''),
+            activityId: String(trigger.dataset.activityId || source.dataset.activityId || ''),
+            completed: (trigger.dataset.completed || source.dataset.completed || '') === '1',
+        });
+    };
+    const applyPreviewContext = (context, content = null, resolvedActivityId = '') => {
+        previewWorkoutId = context.workoutId || '';
+        previewWorkoutDate = context.workoutDate || '';
+        previewOccurrenceOriginal = context.occurrenceOriginal || '';
+        previewPlannedDate = context.plannedDate || '';
+        previewPlannedTime = context.plannedTime || '';
+        previewRealizedDate = context.realizedDate || '';
+        previewRealizedTime = context.realizedTime || '';
+        previewActivityId = resolvedActivityId || context.activityId || '';
+        previewCompleted = Boolean(context.completed);
+        const target = content || previewHost?.querySelector('[data-workout-preview-content]') || null;
+        const occurrence = target?.querySelector('[data-preview-occurrence-context]') || null;
+        if (!occurrence) return;
         let text = '';
-        if (completed && previewRealizedDate && previewPlannedDate && previewPlannedDate !== previewRealizedDate) {
+        if (previewCompleted && previewRealizedDate && previewPlannedDate && previewPlannedDate !== previewRealizedDate) {
             text = tr('schedule.realized_planned', {realized: shortDate(previewRealizedDate), realized_time: previewRealizedTime ? tr('schedule.at_time', {time: previewRealizedTime}) : '', planned: shortDate(previewPlannedDate), planned_time: previewPlannedTime ? tr('schedule.at_time', {time: previewPlannedTime}) : ''});
-        } else if (!completed && previewPlannedDate && previewOccurrenceOriginal && previewPlannedDate !== previewOccurrenceOriginal) {
+        } else if (!previewCompleted && previewPlannedDate && previewOccurrenceOriginal && previewPlannedDate !== previewOccurrenceOriginal) {
             text = tr('schedule.planned_for', {date: shortDate(previewPlannedDate), time: previewPlannedTime ? tr('schedule.at_time', {time: previewPlannedTime}) : '', original: shortDate(previewOccurrenceOriginal)});
         }
-        context.textContent = text;
-        context.hidden = text === '';
+        occurrence.textContent = text;
+        occurrence.hidden = text === '';
     };
+    const previewRequestIsCurrent = request => Boolean(previewModal && !previewModal.hidden && previewSlot?.isCurrent(request));
+    const invalidatePreviewRequest = () => previewSlot?.invalidate();
     const compactSeconds = value => {
         const total=Math.max(0,Math.round(Number(value)||0))
         if(total>=3600){const h=Math.floor(total/3600),m=Math.floor((total%3600)/60),s=total%60;return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`}
@@ -791,72 +872,107 @@ document.addEventListener('DOMContentLoaded', () => {
         const modeLabel = tr(`schedule.preview_${previewMode}`);
         const actual = actualSummary(data.actual);
         const actualMarkup = previewMode === 'performed' && actual ? `<div class="workout-preview-actuals"><strong>${escapeHtml(tr('schedule.preview_actual_summary'))}</strong><span>${escapeHtml(actual)}</span></div>` : '';
-        content.innerHTML = `<div class="workout-preview-heading"><div class="workout-preview-occurrence-context" data-preview-occurrence-context hidden></div><span>${escapeHtml(workout.dia || '')} · ${escapeHtml(workout.hora_inicio || '')}–${escapeHtml(workout.hora_fim || '')}${workout.termina_dia_seguinte ? ' +1' : ''}</span><b class="workout-preview-mode" data-preview-mode-label>${escapeHtml(modeLabel)}</b>${tags ? `<div class="workout-preview-tags">${tags}</div>` : ''}<h2>${escapeHtml(workout.titulo || tr('schedule.workout_fallback'))}</h2>${workout.descricao ? `<p>${escapeHtml(workout.descricao)}</p>` : ''}${actualMarkup}</div><div class="workout-preview-exercises">${exerciseMarkup}</div><div class="workout-preview-actions"><div class="workout-preview-primary-actions">${sessionActions}<button type="button" class="secondary-button" data-edit-workout="${escapeHtml(workout.idtreino)}">${escapeHtml(tr('common.edit'))}</button><details class="workout-preview-more"><summary class="secondary-button">${escapeHtml(tr('common.more'))}</summary><div class="workout-preview-menu"><button type="button" data-preview-move>${escapeHtml(tr('schedule.reschedule'))}</button><button type="button" data-preview-adjust-history hidden>${escapeHtml(tr('schedule.fix_plan_actual'))}</button><button type="button" data-preview-skip>${escapeHtml(tr('schedule.skip_occurrence'))}</button><a href="/user/exercicioscronograma.php?idtreino=${encodeURIComponent(workout.idtreino)}">${escapeHtml(tr('schedule.edit_exercises'))}</a>${libraryAction}<form method="POST" class="preview-copy-form"><input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}"><input type="hidden" name="action" value="duplicate_workout"><input type="hidden" name="idcronograma" value="${escapeHtml(workout.idcronograma)}"><input type="hidden" name="idtreino" value="${escapeHtml(workout.idtreino)}"><input type="hidden" name="duplicate_mode" value="edit"><input type="hidden" name="return_to" value="${escapeHtml(`${location.pathname}${location.search}${location.hash}`)}" data-return-current><button type="submit">${escapeHtml(tr('schedule.duplicate_edit'))}</button></form><form method="POST" class="preview-delete-form" data-confirm="${escapeHtml(tr('schedule.remove_from_schedule'))}"><input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}"><input type="hidden" name="action" value="delete_workout"><input type="hidden" name="idcronograma" value="${escapeHtml(workout.idcronograma)}"><input type="hidden" name="idtreino" value="${escapeHtml(workout.idtreino)}"><input type="hidden" name="return_to" value="${escapeHtml(`${location.pathname}${location.search}${location.hash}`)}" data-return-current><button type="submit" class="is-danger">${escapeHtml(tr('schedule.delete_workout'))}</button></form></div></details></div></div>`;
-        previewModal.querySelector('.workout-preview-dialog')?.appendChild(content);
+        content.innerHTML = `<div class="workout-preview-heading"><div class="workout-preview-occurrence-context" data-preview-occurrence-context hidden></div><span>${escapeHtml(workout.dia || '')} · ${escapeHtml(workout.hora_inicio || '')}–${escapeHtml(workout.hora_fim || '')}${workout.termina_dia_seguinte ? ' +1' : ''}</span><b class="workout-preview-mode" data-preview-mode-label>${escapeHtml(modeLabel)}</b>${tags ? `<div class="workout-preview-tags">${tags}</div>` : ''}<h2 id="workout-preview-title">${escapeHtml(workout.titulo || tr('schedule.workout_fallback'))}</h2>${workout.descricao ? `<p>${escapeHtml(workout.descricao)}</p>` : ''}${actualMarkup}</div><div class="workout-preview-exercises">${exerciseMarkup}</div><div class="workout-preview-actions"><div class="workout-preview-primary-actions">${sessionActions}<button type="button" class="secondary-button" data-edit-workout="${escapeHtml(workout.idtreino)}">${escapeHtml(tr('common.edit'))}</button><details class="workout-preview-more"><summary class="secondary-button">${escapeHtml(tr('common.more'))}</summary><div class="workout-preview-menu"><button type="button" data-preview-move>${escapeHtml(tr('schedule.reschedule'))}</button><button type="button" data-preview-adjust-history hidden>${escapeHtml(tr('schedule.fix_plan_actual'))}</button><button type="button" data-preview-skip>${escapeHtml(tr('schedule.skip_occurrence'))}</button><a href="/user/exercicioscronograma.php?idtreino=${encodeURIComponent(workout.idtreino)}">${escapeHtml(tr('schedule.edit_exercises'))}</a>${libraryAction}<form method="POST" class="preview-copy-form"><input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}"><input type="hidden" name="action" value="duplicate_workout"><input type="hidden" name="idcronograma" value="${escapeHtml(workout.idcronograma)}"><input type="hidden" name="idtreino" value="${escapeHtml(workout.idtreino)}"><input type="hidden" name="duplicate_mode" value="edit"><input type="hidden" name="return_to" value="${escapeHtml(`${location.pathname}${location.search}${location.hash}`)}" data-return-current><button type="submit">${escapeHtml(tr('schedule.duplicate_edit'))}</button></form><form method="POST" class="preview-delete-form" data-confirm="${escapeHtml(tr('schedule.remove_from_schedule'))}"><input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}"><input type="hidden" name="action" value="delete_workout"><input type="hidden" name="idcronograma" value="${escapeHtml(workout.idcronograma)}"><input type="hidden" name="idtreino" value="${escapeHtml(workout.idtreino)}"><input type="hidden" name="return_to" value="${escapeHtml(`${location.pathname}${location.search}${location.hash}`)}" data-return-current><button type="submit" class="is-danger">${escapeHtml(tr('schedule.delete_workout'))}</button></form></div></details></div></div>`;
         return content;
     };
-    const ensurePreviewContent = async id => {
-        previewContents().filter(item => item.dataset.workoutPreviewContent === id).forEach(item => item.remove());
+    const createPreviewLoading = context => {
         const loading = document.createElement('div');
         loading.className = 'workout-preview-content workout-preview-loading';
-        loading.dataset.workoutPreviewContent = id;
+        loading.dataset.workoutPreviewContent = context.workoutId;
+        loading.dataset.previewState = 'loading';
         loading.innerHTML = '<div class="workout-preview-loading-line"><span></span><span></span><span></span></div>';
-        previewModal?.querySelector('.workout-preview-dialog')?.appendChild(loading);
-        try {
-            const params = new URLSearchParams({idtreino:id});
-            if (previewOccurrenceOriginal) params.set('occurrence_original', previewOccurrenceOriginal);
-            if (previewPlannedDate) params.set('planned_date', previewPlannedDate);
-            if (previewActivityId) params.set('activity_id', previewActivityId);
-            const response = await (window.StrideBRNet?.fetch || fetch)(`/api/cronograma-treino-preview.php?${params.toString()}`, {headers:{'Accept':'application/json'}, credentials:'same-origin'}, 10000);
-            const data = await response.json().catch(() => null);
-            if (!response.ok || !data?.ok) throw new Error(data?.error || tr('schedule.load_error'));
-            loading.remove();
-            return renderDynamicPreviewContent(data);
-        } catch (error) {
-            loading.innerHTML = `<div class="workout-preview-load-error"><strong>${escapeHtml(tr('schedule.load_error'))}</strong><button type="button" class="secondary-button" data-preview-retry>${escapeHtml(tr('schedule.retry'))}</button></div>`;
-            loading.querySelector('[data-preview-retry]')?.addEventListener('click', async () => {
-                loading.remove();
-                await ensurePreviewContent(id);
-            }, {once:true});
-            throw error;
-        }
+        return loading;
     };
-    const showWorkoutPreview = async trigger => {
-        if (!previewModal) return;
-        const id = trigger.dataset.previewWorkout;
-        if (!id) return;
-        previewWorkoutId = id;
-        const source = trigger.closest('[data-occurrence-workout],[data-planned-date],[data-completed]') || trigger;
-        previewWorkoutDate = trigger.dataset.workoutDate || source.dataset.occurrenceDate || source.dataset.plannedDate || '';
+    const renderPreviewError = (request, error) => {
+        if (!previewHost || !previewRequestIsCurrent(request)) return;
+        const failed = document.createElement('div');
+        failed.className = 'workout-preview-content workout-preview-load-error';
+        failed.dataset.workoutPreviewContent = request.context.workoutId;
+        failed.dataset.previewState = 'error';
+        failed.innerHTML = `<strong>${escapeHtml(error?.message || tr('schedule.load_error'))}</strong><button type="button" class="secondary-button" data-preview-retry>${escapeHtml(tr('schedule.retry'))}</button>`;
+        if (!previewSlot.replace(request, failed)) return;
+        failed.querySelector('[data-preview-retry]')?.addEventListener('click', () => {
+            startPreviewRequest(request.context, previewLastTrigger);
+        }, {once:true});
+    };
+    const ensurePreviewContent = async request => {
+        const context = request.context;
+        const params = new URLSearchParams({idtreino:context.workoutId});
+        if (context.occurrenceOriginal) params.set('occurrence_original', context.occurrenceOriginal);
+        if (context.plannedDate) params.set('planned_date', context.plannedDate);
+        if (context.activityId) params.set('activity_id', context.activityId);
+        const response = await (window.StrideBRNet?.fetch || fetch)(`/api/cronograma-treino-preview.php?${params.toString()}`, {headers:{'Accept':'application/json'}, credentials:'same-origin', signal:request.controller.signal}, 10000);
+        const data = await response.json().catch(() => null);
+        if (response.status === 401) {
+            const authError = new Error(data?.error || tr('schedule.load_error'));
+            authError.name = 'AuthError';
+            throw authError;
+        }
+        if (!response.ok || !data?.ok) throw new Error(data?.error || tr('schedule.load_error'));
+        if (!previewRequestIsCurrent(request)) return null;
+        return renderDynamicPreviewContent(data);
+    };
+    const startPreviewRequest = async (context, triggerForFocus = null) => {
+        if (!previewModal || !previewHost || !context?.workoutId) return;
+        if (triggerForFocus?.isConnected) previewLastTrigger = triggerForFocus;
+        const request = previewSlot.begin(context, createPreviewLoading(context));
+        applyPreviewContext(context);
         previewModal.hidden = false;
         document.documentElement.style.overflow = 'hidden';
-        syncPreviewOccurrenceContext(trigger);
-        try { await ensurePreviewContent(id); } catch (error) { uiNotify(error?.message || tr('schedule.load_error')); }
-        const activeContent = previewContents().find(content => content.dataset.workoutPreviewContent === id) || null;
-        if (activeContent) {
-            const resolvedActivity = activeContent.dataset.activityId || '';
-            if (resolvedActivity) previewActivityId = resolvedActivity;
+        try {
+            const activeContent = await ensurePreviewContent(request);
+            if (!activeContent || !previewRequestIsCurrent(request)) return;
+            if (!previewSlot.replace(request, activeContent)) return;
+            if (!previewRequestIsCurrent(request)) return;
+            const resolvedActivity = activeContent.dataset.activityId || context.activityId || '';
+            applyPreviewContext(context, activeContent, resolvedActivity);
+            if (!previewRequestIsCurrent(request)) return;
             const performed = activeContent.dataset.previewMode === 'performed';
             activeContent.querySelectorAll('[data-quick-register-workout],[data-start-workout]').forEach(action => { action.hidden = performed; });
-            activeContent.querySelectorAll('[data-preview-move],[data-preview-skip]').forEach(action => { action.hidden = !previewOccurrenceOriginal || performed; });
+            activeContent.querySelectorAll('[data-preview-move],[data-preview-skip]').forEach(action => { action.hidden = !context.occurrenceOriginal || performed; });
             activeContent.querySelectorAll('[data-preview-adjust-history]').forEach(action => { action.hidden = !performed || !previewActivityId; });
+            activeContent.querySelectorAll('[data-return-current]').forEach(input => { input.value = `${location.pathname}${location.search}${location.hash}`; });
+            if (!previewRequestIsCurrent(request)) return;
+            previewModal.querySelector('[data-close-preview]')?.focus({preventScroll:true});
+        } catch (error) {
+            if (error?.name === 'AbortError' || !previewRequestIsCurrent(request)) return;
+            if (error?.name === 'AuthError') {
+                previewSlot.close();
+                previewModal.hidden = true;
+                document.documentElement.style.overflow = '';
+                window.location.assign('/login.php?session=invalid');
+                return;
+            }
+            renderPreviewError(request, error);
         }
-        syncPreviewOccurrenceContext(trigger);
-        previewModal.querySelectorAll('[data-return-current]').forEach(input => { input.value = `${location.pathname}${location.search}${location.hash}`; });
-        previewModal.querySelector('[data-close-preview]')?.focus();
     };
-    const closePreview = () => {
+    const showWorkoutPreview = trigger => {
+        if (!previewModal || !previewHost || !trigger) return;
+        const context = capturePreviewContext(trigger);
+        if (!context.workoutId) return;
+        return startPreviewRequest(context, trigger);
+    };
+    const closePreview = ({restoreFocus = true} = {}) => {
         if (!previewModal) return;
+        previewSlot?.close();
         previewModal.hidden = true;
         document.documentElement.style.overflow = '';
+        if (restoreFocus && previewLastTrigger?.isConnected) previewLastTrigger.focus({preventScroll:true});
     };
     document.querySelectorAll('[data-preview-workout]').forEach(button => {
         button.dataset.previewBound = '1';
         button.addEventListener('click', () => showWorkoutPreview(button));
     });
-    document.querySelectorAll('[data-close-preview]').forEach(button => button.addEventListener('click', closePreview));
+    document.querySelectorAll('[data-close-preview]').forEach(button => button.addEventListener('click', () => closePreview()));
     document.addEventListener('keydown', event => {
         if (event.key === 'Escape' && previewModal && !previewModal.hidden) closePreview();
+    });
+    viewButtons.forEach(button => button.addEventListener('click', () => {
+        if (previewModal && !previewModal.hidden) closePreview({restoreFocus:false});
+    }));
+    scheduleSelector?.addEventListener('change', () => {
+        if (previewModal && !previewModal.hidden) closePreview({restoreFocus:false});
+        else invalidatePreviewRequest();
     });
 
     const quickRegisterModal = document.querySelector('[data-quick-register-modal]');

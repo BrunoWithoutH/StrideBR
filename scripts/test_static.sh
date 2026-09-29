@@ -99,6 +99,7 @@ php scripts/tests/test_i18n_theme_google_static.php
 php scripts/tests/test_production_theme_migrations_static.php
 php scripts/tests/test_integrations_foundation_static.php
 php scripts/tests/test_integrations_external_rc4.php
+php scripts/tests/test_strava_metric_fidelity_v1_static.php
 php scripts/tests/test_external_events_v1_static.php
 php scripts/tests/test_strava_webhooks.php
 php scripts/tests/test_core_nav_strava_backfill_static.php
@@ -171,3 +172,5 @@ php scripts/tests/test_workout_builder_v2_static.php
 node scripts/tests/test_workout_builder_v2.js
 php scripts/tests/test_training_platform_consistency_v1_static.php
 node scripts/tests/test_training_platform_consistency_v1.js
+php scripts/tests/test_workout_preview_stability_v1_static.php
+node scripts/tests/test_workout_preview_stability_v1.js

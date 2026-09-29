@@ -115,13 +115,13 @@ function sportHubActivityRowsQuery(PDO $pdo, string $userId, ?DateTimeImmutable 
         m.idmodalidade, m.nome AS modalidade_nome, m.slug AS modalidade_slug, m.categoria, m.familia_hub, m.metrica_derivada, m.permite_rota,
         COALESCE(NULLIF(r.distancia_metros, 0), metric.distancia_m) AS distancia_raw_m,
         COALESCE(NULLIF(r.ganho_elevacao_m, 0), metric.elevacao_m) AS elevacao_raw_m,
-        COALESCE(NULLIF(GREATEST(0, EXTRACT(EPOCH FROM (COALESCE(ra.data_fim, ra.data_inicio) - ra.data_inicio))), 0), metric.duracao_s) AS duration_raw_s,
+        CASE WHEN ra.origem_provedor = 'strava' AND metric.duracao_s IS NOT NULL THEN metric.duracao_s ELSE COALESCE(NULLIF(GREATEST(0, EXTRACT(EPOCH FROM (COALESCE(ra.data_fim, ra.data_inicio) - ra.data_inicio))), 0), metric.duracao_s) END AS duration_raw_s,
         COALESCE(NULLIF(r.distancia_metros, 0), metric.distancia_m, 0) AS distancia_metros,
         COALESCE(NULLIF(r.ganho_elevacao_m, 0), metric.elevacao_m, 0) AS ganho_elevacao_m,
         COALESCE(ra.calorias_externas, ra.calorias_ativas_estimadas, 0) AS calorias_kcal,
         perf.fc_media_bpm, perf.fc_maxima_bpm, perf.cadencia_media, perf.potencia_media_w, perf.vento_m_s, perf.tempo_reacao_s,
         perf.tipo_sessao, perf.formato_jogo, perf.resultado, perf.adversario, perf.placar, perf.placar_favor, perf.placar_contra, perf.posicao, perf.rounds, perf.pontuacao, perf.rodadas,
-        COALESCE(NULLIF(GREATEST(0, EXTRACT(EPOCH FROM (COALESCE(ra.data_fim, ra.data_inicio) - ra.data_inicio))), 0), metric.duracao_s, 0) AS duration_db_s
+        CASE WHEN ra.origem_provedor = 'strava' AND metric.duracao_s IS NOT NULL THEN metric.duracao_s ELSE COALESCE(NULLIF(GREATEST(0, EXTRACT(EPOCH FROM (COALESCE(ra.data_fim, ra.data_inicio) - ra.data_inicio))), 0), metric.duracao_s, 0) END AS duration_db_s
         FROM registros_atividade ra
         JOIN modalidades m ON m.idmodalidade = ra.idmodalidade
         LEFT JOIN rotas_atividade r ON r.idregistro = ra.idregistro

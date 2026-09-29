@@ -1,5 +1,7 @@
 <?php
 require_once dirname(__DIR__, 2) . '/src/function/integrations.php';
+require_once dirname(__DIR__, 2) . '/src/function/atividade_presenter.php';
+require_once dirname(__DIR__, 2) . '/src/function/sport_hub.php';
 return function (PDO $pdo): void {
     $env = [];
     foreach (['STRIDEBR_INTEGRATIONS_SECRET', 'STRAVA_CLIENT_ID', 'STRAVA_CLIENT_SECRET'] as $key) { $env[$key] = getenv($key); putenv($key . '=synthetic-only-credential-for-tests-12345678'); }
@@ -7,6 +9,7 @@ return function (PDO $pdo): void {
     $previousLog = ini_get('error_log');
     ini_set('error_log', $log);
     $fixture = json_decode(file_get_contents(__DIR__ . '/fixtures/strava_activity.json'), true, 512, JSON_THROW_ON_ERROR);
+    $raceFixture = json_decode(file_get_contents(__DIR__ . '/fixtures/strava_activity_race.json'), true, 512, JSON_THROW_ON_ERROR);
     $calls = [];
     $items = [$fixture];
     $backfillItems = [];
@@ -81,7 +84,39 @@ return function (PDO $pdo): void {
         $device = json_decode($saved['dispositivo_origem'], true);
         AlphaTest::same('GPS Watch', $device['name'], 'Device preserved');
         AlphaTest::same(1, count($device['laps']), 'Lap preserved');
+        AlphaTest::assert(abs((float) ($device['laps'][0]['average_speed'] ?? 0) - 2.8574) < 0.000001, 'Lap average speed preserved');
         AlphaTest::assert(!isset($device['laps'][0]['start_index']), 'Only supported lap data persisted');
+        AlphaTest::same('Strava', $device['source'] ?? null, 'Strava source attribution preserved');
+        AlphaTest::same(1800, (int) round((float) ($device['moving_time_s'] ?? -1)), 'Moving time preserved in provider metadata');
+        AlphaTest::same(1864, (int) round((float) ($device['elapsed_time_s'] ?? -1)), 'Elapsed time preserved in provider metadata');
+        AlphaTest::assert(abs((float) ($device['average_speed_mps'] ?? 0) - 2.846) < 0.000001, 'Provider average speed preserved in metadata');
+        AlphaTest::same(0, (int) ($device['workout_type'] ?? -1), 'Workout type preserved in provider metadata');
+        AlphaTest::same('moving_time', $device['duration_basis'] ?? null, 'Provider duration basis preserved in metadata');
+        $record = atividadeCarregarRegistro($pdo, (string) $saved['idregistro'], $user);
+        $recordDuration = null;
+        $recordValues = is_array($record['record_values'] ?? null) ? $record['record_values'] : [];
+        if (!empty($record['unidades'][0]['values']) && is_array($record['unidades'][0]['values'])) $recordValues += $record['unidades'][0]['values'];
+        foreach ($record['campos'] ?? [] as $field) {
+            if (stridebr_lower((string) ($field['slug'] ?? '')) !== 'duracao') continue;
+            $fieldId = (string) ($field['idcampo'] ?? '');
+            if ($fieldId === '' || !array_key_exists($fieldId, $recordValues)) continue;
+            $recordDuration = atividadeIntervaloParaSegundos(atividadeFormatarIntervalo($recordValues[$fieldId]));
+            break;
+        }
+        AlphaTest::same(1800, (int) round((float) $recordDuration), 'Persisted Activity duration uses Strava primary moving time');
+        $cardMetrics = atividadeCardMetricas($record, 12);
+        $cardPace = null;
+        foreach ($cardMetrics as $metric) if (str_ends_with((string) ($metric['valor'] ?? ''), '/km')) { $cardPace = (string) $metric['valor']; break; }
+        AlphaTest::same('5:51/km', $cardPace, 'Activity card presenter uses provider-compatible pace');
+        $detail = atividadeDetalheApi($pdo, (string) $saved['idregistro'], $user);
+        $detailPace = null;
+        foreach ($detail['metricas'] ?? [] as $metric) if (str_ends_with((string) ($metric['valor'] ?? ''), '/km')) { $detailPace = (string) $metric['valor']; break; }
+        $sharePace = null;
+        foreach ($detail['metricas_compartilhamento'] ?? [] as $metric) if (str_ends_with((string) ($metric['valor'] ?? ''), '/km')) { $sharePace = (string) $metric['valor']; break; }
+        AlphaTest::same('5:51/km', $detailPace, 'Activity detail uses provider-compatible pace');
+        AlphaTest::same($detailPace, $sharePace, 'Detail and Story/share metrics use the same canonical pace');
+        $hubRows = sportHubActivityRowsQuery($pdo, $user, null, null, [(string) $saved['idregistro']]);
+        AlphaTest::same(1800, (int) round((float) ($hubRows[0]['duration_raw_s'] ?? -1)), 'Sport Hub and Progress use canonical Strava duration instead of wall-clock elapsed');
         $route = $pdo->prepare('SELECT distancia_metros FROM rotas_atividade WHERE idregistro = :id');
         $route->execute([':id' => $saved['idregistro']]);
         AlphaTest::assert((float) $route->fetchColumn() > 0, 'Polyline persisted');
@@ -105,6 +140,9 @@ return function (PDO $pdo): void {
         $logText = file_get_contents($log);
         AlphaTest::assert(str_contains($logText, 'normalization.datetime') && str_contains($logText, (string) $bad['id']), 'Log identifies exact stage and external ID');
         AlphaTest::assert(str_contains($logText, 'exception_type') && str_contains($logText, 'error_code'), 'Structured diagnostic');
+        $normalizedRace = stridebr_integrations_normalize_strava($raceFixture);
+        AlphaTest::same(1800, (int) round((float) $normalizedRace['duration_s']), 'Strava Race uses elapsed time as primary duration');
+        AlphaTest::same('elapsed_time', $normalizedRace['duration_basis'] ?? null, 'Strava Race records elapsed duration basis');
         $normalized = stridebr_integrations_normalize_strava($fixture);
         $normalized['external_id'] = str_repeat('9', 191);
         $count = (int) $pdo->query("SELECT count(*) FROM registros_atividade WHERE idusuario = '$user'")->fetchColumn();

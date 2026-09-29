@@ -6,6 +6,8 @@
   "distance": 5123.4,
   "moving_time": 1800,
   "elapsed_time": 1864,
+  "average_speed": 2.846,
+  "workout_type": 0,
   "total_elevation_gain": 42.3,
   "type": "Run",
   "sport_type": "Run",
@@ -24,7 +26,7 @@
   "average_watts": 224.3,
   "calories": 345.2,
   "device_name": "GPS Watch",
-  "laps": [{"id": 777001, "name": "Lap 1", "elapsed_time": 363, "moving_time": 350, "distance": 1000.1, "average_heartrate": 150.2, "start_index": 0, "end_index": 350}],
+  "laps": [{"id": 777001, "name": "Lap 1", "elapsed_time": 363, "moving_time": 350, "distance": 1000.1, "average_speed": 2.8574, "average_heartrate": 150.2, "start_index": 0, "end_index": 350}],
   "description": "Synthetic private text: must never enter logs",
   "photos": {"count": 0, "primary": null}
 }

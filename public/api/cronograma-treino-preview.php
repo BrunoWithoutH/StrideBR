@@ -5,14 +5,14 @@ declare(strict_types=1);
 require_once dirname(__DIR__, 2) . '/src/includes/errors.php';
 require_once dirname(__DIR__, 2) . '/src/includes/app.php';
 
+$idUsuario = stridebr_require_login();
+require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
+require_once dirname(__DIR__, 2) . '/src/function/workout_preview_service.php';
+
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: private, no-store');
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') stridebr_session_release();
-
-$idUsuario = stridebr_require_login();
-require_once dirname(__DIR__, 2) . '/src/config/pg_config.php';
-require_once dirname(__DIR__, 2) . '/src/function/workout_preview_service.php';
 
 try {
     $idTreino = trim((string) ($_GET['idtreino'] ?? ''));

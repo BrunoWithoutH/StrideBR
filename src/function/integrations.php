@@ -808,7 +808,8 @@ function stridebr_integrations_store_activity_data(PDO $pdo, string $userId, str
     if (empty($activity['start_at'])) throw new InvalidArgumentException('Missing start time.');
     $start = new DateTimeImmutable((string) $activity['start_at']);
     $duration = is_numeric($activity['duration_s'] ?? null) ? max(0, (int) round((float) $activity['duration_s'])) : null;
-    $end = $duration !== null ? $start->modify('+' . $duration . ' seconds') : null;
+    $elapsedDuration = is_numeric($activity['elapsed_time_s'] ?? null) ? max(0, (int) round((float) $activity['elapsed_time_s'])) : $duration;
+    $end = $elapsedDuration !== null ? $start->modify('+' . $elapsedDuration . ' seconds') : null;
     $defaults = atividadePadroesUsuario($pdo, $userId);
     $title = trim((string) ($activity['title'] ?? '')) ?: (string) $modalidade['nome'];
     $payload = [
@@ -840,6 +841,10 @@ function stridebr_integrations_store_activity_data(PDO $pdo, string $userId, str
     $id = atividadeSalvarRegistro($pdo, $userId, $payload);
     $device = is_array($activity['device'] ?? null) ? $activity['device'] : [];
     if (is_numeric($activity['moving_time_s'] ?? null)) $device['moving_time_s'] = (float) $activity['moving_time_s'];
+    if (is_numeric($activity['elapsed_time_s'] ?? null)) $device['elapsed_time_s'] = (float) $activity['elapsed_time_s'];
+    if (is_numeric($activity['average_speed_mps'] ?? null)) $device['average_speed_mps'] = (float) $activity['average_speed_mps'];
+    if (is_numeric($activity['workout_type'] ?? null)) $device['workout_type'] = (int) $activity['workout_type'];
+    if (is_string($activity['duration_basis'] ?? null) && $activity['duration_basis'] !== '') $device['duration_basis'] = $activity['duration_basis'];
     if (trim((string) ($activity['timezone'] ?? '')) !== '') $device['timezone'] = trim((string) $activity['timezone']);
     $stage = 'persistence.external_identity';
     $update = $pdo->prepare('UPDATE registros_atividade SET origem_provedor = :provedor, id_externo = :externo, dispositivo_origem = CAST(:device AS jsonb), data_inicio = :inicio, data_fim = :fim, data_atualizacao = NOW() WHERE idregistro = :registro AND idusuario = :usuario');
@@ -948,6 +953,43 @@ function stridebr_integrations_strava_rate_low(array $response): bool
     return false;
 }
 
+function stridebr_integrations_strava_primary_duration(array $activity): array
+{
+    $moving = is_numeric($activity['moving_time_s'] ?? null) ? (float) $activity['moving_time_s'] : null;
+    $elapsed = is_numeric($activity['elapsed_time_s'] ?? null) ? (float) $activity['elapsed_time_s'] : null;
+    $distance = is_numeric($activity['distance_m'] ?? null) ? (float) $activity['distance_m'] : null;
+    $averageSpeed = is_numeric($activity['average_speed_mps'] ?? null) ? (float) $activity['average_speed_mps'] : null;
+    $sport = trim((string) ($activity['sport'] ?? ''));
+    $workoutType = $activity['workout_type'] ?? null;
+    $runSports = ['Run', 'TrailRun', 'VirtualRun'];
+    $movingSports = ['Run', 'TrailRun', 'VirtualRun', 'Walk', 'Hike', 'Ride', 'MountainBikeRide', 'GravelRide', 'VirtualRide', 'EBikeRide', 'EMountainBikeRide'];
+
+    if (in_array($sport, $runSports, true) && is_numeric($workoutType) && (int) $workoutType === 1 && $elapsed !== null && $elapsed > 0) {
+        return ['duration_s' => $elapsed, 'basis' => 'elapsed_time'];
+    }
+
+    if ($distance !== null && $distance > 0 && $averageSpeed !== null && $averageSpeed > 0) {
+        $providerDuration = $distance / $averageSpeed;
+        $matches = static function (?float $candidate) use ($providerDuration): bool {
+            if ($candidate === null || $candidate <= 0) return false;
+            return abs($candidate - $providerDuration) <= max(2.0, $candidate * 0.005);
+        };
+        $movingMatch = $matches($moving);
+        $elapsedMatch = $matches($elapsed);
+        if ($movingMatch !== $elapsedMatch) {
+            return $movingMatch
+                ? ['duration_s' => $moving, 'basis' => 'moving_time']
+                : ['duration_s' => $elapsed, 'basis' => 'elapsed_time'];
+        }
+    }
+
+    if (in_array($sport, $movingSports, true) && $moving !== null && $moving > 0) return ['duration_s' => $moving, 'basis' => 'moving_time'];
+    if ($elapsed !== null && $elapsed > 0) return ['duration_s' => $elapsed, 'basis' => 'elapsed_time'];
+    if ($moving !== null) return ['duration_s' => $moving, 'basis' => 'moving_time'];
+    if ($elapsed !== null) return ['duration_s' => $elapsed, 'basis' => 'elapsed_time'];
+    return ['duration_s' => null, 'basis' => null];
+}
+
 function stridebr_integrations_normalize_strava(array $data): array
 {
     if (empty($data['id']) || !is_scalar($data['id']) || empty($data['start_date']) || !is_string($data['start_date'])) {
@@ -969,21 +1011,29 @@ function stridebr_integrations_normalize_strava(array $data): array
     if (is_array($data['laps'] ?? null)) {
         $device['laps'] = array_map(static fn(array $lap): array => array_intersect_key($lap, array_flip(['id', 'name', 'elapsed_time', 'moving_time', 'distance', 'total_elevation_gain', 'average_speed', 'average_heartrate', 'average_cadence', 'average_watts'])), array_slice(array_values(array_filter($data['laps'], 'is_array')), 0, 100));
     }
+    $workoutType = $data['workout_type'] ?? null;
+    if ($workoutType !== null && (!is_numeric($workoutType) || !is_finite((float) $workoutType) || (float) $workoutType < 0 || floor((float) $workoutType) !== (float) $workoutType)) {
+        throw new StridebrIntegrationError('normalization.metrics', 'invalid_metric');
+    }
     $activity = [
         'external_id' => (string) $data['id'], 'title' => trim((string) ($data['name'] ?? '')),
         'sport' => (string) ($data['sport_type'] ?? $data['type'] ?? ''), 'start_at' => $data['start_date'],
-        'duration_s' => $data['elapsed_time'] ?? $data['moving_time'] ?? null, 'moving_time_s' => $data['moving_time'] ?? null,
-        'distance_m' => $data['distance'] ?? null, 'elevation_gain_m' => $data['total_elevation_gain'] ?? null,
+        'duration_s' => null, 'moving_time_s' => $data['moving_time'] ?? null, 'elapsed_time_s' => $data['elapsed_time'] ?? null,
+        'distance_m' => $data['distance'] ?? null, 'average_speed_mps' => $data['average_speed'] ?? null, 'workout_type' => $workoutType !== null ? (int) $workoutType : null,
+        'elevation_gain_m' => $data['total_elevation_gain'] ?? null,
         'avg_hr' => $data['average_heartrate'] ?? null, 'max_hr' => $data['max_heartrate'] ?? null,
         'avg_cadence' => $data['average_cadence'] ?? null, 'avg_power' => $data['average_watts'] ?? null,
         'calories' => $data['calories'] ?? null, 'route' => $route, 'device' => $device,
         'timezone' => is_string($data['timezone'] ?? null) ? $data['timezone'] : '',
     ];
-    foreach (['duration_s', 'moving_time_s', 'distance_m', 'elevation_gain_m', 'avg_hr', 'max_hr', 'avg_cadence', 'avg_power', 'calories'] as $key) {
+    foreach (['moving_time_s', 'elapsed_time_s', 'distance_m', 'average_speed_mps', 'elevation_gain_m', 'avg_hr', 'max_hr', 'avg_cadence', 'avg_power', 'calories'] as $key) {
         if ($activity[$key] !== null && (!is_numeric($activity[$key]) || !is_finite((float) $activity[$key]) || (float) $activity[$key] < 0)) {
             throw new StridebrIntegrationError('normalization.metrics', 'invalid_metric');
         }
     }
+    $duration = stridebr_integrations_strava_primary_duration($activity);
+    $activity['duration_s'] = $duration['duration_s'];
+    $activity['duration_basis'] = $duration['basis'];
     return $activity;
 }
 
